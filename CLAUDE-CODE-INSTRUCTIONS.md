@@ -43,14 +43,23 @@
 colors: {
   cloud: '#FAFAFA',       // 65% — background
   ink: '#0F0F14',         // 25% — text
-  cobalt: '#1E40AF',      // 8% — brand accent
-  citrus: '#EAB308',      // 2% — highlight
+  citrus: '#EAB308',      // 8% — brand accent (SWAPPED 2026-08-21, was cobalt)
+  cobalt: '#1E40AF',      // 2% — highlight (SWAPPED 2026-08-21, was citrus)
   // Semantic
   'ink-muted': 'rgba(15, 15, 20, 0.75)',
   'ink-subtle': 'rgba(15, 15, 20, 0.5)',
   'ink-faint': 'rgba(15, 15, 20, 0.1)',
 }
 ```
+
+> **COLOR SWAP NOTE (2026-08-21, per Shoaib):** Citrus is now the primary brand
+> accent (8%) and Cobalt the rare highlight (2%). Everywhere this document says
+> "Cobalt" as accent (tags, secondary buttons, selection, icons, animated lines),
+> read Citrus — and vice versa for highlight moments.
+> **Accessibility rule:** Citrus #EAB308 on Cloud #FAFAFA fails text contrast.
+> Use Citrus for: backgrounds/badges (with Ink text), underlines, icon fills,
+> decorative lines, hover glows. Keep body-level text accents in Ink or Cobalt
+> (Cobalt passes contrast on Cloud). Confirm per-element with Shoaib during build.
 
 ### Typography
 
@@ -840,7 +849,7 @@ Visual mockups already created (use as design reference):
 
 1. **Follow the phase order exactly** — foundation before components before pages.
 2. **Copy is locked** — use exactly as provided in reference files.
-3. **Design system is locked** — Cloud/Ink/Cobalt/Citrus, Instrument Serif/Geist, no deviations.
+3. **Design system is locked** — Cloud/Ink/Citrus/Cobalt (Citrus = accent, Cobalt = highlight, per swap note above), Instrument Serif/Geist, no deviations.
 4. **Test on real mobile** — desktop preview lies.
 5. **Ask Shoaib before creative decisions** — visual style, animation intensity, layout changes.
 6. **Optimize as you build** — don't leave performance for the end.
