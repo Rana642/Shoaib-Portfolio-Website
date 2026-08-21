@@ -1,0 +1,132 @@
+import Link from "next/link";
+import { Mail } from "lucide-react";
+import { LinkedinIcon, InstagramIcon, YoutubeIcon } from "@/components/ui/SocialIcons";
+
+const explore = [
+  { href: "/services", label: "Services" },
+  { href: "/case-studies", label: "Case Studies" },
+  { href: "/about", label: "About" },
+  { href: "/blog", label: "Blog" },
+  { href: "/shoaib-nabi-noor", label: "Resume" },
+];
+
+const services = [
+  { href: "/services", label: "Meta Ads" },
+  { href: "/services", label: "Google Ads" },
+  { href: "/services", label: "Tracking & Analytics" },
+  { href: "/services", label: "Funnels & Web" },
+];
+
+export default function Footer() {
+  return (
+    <footer className="bg-ink text-cloud mt-auto">
+      <div className="container-wide py-16 md:py-20 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
+        {/* Brand */}
+        <div>
+          <Link href="/" className="font-serif italic text-2xl">
+            ads by shoaib<span className="text-citrus not-italic font-sans font-bold">.</span>
+          </Link>
+          <p className="text-small text-cloud/60 mt-4 max-w-xs">
+            Independent performance marketing practice led by Shoaib Nabi Noor.
+            Managed, not just monitored.
+          </p>
+          <div className="flex gap-3 mt-6">
+            {[
+              { Icon: LinkedinIcon, label: "LinkedIn", href: "#" },
+              { Icon: InstagramIcon, label: "Instagram", href: "#" },
+              { Icon: YoutubeIcon, label: "YouTube", href: "#" },
+              { Icon: Mail, label: "Email", href: "mailto:hello@adsbyshoaib.com" },
+            ].map(({ Icon, label, href }) => (
+              <a
+                key={label}
+                href={href}
+                aria-label={label}
+                className="flex items-center justify-center size-11 rounded-lg border border-cloud/15 text-cloud/70 hover:text-ink hover:bg-citrus hover:border-citrus transition-all duration-300"
+              >
+                <Icon className="size-4" />
+              </a>
+            ))}
+          </div>
+        </div>
+
+        {/* Explore */}
+        <div>
+          <h3 className="font-mono uppercase text-tag tracking-widest text-cloud/40 mb-5">
+            Explore
+          </h3>
+          <ul className="space-y-3">
+            {explore.map((link) => (
+              <li key={link.label}>
+                <Link
+                  href={link.href}
+                  className="text-small text-cloud/70 hover:text-citrus transition-colors"
+                >
+                  {link.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Services */}
+        <div>
+          <h3 className="font-mono uppercase text-tag tracking-widest text-cloud/40 mb-5">
+            Services
+          </h3>
+          <ul className="space-y-3">
+            {services.map((link) => (
+              <li key={link.label}>
+                <Link
+                  href={link.href}
+                  className="text-small text-cloud/70 hover:text-citrus transition-colors"
+                >
+                  {link.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Newsletter */}
+        <div>
+          <h3 className="font-mono uppercase text-tag tracking-widest text-cloud/40 mb-5">
+            Newsletter
+          </h3>
+          <p className="text-small text-cloud/60 mb-4">
+            Field notes on what actually moves the needle in paid media. No fluff.
+          </p>
+          {/* Wired to /api/newsletter in Phase 7 */}
+          <form className="flex gap-2">
+            <input
+              type="email"
+              required
+              placeholder="you@company.com"
+              aria-label="Email address"
+              className="flex-1 min-w-0 rounded-lg bg-cloud/10 border border-cloud/15 px-4 py-3 text-small text-cloud placeholder:text-cloud/40 focus:outline-none focus:border-citrus"
+            />
+            <button
+              type="submit"
+              className="rounded-lg bg-citrus text-ink px-4 py-3 text-small font-medium hover:brightness-110 transition-all"
+            >
+              Join
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div className="border-t border-cloud/10">
+        <div className="container-wide py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-small text-cloud/40">
+          <p>© {new Date().getFullYear()} Ads by Shoaib. All rights reserved.</p>
+          <div className="flex gap-6">
+            <Link href="/privacy" className="hover:text-cloud/70 transition-colors">
+              Privacy Policy
+            </Link>
+            <Link href="/terms" className="hover:text-cloud/70 transition-colors">
+              Terms of Service
+            </Link>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}

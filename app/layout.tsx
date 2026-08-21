@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import { instrumentSerif, geist, geistMono } from "./fonts";
+import Nav from "@/components/layout/Nav";
+import Footer from "@/components/layout/Footer";
+import SmoothScroll from "@/components/shared/SmoothScroll";
+import AmbientBackground from "@/components/shared/AmbientBackground";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,7 +22,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${instrumentSerif.variable} ${geist.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col noise-overlay">
+        <SmoothScroll>
+          <AmbientBackground />
+          <Nav />
+          {children}
+          <Footer />
+        </SmoothScroll>
+      </body>
     </html>
   );
 }
