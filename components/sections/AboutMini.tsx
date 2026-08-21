@@ -32,14 +32,14 @@ export default function AboutMini() {
           </Reveal>
           <Reveal delay={0.1}>
             <p className="text-body-lg text-ink-muted mt-6">
-              Six years ago I was an accountant who kept asking marketing teams why the
-              numbers didn't add up. Now I run an independent performance marketing
-              practice where they have to.
+              I've spent the last six years inside ad accounts — planning, launching, and
+              managing paid campaigns across Meta, Google, YouTube, and TikTok for brands
+              in eight industries.
             </p>
             <p className="text-body text-ink-muted mt-4">
-              I plan, launch, and manage paid campaigns across Meta, Google, YouTube, and
-              TikTok — backed by a specialist network for design, video, and development
-              when a build needs more hands.
+              Every account gets the same treatment: numbers first, opinions second —
+              backed by a specialist network for design, video, and development when a
+              build needs more hands.
             </p>
           </Reveal>
           <Reveal delay={0.2}>
