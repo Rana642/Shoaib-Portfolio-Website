@@ -14,6 +14,12 @@ import { resumeRolesQuery, resumeProjectsQuery } from "./sanity/queries";
 
 export type Stint = { period: string; note?: string };
 
+/** Each managed brand/property gets its own name, one-line note on what
+ *  was actually done for it, and a link where Shoaib has confirmed one —
+ *  never guessed, since a wrong social link on a real business is worse
+ *  than no link. */
+export type ManagedItem = { name: string; note?: string; url?: string };
+
 export type PrimaryRole = {
   company: string;
   location: string;
@@ -21,7 +27,7 @@ export type PrimaryRole = {
   stints: Stint[];
   overview: string;
   managedLabel: string;
-  managed: string[];
+  managed: ManagedItem[];
   contributions: string[];
   note?: string;
 };
@@ -40,14 +46,30 @@ export const primaryRoles: PrimaryRole[] = [
       "Multi-brand group operating hospitality, salon, education, real estate, and event businesses across Multan — each brand runs its own independent social presence.",
     managedLabel: "Brands managed",
     managed: [
-      "Toni&Guy Multan (international salon franchise)",
-      "Choppers Salon",
-      "Hotel Avalon Suites",
-      "Hotel Elegant Executive Suite Multan",
-      "Eventia 360 (events)",
-      "Pines Institute (education)",
-      "AvenzaLand.com (real estate portal)",
-      "Avenza Avenue",
+      {
+        name: "Toni&Guy Multan",
+        note: "International salon franchise — Meta Ads awareness campaigns",
+      },
+      { name: "Choppers Salon", note: "Meta Ads awareness campaigns" },
+      {
+        name: "Hotel Avalon Suites",
+        note: "WhatsApp booking + awareness/engagement ads — the hotel had no website of its own",
+      },
+      {
+        name: "Hotel Elegant Executive Suite Multan",
+        note: "WhatsApp booking + awareness/engagement ads — later became an independent remote client with its own booking website (see below)",
+      },
+      { name: "Eventia 360", note: "Events — social media management and content strategy" },
+      { name: "Pines Institute", note: "Education — social media management and content strategy" },
+      {
+        name: "AvenzaLand.com",
+        note: "Real estate portal",
+        url: "https://avenzaland.com",
+      },
+      {
+        name: "Avenza Avenue",
+        note: "Meta Business Suite setup and blue tick verification",
+      },
     ],
     contributions: [
       "Full social media management across all brand handles — posting and content strategy",
@@ -70,7 +92,11 @@ export const primaryRoles: PrimaryRole[] = [
     overview:
       "Real estate construction and development company in DHA Multan, selling three home categories under one unified brand platform.",
     managedLabel: "Product categories",
-    managed: ["Lavista Smart Homes", "Spanish Modern Villas", "Aura Classic Home"],
+    managed: [
+      { name: "Lavista Smart Homes" },
+      { name: "Spanish Modern Villas" },
+      { name: "Aura Classic Home" },
+    ],
     contributions: [
       "Full social media management and caption/content writing",
       "Meta Ads across awareness, engagement, and lead generation",
@@ -88,7 +114,9 @@ export const primaryRoles: PrimaryRole[] = [
     overview:
       "E-commerce women's footwear brand based in Multan — the first formal digital marketing role after switching careers from accounting, and the first hands-on Meta Ads experience.",
     managedLabel: "Focus",
-    managed: ["choiceshoes.pk — women's footwear e-commerce"],
+    managed: [
+      { name: "choiceshoes.pk", note: "Women's footwear e-commerce", url: "https://choiceshoes.pk" },
+    ],
     contributions: [
       "Social media strategy and daily content management",
       "First Meta Ads campaigns — modest results, but foundational",
@@ -104,6 +132,7 @@ export type RemoteProject = {
   role: string;
   period?: string;
   overview?: string;
+  url?: string;
   services: string[];
   note?: string;
 };
@@ -112,6 +141,7 @@ export const remoteProjects: RemoteProject[] = [
   {
     company: "Meezab Z. International",
     role: "Digital Marketing Consultant",
+    url: "https://meezabz.com",
     overview:
       "Multan-based (founded 2014) importer/distributor of WHO-GMP & HACCP-GMP certified poultry animal-health products — exclusive Pakistan distributor for REEFCO (Jordan) and Lexington Enterprises (Singapore), covering 100+ areas across Punjab, Sindh, and Balochistan.",
     services: [
@@ -127,6 +157,7 @@ export const remoteProjects: RemoteProject[] = [
   {
     company: "TAD Pharma",
     role: "Digital Marketing Consultant",
+    url: "https://tadpharma.pk",
     overview:
       "Multan-based importer and sole distributor of GMP/HACCP/ISO 9001:2015 certified animal health products for poultry and livestock, covering 58 cities across Pakistan.",
     services: [
@@ -175,13 +206,20 @@ export const remoteProjects: RemoteProject[] = [
     ],
   },
   {
-    company: "International Clients",
-    role: "Light-Touch Digital Marketing",
-    overview: "Two overseas engagements, scoped to page setup and running ads.",
-    services: [
-      "Come Live In France (comeliveinfrance.com) — France immigration & relocation services; 3,000+ expats served across 50+ countries. Page setup and ad management; website not built by Shoaib.",
-      "Trönninge Pizza & Indisk Mat (tronningepizza.se) — Italian-Indian fusion restaurant in Halmstad, Sweden. Page setup and ad management.",
-    ],
+    company: "Come Live In France",
+    role: "Light-Touch Digital Marketing — Remote",
+    url: "https://comeliveinfrance.com",
+    overview:
+      "France immigration & relocation services (visas, residency, housing, healthcare) — 3,000+ expats served across 50+ countries. Founded by Serge Abi & Zainah Alyemni.",
+    services: ["Page setup and ad management"],
+    note: "Website not built by Shoaib — scope was page setup and ads only.",
+  },
+  {
+    company: "Trönninge Pizza & Indisk Mat",
+    role: "Light-Touch Digital Marketing — Remote",
+    url: "https://tronningepizza.se",
+    overview: "Italian-Indian fusion restaurant in Halmstad, Sweden.",
+    services: ["Page setup and ad management"],
   },
 ];
 

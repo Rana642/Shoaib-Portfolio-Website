@@ -226,7 +226,7 @@ async function migrateResumeRoles() {
       stints: role.stints.map((s) => ({ _type: "stint", _key: nextBlockKey(), ...s })),
       overview: role.overview,
       managedLabel: role.managedLabel,
-      managed: role.managed,
+      managed: role.managed.map((m) => ({ _type: "managedItem", _key: nextBlockKey(), ...m })),
       contributions: role.contributions,
       note: role.note,
     });
@@ -245,10 +245,35 @@ async function migrateResumeProjects() {
       order: index,
       period: project.period,
       overview: project.overview,
+      url: project.url,
       services: project.services,
       note: project.note,
     });
     console.log(`  ✓ ${project.company}`);
+  }
+}
+
+/**
+ * IDs from earlier versions of this script that no longer exist in the
+ * source data — e.g. "International Clients" was split into two
+ * separate projects since each deserves its own card, not a shared one.
+ * createOrReplace() never deletes a removed document on its own, so
+ * anything renamed/split/removed goes here once.
+ */
+const obsoleteDocumentIds = ["resumeProject-international-clients"];
+
+async function cleanupObsoleteDocuments() {
+  if (obsoleteDocumentIds.length === 0) return;
+  console.log(`\n— Removing ${obsoleteDocumentIds.length} obsolete document(s) —`);
+  for (const id of obsoleteDocumentIds) {
+    // Re-running this script after the first cleanup means the document is
+    // already gone — that's success, not a failure to report.
+    try {
+      await client.delete(id);
+      console.log(`  ✓ deleted ${id}`);
+    } catch {
+      console.log(`  · ${id} already gone`);
+    }
   }
 }
 
@@ -295,6 +320,7 @@ async function main() {
   await migrateResumeRoles();
   await migrateResumeProjects();
   await migrateResumePage();
+  await cleanupObsoleteDocuments();
 
   console.log("\nDone. Open /studio to review and edit.");
 }

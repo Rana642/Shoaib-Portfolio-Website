@@ -110,7 +110,7 @@ export const resumeRolesQuery = groq`
     stints[] { period, note },
     overview,
     managedLabel,
-    managed,
+    managed[] { name, note, url },
     contributions,
     note
   }
@@ -122,6 +122,7 @@ export const resumeProjectsQuery = groq`
     role,
     period,
     overview,
+    url,
     services,
     note
   }

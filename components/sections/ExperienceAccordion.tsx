@@ -2,10 +2,41 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, MapPin } from "lucide-react";
+import { Plus, MapPin, ArrowUpRight } from "lucide-react";
 import Reveal from "@/components/shared/Reveal";
 import { cn } from "@/lib/utils";
-import type { PrimaryRole, RemoteProject } from "@/lib/experience";
+import type { PrimaryRole, RemoteProject, ManagedItem } from "@/lib/experience";
+
+/** Each managed brand gets its own card — linked when a real URL is
+ *  confirmed, plain otherwise. Never guesses a link. */
+function ManagedItemCard({ item }: { item: ManagedItem }) {
+  const content = (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-small font-semibold">{item.name}</span>
+        {item.url && (
+          <ArrowUpRight
+            className="size-3.5 text-ink-subtle shrink-0 mt-0.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-ink"
+            aria-hidden
+          />
+        )}
+      </div>
+      {item.note && <p className="text-small text-ink-muted mt-1.5 leading-snug">{item.note}</p>}
+    </>
+  );
+
+  const className =
+    "group block h-full rounded-xl border border-ink/10 bg-white/60 p-4 transition-all duration-300 hover:border-citrus/50 hover:bg-citrus/5";
+
+  if (item.url) {
+    return (
+      <a href={item.url} target="_blank" rel="noopener noreferrer" className={className}>
+        {content}
+      </a>
+    );
+  }
+  return <div className={className}>{content}</div>;
+}
 
 function ExpandToggle({ open }: { open: boolean }) {
   return (
@@ -75,14 +106,9 @@ function PrimaryRoleCard({ role, index }: { role: PrimaryRole; index: number }) 
                 <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-6">
                   {role.managedLabel}
                 </p>
-                <div className="flex flex-wrap gap-2 mt-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-3">
                   {role.managed.map((item) => (
-                    <span
-                      key={item}
-                      className="text-small border border-ink/15 rounded-full px-3.5 py-1.5"
-                    >
-                      {item}
-                    </span>
+                    <ManagedItemCard key={item.name} item={item} />
                   ))}
                 </div>
 
@@ -118,7 +144,21 @@ function RemoteProjectCard({ project, index }: { project: RemoteProject; index: 
       <div className="h-full bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-6 transition-all duration-300 hover:shadow-lg hover:shadow-ink/5 hover:border-citrus/30">
         <button onClick={() => setOpen(!open)} className="group w-full flex items-start justify-between gap-4 text-left">
           <div>
-            <h3 className="text-body-lg font-semibold">{project.company}</h3>
+            <h3 className="text-body-lg font-semibold flex items-center gap-1.5">
+              {project.company}
+              {project.url && (
+                <a
+                  href={project.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label={`Visit ${project.company}`}
+                  className="text-ink-subtle hover:text-citrus transition-colors"
+                >
+                  <ArrowUpRight className="size-4" aria-hidden />
+                </a>
+              )}
+            </h3>
             <p className="text-small text-cobalt font-medium mt-1">{project.role}</p>
             {project.period && (
               <span className="inline-block font-mono uppercase text-tag tracking-widest text-ink-subtle border border-ink/10 rounded-full px-3 py-1.5 mt-3">

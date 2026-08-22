@@ -37,6 +37,11 @@ export default defineType({
       rows: 3,
     }),
     defineField({
+      name: "url",
+      title: "Website URL",
+      type: "url",
+    }),
+    defineField({
       name: "services",
       title: "Services Delivered",
       type: "array",

@@ -61,8 +61,21 @@ export default defineType({
     defineField({
       name: "managed",
       title: "Managed Items",
+      description:
+        "Each brand/property gets its own name, one-line note, and an optional link — never guess a link, leave it blank until confirmed.",
       type: "array",
-      of: [{ type: "string" }],
+      of: [
+        {
+          type: "object",
+          name: "managedItem",
+          fields: [
+            defineField({ name: "name", title: "Name", type: "string" }),
+            defineField({ name: "note", title: "Note", type: "string" }),
+            defineField({ name: "url", title: "URL", type: "url" }),
+          ],
+          preview: { select: { title: "name", subtitle: "note" } },
+        },
+      ],
     }),
     defineField({
       name: "contributions",
