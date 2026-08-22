@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
 import { instrumentSerif, geist, geistMono } from "./fonts";
 import JsonLd from "@/components/shared/JsonLd";
+import Analytics from "@/components/shared/Analytics";
 import { organizationSchema } from "@/lib/schema";
 import "./globals.css";
 
@@ -22,7 +24,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col noise-overlay">
         <JsonLd data={organizationSchema()} />
+        <Analytics />
         {children}
+        <VercelAnalytics />
       </body>
     </html>
   );

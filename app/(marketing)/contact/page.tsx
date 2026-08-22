@@ -1,6 +1,6 @@
 /*
  * DRAFT COPY — pending Shoaib's final copy files.
- * WhatsApp number from build doc; Calendly URL pending (env var in Phase 7).
+ * WhatsApp number from build doc.
  */
 import type { Metadata } from "next";
 import { Mail, MessageCircle, CalendarClock, MapPin, Clock } from "lucide-react";
@@ -9,8 +9,11 @@ import Reveal from "@/components/shared/Reveal";
 import Tag from "@/components/ui/Tag";
 import ContactForm from "@/components/forms/ContactForm";
 import JsonLd from "@/components/shared/JsonLd";
+import CalendlyButton from "@/components/shared/CalendlyButton";
 import { pageMetadata } from "@/lib/seo";
 import { breadcrumbSchema } from "@/lib/schema";
+
+const isCalendlyConfigured = Boolean(process.env.NEXT_PUBLIC_CALENDLY_URL);
 
 export const metadata: Metadata = pageMetadata({
   title: "Contact",
@@ -38,7 +41,9 @@ const channels = [
     icon: CalendarClock,
     title: "Book a call",
     detail: "30-minute audit call",
-    note: "Calendar link goes live soon — use the form meanwhile",
+    note: isCalendlyConfigured
+      ? "Pick a time that works for you"
+      : "Calendar link goes live soon — use the form meanwhile",
     href: null,
   },
 ];
@@ -82,14 +87,20 @@ export default function ContactPage() {
                   </div>
                 </>
               );
+              const isCalendlyChannel = ch.title === "Book a call";
+              const cardClasses =
+                "flex gap-5 items-start w-full text-left bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-7 transition-all duration-300 hover:shadow-xl hover:shadow-ink/5 hover:-translate-y-1 hover:border-citrus/40";
+
               return (
                 <Reveal key={ch.title} delay={i * 0.06}>
-                  {ch.href ? (
+                  {isCalendlyChannel && isCalendlyConfigured ? (
+                    <CalendlyButton className={cardClasses}>{Inner}</CalendlyButton>
+                  ) : ch.href ? (
                     <a
                       href={ch.href}
                       target={ch.href.startsWith("http") ? "_blank" : undefined}
                       rel={ch.href.startsWith("http") ? "noopener noreferrer" : undefined}
-                      className="flex gap-5 items-start bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-7 transition-all duration-300 hover:shadow-xl hover:shadow-ink/5 hover:-translate-y-1 hover:border-citrus/40"
+                      className={cardClasses}
                     >
                       {Inner}
                     </a>

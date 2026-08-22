@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Mail } from "lucide-react";
 import { LinkedinIcon, InstagramIcon, YoutubeIcon } from "@/components/ui/SocialIcons";
+import NewsletterForm from "@/components/forms/NewsletterForm";
 
 const explore = [
   { href: "/services", label: "Services" },
@@ -95,22 +96,7 @@ export default function Footer() {
           <p className="text-small text-cloud/60 mb-4">
             Field notes on what actually moves the needle in paid media. No fluff.
           </p>
-          {/* Wired to /api/newsletter in Phase 7 */}
-          <form className="flex gap-2">
-            <input
-              type="email"
-              required
-              placeholder="you@company.com"
-              aria-label="Email address"
-              className="flex-1 min-w-0 rounded-lg bg-cloud/10 border border-cloud/15 px-4 py-3 text-small text-cloud placeholder:text-cloud/40 focus:outline-none focus:border-citrus"
-            />
-            <button
-              type="submit"
-              className="rounded-lg bg-citrus text-ink px-4 py-3 text-small font-medium hover:brightness-110 transition-all"
-            >
-              Join
-            </button>
-          </form>
+          <NewsletterForm />
         </div>
       </div>
 
