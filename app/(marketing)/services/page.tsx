@@ -10,7 +10,7 @@ import Tag from "@/components/ui/Tag";
 import Button from "@/components/ui/Button";
 import FinalCTA from "@/components/sections/FinalCTA";
 import JsonLd from "@/components/shared/JsonLd";
-import { services } from "@/lib/services";
+import { getServices } from "@/lib/services";
 import { pageMetadata } from "@/lib/seo";
 import { serviceSchema, breadcrumbSchema } from "@/lib/schema";
 
@@ -63,7 +63,9 @@ const process = [
   },
 ];
 
-export default function ServicesPage() {
+export default async function ServicesPage() {
+  const services = await getServices();
+
   return (
     <PageWrapper>
       {services.map((service) => (

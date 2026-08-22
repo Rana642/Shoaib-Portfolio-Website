@@ -5,9 +5,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Plus } from "lucide-react";
 import Reveal from "@/components/shared/Reveal";
 import { cn } from "@/lib/utils";
-import { faqs } from "@/lib/faq";
+import type { Faq } from "@/lib/faq";
 
-export default function FAQ() {
+export default function FAQ({ faqs }: { faqs: Faq[] }) {
   const [open, setOpen] = useState<number | null>(0);
 
   return (

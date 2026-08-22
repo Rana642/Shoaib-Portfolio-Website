@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { MDXRemote } from "next-mdx-remote/rsc";
+import { PortableText, type PortableTextComponents } from "next-sanity";
 import PageWrapper from "@/components/layout/PageWrapper";
 import Reveal from "@/components/shared/Reveal";
 import Tag from "@/components/ui/Tag";
@@ -12,15 +13,16 @@ import { getAllCaseStudies, getCaseStudy } from "@/lib/case-studies";
 import { pageMetadata } from "@/lib/seo";
 import { caseStudySchema, breadcrumbSchema } from "@/lib/schema";
 
-export function generateStaticParams() {
-  return getAllCaseStudies().map((cs) => ({ slug: cs.slug }));
+export async function generateStaticParams() {
+  const caseStudies = await getAllCaseStudies();
+  return caseStudies.map((cs) => ({ slug: cs.slug }));
 }
 
 export async function generateMetadata({
   params,
 }: PageProps<"/case-studies/[slug]">): Promise<Metadata> {
   const { slug } = await params;
-  const cs = getCaseStudy(slug);
+  const cs = await getCaseStudy(slug);
   if (!cs) return {};
   return pageMetadata({
     title: cs.title,
@@ -53,11 +55,35 @@ const mdxComponents = {
   ),
 };
 
+// Same visual treatment as the MDX components, for Sanity-authored bodies
+const portableTextComponents: PortableTextComponents = {
+  block: {
+    normal: ({ children }) => <p className="text-body-lg text-ink-muted mt-4">{children}</p>,
+    h2: ({ children }) => <h2 className="font-serif italic text-h3 mt-12 mb-4">{children}</h2>,
+    blockquote: ({ children }) => (
+      <blockquote className="border-l-2 border-citrus bg-citrus/10 rounded-r-xl px-6 py-4 mt-6 text-small text-ink-muted">
+        {children}
+      </blockquote>
+    ),
+  },
+  list: {
+    bullet: ({ children }) => <ul className="mt-4 space-y-3">{children}</ul>,
+  },
+  listItem: {
+    bullet: ({ children }) => (
+      <li className="text-body text-ink-muted flex gap-3 items-start">
+        <span className="size-1.5 rounded-full bg-citrus inline-block shrink-0 mt-2.5" aria-hidden />
+        {children}
+      </li>
+    ),
+  },
+};
+
 export default async function CaseStudyPage({
   params,
 }: PageProps<"/case-studies/[slug]">) {
   const { slug } = await params;
-  const cs = getCaseStudy(slug);
+  const cs = await getCaseStudy(slug);
   if (!cs) notFound();
 
   return (
@@ -102,7 +128,11 @@ export default async function CaseStudyPage({
           </Reveal>
           <Reveal delay={0.1}>
             <div className="mt-6 max-w-2xl">
-              <MDXRemote source={cs.content} components={mdxComponents} />
+              {cs.body.source === "sanity" ? (
+                <PortableText value={cs.body.blocks} components={portableTextComponents} />
+              ) : (
+                <MDXRemote source={cs.body.content} components={mdxComponents} />
+              )}
             </div>
           </Reveal>
         </div>

@@ -1,39 +1,16 @@
 "use client";
 
 /*
- * PLACEHOLDER TESTIMONIALS — swap for real client quotes + photos when
- * Shoaib collects them (see PENDING ITEMS in CLAUDE-CODE-INSTRUCTIONS.md).
+ * Data comes from lib/testimonials.ts via the home page (Sanity-first,
+ * placeholder fallback until Shoaib collects real client quotes).
  */
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Quote } from "lucide-react";
 import Reveal from "@/components/shared/Reveal";
+import type { Testimonial } from "@/lib/testimonials";
 
-const testimonials = [
-  {
-    headline: "Direct bookings tripled in one quarter",
-    quote:
-      "We stopped guessing. Every week we knew what was being tested, what it cost, and what it returned. Bookings from our own website tripled.",
-    author: "Owner, boutique hotel",
-    context: "Hospitality — Multan",
-  },
-  {
-    headline: "Finally, reports we can actually read",
-    quote:
-      "Previous agencies sent dashboards. Shoaib sends decisions — what changed, why, and what it did to our cost per lead.",
-    author: "Marketing lead, property firm",
-    context: "Real Estate — DHA",
-  },
-  {
-    headline: "Profitable ads within 60 days",
-    quote:
-      "We'd burned budget twice before with nothing to show. This time the tracking was set up before a single ad ran. That discipline paid for itself.",
-    author: "Founder, footwear brand",
-    context: "E-commerce",
-  },
-];
-
-export default function Testimonials() {
+export default function Testimonials({ testimonials }: { testimonials: Testimonial[] }) {
   const [index, setIndex] = useState(0);
   const prev = () => setIndex((i) => (i - 1 + testimonials.length) % testimonials.length);
   const next = () => setIndex((i) => (i + 1) % testimonials.length);
@@ -95,7 +72,7 @@ export default function Testimonials() {
   );
 }
 
-function TestimonialCard({ t }: { t: (typeof testimonials)[number] }) {
+function TestimonialCard({ t }: { t: Testimonial }) {
   return (
     <figure className="h-full bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-8 flex flex-col">
       <Quote className="size-6 text-citrus fill-citrus" aria-hidden />

@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Plus, MapPin } from "lucide-react";
 import Reveal from "@/components/shared/Reveal";
 import { cn } from "@/lib/utils";
-import { primaryRoles, remoteProjects, type PrimaryRole, type RemoteProject } from "@/lib/experience";
+import type { PrimaryRole, RemoteProject } from "@/lib/experience";
 
 function ExpandToggle({ open }: { open: boolean }) {
   return (
@@ -162,7 +162,13 @@ function RemoteProjectCard({ project, index }: { project: RemoteProject; index: 
   );
 }
 
-export default function ExperienceAccordion() {
+export default function ExperienceAccordion({
+  primaryRoles,
+  remoteProjects,
+}: {
+  primaryRoles: PrimaryRole[];
+  remoteProjects: RemoteProject[];
+}) {
   return (
     <div className="mt-10">
       <Reveal>

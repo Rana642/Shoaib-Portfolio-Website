@@ -11,11 +11,12 @@ import Tag from "@/components/ui/Tag";
 import Button from "@/components/ui/Button";
 import FinalCTA from "@/components/sections/FinalCTA";
 import JsonLd from "@/components/shared/JsonLd";
-import { services, getService } from "@/lib/services";
+import { getServices, getService } from "@/lib/services";
 import { pageMetadata } from "@/lib/seo";
 import { serviceSchema, breadcrumbSchema } from "@/lib/schema";
 
-export function generateStaticParams() {
+export async function generateStaticParams() {
+  const services = await getServices();
   return services.map((s) => ({ service: s.slug }));
 }
 
@@ -23,7 +24,7 @@ export async function generateMetadata({
   params,
 }: PageProps<"/services/[service]">): Promise<Metadata> {
   const { service: slug } = await params;
-  const service = getService(slug);
+  const service = await getService(slug);
   if (!service) return {};
   return pageMetadata({
     title: service.title,
@@ -36,7 +37,7 @@ export default async function ServiceDetailPage({
   params,
 }: PageProps<"/services/[service]">) {
   const { service: slug } = await params;
-  const service = getService(slug);
+  const service = await getService(slug);
   if (!service) notFound();
 
   return (

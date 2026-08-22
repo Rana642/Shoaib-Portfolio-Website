@@ -17,8 +17,8 @@ export const metadata: Metadata = pageMetadata({
   path: "/case-studies",
 });
 
-export default function CaseStudiesPage() {
-  const caseStudies = getAllCaseStudies();
+export default async function CaseStudiesPage() {
+  const caseStudies = await getAllCaseStudies();
 
   return (
     <PageWrapper>

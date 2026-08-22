@@ -1,14 +1,18 @@
 /*
- * Real CV data provided by Shoaib (2026-08-22). Work experience is still
- * pending — he referenced "4 primary jobs + 6 remote projects" from a
- * prior response that never reached this build; the Resume page keeps
- * placeholder experience entries until that data arrives.
+ * Real CV data provided by Shoaib (2026-08-22). Work experience lives in
+ * lib/experience.ts.
+ *
+ * Sanity-first via getResumeContent() — reads the "resumePage" singleton
+ * from the Studio and falls back per-field to the constants below, so a
+ * partially-filled Studio document never blanks out a section.
  *
  * Personal Information (father's name, CNIC, marital status) is
  * intentionally NOT included here — a government ID number should not be
- * published on a public, potentially-indexed website. Keep that section
- * for a private PDF only, if/when one is built.
+ * published on a public, potentially-indexed website. It stays in the
+ * private PDF workflow only (scripts/generate-resume-pdf.tsx notes).
  */
+import { sanityFetch } from "./sanity/client";
+import { resumePageQuery } from "./sanity/queries";
 
 export const summary =
   "Performance marketing specialist with 6+ years of experience and $2.5M+ in managed advertising spend across Meta, Google, YouTube, and TikTok. Full-stack digital marketing capability spanning campaign strategy, media buying, conversion tracking, website and funnel development, and lead generation. Industry experience spans real estate, hospitality, salons, e-commerce, legal services, education, and B2B animal-health pharmaceuticals — with clients across Pakistan and internationally (France, Sweden). Currently operating Ads by Shoaib as an independent practice, with a trusted network of specialists supporting creative production.";
@@ -220,3 +224,39 @@ export const socialProfiles = [
   { label: "X (Twitter)", handle: "@ShoaibNabiNoor1", href: "https://x.com/ShoaibNabiNoor1" },
   { label: "Instagram", handle: "@shoaib.nabi.noor", href: "https://instagram.com/shoaib.nabi.noor" },
 ];
+
+export type ResumeContent = {
+  summary: string;
+  keyMetrics: typeof keyMetrics;
+  technicalSkillGroups: typeof technicalSkillGroups;
+  softSkillGroups: typeof softSkillGroups;
+  languages: typeof languages;
+  education: typeof education;
+  certifications: typeof certifications;
+};
+
+type SanityResumePage = {
+  summary?: string;
+  metrics?: { value: string; label: string }[];
+  techSkillGroups?: { category: string; items: string[] }[];
+  softSkillGroups?: { category: string; items: string[] }[];
+  languages?: { name: string; level: string }[];
+  education?: { degree: string; institution: string; period: string }[];
+  certifications?: { title: string; issuer: string; detail: string; note?: string }[];
+};
+
+/** Per-field merge: any section left empty in the Studio keeps its fallback. */
+export async function getResumeContent(): Promise<ResumeContent> {
+  const doc = await sanityFetch<SanityResumePage | null>(resumePageQuery);
+  return {
+    summary: doc?.summary || summary,
+    keyMetrics: doc?.metrics?.length ? doc.metrics : keyMetrics,
+    technicalSkillGroups: doc?.techSkillGroups?.length ? doc.techSkillGroups : technicalSkillGroups,
+    softSkillGroups: doc?.softSkillGroups?.length ? doc.softSkillGroups : softSkillGroups,
+    languages: doc?.languages?.length ? doc.languages : languages,
+    education: doc?.education?.length ? doc.education : education,
+    certifications: doc?.certifications?.length
+      ? doc.certifications.map((c) => ({ ...c, note: c.note ?? "" }))
+      : certifications,
+  };
+}

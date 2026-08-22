@@ -1,7 +1,11 @@
 /*
- * DRAFT COPY — service content in brand voice, pending Shoaib's final copy files.
- * Icons are mapped by slug in the components (lucide imports stay client/JSX-side).
+ * Services data layer. Sanity-first once documents exist in the Studio;
+ * falls back to the draft copy below (DRAFT COPY, pending Shoaib's final
+ * copy files) while the Studio is empty. Icons map by slug in the
+ * components — new Studio-created slugs get a default icon.
  */
+import { sanityFetch } from "./sanity/client";
+import { allServicesQuery, serviceBySlugQuery } from "./sanity/queries";
 
 export type Service = {
   slug: string;
@@ -13,7 +17,7 @@ export type Service = {
   bestFor: string[];
 };
 
-export const services: Service[] = [
+export const fallbackServices: Service[] = [
   {
     slug: "meta-ads",
     title: "Meta Ads",
@@ -92,6 +96,14 @@ export const services: Service[] = [
   },
 ];
 
-export function getService(slug: string): Service | undefined {
-  return services.find((s) => s.slug === slug);
+export async function getServices(): Promise<Service[]> {
+  const fromSanity = await sanityFetch<Service[]>(allServicesQuery);
+  if (fromSanity && fromSanity.length > 0) return fromSanity;
+  return fallbackServices;
+}
+
+export async function getService(slug: string): Promise<Service | undefined> {
+  const fromSanity = await sanityFetch<Service | null>(serviceBySlugQuery, { slug });
+  if (fromSanity) return fromSanity;
+  return fallbackServices.find((s) => s.slug === slug);
 }

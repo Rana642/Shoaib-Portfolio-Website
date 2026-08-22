@@ -1,34 +1,16 @@
 /*
- * PLACEHOLDER DATA — real case studies land as MDX in Phase 8.
- * Outcomes below match the placeholder set in CLAUDE-CODE-INSTRUCTIONS.md.
+ * Shows the three most recent case studies — Sanity-first via
+ * lib/case-studies.ts, falling back to the placeholder MDX set.
  */
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import Reveal from "@/components/shared/Reveal";
 import Button from "@/components/ui/Button";
+import { getAllCaseStudies } from "@/lib/case-studies";
 
-const caseStudies = [
-  {
-    slug: "boutique-hotel-multan",
-    industry: "Hospitality",
-    client: "Boutique Hotel — Multan",
-    outcome: "+300% direct bookings in 90 days",
-  },
-  {
-    slug: "dha-real-estate",
-    industry: "Real Estate",
-    client: "DHA Property Practice",
-    outcome: "Qualified buyer leads at half the market CPL",
-  },
-  {
-    slug: "choice-shoes-ecom",
-    industry: "E-commerce",
-    client: "Choice Shoes",
-    outcome: "Profitable ROAS from a cold start",
-  },
-];
+export default async function CaseStudiesPreview() {
+  const caseStudies = (await getAllCaseStudies()).slice(0, 3);
 
-export default function CaseStudiesPreview() {
   return (
     <section className="py-24 md:py-32 bg-white/40">
       <div className="container-wide">

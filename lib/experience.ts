@@ -5,7 +5,12 @@
  * purpose. They belong only in a separate full CV/PDF document, never on
  * this site. See lib/resume.ts and the accountant-story-resume-only memory
  * for the full reasoning.
+ *
+ * Sanity-first via getPrimaryRoles()/getRemoteProjects(); the constants
+ * below are the fallback until Shoaib adds these in the Studio.
  */
+import { sanityFetch } from "./sanity/client";
+import { resumeRolesQuery, resumeProjectsQuery } from "./sanity/queries";
 
 export type Stint = { period: string; note?: string };
 
@@ -179,3 +184,15 @@ export const remoteProjects: RemoteProject[] = [
     ],
   },
 ];
+
+export async function getPrimaryRoles(): Promise<PrimaryRole[]> {
+  const fromSanity = await sanityFetch<PrimaryRole[]>(resumeRolesQuery);
+  if (fromSanity && fromSanity.length > 0) return fromSanity;
+  return primaryRoles;
+}
+
+export async function getRemoteProjects(): Promise<RemoteProject[]> {
+  const fromSanity = await sanityFetch<RemoteProject[]>(resumeProjectsQuery);
+  if (fromSanity && fromSanity.length > 0) return fromSanity;
+  return remoteProjects;
+}

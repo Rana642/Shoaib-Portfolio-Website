@@ -1,44 +1,23 @@
 "use client";
 
 /*
- * DRAFT COPY — benefit-led service one-liners, pending Shoaib's final copy.
+ * Data comes from lib/services.ts via the home page (Sanity-first,
+ * draft-copy fallback). Icons map by slug; Studio-created slugs that
+ * aren't in the map get the default Sparkles icon.
  */
 import { useRef } from "react";
 import Link from "next/link";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { Megaphone, Search, Radar, PanelsTopLeft, ArrowRight } from "lucide-react";
+import { Megaphone, Search, Radar, PanelsTopLeft, Sparkles, ArrowRight } from "lucide-react";
 import Reveal from "@/components/shared/Reveal";
+import type { Service } from "@/lib/services";
 
-const services = [
-  {
-    icon: Megaphone,
-    title: "Meta Ads",
-    slug: "meta-ads",
-    description:
-      "Cold audiences into booked calls and carts — structured testing, deliberate scaling, and spend that answers to revenue.",
-  },
-  {
-    icon: Search,
-    title: "Google & YouTube Ads",
-    slug: "google-ads",
-    description:
-      "Show up the moment people search for what you sell — and stay in their heads when they don't.",
-  },
-  {
-    icon: Radar,
-    title: "Tracking & Analytics",
-    slug: "tracking-analytics",
-    description:
-      "Pixels, CAPI, GA4 — wired so every unit of spend traces back to an outcome. Managed, not just monitored.",
-  },
-  {
-    icon: PanelsTopLeft,
-    title: "Funnels & Web",
-    slug: "funnels-web",
-    description:
-      "Landing pages built to convert the traffic you're paying for — clicks without conversions are just rent.",
-  },
-];
+const iconBySlug: Record<string, typeof Megaphone> = {
+  "meta-ads": Megaphone,
+  "google-ads": Search,
+  "tracking-analytics": Radar,
+  "funnels-web": PanelsTopLeft,
+};
 
 function TiltCard({ children }: { children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -68,7 +47,7 @@ function TiltCard({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function ServicesOverview() {
+export default function ServicesOverview({ services }: { services: Service[] }) {
   return (
     <section className="py-24 md:py-32">
       <div className="container-wide">
@@ -82,22 +61,25 @@ export default function ServicesOverview() {
         </Reveal>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-14">
-          {services.map((service, i) => (
-            <Reveal key={service.slug} delay={i * 0.08}>
-              <TiltCard>
-                <service.icon className="size-8 text-cobalt" aria-hidden />
-                <h3 className="font-serif italic text-h3 mt-6">{service.title}</h3>
-                <p className="text-body text-ink-muted mt-3 max-w-md">{service.description}</p>
-                <Link
-                  href={`/services/${service.slug}`}
-                  className="group/link inline-flex items-center gap-2 text-small font-medium mt-6 underline-offset-4 decoration-citrus decoration-2 hover:underline"
-                >
-                  Read more
-                  <ArrowRight className="size-4 transition-transform group-hover/link:translate-x-1" aria-hidden />
-                </Link>
-              </TiltCard>
-            </Reveal>
-          ))}
+          {services.map((service, i) => {
+            const Icon = iconBySlug[service.slug] ?? Sparkles;
+            return (
+              <Reveal key={service.slug} delay={i * 0.08}>
+                <TiltCard>
+                  <Icon className="size-8 text-cobalt" aria-hidden />
+                  <h3 className="font-serif italic text-h3 mt-6">{service.title}</h3>
+                  <p className="text-body text-ink-muted mt-3 max-w-md">{service.summary}</p>
+                  <Link
+                    href={`/services/${service.slug}`}
+                    className="group/link inline-flex items-center gap-2 text-small font-medium mt-6 underline-offset-4 decoration-citrus decoration-2 hover:underline"
+                  >
+                    Read more
+                    <ArrowRight className="size-4 transition-transform group-hover/link:translate-x-1" aria-hidden />
+                  </Link>
+                </TiltCard>
+              </Reveal>
+            );
+          })}
         </div>
       </div>
     </section>

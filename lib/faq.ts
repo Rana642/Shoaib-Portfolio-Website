@@ -1,12 +1,15 @@
 /*
- * DRAFT COPY — 7 questions in brand voice, pending Shoaib's final FAQ list.
- * Shared between FAQ.tsx (renders it) and the home page (builds FAQPage
- * JSON-LD from it) so the two never drift apart.
+ * FAQ data layer. Sanity-first; falls back to the draft list below
+ * (DRAFT COPY, pending Shoaib's final FAQ list). Shared between the FAQ
+ * section (renders it) and the home page (builds FAQPage JSON-LD from
+ * it) so the two never drift apart.
  */
+import { sanityFetch } from "./sanity/client";
+import { faqsQuery } from "./sanity/queries";
 
 export type Faq = { q: string; a: string };
 
-export const faqs: Faq[] = [
+export const fallbackFaqs: Faq[] = [
   {
     q: "What exactly do you do?",
     a: "I plan, launch, and manage paid advertising across Meta, Google, YouTube, and TikTok — plus the tracking and landing pages that make those ads measurable. One practice, full funnel.",
@@ -36,3 +39,9 @@ export const faqs: Faq[] = [
     a: "Book a free audit. I'll look at your account (or your plans), tell you what I'd fix first, and you decide whether we work together. No obligation either way.",
   },
 ];
+
+export async function getFaqs(): Promise<Faq[]> {
+  const fromSanity = await sanityFetch<Faq[]>(faqsQuery);
+  if (fromSanity && fromSanity.length > 0) return fromSanity;
+  return fallbackFaqs;
+}

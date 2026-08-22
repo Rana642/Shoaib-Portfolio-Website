@@ -19,16 +19,8 @@ import ExperienceAccordion from "@/components/sections/ExperienceAccordion";
 import { LinkedinIcon, FacebookIcon, XIcon, InstagramIcon } from "@/components/ui/SocialIcons";
 import { pageMetadata } from "@/lib/seo";
 import { personSchema, breadcrumbSchema } from "@/lib/schema";
-import {
-  summary,
-  keyMetrics,
-  technicalSkillGroups,
-  softSkillGroups,
-  languages,
-  education,
-  certifications,
-  socialProfiles,
-} from "@/lib/resume";
+import { getResumeContent, socialProfiles } from "@/lib/resume";
+import { getPrimaryRoles, getRemoteProjects } from "@/lib/experience";
 
 export const metadata: Metadata = pageMetadata({
   title: "Shoaib Nabi Noor — Resume",
@@ -39,7 +31,22 @@ export const metadata: Metadata = pageMetadata({
 
 const socialIcons = { LinkedIn: LinkedinIcon, Facebook: FacebookIcon, "X (Twitter)": XIcon, Instagram: InstagramIcon };
 
-export default function ResumePage() {
+export default async function ResumePage() {
+  const [content, primaryRoles, remoteProjects] = await Promise.all([
+    getResumeContent(),
+    getPrimaryRoles(),
+    getRemoteProjects(),
+  ]);
+  const {
+    summary,
+    keyMetrics,
+    technicalSkillGroups,
+    softSkillGroups,
+    languages,
+    education,
+    certifications,
+  } = content;
+
   return (
     <PageWrapper>
       <JsonLd data={personSchema()} />
@@ -140,7 +147,7 @@ export default function ResumePage() {
               any entry for the full detail.
             </p>
           </Reveal>
-          <ExperienceAccordion />
+          <ExperienceAccordion primaryRoles={primaryRoles} remoteProjects={remoteProjects} />
         </div>
       </section>
 

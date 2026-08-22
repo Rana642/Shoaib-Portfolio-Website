@@ -15,7 +15,9 @@ import TrustSignals from "@/components/sections/TrustSignals";
 import JsonLd from "@/components/shared/JsonLd";
 import { pageMetadata } from "@/lib/seo";
 import { faqPageSchema } from "@/lib/schema";
-import { faqs } from "@/lib/faq";
+import { getFaqs } from "@/lib/faq";
+import { getServices } from "@/lib/services";
+import { getTestimonials } from "@/lib/testimonials";
 
 export const metadata: Metadata = pageMetadata({
   title: "Ads by Shoaib — Performance Marketing by Shoaib Nabi Noor",
@@ -25,20 +27,26 @@ export const metadata: Metadata = pageMetadata({
   titleAbsolute: true,
 });
 
-export default function Home() {
+export default async function Home() {
+  const [faqs, services, testimonials] = await Promise.all([
+    getFaqs(),
+    getServices(),
+    getTestimonials(),
+  ]);
+
   return (
     <PageWrapper>
       <JsonLd data={faqPageSchema(faqs.map((f) => ({ question: f.q, answer: f.a })))} />
       <Hero />
       <PainPoints />
       <Turn />
-      <ServicesOverview />
+      <ServicesOverview services={services} />
       <WhyChooseUs />
       <AboutMini />
       <CaseStudiesPreview />
       <Philosophy />
-      <Testimonials />
-      <FAQ />
+      <Testimonials testimonials={testimonials} />
+      <FAQ faqs={faqs} />
       <FinalCTA />
       <TrustSignals />
     </PageWrapper>

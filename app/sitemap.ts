@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { siteUrl } from "@/lib/seo";
-import { services } from "@/lib/services";
+import { getServices } from "@/lib/services";
 import { getAllCaseStudies } from "@/lib/case-studies";
 import { getAllPosts, categories, categorySlug } from "@/lib/posts";
 
@@ -21,12 +21,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: new Date(),
   }));
 
+  const services = await getServices();
   const serviceEntries = services.map((s) => ({
     url: `${siteUrl}/services/${s.slug}`,
     lastModified: new Date(),
   }));
 
-  const caseStudyEntries = getAllCaseStudies().map((cs) => ({
+  const caseStudies = await getAllCaseStudies();
+  const caseStudyEntries = caseStudies.map((cs) => ({
     url: `${siteUrl}/case-studies/${cs.slug}`,
     lastModified: new Date(cs.publishedAt),
   }));
