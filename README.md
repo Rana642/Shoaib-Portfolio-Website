@@ -10,29 +10,41 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-## Sanity Studio (blog CMS)
+## Content management (Sanity Studio)
 
-The blog (`/blog`) reads from Sanity when configured, and falls back to two
-placeholder posts in [`lib/posts.ts`](./lib/posts.ts) so local dev and builds
-work before a Sanity project exists.
+All site content is managed from the embedded Studio at
+[`/studio`](http://localhost:3000/studio): blog posts, case studies,
+services, testimonials, FAQs, and the resume (roles, projects, skills,
+education, certifications).
 
-**To connect a real project:**
+**Leads are not in Sanity.** Contact form submissions and newsletter
+signups go to Supabase (`contacts` / `subscribers` tables) — view and
+manage those in the Supabase dashboard.
 
-1. Create a free account and project at [sanity.io](https://sanity.io).
-2. Note your **Project ID** from the Sanity management console.
-3. In `.env.local`, set:
-   ```
-   NEXT_PUBLIC_SANITY_PROJECT_ID=your-project-id
-   NEXT_PUBLIC_SANITY_DATASET=production
-   ```
-4. Restart `npm run dev`. The Studio is embedded at
-   [http://localhost:3000/studio](http://localhost:3000/studio) — sign in
-   there with your Sanity account to add and edit blog posts.
-5. To deploy the Studio's hosted API/CDN config, run `npx sanity deploy`
-   (optional — the embedded `/studio` route works without this).
+### Setup
 
-The `post` schema (title, slug, excerpt, cover image, category, published
-date, body, SEO fields, FAQs) lives in [`sanity/schemaTypes/post.ts`](./sanity/schemaTypes/post.ts).
+Project ID `m3je8htk` is already wired in `.env.local`. To make the
+Studio usable:
+
+1. **Add CORS origins** in [sanity.io/manage](https://sanity.io/manage) →
+   your project → **API** → **CORS origins**. Add `http://localhost:3000`
+   and `https://adsbyshoaib.com`, both with credentials allowed.
+2. **Add the env var to Vercel**: `NEXT_PUBLIC_SANITY_PROJECT_ID=m3je8htk`
+   in Project Settings → Environment Variables, then redeploy.
+3. Open `/studio` and sign in with the Sanity account that owns the project.
+
+### How content resolves
+
+Every content type is **Sanity-first with a local fallback**: if the Studio
+has no documents of a type (or Sanity is unreachable), the site renders the
+existing local data instead — placeholder MDX for case studies, constants in
+`lib/` for everything else. That means the site never breaks mid-migration,
+but it also means **content only changes once you actually create documents
+in the Studio**. Edits appear on the site within ~60 seconds (ISR), no
+redeploy needed.
+
+Schemas live in [`sanity/schemaTypes/`](./sanity/schemaTypes); the Studio's
+sidebar grouping is configured in [`sanity.config.ts`](./sanity.config.ts).
 
 > **Note:** `next.config.ts` includes `@sanity/sdk-react` in `transpilePackages`
 > — that package ships a dist file with untranspiled JSX, which otherwise
