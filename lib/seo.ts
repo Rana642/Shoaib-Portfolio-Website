@@ -4,6 +4,15 @@ export const siteUrl = "https://adsbyshoaib.com";
 export const siteName = "Ads by Shoaib";
 
 /**
+ * Master switch for public indexing. Stays false until Shoaib explicitly
+ * confirms the site is final — real copy, real case studies, no
+ * placeholders — per his instruction that correct information should hit
+ * the internet exactly once, not iterate in public. Flip this one line
+ * (nothing else) when ready to go live for SEO; also gates app/robots.ts.
+ */
+export const SITE_IS_LIVE = false;
+
+/**
  * Builds title/description/canonical/openGraph/twitter for a page in one
  * call. `path` is root-relative ("/about") — resolved against the root
  * layout's `metadataBase` into absolute URLs for canonical, og:url, and
@@ -31,6 +40,7 @@ export function pageMetadata({
     title: titleAbsolute ? { absolute: title } : title,
     description,
     alternates: { canonical: path },
+    robots: SITE_IS_LIVE ? { index: true, follow: true } : { index: false, follow: false },
     openGraph: {
       title: displayTitle,
       description,

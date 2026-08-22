@@ -4,6 +4,7 @@ import { instrumentSerif, geist, geistMono } from "./fonts";
 import JsonLd from "@/components/shared/JsonLd";
 import Analytics from "@/components/shared/Analytics";
 import { organizationSchema } from "@/lib/schema";
+import { SITE_IS_LIVE } from "@/lib/seo";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,6 +15,9 @@ export const metadata: Metadata = {
   },
   description:
     "Independent performance marketing practice led by Shoaib Nabi Noor — turning strategy, targeting, and creative into leads, bookings, and sales across Meta, Google, YouTube, and TikTok.",
+  // Fallback net — every page already sets this via lib/seo.ts pageMetadata(),
+  // this covers any page that doesn't. Flip SITE_IS_LIVE, not this line.
+  robots: SITE_IS_LIVE ? { index: true, follow: true } : { index: false, follow: false },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
