@@ -1,0 +1,98 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
+import { MDXRemote } from "next-mdx-remote/rsc";
+import PageWrapper from "@/components/layout/PageWrapper";
+import Reveal from "@/components/shared/Reveal";
+import Tag from "@/components/ui/Tag";
+import FinalCTA from "@/components/sections/FinalCTA";
+import { getAllCaseStudies, getCaseStudy } from "@/lib/case-studies";
+
+export function generateStaticParams() {
+  return getAllCaseStudies().map((cs) => ({ slug: cs.slug }));
+}
+
+export async function generateMetadata({
+  params,
+}: PageProps<"/case-studies/[slug]">): Promise<Metadata> {
+  const { slug } = await params;
+  const cs = getCaseStudy(slug);
+  if (!cs) return {};
+  return { title: cs.title, description: cs.excerpt };
+}
+
+const mdxComponents = {
+  h2: (props: React.HTMLAttributes<HTMLHeadingElement>) => (
+    <h2 className="font-serif italic text-h3 mt-12 mb-4" {...props} />
+  ),
+  p: (props: React.HTMLAttributes<HTMLParagraphElement>) => (
+    <p className="text-body-lg text-ink-muted mt-4" {...props} />
+  ),
+  ul: (props: React.HTMLAttributes<HTMLUListElement>) => (
+    <ul className="mt-4 space-y-3" {...props} />
+  ),
+  li: (props: React.HTMLAttributes<HTMLLIElement>) => (
+    <li
+      className="text-body text-ink-muted flex gap-3 items-start before:content-[''] before:size-1.5 before:rounded-full before:bg-citrus before:inline-block before:shrink-0 before:mt-2.5"
+      {...props}
+    />
+  ),
+  blockquote: (props: React.HTMLAttributes<HTMLQuoteElement>) => (
+    <blockquote
+      className="border-l-2 border-citrus bg-citrus/10 rounded-r-xl px-6 py-4 mt-6 text-small text-ink-muted [&_p]:mt-0 [&_p]:text-small"
+      {...props}
+    />
+  ),
+};
+
+export default async function CaseStudyPage({
+  params,
+}: PageProps<"/case-studies/[slug]">) {
+  const { slug } = await params;
+  const cs = getCaseStudy(slug);
+  if (!cs) notFound();
+
+  return (
+    <PageWrapper>
+      <article className="py-20 md:py-28">
+        <div className="container-narrow">
+          <Reveal>
+            <Link
+              href="/case-studies"
+              className="group inline-flex items-center gap-2 text-small text-ink-subtle hover:text-ink transition-colors mb-10"
+            >
+              <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-1" aria-hidden />
+              All case studies
+            </Link>
+            <Tag>{cs.industry}</Tag>
+            <h1 className="font-serif italic text-h2 mt-8 max-w-3xl">{cs.title}</h1>
+            <div className="flex flex-wrap gap-x-12 gap-y-4 mt-8 pt-8 border-t border-ink/10">
+              <div>
+                <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                  Client
+                </p>
+                <p className="text-body font-medium mt-2">{cs.client}</p>
+              </div>
+              <div>
+                <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                  Outcome
+                </p>
+                <p className="text-body font-medium mt-2 relative inline-block">
+                  <span className="absolute inset-x-0 bottom-0.5 h-[35%] bg-citrus/40 -z-0 rounded-sm" />
+                  <span className="relative">{cs.outcome}</span>
+                </p>
+              </div>
+            </div>
+          </Reveal>
+          <Reveal delay={0.1}>
+            <div className="mt-6 max-w-2xl">
+              <MDXRemote source={cs.content} components={mdxComponents} />
+            </div>
+          </Reveal>
+        </div>
+      </article>
+      <FinalCTA />
+    </PageWrapper>
+  );
+}
