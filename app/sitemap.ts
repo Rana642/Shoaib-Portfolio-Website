@@ -13,6 +13,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/blog",
     "/shoaib-nabi-noor",
     "/contact",
+    "/privacy",
+    "/terms",
   ];
   const staticEntries = staticPaths.map((path) => ({
     url: `${siteUrl}${path}`,
