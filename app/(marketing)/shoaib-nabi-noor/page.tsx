@@ -1,10 +1,11 @@
 /*
- * Real CV data (2026-08-22) — see lib/resume.ts for the source and notes.
- * Experience entries below are STILL PLACEHOLDER — Shoaib's actual job
- * history ("4 primary jobs + 6 remote projects") hasn't reached this repo
- * yet. The accountant background appears HERE and only here, per Shoaib's
- * instruction. Personal Information (father's name, CNIC, marital status)
- * from his CV data is intentionally excluded from this public page.
+ * Real CV data (2026-08-22) — see lib/resume.ts and lib/experience.ts for
+ * source and notes. Per Shoaib's explicit rule, adsbyshoaib.com is a
+ * "Personal Branding context": Akhuwat Foundation (his pre-2019 accounting
+ * job) and Moro Creatives are excluded here on purpose — see the
+ * accountant-story-resume-only memory. Personal Information (father's
+ * name, CNIC, marital status) from his CV data is also excluded from this
+ * public page.
  */
 import type { Metadata } from "next";
 import Image from "next/image";
@@ -14,6 +15,7 @@ import Reveal from "@/components/shared/Reveal";
 import Tag from "@/components/ui/Tag";
 import Button from "@/components/ui/Button";
 import JsonLd from "@/components/shared/JsonLd";
+import ExperienceAccordion from "@/components/sections/ExperienceAccordion";
 import { LinkedinIcon, FacebookIcon, XIcon, InstagramIcon } from "@/components/ui/SocialIcons";
 import { pageMetadata } from "@/lib/seo";
 import { personSchema, breadcrumbSchema } from "@/lib/schema";
@@ -34,45 +36,6 @@ export const metadata: Metadata = pageMetadata({
     "Resume of Shoaib Nabi Noor — performance marketing specialist. Six years in paid media, $2.5M+ managed across Meta, Google, YouTube, and TikTok.",
   path: "/shoaib-nabi-noor",
 });
-
-const experience = [
-  {
-    period: "2023 — Present",
-    role: "Founder & Performance Marketing Specialist",
-    org: "Ads by Shoaib — Independent Practice",
-    points: [
-      "Running paid media end-to-end for retainer and project clients across 8 industries",
-      "$2.5M+ lifetime ad spend managed across Meta, Google, YouTube, and TikTok",
-      "Built the practice's specialist network for design, video, and development",
-    ],
-  },
-  {
-    period: "2021 — 2023",
-    role: "Media Buyer [Placeholder — confirm role & employer]",
-    org: "[Agency / Company name]",
-    points: [
-      "[Placeholder] Managed Meta and Google accounts for local and international clients",
-      "[Placeholder] Owned tracking setups: Pixel, Conversions API, GA4, Tag Manager",
-    ],
-  },
-  {
-    period: "2019 — 2021",
-    role: "Digital Marketing Executive [Placeholder — confirm role & employer]",
-    org: "[Company name]",
-    points: [
-      "[Placeholder] First years in paid media — campaign management and reporting",
-    ],
-  },
-  {
-    period: "Before 2019",
-    role: "Accountant",
-    org: "[Firm name — placeholder]",
-    points: [
-      "Managed ledgers, reconciliations, and reporting — the discipline of making numbers balance",
-      "The habit that still runs the practice today: every marketing claim must reconcile with the P&L",
-    ],
-  },
-];
 
 const socialIcons = { LinkedIn: LinkedinIcon, Facebook: FacebookIcon, "X (Twitter)": XIcon, Instagram: InstagramIcon };
 
@@ -171,34 +134,13 @@ export default function ResumePage() {
             <h2 className="font-serif italic text-h2">
               Experience<span className="text-citrus">.</span>
             </h2>
-            <p className="text-small text-ink-subtle mt-3 max-w-xl">
-              Full employer-by-employer history is being finalized — reach out for the
-              complete work history in the meantime.
+            <p className="text-body text-ink-muted mt-3 max-w-xl">
+              Three onsite roles built the foundation; Ads by Shoaib is the independent
+              practice behind everything since — including the client work below. Click
+              any entry for the full detail.
             </p>
           </Reveal>
-          <div className="mt-10 space-y-0">
-            {experience.map((job, i) => (
-              <Reveal key={i} delay={i * 0.06}>
-                <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-3 md:gap-10 py-8 border-b border-ink/10">
-                  <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle pt-1.5">
-                    {job.period}
-                  </span>
-                  <div>
-                    <h3 className="text-body-lg font-semibold">{job.role}</h3>
-                    <p className="text-small text-cobalt font-medium mt-1">{job.org}</p>
-                    <ul className="mt-4 space-y-2.5">
-                      {job.points.map((point, pi) => (
-                        <li key={pi} className="flex gap-3 items-start text-body text-ink-muted">
-                          <span className="size-1.5 rounded-full bg-citrus inline-block shrink-0 mt-2.5" aria-hidden />
-                          {point}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </Reveal>
-            ))}
-          </div>
+          <ExperienceAccordion />
         </div>
       </section>
 
