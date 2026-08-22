@@ -6,6 +6,8 @@ type ButtonProps = {
   variant?: "primary" | "secondary" | "ghost";
   href?: string;
   withArrow?: boolean;
+  /** Renders a plain <a download> instead of next/link — for static file downloads. */
+  download?: boolean;
   className?: string;
   children: React.ReactNode;
 } & React.ButtonHTMLAttributes<HTMLButtonElement>;
@@ -27,6 +29,7 @@ export default function Button({
   variant = "primary",
   href,
   withArrow = false,
+  download = false,
   className,
   children,
   ...props
@@ -43,6 +46,14 @@ export default function Button({
       )}
     </>
   );
+
+  if (href && download) {
+    return (
+      <a href={href} download className={classes}>
+        {content}
+      </a>
+    );
+  }
 
   if (href) {
     return (

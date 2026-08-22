@@ -298,14 +298,13 @@ export default function ResumePage() {
       {/* Sticky download bar */}
       <div className="sticky bottom-6 z-40 pointer-events-none">
         <div className="container-narrow flex justify-end">
-          {/* PDF pending — becomes a real file link once the CV PDF is provided */}
           <Button
-            href="/contact"
+            href="/documents/shoaib-nabi-noor-resume.pdf"
+            download
             className="pointer-events-auto shadow-2xl shadow-ink/20"
-            withArrow
           >
             <Download className="size-4" aria-hidden />
-            Request PDF resume
+            Download PDF resume
           </Button>
         </div>
       </div>
