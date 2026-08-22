@@ -44,7 +44,7 @@ function paragraph(text: string, key: string): PortableTextBlock {
   };
 }
 
-const fallbackPosts: Post[] = [
+export const fallbackPosts: Post[] = [
   {
     slug: "reduce-meta-ads-cost-per-lead",
     title: "How to Reduce Meta Ads Cost Per Lead by 40% — A Media Buyer's Field Guide",

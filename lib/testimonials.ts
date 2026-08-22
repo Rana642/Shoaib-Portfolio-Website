@@ -13,7 +13,7 @@ export type Testimonial = {
   context?: string;
 };
 
-const fallbackTestimonials: Testimonial[] = [
+export const fallbackTestimonials: Testimonial[] = [
   {
     headline: "Direct bookings tripled in one quarter",
     quote:
