@@ -1,0 +1,208 @@
+-- ============================================================
+-- Ads by Shoaib — Business dashboard schema
+-- Run once in Supabase → SQL Editor.
+-- Safe to re-run: every statement is IF NOT EXISTS / OR REPLACE.
+-- ============================================================
+
+-- ── Settings (single row, id is always 1) ───────────────────
+
+create table if not exists settings (
+  id int primary key default 1 check (id = 1),
+  business_name text not null default 'Ads by Shoaib',
+  business_email text default 'hello@adsbyshoaib.com',
+  business_phone text default '+92 301 7461642',
+  business_address text default 'Multan, Punjab, Pakistan',
+  default_currency text not null default 'PKR',
+  -- Tax defaults for NEW documents; each document stores its own snapshot
+  tax_enabled boolean not null default false,
+  tax_name text not null default 'GST',
+  tax_rate numeric(5,2) not null default 0,
+  invoice_prefix text not null default 'INV',
+  quote_prefix text not null default 'QUO',
+  payment_terms text default 'Payment due within 14 days of invoice date.',
+  bank_details text,
+  updated_at timestamptz not null default now()
+);
+
+insert into settings (id) values (1) on conflict (id) do nothing;
+
+-- ── Clients ─────────────────────────────────────────────────
+
+create table if not exists clients (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  name text not null,                    -- company or individual
+  contact_person text,
+  email text,
+  phone text,
+  address text,
+  country text,
+  currency text,                         -- preferred billing currency
+  notes text,
+  is_active boolean not null default true
+);
+
+create index if not exists clients_name_idx on clients (name);
+
+-- ── Services catalog (line items for quotes/invoices) ───────
+-- Distinct from the website's Services pages, which live in Sanity:
+-- those are marketing copy; these are priced, billable items.
+
+create table if not exists catalog_items (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  name text not null,
+  description text,
+  unit text not null default 'month',    -- month / project / hour / item
+  default_rate numeric(12,2) not null default 0,
+  currency text not null default 'PKR',
+  is_active boolean not null default true,
+  sort_order int not null default 0
+);
+
+-- ── Document numbering ──────────────────────────────────────
+-- Sequential per type per year, e.g. INV-2026-001.
+-- A counters table + locking function keeps the sequence gap-free
+-- even if two documents are created at the same moment.
+
+create table if not exists document_counters (
+  doc_type text not null,                -- 'invoice' | 'quotation'
+  year int not null,
+  last_number int not null default 0,
+  primary key (doc_type, year)
+);
+
+create or replace function next_document_number(p_doc_type text, p_year int)
+returns int
+language plpgsql
+as $$
+declare
+  v_next int;
+begin
+  insert into document_counters (doc_type, year, last_number)
+  values (p_doc_type, p_year, 1)
+  on conflict (doc_type, year)
+    do update set last_number = document_counters.last_number + 1
+  returning last_number into v_next;
+
+  return v_next;
+end;
+$$;
+
+-- ── Quotations ──────────────────────────────────────────────
+-- tax_enabled / tax_rate / currency are SNAPSHOTS taken when the
+-- document is created. Changing settings later must never rewrite
+-- the totals on a document already sent to a client.
+
+create table if not exists quotations (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  number text not null unique,
+  client_id uuid not null references clients (id) on delete restrict,
+  status text not null default 'draft'
+    check (status in ('draft','sent','accepted','rejected','expired')),
+  issue_date date not null default current_date,
+  valid_until date,
+  currency text not null default 'PKR',
+  tax_enabled boolean not null default false,
+  tax_name text not null default 'GST',
+  tax_rate numeric(5,2) not null default 0,
+  subtotal numeric(12,2) not null default 0,
+  tax_amount numeric(12,2) not null default 0,
+  total numeric(12,2) not null default 0,
+  notes text,
+  terms text,
+  accepted_at timestamptz,
+  rejected_at timestamptz
+);
+
+create index if not exists quotations_client_idx on quotations (client_id);
+create index if not exists quotations_status_idx on quotations (status);
+
+create table if not exists quotation_items (
+  id uuid primary key default gen_random_uuid(),
+  quotation_id uuid not null references quotations (id) on delete cascade,
+  catalog_item_id uuid references catalog_items (id) on delete set null,
+  description text not null,
+  quantity numeric(10,2) not null default 1,
+  rate numeric(12,2) not null default 0,
+  amount numeric(12,2) not null default 0,
+  sort_order int not null default 0
+);
+
+create index if not exists quotation_items_parent_idx on quotation_items (quotation_id);
+
+-- ── Invoices ────────────────────────────────────────────────
+
+create table if not exists invoices (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  number text not null unique,
+  client_id uuid not null references clients (id) on delete restrict,
+  -- Set when an invoice is generated from an accepted quotation
+  quotation_id uuid references quotations (id) on delete set null,
+  status text not null default 'draft'
+    check (status in ('draft','sent','partially_paid','paid','overdue','cancelled')),
+  issue_date date not null default current_date,
+  due_date date,
+  currency text not null default 'PKR',
+  tax_enabled boolean not null default false,
+  tax_name text not null default 'GST',
+  tax_rate numeric(5,2) not null default 0,
+  subtotal numeric(12,2) not null default 0,
+  tax_amount numeric(12,2) not null default 0,
+  total numeric(12,2) not null default 0,
+  amount_paid numeric(12,2) not null default 0,
+  notes text,
+  terms text,
+  sent_at timestamptz,
+  paid_at timestamptz
+);
+
+create index if not exists invoices_client_idx on invoices (client_id);
+create index if not exists invoices_status_idx on invoices (status);
+
+create table if not exists invoice_items (
+  id uuid primary key default gen_random_uuid(),
+  invoice_id uuid not null references invoices (id) on delete cascade,
+  catalog_item_id uuid references catalog_items (id) on delete set null,
+  description text not null,
+  quantity numeric(10,2) not null default 1,
+  rate numeric(12,2) not null default 0,
+  amount numeric(12,2) not null default 0,
+  sort_order int not null default 0
+);
+
+create index if not exists invoice_items_parent_idx on invoice_items (invoice_id);
+
+-- ── Payments (supports partial payment) ─────────────────────
+
+create table if not exists payments (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  invoice_id uuid not null references invoices (id) on delete cascade,
+  amount numeric(12,2) not null,
+  paid_at date not null default current_date,
+  method text,                            -- bank transfer / cash / Wise / etc.
+  reference text,
+  notes text
+);
+
+create index if not exists payments_invoice_idx on payments (invoice_id);
+
+-- ── Row Level Security ──────────────────────────────────────
+-- Enabled with no policies: the anon key can reach nothing. The
+-- dashboard reads and writes server-side with the service_role key,
+-- behind its own auth check, so no client ever queries these directly.
+
+alter table settings enable row level security;
+alter table clients enable row level security;
+alter table catalog_items enable row level security;
+alter table document_counters enable row level security;
+alter table quotations enable row level security;
+alter table quotation_items enable row level security;
+alter table invoices enable row level security;
+alter table invoice_items enable row level security;
+alter table payments enable row level security;

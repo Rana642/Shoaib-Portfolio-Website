@@ -110,3 +110,28 @@
     transform: translate(-3rem, 4rem) scale(0.95);
   }
 }
+
+/* ── Print: quotations & invoices ──────────────────────────
+   Dashboard chrome is hidden so browser print-to-PDF produces the
+   client-facing document on its own, with no separate export path. */
+@media print {
+  .print\:hidden,
+  aside,
+  header {
+    display: none !important;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+
+  @page {
+    margin: 16mm;
+  }
+}

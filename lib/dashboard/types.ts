@@ -1,0 +1,123 @@
+export type Client = {
+  id: string;
+  created_at: string;
+  name: string;
+  contact_person: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  country: string | null;
+  currency: string | null;
+  notes: string | null;
+  is_active: boolean;
+};
+
+export type CatalogItem = {
+  id: string;
+  created_at: string;
+  name: string;
+  description: string | null;
+  unit: string;
+  default_rate: number;
+  currency: string;
+  is_active: boolean;
+  sort_order: number;
+};
+
+export type LineItem = {
+  id: string;
+  catalog_item_id: string | null;
+  description: string;
+  quantity: number;
+  rate: number;
+  amount: number;
+  sort_order: number;
+};
+
+export type QuotationStatus = "draft" | "sent" | "accepted" | "rejected" | "expired";
+
+export type Quotation = {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  number: string;
+  client_id: string;
+  status: QuotationStatus;
+  issue_date: string;
+  valid_until: string | null;
+  currency: string;
+  tax_enabled: boolean;
+  tax_name: string;
+  tax_rate: number;
+  subtotal: number;
+  tax_amount: number;
+  total: number;
+  notes: string | null;
+  terms: string | null;
+  accepted_at: string | null;
+  rejected_at: string | null;
+};
+
+export type InvoiceStatus =
+  | "draft"
+  | "sent"
+  | "partially_paid"
+  | "paid"
+  | "overdue"
+  | "cancelled";
+
+export type Invoice = {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  number: string;
+  client_id: string;
+  quotation_id: string | null;
+  status: InvoiceStatus;
+  issue_date: string;
+  due_date: string | null;
+  currency: string;
+  tax_enabled: boolean;
+  tax_name: string;
+  tax_rate: number;
+  subtotal: number;
+  tax_amount: number;
+  total: number;
+  amount_paid: number;
+  notes: string | null;
+  terms: string | null;
+  sent_at: string | null;
+  paid_at: string | null;
+};
+
+export type Payment = {
+  id: string;
+  created_at: string;
+  invoice_id: string;
+  amount: number;
+  paid_at: string;
+  method: string | null;
+  reference: string | null;
+  notes: string | null;
+};
+
+export type Settings = {
+  id: number;
+  business_name: string;
+  business_email: string | null;
+  business_phone: string | null;
+  business_address: string | null;
+  default_currency: string;
+  tax_enabled: boolean;
+  tax_name: string;
+  tax_rate: number;
+  invoice_prefix: string;
+  quote_prefix: string;
+  payment_terms: string | null;
+  bank_details: string | null;
+  updated_at: string;
+};
+
+export const CURRENCIES = ["PKR", "USD", "EUR", "GBP", "SEK", "AED"] as const;
+
+export const UNITS = ["month", "project", "hour", "item", "campaign"] as const;
