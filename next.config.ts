@@ -13,6 +13,13 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async rewrites() {
+    return [
+      // Browsers/crawlers request /favicon.ico directly regardless of the
+      // <link rel="icon"> tags app/icon.tsx generates — serve it there too.
+      { source: "/favicon.ico", destination: "/icon" },
+    ];
+  },
 };
 
 export default nextConfig;
