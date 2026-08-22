@@ -10,7 +10,10 @@ import Reveal from "@/components/shared/Reveal";
 import Tag from "@/components/ui/Tag";
 import Button from "@/components/ui/Button";
 import FinalCTA from "@/components/sections/FinalCTA";
+import JsonLd from "@/components/shared/JsonLd";
 import { services, getService } from "@/lib/services";
+import { pageMetadata } from "@/lib/seo";
+import { serviceSchema, breadcrumbSchema } from "@/lib/schema";
 
 export function generateStaticParams() {
   return services.map((s) => ({ service: s.slug }));
@@ -22,10 +25,11 @@ export async function generateMetadata({
   const { service: slug } = await params;
   const service = getService(slug);
   if (!service) return {};
-  return {
+  return pageMetadata({
     title: service.title,
     description: service.summary,
-  };
+    path: `/services/${service.slug}`,
+  });
 }
 
 export default async function ServiceDetailPage({
@@ -37,6 +41,14 @@ export default async function ServiceDetailPage({
 
   return (
     <PageWrapper>
+      <JsonLd data={serviceSchema(service)} />
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: "Home", path: "/" },
+          { name: "Services", path: "/services" },
+          { name: service.title, path: `/services/${service.slug}` },
+        ])}
+      />
       <section className="py-20 md:py-28">
         <div className="container-narrow">
           <Reveal>

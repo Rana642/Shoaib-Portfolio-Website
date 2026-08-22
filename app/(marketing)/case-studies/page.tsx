@@ -5,19 +5,29 @@ import PageWrapper from "@/components/layout/PageWrapper";
 import Reveal from "@/components/shared/Reveal";
 import Tag from "@/components/ui/Tag";
 import FinalCTA from "@/components/sections/FinalCTA";
+import JsonLd from "@/components/shared/JsonLd";
 import { getAllCaseStudies } from "@/lib/case-studies";
+import { pageMetadata } from "@/lib/seo";
+import { breadcrumbSchema } from "@/lib/schema";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Case Studies",
   description:
     "Real campaigns, real numbers — how Shoaib Nabi Noor's performance marketing practice turns ad spend into bookings, leads, and sales across eight industries.",
-};
+  path: "/case-studies",
+});
 
 export default function CaseStudiesPage() {
   const caseStudies = getAllCaseStudies();
 
   return (
     <PageWrapper>
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: "Home", path: "/" },
+          { name: "Case Studies", path: "/case-studies" },
+        ])}
+      />
       <section className="py-20 md:py-28">
         <div className="container-narrow">
           <Reveal>

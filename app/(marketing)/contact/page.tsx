@@ -8,12 +8,16 @@ import PageWrapper from "@/components/layout/PageWrapper";
 import Reveal from "@/components/shared/Reveal";
 import Tag from "@/components/ui/Tag";
 import ContactForm from "@/components/forms/ContactForm";
+import JsonLd from "@/components/shared/JsonLd";
+import { pageMetadata } from "@/lib/seo";
+import { breadcrumbSchema } from "@/lib/schema";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Contact",
   description:
     "Get a free audit from Shoaib Nabi Noor — tell me what you're running, and I'll tell you what I'd fix first. Email, WhatsApp, or the form below.",
-};
+  path: "/contact",
+});
 
 const channels = [
   {
@@ -42,6 +46,12 @@ const channels = [
 export default function ContactPage() {
   return (
     <PageWrapper>
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: "Home", path: "/" },
+          { name: "Contact", path: "/contact" },
+        ])}
+      />
       <section className="py-20 md:py-28">
         <div className="container-narrow">
           <Reveal>

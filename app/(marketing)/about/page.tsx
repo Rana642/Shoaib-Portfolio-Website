@@ -10,12 +10,16 @@ import Tag from "@/components/ui/Tag";
 import Button from "@/components/ui/Button";
 import Philosophy from "@/components/sections/Philosophy";
 import FinalCTA from "@/components/sections/FinalCTA";
+import JsonLd from "@/components/shared/JsonLd";
+import { pageMetadata } from "@/lib/seo";
+import { personSchema, breadcrumbSchema } from "@/lib/schema";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "About",
   description:
     "Shoaib Nabi Noor runs an independent performance marketing practice — six years in paid media across Meta, Google, YouTube, and TikTok, eight industries deep.",
-};
+  path: "/about",
+});
 
 const opinions = [
   {
@@ -73,6 +77,13 @@ const practicalBits = [
 export default function AboutPage() {
   return (
     <PageWrapper>
+      <JsonLd data={personSchema()} />
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: "Home", path: "/" },
+          { name: "About", path: "/about" },
+        ])}
+      />
       {/* 1 — Intro */}
       <section className="py-20 md:py-28">
         <div className="container-wide grid grid-cols-1 lg:grid-cols-5 gap-12 items-center">

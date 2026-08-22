@@ -7,7 +7,10 @@ import PageWrapper from "@/components/layout/PageWrapper";
 import Reveal from "@/components/shared/Reveal";
 import Tag from "@/components/ui/Tag";
 import FinalCTA from "@/components/sections/FinalCTA";
+import JsonLd from "@/components/shared/JsonLd";
 import { getAllCaseStudies, getCaseStudy } from "@/lib/case-studies";
+import { pageMetadata } from "@/lib/seo";
+import { caseStudySchema, breadcrumbSchema } from "@/lib/schema";
 
 export function generateStaticParams() {
   return getAllCaseStudies().map((cs) => ({ slug: cs.slug }));
@@ -19,7 +22,11 @@ export async function generateMetadata({
   const { slug } = await params;
   const cs = getCaseStudy(slug);
   if (!cs) return {};
-  return { title: cs.title, description: cs.excerpt };
+  return pageMetadata({
+    title: cs.title,
+    description: cs.excerpt,
+    path: `/case-studies/${cs.slug}`,
+  });
 }
 
 const mdxComponents = {
@@ -55,6 +62,14 @@ export default async function CaseStudyPage({
 
   return (
     <PageWrapper>
+      <JsonLd data={caseStudySchema(cs)} />
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: "Home", path: "/" },
+          { name: "Case Studies", path: "/case-studies" },
+          { name: cs.title, path: `/case-studies/${cs.slug}` },
+        ])}
+      />
       <article className="py-20 md:py-28">
         <div className="container-narrow">
           <Reveal>

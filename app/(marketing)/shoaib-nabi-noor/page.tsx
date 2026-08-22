@@ -10,12 +10,16 @@ import PageWrapper from "@/components/layout/PageWrapper";
 import Reveal from "@/components/shared/Reveal";
 import Tag from "@/components/ui/Tag";
 import Button from "@/components/ui/Button";
+import JsonLd from "@/components/shared/JsonLd";
+import { pageMetadata } from "@/lib/seo";
+import { personSchema, breadcrumbSchema } from "@/lib/schema";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Shoaib Nabi Noor — Resume",
   description:
     "Resume of Shoaib Nabi Noor — performance marketing specialist. Six years in paid media, $2.5M+ managed across Meta, Google, YouTube, and TikTok.",
-};
+  path: "/shoaib-nabi-noor",
+});
 
 const experience = [
   {
@@ -78,6 +82,13 @@ const certifications = [
 export default function ResumePage() {
   return (
     <PageWrapper>
+      <JsonLd data={personSchema()} />
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: "Home", path: "/" },
+          { name: "Resume", path: "/shoaib-nabi-noor" },
+        ])}
+      />
       {/* Header */}
       <section className="py-20 md:py-28">
         <div className="container-narrow">

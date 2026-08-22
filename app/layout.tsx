@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { instrumentSerif, geist, geistMono } from "./fonts";
+import JsonLd from "@/components/shared/JsonLd";
+import { organizationSchema } from "@/lib/schema";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,7 +20,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${instrumentSerif.variable} ${geist.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col noise-overlay">{children}</body>
+      <body className="min-h-full flex flex-col noise-overlay">
+        <JsonLd data={organizationSchema()} />
+        {children}
+      </body>
     </html>
   );
 }

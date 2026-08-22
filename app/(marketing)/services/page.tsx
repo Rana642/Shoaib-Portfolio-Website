@@ -9,13 +9,17 @@ import Reveal from "@/components/shared/Reveal";
 import Tag from "@/components/ui/Tag";
 import Button from "@/components/ui/Button";
 import FinalCTA from "@/components/sections/FinalCTA";
+import JsonLd from "@/components/shared/JsonLd";
 import { services } from "@/lib/services";
+import { pageMetadata } from "@/lib/seo";
+import { serviceSchema, breadcrumbSchema } from "@/lib/schema";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Services",
   description:
     "Meta Ads, Google & YouTube Ads, tracking & analytics, and funnels — one connected performance marketing engine, managed by Shoaib Nabi Noor.",
-};
+  path: "/services",
+});
 
 const dontDo = [
   {
@@ -62,6 +66,15 @@ const process = [
 export default function ServicesPage() {
   return (
     <PageWrapper>
+      {services.map((service) => (
+        <JsonLd key={service.slug} data={serviceSchema(service)} />
+      ))}
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: "Home", path: "/" },
+          { name: "Services", path: "/services" },
+        ])}
+      />
       {/* Intro */}
       <section className="py-20 md:py-28">
         <div className="container-narrow">

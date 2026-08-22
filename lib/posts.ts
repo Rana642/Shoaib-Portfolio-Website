@@ -21,6 +21,7 @@ export type Post = {
   category: string;
   publishedAt: string;
   body: PortableTextBlock[];
+  faqs?: { question: string; answer: string }[];
 };
 
 export const categories = [

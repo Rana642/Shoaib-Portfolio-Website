@@ -4,13 +4,17 @@ import { ArrowUpRight } from "lucide-react";
 import PageWrapper from "@/components/layout/PageWrapper";
 import Reveal from "@/components/shared/Reveal";
 import Tag from "@/components/ui/Tag";
+import JsonLd from "@/components/shared/JsonLd";
 import { getAllPosts, categories, categorySlug, estimateReadingTime } from "@/lib/posts";
+import { pageMetadata } from "@/lib/seo";
+import { breadcrumbSchema } from "@/lib/schema";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Blog",
   description:
     "Field notes on Meta Ads, Google Ads, tracking, and funnels — what actually moves the needle in paid media, from Shoaib Nabi Noor's independent practice.",
-};
+  path: "/blog",
+});
 
 export default async function BlogPage() {
   const posts = await getAllPosts();
@@ -18,6 +22,12 @@ export default async function BlogPage() {
 
   return (
     <PageWrapper>
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: "Home", path: "/" },
+          { name: "Blog", path: "/blog" },
+        ])}
+      />
       <section className="py-20 md:py-28">
         <div className="container-narrow">
           <Reveal>

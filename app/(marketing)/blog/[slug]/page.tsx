@@ -8,7 +8,10 @@ import PageWrapper from "@/components/layout/PageWrapper";
 import Reveal from "@/components/shared/Reveal";
 import Tag from "@/components/ui/Tag";
 import Button from "@/components/ui/Button";
+import JsonLd from "@/components/shared/JsonLd";
 import { getAllPosts, getPost, estimateReadingTime } from "@/lib/posts";
+import { pageMetadata } from "@/lib/seo";
+import { articleSchema, faqPageSchema, breadcrumbSchema } from "@/lib/schema";
 
 export async function generateStaticParams() {
   const posts = await getAllPosts();
@@ -21,7 +24,11 @@ export async function generateMetadata({
   const { slug } = await params;
   const post = await getPost(slug);
   if (!post) return {};
-  return { title: post.title, description: post.excerpt };
+  return pageMetadata({
+    title: post.title,
+    description: post.excerpt,
+    path: `/blog/${post.slug}`,
+  });
 }
 
 const portableTextComponents: PortableTextComponents = {
@@ -62,6 +69,15 @@ export default async function BlogPostPage({ params }: PageProps<"/blog/[slug]">
 
   return (
     <PageWrapper>
+      <JsonLd data={articleSchema(post)} />
+      {post.faqs && post.faqs.length > 0 && <JsonLd data={faqPageSchema(post.faqs)} />}
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: "Home", path: "/" },
+          { name: "Blog", path: "/blog" },
+          { name: post.title, path: `/blog/${post.slug}` },
+        ])}
+      />
       <article className="py-20 md:py-28">
         <div className="container-narrow">
           <Reveal>

@@ -5,7 +5,10 @@ import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import PageWrapper from "@/components/layout/PageWrapper";
 import Reveal from "@/components/shared/Reveal";
 import Tag from "@/components/ui/Tag";
+import JsonLd from "@/components/shared/JsonLd";
 import { categories, categorySlug, getPostsByCategory, estimateReadingTime } from "@/lib/posts";
+import { pageMetadata } from "@/lib/seo";
+import { breadcrumbSchema } from "@/lib/schema";
 
 export function generateStaticParams() {
   return categories.map((c) => ({ category: categorySlug(c) }));
@@ -17,10 +20,11 @@ export async function generateMetadata({
   const { category } = await params;
   const name = categories.find((c) => categorySlug(c) === category);
   if (!name) return {};
-  return {
+  return pageMetadata({
     title: `${name} — Blog`,
     description: `Posts on ${name} from Shoaib Nabi Noor's performance marketing practice.`,
-  };
+    path: `/blog/category/${category}`,
+  });
 }
 
 export default async function BlogCategoryPage({
@@ -34,6 +38,13 @@ export default async function BlogCategoryPage({
 
   return (
     <PageWrapper>
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: "Home", path: "/" },
+          { name: "Blog", path: "/blog" },
+          { name, path: `/blog/category/${category}` },
+        ])}
+      />
       <section className="py-20 md:py-28">
         <div className="container-narrow">
           <Reveal>
