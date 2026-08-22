@@ -1,7 +1,10 @@
 /*
- * DRAFT — experience entries marked [Placeholder] need Shoaib's real CV data
- * (employers, dates, education, certifications). The accountant background
- * appears HERE and only here, per Shoaib's instruction.
+ * Real CV data (2026-08-22) — see lib/resume.ts for the source and notes.
+ * Experience entries below are STILL PLACEHOLDER — Shoaib's actual job
+ * history ("4 primary jobs + 6 remote projects") hasn't reached this repo
+ * yet. The accountant background appears HERE and only here, per Shoaib's
+ * instruction. Personal Information (father's name, CNIC, marital status)
+ * from his CV data is intentionally excluded from this public page.
  */
 import type { Metadata } from "next";
 import Image from "next/image";
@@ -11,8 +14,19 @@ import Reveal from "@/components/shared/Reveal";
 import Tag from "@/components/ui/Tag";
 import Button from "@/components/ui/Button";
 import JsonLd from "@/components/shared/JsonLd";
+import { LinkedinIcon, FacebookIcon, XIcon, InstagramIcon } from "@/components/ui/SocialIcons";
 import { pageMetadata } from "@/lib/seo";
 import { personSchema, breadcrumbSchema } from "@/lib/schema";
+import {
+  summary,
+  keyMetrics,
+  technicalSkillGroups,
+  softSkillGroups,
+  languages,
+  education,
+  certifications,
+  socialProfiles,
+} from "@/lib/resume";
 
 export const metadata: Metadata = pageMetadata({
   title: "Shoaib Nabi Noor — Resume",
@@ -60,24 +74,7 @@ const experience = [
   },
 ];
 
-const skills = [
-  "Meta Ads (Facebook & Instagram)",
-  "Google Ads — Search & PMax",
-  "YouTube Ads",
-  "TikTok Ads",
-  "Meta Pixel & Conversions API",
-  "GA4 & Google Tag Manager",
-  "Funnel & landing page strategy",
-  "Creative testing frameworks",
-  "Budget & bid management",
-  "Plain-English reporting",
-];
-
-const certifications = [
-  "[Placeholder] Meta Certified Media Buying Professional",
-  "[Placeholder] Google Ads Search Certification",
-  "[Placeholder] Google Analytics 4 Certification",
-];
+const socialIcons = { LinkedIn: LinkedinIcon, Facebook: FacebookIcon, "X (Twitter)": XIcon, Instagram: InstagramIcon };
 
 export default function ResumePage() {
   return (
@@ -99,8 +96,8 @@ export default function ResumePage() {
                 Shoaib Nabi Noor<span className="text-citrus">.</span>
               </h1>
               <p className="text-body-lg text-ink-muted mt-4 max-w-xl">
-                Performance marketing specialist — six years turning ad budgets into
-                measurable revenue across Meta, Google, YouTube, and TikTok.
+                Performance Marketing Specialist · Media Buyer — six years turning ad
+                budgets into measurable revenue across Meta, Google, YouTube, and TikTok.
               </p>
               <div className="flex flex-wrap gap-x-8 gap-y-3 mt-8">
                 <a
@@ -119,7 +116,7 @@ export default function ResumePage() {
                 </a>
                 <span className="flex items-center gap-2 text-small text-ink-muted">
                   <MapPin className="size-4 text-cobalt" aria-hidden />
-                  Multan, Pakistan · Remote worldwide
+                  Multan, Punjab, Pakistan · Remote worldwide
                 </span>
               </div>
             </Reveal>
@@ -139,6 +136,34 @@ export default function ResumePage() {
         </div>
       </section>
 
+      {/* Professional Summary */}
+      <section className="py-16 md:py-20 bg-white/40">
+        <div className="container-narrow">
+          <Reveal>
+            <h2 className="font-serif italic text-h3">
+              Summary<span className="text-citrus">.</span>
+            </h2>
+            <p className="text-body-lg text-ink-muted mt-6 max-w-3xl">{summary}</p>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* Key Career Metrics */}
+      <section className="py-16 md:py-20">
+        <div className="container-narrow">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-10">
+            {keyMetrics.map((metric, i) => (
+              <Reveal key={metric.label} delay={i * 0.05}>
+                <p className="font-serif italic text-h2 leading-none">{metric.value}</p>
+                <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-3">
+                  {metric.label}
+                </p>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Experience */}
       <section className="py-16 md:py-20 bg-white/40">
         <div className="container-narrow">
@@ -146,6 +171,10 @@ export default function ResumePage() {
             <h2 className="font-serif italic text-h2">
               Experience<span className="text-citrus">.</span>
             </h2>
+            <p className="text-small text-ink-subtle mt-3 max-w-xl">
+              Full employer-by-employer history is being finalized — reach out for the
+              complete work history in the meantime.
+            </p>
           </Reveal>
           <div className="mt-10 space-y-0">
             {experience.map((job, i) => (
@@ -173,39 +202,153 @@ export default function ResumePage() {
         </div>
       </section>
 
-      {/* Skills + Certifications */}
+      {/* Technical Skills */}
+      <section className="py-16 md:py-20">
+        <div className="container-narrow">
+          <Reveal>
+            <h2 className="font-serif italic text-h2">
+              Core technical skills<span className="text-citrus">.</span>
+            </h2>
+          </Reveal>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-10">
+            {technicalSkillGroups.map((group, i) => (
+              <Reveal key={group.category} delay={(i % 2) * 0.08}>
+                <div className="h-full bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-7">
+                  <h3 className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                    {group.category}
+                  </h3>
+                  <div className="flex flex-wrap gap-2.5 mt-5">
+                    {group.items.map((item) => (
+                      <span
+                        key={item}
+                        className="text-small border border-ink/15 rounded-full px-3.5 py-1.5 hover:border-citrus hover:bg-citrus/10 transition-all"
+                      >
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Soft Skills */}
+      <section className="py-16 md:py-20 bg-white/40">
+        <div className="container-narrow">
+          <Reveal>
+            <h2 className="font-serif italic text-h2">
+              Soft skills<span className="text-citrus">.</span>
+            </h2>
+          </Reveal>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
+            {softSkillGroups.map((group, i) => (
+              <Reveal key={group.category} delay={(i % 3) * 0.07}>
+                <div className="h-full border-t-2 border-cobalt pt-5">
+                  <h3 className="text-body-lg font-semibold">{group.category}</h3>
+                  <ul className="mt-4 space-y-2">
+                    {group.items.map((item) => (
+                      <li key={item} className="flex gap-2.5 items-start text-small text-ink-muted">
+                        <span className="size-1 rounded-full bg-citrus inline-block shrink-0 mt-2" aria-hidden />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Languages + Education */}
       <section className="py-16 md:py-20">
         <div className="container-narrow grid grid-cols-1 md:grid-cols-2 gap-12">
           <Reveal>
             <h2 className="font-serif italic text-h3">
-              Skills & platforms<span className="text-citrus">.</span>
-            </h2>
-            <div className="flex flex-wrap gap-3 mt-8">
-              {skills.map((skill) => (
-                <span
-                  key={skill}
-                  className="text-small border border-ink/15 rounded-full px-4 py-2 hover:border-citrus hover:bg-citrus/10 transition-all"
-                >
-                  {skill}
-                </span>
-              ))}
-            </div>
-          </Reveal>
-          <Reveal delay={0.1}>
-            <h2 className="font-serif italic text-h3">
-              Certifications<span className="text-citrus">.</span>
+              Languages<span className="text-citrus">.</span>
             </h2>
             <ul className="mt-8 space-y-4">
-              {certifications.map((cert) => (
-                <li key={cert} className="flex gap-3 items-start text-body text-ink-muted">
-                  <span className="size-1.5 rounded-full bg-cobalt inline-block shrink-0 mt-2.5" aria-hidden />
-                  {cert}
+              {languages.map((lang) => (
+                <li key={lang.name} className="flex justify-between gap-6 pb-3 border-b border-ink/10">
+                  <span className="text-body font-medium">{lang.name}</span>
+                  <span className="text-small text-ink-subtle text-right">{lang.level}</span>
                 </li>
               ))}
             </ul>
-            <p className="text-small text-ink-subtle mt-6">
-              Education details to be added.
-            </p>
+          </Reveal>
+          <Reveal delay={0.1}>
+            <h2 className="font-serif italic text-h3">
+              Education<span className="text-citrus">.</span>
+            </h2>
+            <ul className="mt-8 space-y-5">
+              {education.map((edu) => (
+                <li key={edu.degree}>
+                  <p className="text-body font-medium">{edu.degree}</p>
+                  <p className="text-small text-cobalt mt-0.5">{edu.institution}</p>
+                  <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-1.5">
+                    {edu.period}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* Certifications */}
+      <section className="py-16 md:py-20 bg-white/40">
+        <div className="container-narrow">
+          <Reveal>
+            <h2 className="font-serif italic text-h3">
+              Certifications<span className="text-citrus">.</span>
+            </h2>
+          </Reveal>
+          <div className="mt-8 space-y-6">
+            {certifications.map((cert) => (
+              <Reveal key={cert.title}>
+                <div className="bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-7 max-w-2xl">
+                  <p className="text-body-lg font-semibold">{cert.title}</p>
+                  <p className="text-small text-ink-muted mt-2">{cert.issuer}</p>
+                  <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-3">
+                    {cert.detail}
+                  </p>
+                  <p className="text-small text-ink-subtle mt-3">{cert.note}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Social profiles + References */}
+      <section className="py-16 md:py-20">
+        <div className="container-narrow flex flex-col md:flex-row md:items-center justify-between gap-8">
+          <Reveal>
+            <h2 className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-4">
+              Find me elsewhere
+            </h2>
+            <div className="flex flex-wrap gap-3">
+              {socialProfiles.map((profile) => {
+                const Icon = socialIcons[profile.label as keyof typeof socialIcons];
+                return (
+                  <a
+                    key={profile.label}
+                    href={profile.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-small border border-ink/15 rounded-full pl-3 pr-4 py-2 hover:border-citrus hover:bg-citrus/10 transition-all"
+                  >
+                    <Icon className="size-4" aria-hidden />
+                    {profile.handle}
+                  </a>
+                );
+              })}
+            </div>
+          </Reveal>
+          <Reveal delay={0.1}>
+            <p className="text-small text-ink-subtle">References available upon request.</p>
           </Reveal>
         </div>
       </section>
