@@ -4,7 +4,7 @@ import { ArrowUpRight } from "lucide-react";
 import PageWrapper from "@/components/layout/PageWrapper";
 import Reveal from "@/components/shared/Reveal";
 import Tag from "@/components/ui/Tag";
-import { posts, categories, categorySlug } from "@/lib/posts";
+import { getAllPosts, categories, categorySlug, estimateReadingTime } from "@/lib/posts";
 
 export const metadata: Metadata = {
   title: "Blog",
@@ -12,7 +12,8 @@ export const metadata: Metadata = {
     "Field notes on Meta Ads, Google Ads, tracking, and funnels — what actually moves the needle in paid media, from Shoaib Nabi Noor's independent practice.",
 };
 
-export default function BlogPage() {
+export default async function BlogPage() {
+  const posts = await getAllPosts();
   const [featured, ...rest] = posts;
 
   return (
@@ -72,7 +73,7 @@ export default function BlogPage() {
                   <p className="text-body-lg text-ink-muted">{featured.excerpt}</p>
                   <div className="flex items-center justify-between mt-8">
                     <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
-                      {featured.readingTime}
+                      {estimateReadingTime(featured.body)}
                     </span>
                     <ArrowUpRight
                       className="size-6 text-ink-subtle transition-all duration-300 group-hover:text-ink group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
@@ -98,7 +99,7 @@ export default function BlogPage() {
                   <h2 className="font-serif italic text-h3 mt-5 flex-1">{post.title}</h2>
                   <p className="text-small text-ink-muted mt-3">{post.excerpt}</p>
                   <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-6">
-                    {post.readingTime}
+                    {estimateReadingTime(post.body)}
                   </span>
                 </Link>
               </Reveal>

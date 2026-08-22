@@ -5,7 +5,7 @@ import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import PageWrapper from "@/components/layout/PageWrapper";
 import Reveal from "@/components/shared/Reveal";
 import Tag from "@/components/ui/Tag";
-import { categories, categorySlug, getPostsByCategory } from "@/lib/posts";
+import { categories, categorySlug, getPostsByCategory, estimateReadingTime } from "@/lib/posts";
 
 export function generateStaticParams() {
   return categories.map((c) => ({ category: categorySlug(c) }));
@@ -30,7 +30,7 @@ export default async function BlogCategoryPage({
   const name = categories.find((c) => categorySlug(c) === category);
   if (!name) notFound();
 
-  const filtered = getPostsByCategory(category);
+  const filtered = await getPostsByCategory(category);
 
   return (
     <PageWrapper>
@@ -86,7 +86,7 @@ export default async function BlogCategoryPage({
                     <h2 className="font-serif italic text-h3 mt-5 flex-1">{post.title}</h2>
                     <p className="text-small text-ink-muted mt-3">{post.excerpt}</p>
                     <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-6">
-                      {post.readingTime}
+                      {estimateReadingTime(post.body)}
                     </span>
                   </Link>
                 </Reveal>

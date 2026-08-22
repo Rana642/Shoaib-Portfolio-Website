@@ -3,13 +3,15 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
+import { PortableText, type PortableTextComponents } from "next-sanity";
 import PageWrapper from "@/components/layout/PageWrapper";
 import Reveal from "@/components/shared/Reveal";
 import Tag from "@/components/ui/Tag";
 import Button from "@/components/ui/Button";
-import { posts, getPost } from "@/lib/posts";
+import { getAllPosts, getPost, estimateReadingTime } from "@/lib/posts";
 
-export function generateStaticParams() {
+export async function generateStaticParams() {
+  const posts = await getAllPosts();
   return posts.map((p) => ({ slug: p.slug }));
 }
 
@@ -17,17 +19,41 @@ export async function generateMetadata({
   params,
 }: PageProps<"/blog/[slug]">): Promise<Metadata> {
   const { slug } = await params;
-  const post = getPost(slug);
+  const post = await getPost(slug);
   if (!post) return {};
   return { title: post.title, description: post.excerpt };
 }
 
+const portableTextComponents: PortableTextComponents = {
+  block: {
+    normal: ({ children }) => <p className="text-body-lg text-ink-muted mt-5">{children}</p>,
+    h2: ({ children }) => <h2 className="font-serif italic text-h3 mt-12 mb-2">{children}</h2>,
+    blockquote: ({ children }) => (
+      <blockquote className="border-l-2 border-citrus bg-citrus/10 rounded-r-xl px-6 py-4 mt-6 text-small text-ink-muted">
+        {children}
+      </blockquote>
+    ),
+  },
+  list: {
+    bullet: ({ children }) => <ul className="mt-4 space-y-3">{children}</ul>,
+  },
+  listItem: {
+    bullet: ({ children }) => (
+      <li className="text-body text-ink-muted flex gap-3 items-start">
+        <span className="size-1.5 rounded-full bg-citrus inline-block shrink-0 mt-2.5" aria-hidden />
+        {children}
+      </li>
+    ),
+  },
+};
+
 export default async function BlogPostPage({ params }: PageProps<"/blog/[slug]">) {
   const { slug } = await params;
-  const post = getPost(slug);
+  const post = await getPost(slug);
   if (!post) notFound();
 
-  const morePosts = posts.filter((p) => p.slug !== post.slug).slice(0, 2);
+  const allPosts = await getAllPosts();
+  const morePosts = allPosts.filter((p) => p.slug !== post.slug).slice(0, 2);
   const date = new Date(post.publishedAt).toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
@@ -61,19 +87,15 @@ export default async function BlogPostPage({ params }: PageProps<"/blog/[slug]">
               <div>
                 <p className="text-small font-medium">Shoaib Nabi Noor</p>
                 <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-1">
-                  {date} · {post.readingTime}
+                  {date} · {estimateReadingTime(post.body)}
                 </p>
               </div>
             </div>
           </Reveal>
 
           <Reveal delay={0.1}>
-            <div className="mt-10 max-w-2xl space-y-5">
-              {post.body.map((para, i) => (
-                <p key={i} className="text-body-lg text-ink-muted">
-                  {para}
-                </p>
-              ))}
+            <div className="mt-2 max-w-2xl">
+              <PortableText value={post.body} components={portableTextComponents} />
             </div>
           </Reveal>
 
