@@ -119,9 +119,10 @@ export default async function CaseStudyPage({
                 <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
                   Outcome
                 </p>
-                <p className="text-body font-medium mt-2 relative inline-block">
-                  <span className="absolute inset-x-0 bottom-0.5 h-[35%] bg-citrus/40 -z-0 rounded-sm" />
-                  <span className="relative">{cs.outcome}</span>
+                <p className="text-body font-medium mt-2">
+                  <span className="bg-citrus/40 rounded-sm px-1 -mx-1 box-decoration-clone">
+                    {cs.outcome}
+                  </span>
                 </p>
               </div>
             </div>

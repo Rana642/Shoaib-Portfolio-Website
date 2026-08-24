@@ -62,9 +62,10 @@ export default async function CaseStudiesPage() {
                 </div>
                 <h2 className="font-serif italic text-h3 mt-8">{cs.client}</h2>
                 <p className="text-small text-ink-muted mt-3 flex-1">{cs.excerpt}</p>
-                <p className="text-body font-medium mt-6 relative inline-block self-start">
-                  <span className="absolute inset-x-0 bottom-0.5 h-[35%] bg-citrus/40 -z-0 rounded-sm" />
-                  <span className="relative">{cs.outcome}</span>
+                <p className="text-body font-medium mt-6 self-start">
+                  <span className="bg-citrus/40 rounded-sm px-1 -mx-1 box-decoration-clone">
+                    {cs.outcome}
+                  </span>
                 </p>
               </Link>
             </Reveal>

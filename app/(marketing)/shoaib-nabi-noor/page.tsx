@@ -302,13 +302,14 @@ export default async function ResumePage() {
         </div>
       </section>
 
-      {/* Sticky download bar */}
-      <div className="sticky bottom-6 z-40 pointer-events-none">
-        <div className="container-narrow flex justify-end">
+      {/* Sticky download bar — full-width bar with a backdrop so it reads as
+          intentional chrome rather than a button floating over cut-off text. */}
+      <div className="sticky bottom-0 z-40 bg-cloud/90 backdrop-blur-sm border-t border-ink/10">
+        <div className="container-narrow flex justify-end py-4">
           <Button
             href="/documents/shoaib-nabi-noor-resume.pdf"
             download
-            className="pointer-events-auto shadow-2xl shadow-ink/20"
+            className="shadow-2xl shadow-ink/20"
           >
             <Download className="size-4" aria-hidden />
             Download PDF resume

@@ -18,8 +18,10 @@ export default function Turn() {
             connected the strategy to the targeting to the creative to the follow-through.
             That's the job. That's what this practice{" "}
             <span className="relative whitespace-nowrap">
-              <span className="absolute inset-x-0 bottom-1 h-[38%] bg-citrus/70 -z-0 -rotate-1 rounded-sm" />
-              <span className="relative text-ink">assembles</span>
+              {/* Citrus marker-highlight behind cloud text — this section is dark, so unlike the
+                  Hero's light-bg version, forcing ink text here would go dark-on-dark. */}
+              <span className="absolute inset-x-0 bottom-1 h-[38%] bg-citrus/70 -z-10 -rotate-1 rounded-sm" />
+              assembles
             </span>
             .
           </p>

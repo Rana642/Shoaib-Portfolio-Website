@@ -105,9 +105,10 @@ export default async function ServicesPage() {
                 0{i + 1}
               </span>
               <h2 className="font-serif italic text-h2 mt-4">{service.title}</h2>
-              <p className="text-body-lg font-medium mt-3 relative inline-block">
-                <span className="absolute inset-x-0 bottom-0.5 h-[35%] bg-citrus/40 -z-0 rounded-sm" />
-                <span className="relative">{service.tagline}</span>
+              <p className="text-body-lg font-medium mt-3">
+                <span className="bg-citrus/40 rounded-sm px-1 -mx-1 box-decoration-clone">
+                  {service.tagline}
+                </span>
               </p>
               {service.description.map((para, pi) => (
                 <p key={pi} className="text-body text-ink-muted mt-4 max-w-xl">
