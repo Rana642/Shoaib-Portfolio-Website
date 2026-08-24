@@ -16,14 +16,17 @@ const variants: Variants = {
 export default function Reveal({
   delay = 0,
   className,
+  id,
   children,
 }: {
   delay?: number;
   className?: string;
+  id?: string;
   children: React.ReactNode;
 }) {
   return (
     <motion.div
+      id={id}
       variants={variants}
       initial="hidden"
       whileInView="visible"
