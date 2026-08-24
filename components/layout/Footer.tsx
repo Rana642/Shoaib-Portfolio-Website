@@ -102,7 +102,10 @@ export default function Footer() {
 
       <div className="border-t border-cloud/10">
         <div className="container-wide py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-small text-cloud/40">
-          <p>© {new Date().getFullYear()} Ads by Shoaib. All rights reserved.</p>
+          <p>
+            © {new Date().getFullYear()} Ads by Shoaib (formerly Socially Snap). All rights
+            reserved.
+          </p>
           <div className="flex gap-6">
             <Link href="/privacy" className="hover:text-cloud/70 transition-colors">
               Privacy Policy

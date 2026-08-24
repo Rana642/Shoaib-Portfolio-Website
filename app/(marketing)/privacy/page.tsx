@@ -194,9 +194,10 @@ export default function PrivacyPage() {
             <p className="text-small text-ink-subtle mt-4">Last updated: August 24, 2026</p>
             <p className="text-body text-ink-muted mt-6 max-w-2xl">
               Ads by Shoaib is Shoaib Nabi Noor's independent performance marketing practice,
-              based in Multan, Punjab, Pakistan. This policy explains what information I collect
-              through adsbyshoaib.com and through any Google, Meta, or other account a client
-              authorizes me to manage on their behalf, how I use it, and the choices you have.
+              based in Multan, Punjab, Pakistan — formerly operated under the name Socially Snap.
+              This policy explains what information I collect through adsbyshoaib.com and through
+              any Google, Meta, or other account a client authorizes me to manage on their behalf,
+              how I use it, and the choices you have.
             </p>
           </Reveal>
 

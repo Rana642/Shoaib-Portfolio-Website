@@ -10,6 +10,10 @@ export function organizationSchema() {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: siteName,
+    // Formerly operated under this name — kept here (schema.org's own
+    // field for this) so Google's entity-resolution systems connect the
+    // two, e.g. when converting the old Google Business Profile.
+    alternateName: "Socially Snap",
     url: siteUrl,
     logo: `${siteUrl}/images/shoaib.png`,
     founder: { "@type": "Person", name: "Shoaib Nabi Noor" },
