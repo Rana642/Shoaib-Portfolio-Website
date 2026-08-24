@@ -163,6 +163,51 @@ type RealCaseStudy = {
 
 const realCaseStudies: RealCaseStudy[] = [
   {
+    slug: "avenza-group",
+    title: "Managing an Eight-Brand Portfolio for the Avenza Group",
+    client: "Avenza Group of Companies",
+    industry: "Multi-Industry Group",
+    excerpt:
+      "Three stints since 2021, eight independently-run brands across hospitality, salons, education, real estate, and events — plus a Facebook recruitment engine for the group's own corporate hiring.",
+    outcome: "Eight brands managed independently, plus corporate recruitment campaigns",
+    publishedAt: "2025-10-01",
+    body: `
+## The scope
+
+Three separate stints as Digital Media Marketer for a multi-brand group based in Multan: Apr 2021 – Sep 2023, Jan – Mar 2024, and Jul 2025 – Present. The group spans hospitality, salons, education, real estate, and events — and each brand runs its own independent social presence rather than sharing one page.
+
+## The brands
+
+- Toni&Guy Multan — international salon franchise
+- Choppers Salon
+- Hotel Avalon Suites
+- Hotel Elegant Executive Suite Multan
+- Eventia 360 — events
+- Pines Institute — education
+- AvenzaLand.com — real estate portal
+- Avenza Avenue — the group's own corporate page
+
+Individual case studies exist for each brand above with its own specific results.
+
+## Hiring & recruitment
+
+Beyond brand marketing, Avenza Avenue itself needed a different kind of campaign — Facebook recruitment ads for corporate hiring across the group, run through a fully verified Meta Business Suite, blue tick included.
+
+## What I did across the group
+
+- Full social media management across all brand handles — posting and content strategy
+- Meta Ads tailored per brand: awareness campaigns for salons, WhatsApp booking + awareness/engagement for hotels with no websites of their own
+- Google Business Profile creation and optimization for every brand
+- Meta Business Suite setup and blue tick verification for Avenza Avenue
+- Recruitment ad campaigns on Facebook for corporate hiring on the parent group page
+- Worked alongside an in-house graphics/video/photography team — owned strategy, posting, and ads
+
+## The result
+
+Eight brands, eight independent identities, one accountable strategy — plus a working recruitment funnel for the group's own hiring needs.
+`,
+  },
+  {
     slug: "boutique-hotel-multan",
     title: "From an Avenza Brand to an Independent Client, With a Real Booking Website",
     client: "Hotel Elegant Executive Suite — Multan",
@@ -199,7 +244,7 @@ A property that once ran on WhatsApp messages alone now has a proper booking web
     excerpt:
       "Three separate home categories, one unified brand platform — real estate construction and development in DHA Multan.",
     outcome: "Lead generation via Instant Forms across three home categories",
-    publishedAt: "2025-06-01",
+    publishedAt: "2025-09-15",
     body: `
 ## The challenge
 
@@ -306,7 +351,7 @@ Consultation bookings up quarter over quarter since the engagement began in Augu
     excerpt:
       "One of eight independently-run brands under the Avenza Group of Companies — its own Meta Ads presence for a global salon franchise's Multan location.",
     outcome: "Ongoing Meta Ads awareness campaigns",
-    publishedAt: "2021-06-01",
+    publishedAt: "2025-09-01",
     body: `
 ## The context
 
