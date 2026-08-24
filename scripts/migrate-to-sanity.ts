@@ -575,9 +575,17 @@ A light-touch, ongoing engagement keeping the restaurant's page active and its a
 async function migrateCaseStudies() {
   console.log(`\n— Case studies (${realCaseStudies.length}) —`);
   for (const cs of realCaseStudies) {
+    const id = `caseStudy-${cs.slug}`;
+    // active is Studio-only (toggled by Shoaib) — preserve it across reruns
+    // instead of letting createOrReplace silently reset it to the default.
+    const existing = await client.fetch<{ active?: boolean } | null>(
+      `*[_id == $id][0]{active}`,
+      { id }
+    );
     await client.createOrReplace({
-      _id: `caseStudy-${cs.slug}`,
+      _id: id,
       _type: "caseStudy",
+      active: existing?.active ?? true,
       title: cs.title,
       slug: { _type: "slug", current: cs.slug },
       industry: cs.industry,

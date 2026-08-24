@@ -6,6 +6,14 @@ export default defineType({
   type: "document",
   fields: [
     defineField({
+      name: "active",
+      title: "Active (shown on site)",
+      type: "boolean",
+      initialValue: true,
+      description:
+        "Turn off to hide this case study from the public site without deleting it. Hides it from the case studies list and makes its detail page 404.",
+    }),
+    defineField({
       name: "title",
       title: "Title",
       type: "string",
@@ -67,6 +75,13 @@ export default defineType({
     }),
   ],
   preview: {
-    select: { title: "client", subtitle: "outcome", media: "coverImage" },
+    select: { title: "client", subtitle: "outcome", media: "coverImage", active: "active" },
+    prepare({ title, subtitle, media, active }) {
+      return {
+        title: active === false ? `${title} (inactive)` : title,
+        subtitle,
+        media,
+      };
+    },
   },
 });

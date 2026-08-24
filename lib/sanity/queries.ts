@@ -30,7 +30,7 @@ export const postBySlugQuery = groq`
 // ── Case Studies ──
 
 export const allCaseStudiesQuery = groq`
-  *[_type == "caseStudy"] | order(publishedAt desc) {
+  *[_type == "caseStudy" && active != false] | order(publishedAt desc) {
     "slug": slug.current,
     title,
     industry,
@@ -43,7 +43,7 @@ export const allCaseStudiesQuery = groq`
 `;
 
 export const caseStudyBySlugQuery = groq`
-  *[_type == "caseStudy" && slug.current == $slug][0] {
+  *[_type == "caseStudy" && slug.current == $slug && active != false][0] {
     "slug": slug.current,
     title,
     industry,
