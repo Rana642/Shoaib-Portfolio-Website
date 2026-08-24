@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { MDXRemote } from "next-mdx-remote/rsc";
 import { PortableText, type PortableTextComponents } from "next-sanity";
 import PageWrapper from "@/components/layout/PageWrapper";
 import Reveal from "@/components/shared/Reveal";
@@ -31,31 +30,6 @@ export async function generateMetadata({
   });
 }
 
-const mdxComponents = {
-  h2: (props: React.HTMLAttributes<HTMLHeadingElement>) => (
-    <h2 className="font-serif italic text-h3 mt-12 mb-4" {...props} />
-  ),
-  p: (props: React.HTMLAttributes<HTMLParagraphElement>) => (
-    <p className="text-body-lg text-ink-muted mt-4" {...props} />
-  ),
-  ul: (props: React.HTMLAttributes<HTMLUListElement>) => (
-    <ul className="mt-4 space-y-3" {...props} />
-  ),
-  li: (props: React.HTMLAttributes<HTMLLIElement>) => (
-    <li
-      className="text-body text-ink-muted flex gap-3 items-start before:content-[''] before:size-1.5 before:rounded-full before:bg-citrus before:inline-block before:shrink-0 before:mt-2.5"
-      {...props}
-    />
-  ),
-  blockquote: (props: React.HTMLAttributes<HTMLQuoteElement>) => (
-    <blockquote
-      className="border-l-2 border-citrus bg-citrus/10 rounded-r-xl px-6 py-4 mt-6 text-small text-ink-muted [&_p]:mt-0 [&_p]:text-small"
-      {...props}
-    />
-  ),
-};
-
-// Same visual treatment as the MDX components, for Sanity-authored bodies
 const portableTextComponents: PortableTextComponents = {
   block: {
     normal: ({ children }) => <p className="text-body-lg text-ink-muted mt-4">{children}</p>,
@@ -129,11 +103,7 @@ export default async function CaseStudyPage({
           </Reveal>
           <Reveal delay={0.1}>
             <div className="mt-6 max-w-2xl">
-              {cs.body.source === "sanity" ? (
-                <PortableText value={cs.body.blocks} components={portableTextComponents} />
-              ) : (
-                <MDXRemote source={cs.body.content} components={mdxComponents} />
-              )}
+              <PortableText value={cs.body} components={portableTextComponents} />
             </div>
           </Reveal>
         </div>
