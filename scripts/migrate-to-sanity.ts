@@ -649,9 +649,17 @@ async function migrateTestimonials() {
 async function migrateResumeRoles() {
   console.log(`\n— Resume primary roles (${primaryRoles.length}) —`);
   for (const [index, role] of primaryRoles.entries()) {
+    const id = `resumeRole-${slugify(role.company)}`;
+    // active is Studio-only (toggled by Shoaib) — preserve it across reruns,
+    // same reasoning as caseStudy's active field above.
+    const existing = await client.fetch<{ active?: boolean } | null>(
+      `*[_id == $id][0]{active}`,
+      { id }
+    );
     await client.createOrReplace({
-      _id: `resumeRole-${slugify(role.company)}`,
+      _id: id,
       _type: "resumeRole",
+      active: existing?.active ?? true,
       company: role.company,
       location: role.location,
       role: role.role,
@@ -670,9 +678,15 @@ async function migrateResumeRoles() {
 async function migrateResumeProjects() {
   console.log(`\n— Resume remote/client projects (${remoteProjects.length}) —`);
   for (const [index, project] of remoteProjects.entries()) {
+    const id = `resumeProject-${slugify(project.company)}`;
+    const existing = await client.fetch<{ active?: boolean } | null>(
+      `*[_id == $id][0]{active}`,
+      { id }
+    );
     await client.createOrReplace({
-      _id: `resumeProject-${slugify(project.company)}`,
+      _id: id,
       _type: "resumeProject",
+      active: existing?.active ?? true,
       company: project.company,
       role: project.role,
       order: index,

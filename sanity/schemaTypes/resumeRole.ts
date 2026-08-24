@@ -6,6 +6,13 @@ export default defineType({
   type: "document",
   fields: [
     defineField({
+      name: "active",
+      title: "Active (shown on site)",
+      type: "boolean",
+      initialValue: true,
+      description: "Turn off to hide this role from the public Resume page without deleting it.",
+    }),
+    defineField({
       name: "company",
       title: "Company",
       type: "string",
@@ -94,6 +101,9 @@ export default defineType({
     { title: "Display Order", name: "orderAsc", by: [{ field: "order", direction: "asc" }] },
   ],
   preview: {
-    select: { title: "role", subtitle: "company" },
+    select: { title: "role", subtitle: "company", active: "active" },
+    prepare({ title, subtitle, active }) {
+      return { title: active === false ? `${title} (inactive)` : title, subtitle };
+    },
   },
 });

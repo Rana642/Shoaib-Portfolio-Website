@@ -224,13 +224,23 @@ export const remoteProjects: RemoteProject[] = [
 ];
 
 export async function getPrimaryRoles(): Promise<PrimaryRole[]> {
-  const fromSanity = await sanityFetch<PrimaryRole[]>(resumeRolesQuery);
-  if (fromSanity && fromSanity.length > 0) return fromSanity;
+  const fromSanity = await sanityFetch<(PrimaryRole & { active?: boolean })[]>(resumeRolesQuery);
+  // An empty array here means Sanity has no resumeRole documents yet — fall
+  // back to the hardcoded list. Once documents exist, respect the active
+  // toggle even if that means returning an empty list (never fall back just
+  // because everything happens to be turned off).
+  if (fromSanity && fromSanity.length > 0) {
+    return fromSanity.filter((r) => r.active !== false);
+  }
   return primaryRoles;
 }
 
 export async function getRemoteProjects(): Promise<RemoteProject[]> {
-  const fromSanity = await sanityFetch<RemoteProject[]>(resumeProjectsQuery);
-  if (fromSanity && fromSanity.length > 0) return fromSanity;
+  const fromSanity = await sanityFetch<(RemoteProject & { active?: boolean })[]>(
+    resumeProjectsQuery
+  );
+  if (fromSanity && fromSanity.length > 0) {
+    return fromSanity.filter((p) => p.active !== false);
+  }
   return remoteProjects;
 }

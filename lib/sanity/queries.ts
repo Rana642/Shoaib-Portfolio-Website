@@ -102,11 +102,16 @@ export const faqsQuery = groq`
 
 // ── Resume ──
 
+// Not filtered by "active" here — an empty result must mean "Sanity has no
+// documents of this type yet" (falls back to hardcoded data in
+// lib/experience.ts), not "every document is inactive" (should stay empty).
+// The active filter is applied in the getter instead.
 export const resumeRolesQuery = groq`
   *[_type == "resumeRole"] | order(order asc) {
     company,
     location,
     role,
+    active,
     stints[] { period, note },
     overview,
     managedLabel,
@@ -120,6 +125,7 @@ export const resumeProjectsQuery = groq`
   *[_type == "resumeProject"] | order(order asc) {
     company,
     role,
+    active,
     period,
     overview,
     url,
