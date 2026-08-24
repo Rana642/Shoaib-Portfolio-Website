@@ -1,7 +1,11 @@
 /*
  * DRAFT — standard practice for a marketing site with a contact form,
- * newsletter, and analytics/pixel tracking. NOT legal advice — Shoaib
- * should have this reviewed before it's treated as final.
+ * newsletter, analytics/pixel tracking, and (2026-08-24) disclosure for
+ * Google Business Profile API / OAuth access ahead of Shoaib's API
+ * application — see the required "Google API Services User Data Policy"
+ * + "Limited Use" phrasing below; Google's reviewers check for it verbatim.
+ * NOT legal advice — Shoaib should have this reviewed before it's treated
+ * as final.
  */
 import type { Metadata } from "next";
 import PageWrapper from "@/components/layout/PageWrapper";
@@ -22,6 +26,7 @@ const sections = [
       "Contact form submissions: name, email, business name, budget range, and message.",
       "Newsletter signups: email address only.",
       "Standard analytics data: pages visited, device/browser type, approximate location, and referral source — collected automatically via the tools listed below.",
+      "Connected-account data: for clients I manage advertising or Google Business Profile accounts for, I access campaign metrics, business profile details, reviews, and posts through each platform's own authorized API — only for accounts a client has explicitly connected, and only to do the work they've asked for.",
     ],
   },
   {
@@ -31,6 +36,7 @@ const sections = [
       "To send newsletter updates to people who opted in — and nothing else.",
       "To understand how visitors use this site and improve it over time.",
       "To measure whether advertising I run (on Meta, Google, etc.) actually leads to inquiries — this is the whole point of a performance marketing practice being transparent about its own numbers.",
+      "To manage, audit, and optimize a client's Google Business Profile — business information, posts, and reviews — for clients who've connected that access to me.",
     ],
   },
   {
@@ -39,9 +45,17 @@ const sections = [
       "Supabase — stores contact form and newsletter submissions.",
       "Resend — sends transactional emails (audit confirmations, newsletter welcome messages).",
       "Google Analytics 4 & Google Tag Manager — site usage analytics.",
-      "Meta Pixel & Conversions API — measures ad performance; email addresses are hashed before being sent to Meta.",
+      "Meta Pixel & Conversions API — measures ad performance; email addresses are hashed (SHA-256) before being sent to Meta, so raw contact details are never exposed to the platform.",
+      "Google Business Profile APIs — accessed only for clients who connect their account to me via Google OAuth 2.0, used strictly to manage business information, posts, and reviews on their behalf. This use complies with the Google API Services User Data Policy, including the Limited Use requirements: this data is never sold, and is never used for anything beyond the service the client asked for.",
       "Vercel — hosting and basic traffic analytics.",
       "Sanity — stores blog content (does not process visitor personal data).",
+    ],
+  },
+  {
+    title: "Data sharing",
+    body: [
+      "I don't sell, rent, or trade your personal data, business data, or any data accessed through a connected account to any third party, under any circumstances.",
+      "Data is only shared with the tools listed above, each acting on my behalf to run this practice or deliver the work a client has asked for — never with unrelated marketing networks or data brokers.",
     ],
   },
   {
@@ -54,12 +68,14 @@ const sections = [
     title: "Your rights",
     body: [
       "You can ask what data I hold about you, ask me to correct it, or ask me to delete it, by emailing hello@adsbyshoaib.com. You can unsubscribe from the newsletter at any time via the link in any email.",
+      "If you've connected a Google, Meta, or other account so I can manage it on your behalf, you can revoke that access at any time from that platform's own security settings — for Google, at myaccount.google.com/permissions.",
     ],
   },
   {
     title: "Data retention",
     body: [
       "Contact form submissions and newsletter subscriptions are kept as long as needed to run this practice, or until you ask for deletion.",
+      "Connected-account data (Google Business Profile, ad accounts, etc.) is only accessed while I'm actively working on it and is not retained beyond what's needed for that work.",
     ],
   },
   {
@@ -80,7 +96,7 @@ export default function PrivacyPage() {
             <h1 className="font-serif italic text-hero mt-8">
               Privacy Policy<span className="text-citrus">.</span>
             </h1>
-            <p className="text-small text-ink-subtle mt-4">Last updated: August 2026</p>
+            <p className="text-small text-ink-subtle mt-4">Last updated: August 24, 2026</p>
           </Reveal>
 
           <div className="mt-14 max-w-2xl space-y-12">
