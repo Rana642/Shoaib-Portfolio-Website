@@ -11,6 +11,7 @@ import {
   Receipt,
   Inbox,
   Send,
+  FileSignature,
   ClipboardList,
   Settings as SettingsIcon,
   PenSquare,
@@ -23,11 +24,12 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 // Ordered to match the actual funnel: a lead comes in, gets a proposal,
-// accepts and onboards, then becomes a billed client.
+// accepts, signs an agreement, onboards, then becomes a billed client.
 const nav = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
   { href: "/dashboard/leads", label: "Leads", icon: Inbox },
   { href: "/dashboard/proposals", label: "Proposals", icon: Send },
+  { href: "/dashboard/agreements", label: "Agreements", icon: FileSignature },
   { href: "/dashboard/onboarding", label: "Onboarding", icon: ClipboardList },
   { href: "/dashboard/clients", label: "Clients", icon: Users },
   { href: "/dashboard/catalog", label: "Services Catalog", icon: Package },

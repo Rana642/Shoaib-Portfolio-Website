@@ -18,6 +18,7 @@ const settingsSchema = z.object({
   invoice_prefix: z.string().min(1).max(10),
   quote_prefix: z.string().min(1).max(10),
   proposal_prefix: z.string().min(1).max(10),
+  agreement_prefix: z.string().min(1).max(10),
   payment_terms: z.string().max(2000).optional().nullable(),
   bank_details: z.string().max(2000).optional().nullable(),
 });
@@ -38,6 +39,7 @@ export async function updateSettings(formData: FormData) {
     invoice_prefix: formData.get("invoice_prefix"),
     quote_prefix: formData.get("quote_prefix"),
     proposal_prefix: formData.get("proposal_prefix"),
+    agreement_prefix: formData.get("agreement_prefix"),
     payment_terms: formData.get("payment_terms") || null,
     bank_details: formData.get("bank_details") || null,
   });

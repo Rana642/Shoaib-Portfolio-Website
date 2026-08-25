@@ -14,6 +14,7 @@ const fallback: Settings = {
   invoice_prefix: "INV",
   quote_prefix: "QUO",
   proposal_prefix: "PRO",
+  agreement_prefix: "AGR",
   payment_terms: "Payment due within 14 days of invoice date.",
   bank_details: null,
   updated_at: new Date().toISOString(),

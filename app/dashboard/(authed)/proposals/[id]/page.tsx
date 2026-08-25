@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Users } from "lucide-react";
+import { ArrowLeft, Users, FileSignature } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
 import { getSettings } from "@/lib/dashboard/settings";
 import { sendProposal, deleteProposal } from "@/lib/dashboard/actions/proposals";
@@ -24,6 +24,12 @@ export default async function ProposalPage({ params }: PageProps<"/dashboard/pro
   if (!proposal) notFound();
 
   const items = itemsData ?? [];
+
+  const { data: agreement } = await db
+    .from("agreements")
+    .select("id, status")
+    .eq("proposal_id", id)
+    .maybeSingle();
 
   const { data: intake } = await db
     .from("onboarding_intakes")
@@ -57,15 +63,26 @@ export default async function ProposalPage({ params }: PageProps<"/dashboard/pro
           <StatusBadge status={(proposal as Proposal).status} />
         </div>
 
-        {intake && (
-          <Link
-            href="/dashboard/onboarding"
-            className="inline-flex items-center gap-2 text-small bg-cobalt/8 border border-cobalt/20 rounded-lg px-4 py-2.5 mb-6 hover:border-cobalt/40 transition-colors"
-          >
-            <Users className="size-4 text-cobalt" aria-hidden />
-            Onboarding {intake.status === "submitted" ? "submitted" : "invite sent"}
-          </Link>
-        )}
+        <div className="flex flex-wrap gap-3 mb-6">
+          {agreement && (
+            <Link
+              href={`/dashboard/agreements/${agreement.id}`}
+              className="inline-flex items-center gap-2 text-small bg-cobalt/8 border border-cobalt/20 rounded-lg px-4 py-2.5 hover:border-cobalt/40 transition-colors"
+            >
+              <FileSignature className="size-4 text-cobalt" aria-hidden />
+              Agreement {agreement.status}
+            </Link>
+          )}
+          {intake && (
+            <Link
+              href="/dashboard/onboarding"
+              className="inline-flex items-center gap-2 text-small bg-cobalt/8 border border-cobalt/20 rounded-lg px-4 py-2.5 hover:border-cobalt/40 transition-colors"
+            >
+              <Users className="size-4 text-cobalt" aria-hidden />
+              Onboarding {intake.status === "submitted" ? "submitted" : "invite sent"}
+            </Link>
+          )}
+        </div>
 
         <div className="mb-8">
           <ProposalActions

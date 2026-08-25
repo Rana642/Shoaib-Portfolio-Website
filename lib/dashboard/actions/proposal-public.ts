@@ -3,8 +3,11 @@
 import { headers } from "next/headers";
 import { db } from "../db";
 import { resend, isResendConfigured, fromEmail } from "../../resend";
-import { onboardingInviteEmail } from "../../email-templates";
+import { agreementReadyEmail } from "../../email-templates";
 import { siteUrl } from "../../seo";
+import { generateNumber } from "./documents";
+import { buildAgreementContent } from "../agreement-template";
+import { formatDate } from "../format";
 import type { Proposal } from "../types";
 
 /**
@@ -92,27 +95,51 @@ export async function acceptProposal(token: string, signerName: string) {
     .eq("id", proposal.id);
   if (error) return { error: error.message };
 
-  const onboardingToken = crypto.randomUUID();
-  const { error: intakeError } = await db.from("onboarding_intakes").insert({
+  // Acceptance generates the Agreement (not onboarding yet) — onboarding
+  // only kicks in once the agreement is actually signed, see
+  // signAgreement() in agreement-public.ts.
+  const { data: settings } = await db.from("settings").select("*").eq("id", 1).single();
+  const agreementNumber = await generateNumber("agreement", settings?.agreement_prefix ?? "AGR");
+  if (!agreementNumber) {
+    return { error: "Accepted, but couldn't generate an agreement number. Please contact us directly." };
+  }
+
+  const content = buildAgreementContent({
+    clientName: proposal.prospect_name,
+    clientBusiness: proposal.prospect_business || proposal.prospect_name,
+    proposalNumber: proposal.number,
+    scopeOfWork: proposal.scope_of_work || "as described in the proposal",
+    feeAmount: Number(proposal.total),
+    currency: proposal.currency,
+    paymentTerms: proposal.terms || "as agreed",
+    effectiveDate: formatDate(now.slice(0, 10)),
+  });
+
+  const agreementToken = crypto.randomUUID();
+  const { error: agreementError } = await db.from("agreements").insert({
+    number: agreementNumber,
     proposal_id: proposal.id,
     client_id: clientId,
-    access_token: onboardingToken,
+    content,
+    status: "sent",
+    access_token: agreementToken,
+    sent_at: now,
   });
-  if (intakeError) console.error("[proposal-public] Failed to create onboarding intake:", intakeError);
+  if (agreementError) console.error("[proposal-public] Failed to create agreement:", agreementError);
 
-  if (isResendConfigured && !intakeError) {
+  if (isResendConfigured && !agreementError) {
     try {
       await resend.emails.send({
         from: fromEmail,
         to: proposal.prospect_email,
-        subject: "Welcome aboard — let's get you onboarded",
-        html: onboardingInviteEmail({
+        subject: "Your consultation agreement",
+        html: agreementReadyEmail({
           name: proposal.prospect_name,
-          url: `${siteUrl}/onboarding/${onboardingToken}`,
+          url: `${siteUrl}/agreement/${agreementToken}`,
         }),
       });
     } catch (sendError) {
-      console.error("[proposal-public] Onboarding email failed:", sendError);
+      console.error("[proposal-public] Agreement email failed:", sendError);
     }
   }
 

@@ -117,7 +117,7 @@ export default function SettingsForm({ settings }: { settings: Settings }) {
       <Card className="p-6 space-y-5">
         <h2 className="text-body-lg font-semibold">Documents</h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
           <Field label="Default currency" htmlFor="default_currency">
             <select
               id="default_currency"
@@ -137,6 +137,14 @@ export default function SettingsForm({ settings }: { settings: Settings }) {
               id="proposal_prefix"
               name="proposal_prefix"
               defaultValue={settings.proposal_prefix}
+              className={inputClasses}
+            />
+          </Field>
+          <Field label="Agreement prefix" htmlFor="agreement_prefix" hint="AGR-2026-001">
+            <input
+              id="agreement_prefix"
+              name="agreement_prefix"
+              defaultValue={settings.agreement_prefix}
               className={inputClasses}
             />
           </Field>

@@ -56,6 +56,7 @@ const statusStyles: Record<string, string> = {
   sent: "bg-cobalt/10 text-cobalt border-cobalt/25",
   viewed: "bg-cobalt/10 text-cobalt border-cobalt/25",
   accepted: "bg-green-500/10 text-green-700 border-green-600/25",
+  signed: "bg-green-500/10 text-green-700 border-green-600/25",
   submitted: "bg-green-500/10 text-green-700 border-green-600/25",
   paid: "bg-green-500/10 text-green-700 border-green-600/25",
   partially_paid: "bg-citrus/20 text-ink border-citrus/50",

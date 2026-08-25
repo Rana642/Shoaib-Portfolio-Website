@@ -20,6 +20,7 @@ create table if not exists settings (
   invoice_prefix text not null default 'INV',
   quote_prefix text not null default 'QUO',
   proposal_prefix text not null default 'PRO',
+  agreement_prefix text not null default 'AGR',
   payment_terms text default 'Payment due within 14 days of invoice date.',
   bank_details text,
   updated_at timestamptz not null default now()
@@ -29,6 +30,7 @@ insert into settings (id) values (1) on conflict (id) do nothing;
 
 -- Safe to run against an already-existing settings table.
 alter table settings add column if not exists proposal_prefix text not null default 'PRO';
+alter table settings add column if not exists agreement_prefix text not null default 'AGR';
 
 -- ── Clients ─────────────────────────────────────────────────
 
@@ -177,6 +179,36 @@ create table if not exists onboarding_intakes (
 create index if not exists onboarding_intakes_proposal_idx on onboarding_intakes (proposal_id);
 create index if not exists onboarding_intakes_token_idx on onboarding_intakes (access_token);
 
+-- ── Agreements ──────────────────────────────────────────────
+-- Generated automatically when a proposal is accepted. content is a
+-- FROZEN snapshot (rendered from lib/dashboard/agreement-template.ts at
+-- creation time) — same immutability rule as tax/currency snapshots on
+-- quotations/invoices below: editing the master template later must never
+-- rewrite an agreement a client has already been sent or has signed.
+
+create table if not exists agreements (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  number text not null unique,
+  proposal_id uuid not null references proposals (id) on delete cascade,
+  client_id uuid not null references clients (id) on delete cascade,
+  content text not null,
+  status text not null default 'draft'
+    check (status in ('draft','sent','viewed','signed','declined')),
+  access_token text not null unique,
+  sent_at timestamptz,
+  viewed_at timestamptz,
+  signed_at timestamptz,
+  declined_at timestamptz,
+  signer_name text,
+  signer_ip text
+);
+
+create index if not exists agreements_proposal_idx on agreements (proposal_id);
+create index if not exists agreements_client_idx on agreements (client_id);
+create index if not exists agreements_token_idx on agreements (access_token);
+
 -- ── Quotations ──────────────────────────────────────────────
 -- tax_enabled / tax_rate / currency are SNAPSHOTS taken when the
 -- document is created. Changing settings later must never rewrite
@@ -291,6 +323,7 @@ alter table catalog_items enable row level security;
 alter table document_counters enable row level security;
 alter table proposals enable row level security;
 alter table proposal_items enable row level security;
+alter table agreements enable row level security;
 alter table onboarding_intakes enable row level security;
 alter table quotations enable row level security;
 alter table quotation_items enable row level security;

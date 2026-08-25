@@ -67,6 +67,26 @@ export type Proposal = {
   signer_ip: string | null;
 };
 
+export type AgreementStatus = "draft" | "sent" | "viewed" | "signed" | "declined";
+
+export type Agreement = {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  number: string;
+  proposal_id: string;
+  client_id: string;
+  content: string;
+  status: AgreementStatus;
+  access_token: string;
+  sent_at: string | null;
+  viewed_at: string | null;
+  signed_at: string | null;
+  declined_at: string | null;
+  signer_name: string | null;
+  signer_ip: string | null;
+};
+
 export type OnboardingStatus = "pending" | "submitted";
 
 export type OnboardingIntake = {
@@ -165,6 +185,7 @@ export type Settings = {
   invoice_prefix: string;
   quote_prefix: string;
   proposal_prefix: string;
+  agreement_prefix: string;
   payment_terms: string | null;
   bank_details: string | null;
   updated_at: string;

@@ -78,6 +78,27 @@ export function proposalSentEmail(data: { name: string; url: string }) {
   `);
 }
 
+export function agreementReadyEmail(data: { name: string; url: string }) {
+  return wrapper(`
+    <h2 style="font-size: 18px; margin: 0 0 16px;">One more step — your agreement</h2>
+    <p style="font-size: 14px; line-height: 1.6;">
+      Hi ${escapeHtml(data.name)},<br /><br />
+      Thanks for accepting the proposal. Before we start, here's the
+      consultation agreement covering scope, fees, and terms — take a look
+      and sign when you're ready.
+    </p>
+    <p style="margin: 24px 0;">
+      <a href="${data.url}" style="display: inline-block; background: #EAB308; color: #0F0F14; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
+        Review & sign
+      </a>
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; color: #666;">
+      Questions before signing, just reply to this email.<br /><br />
+      — Shoaib
+    </p>
+  `);
+}
+
 export function onboardingInviteEmail(data: { name: string; url: string }) {
   return wrapper(`
     <h2 style="font-size: 18px; margin: 0 0 16px;">Welcome aboard — let's get started</h2>
