@@ -19,12 +19,16 @@ create table if not exists settings (
   tax_rate numeric(5,2) not null default 0,
   invoice_prefix text not null default 'INV',
   quote_prefix text not null default 'QUO',
+  proposal_prefix text not null default 'PRO',
   payment_terms text default 'Payment due within 14 days of invoice date.',
   bank_details text,
   updated_at timestamptz not null default now()
 );
 
 insert into settings (id) values (1) on conflict (id) do nothing;
+
+-- Safe to run against an already-existing settings table.
+alter table settings add column if not exists proposal_prefix text not null default 'PRO';
 
 -- ── Clients ─────────────────────────────────────────────────
 
@@ -88,6 +92,90 @@ begin
   return v_next;
 end;
 $$;
+
+-- ── Proposals ───────────────────────────────────────────────
+-- Client-capturing funnel: Proposal (this) → prospect accepts, which IS
+-- the agreement (no separate contract/signing step in v1 — the terms
+-- below become binding on acceptance) → Onboarding intake. client_id is
+-- nullable because a proposal is often sent to someone who isn't a Client
+-- row yet; prospect_name/email/business are the source of truth until
+-- acceptance auto-creates (or links to an existing) client.
+
+create table if not exists proposals (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  number text not null unique,
+  client_id uuid references clients (id) on delete set null,
+  prospect_name text not null,
+  prospect_email text not null,
+  prospect_business text,
+  status text not null default 'draft'
+    check (status in ('draft','sent','viewed','accepted','declined','expired')),
+  -- Narrative sections — the "solution-based, not a fixed package" pitch.
+  situation text,
+  proposed_solution text,
+  scope_of_work text,
+  currency text not null default 'PKR',
+  tax_enabled boolean not null default false,
+  tax_name text not null default 'GST',
+  tax_rate numeric(5,2) not null default 0,
+  subtotal numeric(12,2) not null default 0,
+  tax_amount numeric(12,2) not null default 0,
+  total numeric(12,2) not null default 0,
+  terms text,                            -- becomes binding once accepted
+  access_token text not null unique,
+  sent_at timestamptz,
+  viewed_at timestamptz,
+  accepted_at timestamptz,
+  declined_at timestamptz,
+  -- Simple in-app e-signature captured on acceptance.
+  signer_name text,
+  signed_at timestamptz,
+  signer_ip text
+);
+
+create index if not exists proposals_client_idx on proposals (client_id);
+create index if not exists proposals_status_idx on proposals (status);
+create index if not exists proposals_token_idx on proposals (access_token);
+
+create table if not exists proposal_items (
+  id uuid primary key default gen_random_uuid(),
+  proposal_id uuid not null references proposals (id) on delete cascade,
+  catalog_item_id uuid references catalog_items (id) on delete set null,
+  description text not null,
+  quantity numeric(10,2) not null default 1,
+  rate numeric(12,2) not null default 0,
+  amount numeric(12,2) not null default 0,
+  sort_order int not null default 0
+);
+
+create index if not exists proposal_items_parent_idx on proposal_items (proposal_id);
+
+-- ── Onboarding intakes ──────────────────────────────────────
+-- One per accepted proposal — a structured, client-facing form (not just
+-- internal notes) so the client hands over what's needed without a back
+-- and forth. access_token gives the client a no-login link, same pattern
+-- as proposals.
+
+create table if not exists onboarding_intakes (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  proposal_id uuid not null references proposals (id) on delete cascade,
+  client_id uuid not null references clients (id) on delete cascade,
+  access_token text not null unique,
+  status text not null default 'pending' check (status in ('pending','submitted')),
+  business_overview text,
+  current_channels text,
+  goals text,
+  brand_assets_links text,
+  access_notes text,
+  additional_notes text,
+  submitted_at timestamptz
+);
+
+create index if not exists onboarding_intakes_proposal_idx on onboarding_intakes (proposal_id);
+create index if not exists onboarding_intakes_token_idx on onboarding_intakes (access_token);
 
 -- ── Quotations ──────────────────────────────────────────────
 -- tax_enabled / tax_rate / currency are SNAPSHOTS taken when the
@@ -201,6 +289,9 @@ alter table settings enable row level security;
 alter table clients enable row level security;
 alter table catalog_items enable row level security;
 alter table document_counters enable row level security;
+alter table proposals enable row level security;
+alter table proposal_items enable row level security;
+alter table onboarding_intakes enable row level security;
 alter table quotations enable row level security;
 alter table quotation_items enable row level security;
 alter table invoices enable row level security;

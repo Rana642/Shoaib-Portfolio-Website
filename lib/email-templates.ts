@@ -58,6 +58,46 @@ export function newsletterWelcomeEmail() {
   `);
 }
 
+export function proposalSentEmail(data: { name: string; url: string }) {
+  return wrapper(`
+    <h2 style="font-size: 18px; margin: 0 0 16px;">A proposal for you</h2>
+    <p style="font-size: 14px; line-height: 1.6;">
+      Hi ${escapeHtml(data.name)},<br /><br />
+      I've put together a proposal based on what we discussed — services,
+      scope, and investment, all in one place.
+    </p>
+    <p style="margin: 24px 0;">
+      <a href="${data.url}" style="display: inline-block; background: #EAB308; color: #0F0F14; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
+        View the proposal
+      </a>
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; color: #666;">
+      Any questions before you decide, just reply to this email.<br /><br />
+      — Shoaib
+    </p>
+  `);
+}
+
+export function onboardingInviteEmail(data: { name: string; url: string }) {
+  return wrapper(`
+    <h2 style="font-size: 18px; margin: 0 0 16px;">Welcome aboard — let's get started</h2>
+    <p style="font-size: 14px; line-height: 1.6;">
+      Hi ${escapeHtml(data.name)},<br /><br />
+      Thanks for confirming — before we dive in, I need a few details about
+      your business so the work starts on the right foot.
+    </p>
+    <p style="margin: 24px 0;">
+      <a href="${data.url}" style="display: inline-block; background: #EAB308; color: #0F0F14; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
+        Complete onboarding
+      </a>
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; color: #666;">
+      Takes a few minutes — talk soon.<br /><br />
+      — Shoaib
+    </p>
+  `);
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")

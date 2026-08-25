@@ -13,6 +13,7 @@ const fallback: Settings = {
   tax_rate: 0,
   invoice_prefix: "INV",
   quote_prefix: "QUO",
+  proposal_prefix: "PRO",
   payment_terms: "Payment due within 14 days of invoice date.",
   bank_details: null,
   updated_at: new Date().toISOString(),

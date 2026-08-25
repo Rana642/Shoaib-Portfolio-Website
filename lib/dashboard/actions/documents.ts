@@ -67,7 +67,7 @@ function parseDocumentForm(formData: FormData) {
  * Numbers are consumed even if the insert later fails — a gap is far less
  * dangerous on financial records than a duplicate.
  */
-async function generateNumber(kind: DocumentKind, prefix: string): Promise<string | null> {
+export async function generateNumber(kind: string, prefix: string): Promise<string | null> {
   const year = new Date().getFullYear();
   const { data, error } = await db.rpc("next_document_number", {
     p_doc_type: kind,

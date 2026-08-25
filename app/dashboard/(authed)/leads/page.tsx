@@ -1,6 +1,8 @@
+import Link from "next/link";
+import { Send } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
 import { formatDate } from "@/lib/dashboard/format";
-import { PageHeader, Card, EmptyState } from "@/components/dashboard/ui";
+import { PageHeader, Card, EmptyState, buttonStyles } from "@/components/dashboard/ui";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Leads" };
@@ -60,13 +62,24 @@ export default async function LeadsPage() {
                 </div>
               </div>
               <p className="text-body text-ink-muted mt-4">{contact.message}</p>
-              <div className="mt-4 pt-4 border-t border-ink/10 flex flex-wrap gap-4">
+              <div className="mt-4 pt-4 border-t border-ink/10 flex flex-wrap items-center justify-between gap-4">
                 <a
                   href={`mailto:${contact.email}`}
                   className="text-small hover:underline decoration-citrus decoration-2 underline-offset-4"
                 >
                   {contact.email}
                 </a>
+                <Link
+                  href={`/dashboard/proposals/new?${new URLSearchParams({
+                    name: contact.name,
+                    email: contact.email,
+                    business: contact.business,
+                  })}`}
+                  className={buttonStyles.secondary}
+                >
+                  <Send className="size-4" aria-hidden />
+                  New proposal
+                </Link>
               </div>
             </Card>
           ))}

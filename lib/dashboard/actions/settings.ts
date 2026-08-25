@@ -17,6 +17,7 @@ const settingsSchema = z.object({
   tax_rate: z.coerce.number().min(0).max(100),
   invoice_prefix: z.string().min(1).max(10),
   quote_prefix: z.string().min(1).max(10),
+  proposal_prefix: z.string().min(1).max(10),
   payment_terms: z.string().max(2000).optional().nullable(),
   bank_details: z.string().max(2000).optional().nullable(),
 });
@@ -36,6 +37,7 @@ export async function updateSettings(formData: FormData) {
     tax_rate: formData.get("tax_rate") || 0,
     invoice_prefix: formData.get("invoice_prefix"),
     quote_prefix: formData.get("quote_prefix"),
+    proposal_prefix: formData.get("proposal_prefix"),
     payment_terms: formData.get("payment_terms") || null,
     bank_details: formData.get("bank_details") || null,
   });

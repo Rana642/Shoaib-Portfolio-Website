@@ -34,6 +34,57 @@ export type LineItem = {
   sort_order: number;
 };
 
+export type ProposalStatus = "draft" | "sent" | "viewed" | "accepted" | "declined" | "expired";
+
+export type Proposal = {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  number: string;
+  client_id: string | null;
+  prospect_name: string;
+  prospect_email: string;
+  prospect_business: string | null;
+  status: ProposalStatus;
+  situation: string | null;
+  proposed_solution: string | null;
+  scope_of_work: string | null;
+  currency: string;
+  tax_enabled: boolean;
+  tax_name: string;
+  tax_rate: number;
+  subtotal: number;
+  tax_amount: number;
+  total: number;
+  terms: string | null;
+  access_token: string;
+  sent_at: string | null;
+  viewed_at: string | null;
+  accepted_at: string | null;
+  declined_at: string | null;
+  signer_name: string | null;
+  signed_at: string | null;
+  signer_ip: string | null;
+};
+
+export type OnboardingStatus = "pending" | "submitted";
+
+export type OnboardingIntake = {
+  id: string;
+  created_at: string;
+  proposal_id: string;
+  client_id: string;
+  access_token: string;
+  status: OnboardingStatus;
+  business_overview: string | null;
+  current_channels: string | null;
+  goals: string | null;
+  brand_assets_links: string | null;
+  access_notes: string | null;
+  additional_notes: string | null;
+  submitted_at: string | null;
+};
+
 export type QuotationStatus = "draft" | "sent" | "accepted" | "rejected" | "expired";
 
 export type Quotation = {
@@ -113,6 +164,7 @@ export type Settings = {
   tax_rate: number;
   invoice_prefix: string;
   quote_prefix: string;
+  proposal_prefix: string;
   payment_terms: string | null;
   bank_details: string | null;
   updated_at: string;
