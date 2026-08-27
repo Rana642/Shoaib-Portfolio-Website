@@ -8,7 +8,8 @@ import { StatusBadge, Card } from "@/components/dashboard/ui";
 import AgreementActions from "@/components/dashboard/AgreementActions";
 import ConfirmActionButton from "@/components/dashboard/ConfirmActionButton";
 import WhatsAppShareLink from "@/components/dashboard/WhatsAppShareLink";
-import type { Agreement } from "@/lib/dashboard/types";
+import ChargesBreakdown from "@/components/dashboard/ChargesBreakdown";
+import type { Agreement, Proposal } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,12 @@ export default async function AgreementPage({ params }: PageProps<"/dashboard/ag
   if (!data) notFound();
 
   const { clients, ...agreement } = data as Agreement & { clients: { name: string } | null };
+
+  const [{ data: proposal }, { data: items }, { data: projects }] = await Promise.all([
+    db.from("proposals").select("*").eq("id", agreement.proposal_id).maybeSingle(),
+    db.from("proposal_items").select("*").eq("proposal_id", agreement.proposal_id).order("sort_order"),
+    db.from("proposal_projects").select("*").eq("proposal_id", agreement.proposal_id).order("sort_order"),
+  ]);
 
   async function send() {
     "use server";
@@ -66,6 +73,15 @@ export default async function AgreementPage({ params }: PageProps<"/dashboard/ag
           </div>
         )}
       </div>
+
+      {proposal && (
+        <Card className="p-8 mb-6">
+          <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-3">
+            Investment Summary
+          </p>
+          <ChargesBreakdown proposal={proposal as Proposal} items={items ?? []} projects={projects ?? []} />
+        </Card>
+      )}
 
       <Card className="p-8">
         <p className="text-body whitespace-pre-line">{agreement.content}</p>

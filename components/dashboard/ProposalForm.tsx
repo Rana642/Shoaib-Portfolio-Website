@@ -923,12 +923,6 @@ export default function ProposalForm({
                 {formatMoney(totals.total, currency)}
               </span>
             </div>
-            {toolsTaxEnabled && totals.toolsTaxAmount > 0 && (
-              <p className="text-tag text-ink-subtle pt-1">
-                *Tools total includes an estimated international transaction tax, which may vary
-                by bank at time of payment.
-              </p>
-            )}
           </div>
         </div>
       </Card>

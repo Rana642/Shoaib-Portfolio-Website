@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { getAgreementByToken } from "@/lib/dashboard/actions/agreement-public";
 import { getSettings } from "@/lib/dashboard/settings";
 import AgreementSignForm from "@/components/dashboard/AgreementSignForm";
+import ChargesBreakdown from "@/components/dashboard/ChargesBreakdown";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -14,8 +15,9 @@ export default async function PublicAgreementPage({
 }) {
   const { token } = await params;
 
-  const [agreement, settings] = await Promise.all([getAgreementByToken(token), getSettings()]);
-  if (!agreement) notFound();
+  const [result, settings] = await Promise.all([getAgreementByToken(token), getSettings()]);
+  if (!result) notFound();
+  const { agreement, proposal, items, projects } = result;
 
   return (
     <main className="min-h-full bg-cloud px-5 py-10 md:py-16">
@@ -40,6 +42,15 @@ export default async function PublicAgreementPage({
               <p className="font-serif italic text-h3 mt-1 leading-none">{agreement.number}</p>
             </div>
           </div>
+
+          {proposal && (
+            <div className="mt-8 pb-8 border-b border-ink/10">
+              <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-3">
+                Investment Summary
+              </p>
+              <ChargesBreakdown proposal={proposal} items={items} projects={projects} />
+            </div>
+          )}
 
           <p className="text-body whitespace-pre-line mt-8">{agreement.content}</p>
 
