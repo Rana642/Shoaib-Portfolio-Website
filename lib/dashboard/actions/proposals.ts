@@ -57,6 +57,9 @@ const proposalSchema = z.object({
   terms: z.string().max(5000).optional().nullable(),
   items: z.array(lineItemSchema).min(1, "Add at least one line item"),
   projects: z.array(projectSchema).default([]),
+  /** Only meaningful on create — whether to email the prospect straight
+   *  away, or just create it as a draft to send later. Ignored on edit. */
+  send_immediately: z.boolean(),
 });
 
 function parseProposalForm(formData: FormData) {
@@ -89,6 +92,7 @@ function parseProposalForm(formData: FormData) {
     terms: formData.get("terms") || null,
     items,
     projects,
+    send_immediately: formData.get("send_immediately") === "on",
   });
 
   if (!parsed.success) {
@@ -157,7 +161,7 @@ export async function createProposal(formData: FormData) {
 
   const parsed = parseProposalForm(formData);
   if (!parsed.success) return { error: parsed.error };
-  const { items, projects, ...proposal } = parsed.data;
+  const { items, projects, send_immediately, ...proposal } = parsed.data;
 
   const { data: settings } = await db.from("settings").select("*").eq("id", 1).single();
   const number = await generateNumber("proposal", settings?.proposal_prefix ?? "PRO");
@@ -194,6 +198,11 @@ export async function createProposal(formData: FormData) {
   const itemsError = await replaceProposalItems(created.id, items);
   if (itemsError) return { error: itemsError };
 
+  if (send_immediately) {
+    const sendResult = await sendProposal(created.id);
+    if (sendResult?.error) return { error: sendResult.error };
+  }
+
   revalidatePath("/dashboard/proposals");
   redirect(`/dashboard/proposals/${created.id}`);
 }
@@ -203,7 +212,8 @@ export async function updateProposal(id: string, formData: FormData) {
 
   const parsed = parseProposalForm(formData);
   if (!parsed.success) return { error: parsed.error };
-  const { items, projects, ...proposal } = parsed.data;
+  const { items, projects, send_immediately, ...proposal } = parsed.data;
+  void send_immediately; // only meaningful on create, not on edit
 
   const totals = calculateTotals(
     items,

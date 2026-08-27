@@ -103,6 +103,7 @@ export default function ProposalForm({
   const [prospectBusiness, setProspectBusiness] = useState(
     proposal?.prospect_business ?? prefill?.business ?? ""
   );
+  const [sendImmediately, setSendImmediately] = useState(false);
   const [currency, setCurrency] = useState(proposal?.currency ?? settings.default_currency);
   const [discountEnabled, setDiscountEnabled] = useState(proposal?.discount_enabled ?? false);
   const [discountType, setDiscountType] = useState<"percentage" | "fixed">(
@@ -433,6 +434,20 @@ export default function ProposalForm({
             />
           </Field>
         </div>
+
+        {!proposal && (
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              name="send_immediately"
+              checked={sendImmediately}
+              onChange={(e) => setSendImmediately(e.target.checked)}
+              className="size-4 accent-citrus cursor-pointer"
+            />
+            <span className="text-small">Email this proposal to them right away</span>
+          </label>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <Field label="Business" htmlFor="prospect_business">
             <input
@@ -943,7 +958,7 @@ export default function ProposalForm({
       <div className="flex items-center gap-3">
         <button type="submit" disabled={pending} className={buttonStyles.primary}>
           {pending && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
-          {proposal ? "Save changes" : "Create proposal"}
+          {proposal ? "Save changes" : sendImmediately ? "Create & send" : "Create proposal"}
         </button>
         <Link href="/dashboard/proposals" className={buttonStyles.secondary}>
           Cancel
