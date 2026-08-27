@@ -22,6 +22,7 @@ export type CatalogItem = {
   currency: string;
   is_active: boolean;
   sort_order: number;
+  is_bundle: boolean;
 };
 
 export type LineItem = {

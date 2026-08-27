@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "New quotation" };
 
 export default async function NewQuotationPage() {
-  const { clients, catalog, settings } = await getDocumentFormData();
+  const { clients, catalog, bundleMembers, settings } = await getDocumentFormData();
 
   return (
     <>
@@ -18,7 +18,13 @@ export default async function NewQuotationPage() {
           action={<LinkButton href="/dashboard/clients/new">Add client</LinkButton>}
         />
       ) : (
-        <DocumentForm kind="quotation" clients={clients} catalog={catalog} settings={settings} />
+        <DocumentForm
+          kind="quotation"
+          clients={clients}
+          catalog={catalog}
+          bundleMembers={bundleMembers}
+          settings={settings}
+        />
       )}
     </>
   );

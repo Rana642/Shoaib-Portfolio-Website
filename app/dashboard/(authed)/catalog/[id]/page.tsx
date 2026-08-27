@@ -15,12 +15,17 @@ export default async function EditCatalogItemPage({
   params,
 }: PageProps<"/dashboard/catalog/[id]">) {
   const { id } = await params;
-  const [{ data: item }, settings] = await Promise.all([
+  const [{ data: item }, settings, { data: otherItemsData }, { data: membersData }] = await Promise.all([
     db.from("catalog_items").select("*").eq("id", id).single(),
     getSettings(),
+    db.from("catalog_items").select("*").eq("is_bundle", false).neq("id", id).order("sort_order").order("name"),
+    db.from("catalog_bundle_members").select("member_id").eq("bundle_id", id),
   ]);
 
   if (!item) notFound();
+
+  const otherItems = (otherItemsData ?? []) as CatalogItem[];
+  const memberIds = (membersData ?? []).map((row) => row.member_id as string);
 
   async function handleDelete() {
     "use server";
@@ -39,7 +44,12 @@ export default async function EditCatalogItemPage({
 
       <PageHeader title={(item as CatalogItem).name} />
 
-      <CatalogForm item={item as CatalogItem} defaultCurrency={settings.default_currency} />
+      <CatalogForm
+        item={item as CatalogItem}
+        otherItems={otherItems}
+        memberIds={memberIds}
+        defaultCurrency={settings.default_currency}
+      />
 
       <div className="mt-10 pt-8 border-t border-ink/10 max-w-2xl">
         <p className="text-small text-ink-muted mb-3">

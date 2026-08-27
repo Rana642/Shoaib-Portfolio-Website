@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "New invoice" };
 
 export default async function NewInvoicePage() {
-  const { clients, catalog, settings } = await getDocumentFormData();
+  const { clients, catalog, bundleMembers, settings } = await getDocumentFormData();
 
   return (
     <>
@@ -18,7 +18,13 @@ export default async function NewInvoicePage() {
           action={<LinkButton href="/dashboard/clients/new">Add client</LinkButton>}
         />
       ) : (
-        <DocumentForm kind="invoice" clients={clients} catalog={catalog} settings={settings} />
+        <DocumentForm
+          kind="invoice"
+          clients={clients}
+          catalog={catalog}
+          bundleMembers={bundleMembers}
+          settings={settings}
+        />
       )}
     </>
   );

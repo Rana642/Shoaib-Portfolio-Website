@@ -41,6 +41,7 @@ export default async function EditInvoicePage({
         kind="invoice"
         clients={formData.clients}
         catalog={formData.catalog}
+        bundleMembers={formData.bundleMembers}
         settings={formData.settings}
         document={{
           id: invoice.id,

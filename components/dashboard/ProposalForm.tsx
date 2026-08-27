@@ -77,12 +77,15 @@ const DEFAULT_TERMS =
 export default function ProposalForm({
   clients,
   catalog,
+  bundleMembers = {},
   settings,
   proposal,
   prefill,
 }: {
   clients: Client[];
   catalog: CatalogItem[];
+  /** catalog item id -> names of the services included, for bundles. */
+  bundleMembers?: Record<string, string[]>;
   settings: Settings;
   proposal?: ExistingProposal;
   /** Prefill from a contact-form lead when arriving via "New proposal" on the Leads page. */
@@ -181,9 +184,15 @@ export default function ProposalForm({
     }
     const source = catalog.find((c) => c.id === catalogId);
     if (!source) return;
+    const members = bundleMembers[source.id];
+    const description = source.is_bundle
+      ? `${source.name} — includes: ${members?.join(", ") || "see catalog"}`
+      : source.description
+        ? `${source.name} — ${source.description}`
+        : source.name;
     updateItem(key, {
       catalog_item_id: source.id,
-      description: source.description ? `${source.name} — ${source.description}` : source.name,
+      description,
       rate: Number(source.default_rate),
       billing_type: source.unit === "month" ? "monthly" : "one_time",
     });
@@ -442,13 +451,28 @@ export default function ProposalForm({
                       aria-label="Fill from catalog"
                     >
                       <option value="">Fill from catalog…</option>
-                      {catalog
-                        .filter((c) => c.is_active)
-                        .map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name} — {formatMoney(Number(c.default_rate), c.currency)}/{c.unit}
-                          </option>
-                        ))}
+                      {catalog.filter((c) => c.is_active && !c.is_bundle).length > 0 && (
+                        <optgroup label="Services">
+                          {catalog
+                            .filter((c) => c.is_active && !c.is_bundle)
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name} — {formatMoney(Number(c.default_rate), c.currency)}/{c.unit}
+                              </option>
+                            ))}
+                        </optgroup>
+                      )}
+                      {catalog.filter((c) => c.is_active && c.is_bundle).length > 0 && (
+                        <optgroup label="Bundles">
+                          {catalog
+                            .filter((c) => c.is_active && c.is_bundle)
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name} — {formatMoney(Number(c.default_rate), c.currency)}/{c.unit}
+                              </option>
+                            ))}
+                        </optgroup>
+                      )}
                     </select>
                   )}
                   <select

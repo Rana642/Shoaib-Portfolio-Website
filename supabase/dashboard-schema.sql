@@ -63,13 +63,31 @@ create table if not exists catalog_items (
   default_rate numeric(12,2) not null default 0,  -- "Standard Rate" in the UI — Shoaib's own reference figure
   currency text not null default 'PKR',
   is_active boolean not null default true,
-  sort_order int not null default 0
+  sort_order int not null default 0,
+  -- A bundle is still just a catalog_items row (same name/rate/unit
+  -- shape, so it drops into every "fill from catalog" dropdown with zero
+  -- extra code) — is_bundle just means its price is a package price, and
+  -- catalog_bundle_members below lists what's actually included, for
+  -- Shoaib's own reference and the auto-filled description.
+  is_bundle boolean not null default false
 );
 
 -- Reverted 2026-08-27 — Shoaib negotiates on the document total, not a
 -- second per-item rate. Safe to run against an already-existing table
 -- that still has the column from the brief window it existed.
 alter table catalog_items drop column if exists discounted_rate;
+
+alter table catalog_items add column if not exists is_bundle boolean not null default false;
+
+-- A bundle can't include another bundle (checked in the app, not here)
+-- — keeps "what's included" a flat, one-level list.
+create table if not exists catalog_bundle_members (
+  bundle_id uuid not null references catalog_items (id) on delete cascade,
+  member_id uuid not null references catalog_items (id) on delete cascade,
+  primary key (bundle_id, member_id)
+);
+
+alter table catalog_bundle_members enable row level security;
 
 -- ── Document numbering ──────────────────────────────────────
 -- Sequential per type per year, e.g. INV-2026-001.

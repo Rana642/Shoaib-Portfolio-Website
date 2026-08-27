@@ -8,12 +8,19 @@ import type { CatalogItem } from "@/lib/dashboard/types";
 export const dynamic = "force-dynamic";
 
 export default async function CatalogPage() {
-  const { data } = await db
-    .from("catalog_items")
-    .select("*")
-    .order("sort_order")
-    .order("name");
+  const [{ data }, { data: memberRows }] = await Promise.all([
+    db.from("catalog_items").select("*").order("sort_order").order("name"),
+    db.from("catalog_bundle_members").select("bundle_id, member_id"),
+  ]);
   const items = (data ?? []) as CatalogItem[];
+
+  const nameById = new Map(items.map((i) => [i.id, i.name]));
+  const membersByBundle = new Map<string, string[]>();
+  for (const row of memberRows ?? []) {
+    const name = nameById.get(row.member_id);
+    if (!name) continue;
+    membersByBundle.set(row.bundle_id, [...(membersByBundle.get(row.bundle_id) ?? []), name]);
+  }
 
   return (
     <>
@@ -58,15 +65,29 @@ export default async function CatalogPage() {
                     className="border-b border-ink/5 last:border-0 hover:bg-ink/[0.02]"
                   >
                     <td className="px-5 py-4">
-                      <Link
-                        href={`/dashboard/catalog/${item.id}`}
-                        className="font-medium hover:underline decoration-citrus decoration-2 underline-offset-4"
-                      >
-                        {item.name}
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/dashboard/catalog/${item.id}`}
+                          className="font-medium hover:underline decoration-citrus decoration-2 underline-offset-4"
+                        >
+                          {item.name}
+                        </Link>
+                        {item.is_bundle && (
+                          <span className="inline-flex items-center font-mono uppercase text-tag tracking-widest border rounded-full px-2.5 py-1 bg-cobalt/10 text-cobalt border-cobalt/25">
+                            Bundle
+                          </span>
+                        )}
+                      </div>
                       {item.description && (
                         <p className="text-small text-ink-subtle mt-0.5 max-w-md">
                           {item.description}
+                        </p>
+                      )}
+                      {item.is_bundle && (
+                        <p className="text-small text-ink-subtle mt-0.5 max-w-md">
+                          {(membersByBundle.get(item.id) ?? []).length > 0
+                            ? `Includes: ${membersByBundle.get(item.id)!.join(", ")}`
+                            : "No services selected yet"}
                         </p>
                       )}
                     </td>
