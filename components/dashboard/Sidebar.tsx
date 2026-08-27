@@ -18,21 +18,34 @@ import {
   LogOut,
   Menu,
   X,
+  ChevronDown,
+  type LucideIcon,
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
+type NavItem =
+  | { href: string; label: string; icon: LucideIcon; exact?: boolean }
+  | { label: string; icon: LucideIcon; children: { href: string; label: string }[] };
+
 // Ordered to match the actual funnel: a lead comes in, gets a proposal,
 // accepts, signs an agreement, onboards, then becomes a billed client.
-const nav = [
+const nav: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
   { href: "/dashboard/leads", label: "Leads", icon: Inbox },
   { href: "/dashboard/proposals", label: "Proposals", icon: Send },
   { href: "/dashboard/agreements", label: "Agreements", icon: FileSignature },
   { href: "/dashboard/onboarding", label: "Onboarding", icon: ClipboardList },
   { href: "/dashboard/clients", label: "Clients", icon: Users },
-  { href: "/dashboard/catalog", label: "Services Catalog", icon: Package },
+  {
+    label: "Services Catalog",
+    icon: Package,
+    children: [
+      { href: "/dashboard/catalog", label: "Single Services" },
+      { href: "/dashboard/catalog/bundles", label: "Bundle Services" },
+    ],
+  },
   { href: "/dashboard/quotations", label: "Quotations", icon: FileText },
   { href: "/dashboard/invoices", label: "Invoices", icon: Receipt },
   { href: "/dashboard/settings", label: "Settings", icon: SettingsIcon },
@@ -42,6 +55,9 @@ export default function Sidebar({ email }: { email: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const isCatalogRoute = pathname.startsWith("/dashboard/catalog");
+  const showCatalogChildren = catalogOpen || isCatalogRoute;
 
   const signOut = async () => {
     const supabase = createBrowserClient(
@@ -66,6 +82,60 @@ export default function Sidebar({ email }: { email: string }) {
 
       <nav className="flex-1 px-3 space-y-1">
         {nav.map((item) => {
+          if ("children" in item) {
+            return (
+              <div key={item.label}>
+                <button
+                  type="button"
+                  onClick={() => setCatalogOpen((prev) => !prev)}
+                  className={cn(
+                    "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-small transition-colors cursor-pointer",
+                    isCatalogRoute
+                      ? "text-cloud font-medium"
+                      : "text-cloud/60 hover:text-cloud hover:bg-cloud/5"
+                  )}
+                >
+                  <item.icon className="size-4 shrink-0" aria-hidden />
+                  {item.label}
+                  <ChevronDown
+                    className={cn(
+                      "size-3.5 shrink-0 ml-auto transition-transform",
+                      showCatalogChildren ? "rotate-180" : ""
+                    )}
+                    aria-hidden
+                  />
+                </button>
+                {showCatalogChildren && (
+                  <div className="mt-1 ml-4 pl-3 border-l border-cloud/10 space-y-1">
+                    {item.children.map((child) => {
+                      const childActive =
+                        child.href === "/dashboard/catalog"
+                          ? pathname === "/dashboard/catalog" ||
+                            (pathname.startsWith("/dashboard/catalog/") &&
+                              !pathname.startsWith("/dashboard/catalog/bundles"))
+                          : pathname.startsWith(child.href);
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          onClick={() => setOpen(false)}
+                          className={cn(
+                            "block rounded-lg px-3 py-2 text-small transition-colors",
+                            childActive
+                              ? "bg-citrus text-ink font-medium"
+                              : "text-cloud/60 hover:text-cloud hover:bg-cloud/5"
+                          )}
+                        >
+                          {child.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           const active = item.exact
             ? pathname === item.href
             : pathname.startsWith(item.href);

@@ -13,6 +13,7 @@ export default function CatalogForm({
   otherItems,
   memberIds,
   defaultCurrency,
+  defaultIsBundle,
 }: {
   item?: CatalogItem;
   /** Every other non-bundle service, for the "what's included" picker. */
@@ -20,10 +21,13 @@ export default function CatalogForm({
   /** This bundle's currently-included services, when editing one. */
   memberIds?: string[];
   defaultCurrency: string;
+  /** Pre-checks "This is a bundle of services" for a brand-new item
+   *  reached from the Bundle Services page. */
+  defaultIsBundle?: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [isBundle, setIsBundle] = useState(item?.is_bundle ?? false);
+  const [isBundle, setIsBundle] = useState(item?.is_bundle ?? defaultIsBundle ?? false);
   const [bundlePrice, setBundlePrice] = useState(item?.default_rate ?? 0);
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set(memberIds));
 
@@ -218,7 +222,10 @@ export default function CatalogForm({
           {pending && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
           {item ? "Save changes" : "Create item"}
         </button>
-        <Link href="/dashboard/catalog" className={buttonStyles.secondary}>
+        <Link
+          href={isBundle ? "/dashboard/catalog/bundles" : "/dashboard/catalog"}
+          className={buttonStyles.secondary}
+        >
           Cancel
         </Link>
       </div>

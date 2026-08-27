@@ -70,7 +70,8 @@ export async function createCatalogItem(formData: FormData) {
   }
 
   revalidatePath("/dashboard/catalog");
-  redirect("/dashboard/catalog");
+  revalidatePath("/dashboard/catalog/bundles");
+  redirect(item.is_bundle ? "/dashboard/catalog/bundles" : "/dashboard/catalog");
 }
 
 export async function updateCatalogItem(id: string, formData: FormData) {
@@ -86,7 +87,8 @@ export async function updateCatalogItem(id: string, formData: FormData) {
   if (membersError) return { error: membersError };
 
   revalidatePath("/dashboard/catalog");
-  redirect("/dashboard/catalog");
+  revalidatePath("/dashboard/catalog/bundles");
+  redirect(item.is_bundle ? "/dashboard/catalog/bundles" : "/dashboard/catalog");
 }
 
 export async function deleteCatalogItem(id: string) {
@@ -98,5 +100,6 @@ export async function deleteCatalogItem(id: string) {
   if (error) return { error: error.message };
 
   revalidatePath("/dashboard/catalog");
+  revalidatePath("/dashboard/catalog/bundles");
   return { ok: true };
 }

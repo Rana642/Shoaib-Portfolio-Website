@@ -26,6 +26,7 @@ export default async function EditCatalogItemPage({
 
   const otherItems = (otherItemsData ?? []) as CatalogItem[];
   const memberIds = (membersData ?? []).map((row) => row.member_id as string);
+  const listHref = (item as CatalogItem).is_bundle ? "/dashboard/catalog/bundles" : "/dashboard/catalog";
 
   async function handleDelete() {
     "use server";
@@ -35,11 +36,11 @@ export default async function EditCatalogItemPage({
   return (
     <>
       <Link
-        href="/dashboard/catalog"
+        href={listHref}
         className="group inline-flex items-center gap-2 text-small text-ink-subtle hover:text-ink transition-colors mb-6"
       >
         <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-1" aria-hidden />
-        Catalog
+        {(item as CatalogItem).is_bundle ? "Bundle Services" : "Single Services"}
       </Link>
 
       <PageHeader title={(item as CatalogItem).name} />
