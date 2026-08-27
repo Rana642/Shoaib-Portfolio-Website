@@ -7,6 +7,69 @@ import type { CatalogItem } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
 
+function CatalogTable({
+  items,
+  membersByBundle,
+}: {
+  items: CatalogItem[];
+  membersByBundle: Map<string, string[]>;
+}) {
+  return (
+    <Card className="overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="border-b border-ink/10">
+              <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle px-5 py-3">
+                Item
+              </th>
+              <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle px-5 py-3">
+                Rate
+              </th>
+              <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle px-5 py-3 hidden sm:table-cell">
+                Status
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <tr key={item.id} className="border-b border-ink/5 last:border-0 hover:bg-ink/[0.02]">
+                <td className="px-5 py-4">
+                  <Link
+                    href={`/dashboard/catalog/${item.id}`}
+                    className="font-medium hover:underline decoration-citrus decoration-2 underline-offset-4"
+                  >
+                    {item.name}
+                  </Link>
+                  {item.description && (
+                    <p className="text-small text-ink-subtle mt-0.5 max-w-md">{item.description}</p>
+                  )}
+                  {item.is_bundle && (
+                    <p className="text-small text-ink-subtle mt-0.5 max-w-md">
+                      {(membersByBundle.get(item.id) ?? []).length > 0
+                        ? `Includes: ${membersByBundle.get(item.id)!.join(", ")}`
+                        : "No services selected yet"}
+                    </p>
+                  )}
+                </td>
+                <td className="px-5 py-4 whitespace-nowrap">
+                  <span className="font-medium">
+                    {formatMoney(Number(item.default_rate), item.currency)}
+                  </span>
+                  <span className="text-small text-ink-subtle"> / {item.unit}</span>
+                </td>
+                <td className="px-5 py-4 hidden sm:table-cell">
+                  <StatusBadge status={item.is_active ? "accepted" : "draft"} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
 export default async function CatalogPage() {
   const [{ data }, { data: memberRows }] = await Promise.all([
     db.from("catalog_items").select("*").order("sort_order").order("name"),
@@ -21,6 +84,9 @@ export default async function CatalogPage() {
     if (!name) continue;
     membersByBundle.set(row.bundle_id, [...(membersByBundle.get(row.bundle_id) ?? []), name]);
   }
+
+  const singleServices = items.filter((i) => !i.is_bundle);
+  const bundleServices = items.filter((i) => i.is_bundle);
 
   return (
     <>
@@ -42,70 +108,20 @@ export default async function CatalogPage() {
           action={<LinkButton href="/dashboard/catalog/new">Add item</LinkButton>}
         />
       ) : (
-        <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-ink/10">
-                  <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle px-5 py-3">
-                    Item
-                  </th>
-                  <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle px-5 py-3">
-                    Rate
-                  </th>
-                  <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle px-5 py-3 hidden sm:table-cell">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="border-b border-ink/5 last:border-0 hover:bg-ink/[0.02]"
-                  >
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <Link
-                          href={`/dashboard/catalog/${item.id}`}
-                          className="font-medium hover:underline decoration-citrus decoration-2 underline-offset-4"
-                        >
-                          {item.name}
-                        </Link>
-                        {item.is_bundle && (
-                          <span className="inline-flex items-center font-mono uppercase text-tag tracking-widest border rounded-full px-2.5 py-1 bg-cobalt/10 text-cobalt border-cobalt/25">
-                            Bundle
-                          </span>
-                        )}
-                      </div>
-                      {item.description && (
-                        <p className="text-small text-ink-subtle mt-0.5 max-w-md">
-                          {item.description}
-                        </p>
-                      )}
-                      {item.is_bundle && (
-                        <p className="text-small text-ink-subtle mt-0.5 max-w-md">
-                          {(membersByBundle.get(item.id) ?? []).length > 0
-                            ? `Includes: ${membersByBundle.get(item.id)!.join(", ")}`
-                            : "No services selected yet"}
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <span className="font-medium">
-                        {formatMoney(Number(item.default_rate), item.currency)}
-                      </span>
-                      <span className="text-small text-ink-subtle"> / {item.unit}</span>
-                    </td>
-                    <td className="px-5 py-4 hidden sm:table-cell">
-                      <StatusBadge status={item.is_active ? "accepted" : "draft"} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+        <div className="space-y-10">
+          {singleServices.length > 0 && (
+            <div>
+              <h2 className="text-body-lg font-semibold mb-4">Single Services</h2>
+              <CatalogTable items={singleServices} membersByBundle={membersByBundle} />
+            </div>
+          )}
+          {bundleServices.length > 0 && (
+            <div>
+              <h2 className="text-body-lg font-semibold mb-4">Bundle Services</h2>
+              <CatalogTable items={bundleServices} membersByBundle={membersByBundle} />
+            </div>
+          )}
+        </div>
       )}
     </>
   );
