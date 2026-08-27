@@ -146,7 +146,7 @@ export default function ProposalForm({
   const updateItem = (key: string, patch: Partial<EditableItem>) =>
     setItems((prev) => prev.map((item) => (item.key === key ? { ...item, ...patch } : item)));
 
-  const addItem = (itemType: ItemType) =>
+  const addItem = (itemType: ItemType, projectId: string | null = null) =>
     setItems((prev) => [
       ...prev,
       {
@@ -157,7 +157,7 @@ export default function ProposalForm({
         rate: 0,
         billing_type: itemType === "tool" ? "monthly" : "one_time",
         item_type: itemType,
-        project_id: null,
+        project_id: projectId,
       },
     ]);
 
@@ -232,6 +232,124 @@ export default function ProposalForm({
   const availableClientProjects = (clientId ? clientProjects[clientId] : undefined)?.filter(
     (cp) => !addedProjectNames.has(cp.name.trim().toLowerCase())
   ) ?? [];
+
+  const generalServiceItems = items.filter(
+    (item) => item.item_type === "service" && item.project_id === null
+  );
+
+  /** Shared row markup for a Service Charges line — used both for the
+   *  General/Shared list and for each project's nested list. No Project
+   *  selector here: which bucket an item belongs to is implicit in
+   *  which list it's rendered into and which "Add line" button created it. */
+  const renderServiceRows = (lineItems: EditableItem[]) =>
+    lineItems.map((item, index) => (
+      <div
+        key={item.key}
+        className="grid grid-cols-12 gap-3 items-start pb-4 border-b border-ink/5 last:border-0 last:pb-0"
+      >
+        <div className="col-span-12 sm:col-span-6">
+          {index === 0 && (
+            <label className="block text-small font-medium mb-1.5">Description</label>
+          )}
+          <div className="flex flex-wrap gap-2 mb-2">
+            {catalog.length > 0 && (
+              <select
+                value={item.catalog_item_id ?? ""}
+                onChange={(e) => applyCatalogItem(item.key, e.target.value)}
+                className={`${inputClasses} text-small flex-1 min-w-0`}
+                aria-label="Fill from catalog"
+              >
+                <option value="">Fill from catalog…</option>
+                {catalog.filter((c) => c.is_active && !c.is_bundle).length > 0 && (
+                  <optgroup label="Services">
+                    {catalog
+                      .filter((c) => c.is_active && !c.is_bundle)
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} — {formatMoney(Number(c.default_rate), c.currency)}/{c.unit}
+                        </option>
+                      ))}
+                  </optgroup>
+                )}
+                {catalog.filter((c) => c.is_active && c.is_bundle).length > 0 && (
+                  <optgroup label="Bundles">
+                    {catalog
+                      .filter((c) => c.is_active && c.is_bundle)
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} — {formatMoney(Number(c.default_rate), c.currency)}/{c.unit}
+                        </option>
+                      ))}
+                  </optgroup>
+                )}
+              </select>
+            )}
+            <select
+              value={item.billing_type}
+              onChange={(e) => updateItem(item.key, { billing_type: e.target.value as BillingType })}
+              className={`${inputClasses} text-small ${catalog.length > 0 ? "w-44 shrink-0" : "flex-1"}`}
+              aria-label="Billing type"
+            >
+              <option value="monthly">Monthly Retainer</option>
+              <option value="one_time">One-time / Fixed</option>
+            </select>
+          </div>
+          <textarea
+            value={item.description}
+            onChange={(e) => updateItem(item.key, { description: e.target.value })}
+            rows={2}
+            required
+            placeholder="What are you proposing?"
+            className={inputClasses}
+          />
+        </div>
+
+        <div className="col-span-4 sm:col-span-2">
+          {index === 0 && <label className="block text-small font-medium mb-1.5">Qty</label>}
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={item.quantity}
+            onChange={(e) => updateItem(item.key, { quantity: Number(e.target.value) || 0 })}
+            className={inputClasses}
+            aria-label="Quantity"
+          />
+        </div>
+
+        <div className="col-span-5 sm:col-span-2">
+          {index === 0 && <label className="block text-small font-medium mb-1.5">Rate</label>}
+          <input
+            type="number"
+            step="0.01"
+            value={item.rate}
+            onChange={(e) => updateItem(item.key, { rate: Number(e.target.value) || 0 })}
+            className={inputClasses}
+            aria-label="Rate"
+          />
+        </div>
+
+        <div className="col-span-3 sm:col-span-2 flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            {index === 0 && <label className="block text-small font-medium mb-1.5">Amount</label>}
+            <p className="py-2.5 text-small font-medium text-right truncate">
+              {formatMoney(item.quantity * item.rate, currency)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => removeItem(item.key)}
+            disabled={items.length === 1}
+            aria-label="Remove line"
+            className={`shrink-0 text-ink-subtle hover:text-red-700 disabled:opacity-30 disabled:hover:text-ink-subtle transition-colors ${
+              index === 0 ? "mt-7" : ""
+            }`}
+          >
+            <Trash2 className="size-4" aria-hidden />
+          </button>
+        </div>
+      </div>
+    ));
 
   const onSubmit = (formData: FormData) => {
     setError(null);
@@ -419,189 +537,90 @@ export default function ProposalForm({
             No projects added — charges below apply to this proposal as a whole.
           </p>
         ) : (
-          <div className="space-y-5">
-            {projects.map((project, index) => (
-              <div key={project.key} className="pb-5 border-b border-ink/5 last:border-0 last:pb-0 space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="flex-1">
-                    <Field label={`Project ${index + 1} name`} htmlFor={`project-name-${project.key}`}>
-                      <input
-                        id={`project-name-${project.key}`}
-                        required
-                        value={project.name}
-                        onChange={(e) => updateProject(project.key, { name: e.target.value })}
-                        placeholder="e.g. Avenza Restaurant"
-                        className={inputClasses}
-                      />
-                    </Field>
+          <div className="space-y-8">
+            {projects.map((project, index) => {
+              const projectItems = items.filter(
+                (item) => item.item_type === "service" && item.project_id === project.id
+              );
+              return (
+                <div key={project.key} className="pb-8 border-b border-ink/5 last:border-0 last:pb-0 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1">
+                      <Field label={`Project ${index + 1} name`} htmlFor={`project-name-${project.key}`}>
+                        <input
+                          id={`project-name-${project.key}`}
+                          required
+                          value={project.name}
+                          onChange={(e) => updateProject(project.key, { name: e.target.value })}
+                          placeholder="e.g. Avenza Restaurant"
+                          className={inputClasses}
+                        />
+                      </Field>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeProject(project.key)}
+                      aria-label="Remove project"
+                      className="shrink-0 mt-7 text-ink-subtle hover:text-red-700 transition-colors"
+                    >
+                      <Trash2 className="size-4" aria-hidden />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeProject(project.key)}
-                    aria-label="Remove project"
-                    className="shrink-0 mt-7 text-ink-subtle hover:text-red-700 transition-colors"
+                  <Field
+                    label="Scope of work for this project"
+                    htmlFor={`project-scope-${project.key}`}
+                    hint="Optional — what's specifically included for this one."
                   >
-                    <Trash2 className="size-4" aria-hidden />
-                  </button>
+                    <textarea
+                      id={`project-scope-${project.key}`}
+                      value={project.scopeOfWork}
+                      onChange={(e) => updateProject(project.key, { scopeOfWork: e.target.value })}
+                      rows={2}
+                      className={inputClasses}
+                    />
+                  </Field>
+
+                  <div className="pt-2">
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-small font-semibold">Service Charges</p>
+                      <button
+                        type="button"
+                        onClick={() => addItem("service", project.id)}
+                        className={buttonStyles.secondary}
+                      >
+                        <Plus className="size-4" aria-hidden />
+                        Add line
+                      </button>
+                    </div>
+                    {projectItems.length > 0 && <div className="space-y-4">{renderServiceRows(projectItems)}</div>}
+                  </div>
                 </div>
-                <Field
-                  label="Scope of work for this project"
-                  htmlFor={`project-scope-${project.key}`}
-                  hint="Optional — what's specifically included for this one."
-                >
-                  <textarea
-                    id={`project-scope-${project.key}`}
-                    value={project.scopeOfWork}
-                    onChange={(e) => updateProject(project.key, { scopeOfWork: e.target.value })}
-                    rows={2}
-                    className={inputClasses}
-                  />
-                </Field>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>
 
-      {/* Service charges */}
+      {/* Service charges — general/shared, or the whole proposal's if no projects are defined */}
       <Card className="p-6">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-body-lg font-semibold">Service Charges</h2>
-          <button type="button" onClick={() => addItem("service")} className={buttonStyles.secondary}>
+          <h2 className="text-body-lg font-semibold">
+            {projects.length > 0 ? "General / Shared Charges" : "Service Charges"}
+          </h2>
+          <button type="button" onClick={() => addItem("service", null)} className={buttonStyles.secondary}>
             <Plus className="size-4" aria-hidden />
             Add line
           </button>
         </div>
+        {projects.length > 0 && (
+          <p className="text-small text-ink-muted -mt-3 mb-5">
+            Charges that apply across every project, or that don&apos;t belong to one specifically.
+          </p>
+        )}
 
-        <div className="space-y-4">
-          {items.filter((item) => item.item_type === "service").map((item, index) => (
-            <div
-              key={item.key}
-              className="grid grid-cols-12 gap-3 items-start pb-4 border-b border-ink/5 last:border-0 last:pb-0"
-            >
-              <div className="col-span-12 sm:col-span-6">
-                {index === 0 && (
-                  <label className="block text-small font-medium mb-1.5">Description</label>
-                )}
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {catalog.length > 0 && (
-                    <select
-                      value={item.catalog_item_id ?? ""}
-                      onChange={(e) => applyCatalogItem(item.key, e.target.value)}
-                      className={`${inputClasses} text-small flex-1 min-w-0`}
-                      aria-label="Fill from catalog"
-                    >
-                      <option value="">Fill from catalog…</option>
-                      {catalog.filter((c) => c.is_active && !c.is_bundle).length > 0 && (
-                        <optgroup label="Services">
-                          {catalog
-                            .filter((c) => c.is_active && !c.is_bundle)
-                            .map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.name} — {formatMoney(Number(c.default_rate), c.currency)}/{c.unit}
-                              </option>
-                            ))}
-                        </optgroup>
-                      )}
-                      {catalog.filter((c) => c.is_active && c.is_bundle).length > 0 && (
-                        <optgroup label="Bundles">
-                          {catalog
-                            .filter((c) => c.is_active && c.is_bundle)
-                            .map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.name} — {formatMoney(Number(c.default_rate), c.currency)}/{c.unit}
-                              </option>
-                            ))}
-                        </optgroup>
-                      )}
-                    </select>
-                  )}
-                  <select
-                    value={item.billing_type}
-                    onChange={(e) =>
-                      updateItem(item.key, { billing_type: e.target.value as BillingType })
-                    }
-                    className={`${inputClasses} text-small ${catalog.length > 0 ? "w-44 shrink-0" : "flex-1"}`}
-                    aria-label="Billing type"
-                  >
-                    <option value="monthly">Monthly Retainer</option>
-                    <option value="one_time">One-time / Fixed</option>
-                  </select>
-                  {projects.length > 0 && (
-                    <select
-                      value={item.project_id ?? ""}
-                      onChange={(e) => updateItem(item.key, { project_id: e.target.value || null })}
-                      className={`${inputClasses} text-small w-44 shrink-0`}
-                      aria-label="Project"
-                    >
-                      <option value="">General (all projects)</option>
-                      {projects.map((p) => (
-                        <option key={p.key} value={p.id}>
-                          {p.name || "Untitled project"}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-                <textarea
-                  value={item.description}
-                  onChange={(e) => updateItem(item.key, { description: e.target.value })}
-                  rows={2}
-                  required
-                  placeholder="What are you proposing?"
-                  className={inputClasses}
-                />
-              </div>
-
-              <div className="col-span-4 sm:col-span-2">
-                {index === 0 && <label className="block text-small font-medium mb-1.5">Qty</label>}
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={item.quantity}
-                  onChange={(e) => updateItem(item.key, { quantity: Number(e.target.value) || 0 })}
-                  className={inputClasses}
-                  aria-label="Quantity"
-                />
-              </div>
-
-              <div className="col-span-5 sm:col-span-2">
-                {index === 0 && <label className="block text-small font-medium mb-1.5">Rate</label>}
-                <input
-                  type="number"
-                  step="0.01"
-                  value={item.rate}
-                  onChange={(e) => updateItem(item.key, { rate: Number(e.target.value) || 0 })}
-                  className={inputClasses}
-                  aria-label="Rate"
-                />
-              </div>
-
-              <div className="col-span-3 sm:col-span-2 flex items-center gap-2">
-                <div className="flex-1 min-w-0">
-                  {index === 0 && (
-                    <label className="block text-small font-medium mb-1.5">Amount</label>
-                  )}
-                  <p className="py-2.5 text-small font-medium text-right truncate">
-                    {formatMoney(item.quantity * item.rate, currency)}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeItem(item.key)}
-                  disabled={items.length === 1}
-                  aria-label="Remove line"
-                  className={`shrink-0 text-ink-subtle hover:text-red-700 disabled:opacity-30 disabled:hover:text-ink-subtle transition-colors ${
-                    index === 0 ? "mt-7" : ""
-                  }`}
-                >
-                  <Trash2 className="size-4" aria-hidden />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+        {generalServiceItems.length > 0 && (
+          <div className="space-y-4">{renderServiceRows(generalServiceItems)}</div>
+        )}
       </Card>
 
       {/* Tools & subscriptions */}
