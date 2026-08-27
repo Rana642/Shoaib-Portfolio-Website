@@ -15,7 +15,17 @@ import type { Proposal } from "../types";
 
 export async function getProposalByToken(
   token: string
-): Promise<{ proposal: Proposal; items: { id: string; description: string; quantity: number; rate: number; amount: number }[] } | null> {
+): Promise<{
+  proposal: Proposal;
+  items: {
+    id: string;
+    description: string;
+    quantity: number;
+    rate: number;
+    amount: number;
+    billing_type: "monthly" | "one_time";
+  }[];
+} | null> {
   const { data: proposal } = await db
     .from("proposals")
     .select("*")

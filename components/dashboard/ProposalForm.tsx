@@ -8,12 +8,15 @@ import { Field, inputClasses, buttonStyles, Card } from "@/components/dashboard/
 import { formatMoney, calculateTotals } from "@/lib/dashboard/format";
 import { CURRENCIES, type CatalogItem, type Client, type Settings } from "@/lib/dashboard/types";
 
+type BillingType = "monthly" | "one_time";
+
 type EditableItem = {
   key: string;
   catalog_item_id: string | null;
   description: string;
   quantity: number;
   rate: number;
+  billing_type: BillingType;
 };
 
 type ExistingProposal = {
@@ -33,7 +36,13 @@ type ExistingProposal = {
   tax_name: string;
   tax_rate: number;
   terms: string | null;
-  items: { catalog_item_id: string | null; description: string; quantity: number; rate: number }[];
+  items: {
+    catalog_item_id: string | null;
+    description: string;
+    quantity: number;
+    rate: number;
+    billing_type: BillingType;
+  }[];
 };
 
 let keyCounter = 0;
@@ -46,7 +55,7 @@ const DEFAULT_SITUATION =
 const DEFAULT_PROPOSED_SOLUTION =
   "This plan is built around what actually moves the needle for your business specifically — not a fixed package, but the mix of brand presence, content, tracking, and paid media that fits where you are today.";
 const DEFAULT_SCOPE_OF_WORK =
-  "The exact scope is itemized under Investment below — each line scoped specifically to this engagement, not a generic bundle.";
+  "The exact scope is itemized under Service Charges below — each line scoped specifically to this engagement, not a generic bundle.";
 const DEFAULT_TERMS =
   "50% due upon signing the agreement, 50% due upon delivery of the first milestone, unless otherwise agreed in writing. This proposal is valid for 14 days from the date sent.";
 
@@ -83,7 +92,7 @@ export default function ProposalForm({
   const [taxRate, setTaxRate] = useState(proposal?.tax_rate ?? settings.tax_rate);
   const [items, setItems] = useState<EditableItem[]>(
     proposal?.items.map((item) => ({ ...item, key: nextKey() })) ?? [
-      { key: nextKey(), catalog_item_id: null, description: "", quantity: 1, rate: 0 },
+      { key: nextKey(), catalog_item_id: null, description: "", quantity: 1, rate: 0, billing_type: "one_time" },
     ]
   );
 
@@ -103,7 +112,7 @@ export default function ProposalForm({
   const addItem = () =>
     setItems((prev) => [
       ...prev,
-      { key: nextKey(), catalog_item_id: null, description: "", quantity: 1, rate: 0 },
+      { key: nextKey(), catalog_item_id: null, description: "", quantity: 1, rate: 0, billing_type: "one_time" },
     ]);
 
   const removeItem = (key: string) =>
@@ -120,6 +129,7 @@ export default function ProposalForm({
       catalog_item_id: source.id,
       description: source.description ? `${source.name} — ${source.description}` : source.name,
       rate: Number(source.default_rate),
+      billing_type: source.unit === "month" ? "monthly" : "one_time",
     });
   };
 
@@ -139,11 +149,12 @@ export default function ProposalForm({
     formData.set(
       "items",
       JSON.stringify(
-        items.map(({ catalog_item_id, description, quantity, rate }) => ({
+        items.map(({ catalog_item_id, description, quantity, rate, billing_type }) => ({
           catalog_item_id,
           description,
           quantity,
           rate,
+          billing_type,
         }))
       )
     );
@@ -270,10 +281,10 @@ export default function ProposalForm({
         </Field>
       </Card>
 
-      {/* Line items */}
+      {/* Service charges */}
       <Card className="p-6">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-body-lg font-semibold">Investment</h2>
+          <h2 className="text-body-lg font-semibold">Service Charges</h2>
           <button type="button" onClick={addItem} className={buttonStyles.secondary}>
             <Plus className="size-4" aria-hidden />
             Add line
@@ -290,23 +301,36 @@ export default function ProposalForm({
                 {index === 0 && (
                   <label className="block text-small font-medium mb-1.5">Description</label>
                 )}
-                {catalog.length > 0 && (
+                <div className="flex gap-2 mb-2">
+                  {catalog.length > 0 && (
+                    <select
+                      value={item.catalog_item_id ?? ""}
+                      onChange={(e) => applyCatalogItem(item.key, e.target.value)}
+                      className={`${inputClasses} text-small flex-1 min-w-0`}
+                      aria-label="Fill from catalog"
+                    >
+                      <option value="">Fill from catalog…</option>
+                      {catalog
+                        .filter((c) => c.is_active)
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} — {formatMoney(Number(c.default_rate), c.currency)}/{c.unit}
+                          </option>
+                        ))}
+                    </select>
+                  )}
                   <select
-                    value={item.catalog_item_id ?? ""}
-                    onChange={(e) => applyCatalogItem(item.key, e.target.value)}
-                    className={`${inputClasses} mb-2 text-small`}
-                    aria-label="Fill from catalog"
+                    value={item.billing_type}
+                    onChange={(e) =>
+                      updateItem(item.key, { billing_type: e.target.value as BillingType })
+                    }
+                    className={`${inputClasses} text-small ${catalog.length > 0 ? "w-44 shrink-0" : "flex-1"}`}
+                    aria-label="Billing type"
                   >
-                    <option value="">Fill from catalog…</option>
-                    {catalog
-                      .filter((c) => c.is_active)
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} — {formatMoney(Number(c.default_rate), c.currency)}/{c.unit}
-                        </option>
-                      ))}
+                    <option value="monthly">Monthly Retainer</option>
+                    <option value="one_time">One-time / Fixed</option>
                   </select>
-                )}
+                </div>
                 <textarea
                   value={item.description}
                   onChange={(e) => updateItem(item.key, { description: e.target.value })}

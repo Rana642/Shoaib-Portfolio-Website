@@ -1,7 +1,14 @@
 import { formatMoney, formatDate } from "@/lib/dashboard/format";
 import type { Settings } from "@/lib/dashboard/types";
 
-type PreviewLineItem = { id: string; description: string; quantity: number; rate: number; amount: number };
+type PreviewLineItem = {
+  id: string;
+  description: string;
+  quantity: number;
+  rate: number;
+  amount: number;
+  billing_type: "monthly" | "one_time";
+};
 
 type PreviewProposal = {
   number: string;
@@ -43,6 +50,11 @@ export default function ProposalPreview({
   settings: Settings;
   footer?: React.ReactNode;
 }) {
+  const groups = [
+    { key: "monthly", label: "Monthly Retainer", suffix: "/mo", items: items.filter((i) => i.billing_type === "monthly") },
+    { key: "one_time", label: "One-Time / Fixed Cost", suffix: "", items: items.filter((i) => i.billing_type !== "monthly") },
+  ].filter((group) => group.items.length > 0);
+
   return (
     <div className="bg-white border border-ink/10 rounded-xl p-8 md:p-12 print:border-0 print:rounded-none print:p-0">
       {/* Header */}
@@ -109,42 +121,63 @@ export default function ProposalPreview({
         </div>
       )}
 
-      {/* Investment */}
+      {/* Service charges */}
       <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-3">
-        Investment
+        Service Charges
       </p>
-      <table className="w-full text-left">
-        <thead>
-          <tr className="border-y border-ink/10">
-            <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 pr-4">
-              Description
-            </th>
-            <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 px-3 text-right whitespace-nowrap">
-              Qty
-            </th>
-            <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 px-3 text-right whitespace-nowrap">
-              Rate
-            </th>
-            <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 pl-3 text-right whitespace-nowrap">
-              Amount
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id} className="border-b border-ink/5">
-              <td className="py-4 pr-4 text-body whitespace-pre-line">{item.description}</td>
-              <td className="py-4 px-3 text-body text-right whitespace-nowrap">{Number(item.quantity)}</td>
-              <td className="py-4 px-3 text-body text-right whitespace-nowrap">
-                {formatMoney(Number(item.rate), proposal.currency)}
-              </td>
-              <td className="py-4 pl-3 text-body text-right font-medium whitespace-nowrap">
-                {formatMoney(Number(item.amount), proposal.currency)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {groups.map((group) => (
+        <div key={group.key} className="mb-6 last:mb-0">
+          {groups.length > 1 && (
+            <p className="text-small font-semibold text-ink mb-2">{group.label}</p>
+          )}
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-y border-ink/10">
+                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 pr-4">
+                  Description
+                </th>
+                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 px-3 text-right whitespace-nowrap">
+                  Qty
+                </th>
+                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 px-3 text-right whitespace-nowrap">
+                  Rate
+                </th>
+                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 pl-3 text-right whitespace-nowrap">
+                  Amount
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {group.items.map((item) => (
+                <tr key={item.id} className="border-b border-ink/5">
+                  <td className="py-4 pr-4 text-body whitespace-pre-line">{item.description}</td>
+                  <td className="py-4 px-3 text-body text-right whitespace-nowrap">{Number(item.quantity)}</td>
+                  <td className="py-4 px-3 text-body text-right whitespace-nowrap">
+                    {formatMoney(Number(item.rate), proposal.currency)}
+                  </td>
+                  <td className="py-4 pl-3 text-body text-right font-medium whitespace-nowrap">
+                    {formatMoney(Number(item.amount), proposal.currency)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {groups.length > 1 && (
+            <div className="flex justify-end pt-2">
+              <p className="text-small text-ink-muted">
+                {group.label} subtotal:{" "}
+                <span className="font-medium text-ink">
+                  {formatMoney(
+                    group.items.reduce((sum, item) => sum + Number(item.amount), 0),
+                    proposal.currency
+                  )}
+                  {group.suffix}
+                </span>
+              </p>
+            </div>
+          )}
+        </div>
+      ))}
 
       {/* Totals */}
       <div className="flex justify-end mt-6">

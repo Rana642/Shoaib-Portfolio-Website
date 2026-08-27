@@ -168,9 +168,18 @@ create table if not exists proposal_items (
   description text not null,
   quantity numeric(10,2) not null default 1,
   rate numeric(12,2) not null default 0,
+  -- Purely presentational grouping on the client-facing document —
+  -- doesn't change the maths, just tells the client which lines recur
+  -- monthly vs. which are a one-off setup/fixed charge.
+  billing_type text not null default 'one_time'
+    check (billing_type in ('monthly','one_time')),
   amount numeric(12,2) not null default 0,
   sort_order int not null default 0
 );
+
+-- Safe to run against an already-existing proposal_items table.
+alter table proposal_items add column if not exists billing_type text not null default 'one_time'
+  check (billing_type in ('monthly','one_time'));
 
 create index if not exists proposal_items_parent_idx on proposal_items (proposal_id);
 

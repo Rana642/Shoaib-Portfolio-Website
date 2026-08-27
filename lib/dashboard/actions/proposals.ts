@@ -23,6 +23,7 @@ const lineItemSchema = z.object({
   description: z.string().min(1, "Every line needs a description").max(500),
   quantity: z.coerce.number().min(0),
   rate: z.coerce.number(),
+  billing_type: z.enum(["monthly", "one_time"]).default("one_time"),
 });
 
 const proposalSchema = z.object({
@@ -93,6 +94,7 @@ async function replaceProposalItems(
     description: item.description,
     quantity: item.quantity,
     rate: item.rate,
+    billing_type: item.billing_type,
     amount: round2(item.quantity * item.rate),
     sort_order: index,
   }));
