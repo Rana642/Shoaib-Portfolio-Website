@@ -12,11 +12,13 @@ export default async function EditProposalPage({
 }: PageProps<"/dashboard/proposals/[id]/edit">) {
   const { id } = await params;
 
-  const [{ clients, catalog, settings }, { data: proposal }, { data: itemsData }] = await Promise.all([
-    getProposalFormData(),
-    db.from("proposals").select("*").eq("id", id).single(),
-    db.from("proposal_items").select("*").eq("proposal_id", id).order("sort_order"),
-  ]);
+  const [{ clients, catalog, settings }, { data: proposal }, { data: itemsData }, { data: projectsData }] =
+    await Promise.all([
+      getProposalFormData(),
+      db.from("proposals").select("*").eq("id", id).single(),
+      db.from("proposal_items").select("*").eq("proposal_id", id).order("sort_order"),
+      db.from("proposal_projects").select("*").eq("proposal_id", id).order("sort_order"),
+    ]);
 
   if (!proposal) notFound();
 
@@ -27,7 +29,7 @@ export default async function EditProposalPage({
         clients={clients}
         catalog={catalog}
         settings={settings}
-        proposal={{ ...proposal, items: itemsData ?? [] }}
+        proposal={{ ...proposal, items: itemsData ?? [], projects: projectsData ?? [] }}
       />
     </>
   );

@@ -172,6 +172,22 @@ create index if not exists proposals_client_idx on proposals (client_id);
 create index if not exists proposals_status_idx on proposals (status);
 create index if not exists proposals_token_idx on proposals (access_token);
 
+-- One client's proposal can cover more than one project or company (e.g.
+-- a client who owns two separate businesses) — each gets its own name,
+-- own short scope note, and its own line items below, while pricing,
+-- discount/tax, and accept/sign still happen once for the whole proposal.
+-- Optional: a proposal with none of these behaves exactly as a single
+-- flat proposal always has.
+create table if not exists proposal_projects (
+  id uuid primary key default gen_random_uuid(),
+  proposal_id uuid not null references proposals (id) on delete cascade,
+  name text not null,
+  scope_of_work text,
+  sort_order int not null default 0
+);
+
+create index if not exists proposal_projects_parent_idx on proposal_projects (proposal_id);
+
 create table if not exists proposal_items (
   id uuid primary key default gen_random_uuid(),
   proposal_id uuid not null references proposals (id) on delete cascade,
@@ -190,6 +206,8 @@ create table if not exists proposal_items (
   -- international-transaction tax estimate above applies to.
   item_type text not null default 'service'
     check (item_type in ('service','tool')),
+  -- Null = general/shared, not tied to one project.
+  project_id uuid references proposal_projects (id) on delete cascade,
   amount numeric(12,2) not null default 0,
   sort_order int not null default 0
 );
@@ -199,6 +217,8 @@ alter table proposal_items add column if not exists billing_type text not null d
   check (billing_type in ('monthly','one_time'));
 alter table proposal_items add column if not exists item_type text not null default 'service'
   check (item_type in ('service','tool'));
+alter table proposal_items add column if not exists project_id uuid
+  references proposal_projects (id) on delete cascade;
 
 create index if not exists proposal_items_parent_idx on proposal_items (proposal_id);
 
@@ -382,6 +402,7 @@ alter table clients enable row level security;
 alter table catalog_items enable row level security;
 alter table document_counters enable row level security;
 alter table proposals enable row level security;
+alter table proposal_projects enable row level security;
 alter table proposal_items enable row level security;
 alter table agreements enable row level security;
 alter table onboarding_intakes enable row level security;

@@ -25,6 +25,16 @@ const lineItemSchema = z.object({
   rate: z.coerce.number(),
   billing_type: z.enum(["monthly", "one_time"]).default("one_time"),
   item_type: z.enum(["service", "tool"]).default("service"),
+  project_id: z.string().uuid().nullable(),
+});
+
+/** A client-side-generated id (the project may be brand new, never yet
+ *  saved) so line items can reference it in the same submission — see
+ *  replaceProposalProjects. */
+const projectSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1, "Every project needs a name").max(200),
+  scope_of_work: z.string().max(3000).optional().nullable(),
 });
 
 const proposalSchema = z.object({
@@ -46,12 +56,15 @@ const proposalSchema = z.object({
   tools_tax_rate: z.coerce.number().min(0),
   terms: z.string().max(5000).optional().nullable(),
   items: z.array(lineItemSchema).min(1, "Add at least one line item"),
+  projects: z.array(projectSchema).default([]),
 });
 
 function parseProposalForm(formData: FormData) {
   let items: unknown;
+  let projects: unknown;
   try {
     items = JSON.parse(String(formData.get("items") ?? "[]"));
+    projects = JSON.parse(String(formData.get("projects") ?? "[]"));
   } catch {
     return { success: false as const, error: "Line items were malformed" };
   }
@@ -75,12 +88,41 @@ function parseProposalForm(formData: FormData) {
     tools_tax_rate: formData.get("tools_tax_rate") || 18,
     terms: formData.get("terms") || null,
     items,
+    projects,
   });
 
   if (!parsed.success) {
     return { success: false as const, error: parsed.error.issues[0].message };
   }
   return { success: true as const, data: parsed.data };
+}
+
+/** Deletes and reinserts a proposal's Project blocks. Each project's id
+ *  is generated client-side (crypto.randomUUID()) rather than by the
+ *  database, so line items in the same submission can reference it as
+ *  `project_id` without a round trip to resolve a real id first. */
+async function replaceProposalProjects(
+  proposalId: string,
+  projects: z.infer<typeof projectSchema>[]
+): Promise<string | null> {
+  const { error: deleteError } = await db
+    .from("proposal_projects")
+    .delete()
+    .eq("proposal_id", proposalId);
+  if (deleteError) return deleteError.message;
+
+  if (projects.length === 0) return null;
+
+  const rows = projects.map((project, index) => ({
+    id: project.id,
+    proposal_id: proposalId,
+    name: project.name,
+    scope_of_work: project.scope_of_work,
+    sort_order: index,
+  }));
+
+  const { error: insertError } = await db.from("proposal_projects").insert(rows);
+  return insertError?.message ?? null;
 }
 
 async function replaceProposalItems(
@@ -101,6 +143,7 @@ async function replaceProposalItems(
     rate: item.rate,
     billing_type: item.billing_type,
     item_type: item.item_type,
+    project_id: item.project_id,
     amount: round2(item.quantity * item.rate),
     sort_order: index,
   }));
@@ -114,7 +157,7 @@ export async function createProposal(formData: FormData) {
 
   const parsed = parseProposalForm(formData);
   if (!parsed.success) return { error: parsed.error };
-  const { items, ...proposal } = parsed.data;
+  const { items, projects, ...proposal } = parsed.data;
 
   const { data: settings } = await db.from("settings").select("*").eq("id", 1).single();
   const number = await generateNumber("proposal", settings?.proposal_prefix ?? "PRO");
@@ -145,6 +188,9 @@ export async function createProposal(formData: FormData) {
 
   if (error) return { error: error.message };
 
+  const projectsError = await replaceProposalProjects(created.id, projects);
+  if (projectsError) return { error: projectsError };
+
   const itemsError = await replaceProposalItems(created.id, items);
   if (itemsError) return { error: itemsError };
 
@@ -157,7 +203,7 @@ export async function updateProposal(id: string, formData: FormData) {
 
   const parsed = parseProposalForm(formData);
   if (!parsed.success) return { error: parsed.error };
-  const { items, ...proposal } = parsed.data;
+  const { items, projects, ...proposal } = parsed.data;
 
   const totals = calculateTotals(
     items,
@@ -181,6 +227,9 @@ export async function updateProposal(id: string, formData: FormData) {
     .eq("id", id);
 
   if (error) return { error: error.message };
+
+  const projectsError = await replaceProposalProjects(id, projects);
+  if (projectsError) return { error: projectsError };
 
   const itemsError = await replaceProposalItems(id, items);
   if (itemsError) return { error: itemsError };

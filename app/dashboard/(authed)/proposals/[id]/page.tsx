@@ -16,15 +16,17 @@ export const dynamic = "force-dynamic";
 export default async function ProposalPage({ params }: PageProps<"/dashboard/proposals/[id]">) {
   const { id } = await params;
 
-  const [{ data: proposal }, { data: itemsData }, settings] = await Promise.all([
+  const [{ data: proposal }, { data: itemsData }, { data: projectsData }, settings] = await Promise.all([
     db.from("proposals").select("*").eq("id", id).single(),
     db.from("proposal_items").select("*").eq("proposal_id", id).order("sort_order"),
+    db.from("proposal_projects").select("*").eq("proposal_id", id).order("sort_order"),
     getSettings(),
   ]);
 
   if (!proposal) notFound();
 
   const items = itemsData ?? [];
+  const projects = projectsData ?? [];
 
   const { data: agreement } = await db
     .from("agreements")
@@ -107,7 +109,7 @@ export default async function ProposalPage({ params }: PageProps<"/dashboard/pro
         </div>
       </div>
 
-      <ProposalPreview proposal={proposal as Proposal} items={items} settings={settings} />
+      <ProposalPreview proposal={proposal as Proposal} items={items} projects={projects} settings={settings} />
 
       {(proposal as Proposal).signer_name && (
         <div className="mt-6 text-small text-ink-muted print:hidden">

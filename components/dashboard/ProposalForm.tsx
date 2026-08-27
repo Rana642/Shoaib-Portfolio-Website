@@ -11,6 +11,13 @@ import { CURRENCIES, type CatalogItem, type Client, type Settings } from "@/lib/
 type BillingType = "monthly" | "one_time";
 type ItemType = "service" | "tool";
 
+type EditableProject = {
+  key: string;
+  id: string;
+  name: string;
+  scopeOfWork: string;
+};
+
 type EditableItem = {
   key: string;
   catalog_item_id: string | null;
@@ -19,6 +26,7 @@ type EditableItem = {
   rate: number;
   billing_type: BillingType;
   item_type: ItemType;
+  project_id: string | null;
 };
 
 type ExistingProposal = {
@@ -40,6 +48,7 @@ type ExistingProposal = {
   tools_tax_enabled: boolean;
   tools_tax_rate: number;
   terms: string | null;
+  projects: { id: string; name: string; scope_of_work: string | null }[];
   items: {
     catalog_item_id: string | null;
     description: string;
@@ -47,6 +56,7 @@ type ExistingProposal = {
     rate: number;
     billing_type: BillingType;
     item_type: ItemType;
+    project_id: string | null;
   }[];
 };
 
@@ -97,6 +107,9 @@ export default function ProposalForm({
   const [taxRate, setTaxRate] = useState(proposal?.tax_rate ?? settings.tax_rate);
   const [toolsTaxEnabled, setToolsTaxEnabled] = useState(proposal?.tools_tax_enabled ?? false);
   const [toolsTaxRate, setToolsTaxRate] = useState(proposal?.tools_tax_rate ?? 18);
+  const [projects, setProjects] = useState<EditableProject[]>(
+    proposal?.projects.map((p) => ({ key: nextKey(), id: p.id, name: p.name, scopeOfWork: p.scope_of_work ?? "" })) ?? []
+  );
   const [items, setItems] = useState<EditableItem[]>(
     proposal?.items.map((item) => ({ ...item, key: nextKey() })) ?? [
       {
@@ -107,6 +120,7 @@ export default function ProposalForm({
         rate: 0,
         billing_type: "one_time",
         item_type: "service",
+        project_id: null,
       },
     ]
   );
@@ -137,11 +151,28 @@ export default function ProposalForm({
         rate: 0,
         billing_type: itemType === "tool" ? "monthly" : "one_time",
         item_type: itemType,
+        project_id: null,
       },
     ]);
 
   const removeItem = (key: string) =>
     setItems((prev) => (prev.length === 1 ? prev : prev.filter((item) => item.key !== key)));
+
+  const addProject = () =>
+    setProjects((prev) => [...prev, { key: nextKey(), id: crypto.randomUUID(), name: "", scopeOfWork: "" }]);
+
+  const updateProject = (key: string, patch: Partial<EditableProject>) =>
+    setProjects((prev) => prev.map((p) => (p.key === key ? { ...p, ...patch } : p)));
+
+  const removeProject = (key: string) => {
+    const removed = projects.find((p) => p.key === key);
+    setProjects((prev) => prev.filter((p) => p.key !== key));
+    if (removed) {
+      setItems((prev) =>
+        prev.map((item) => (item.project_id === removed.id ? { ...item, project_id: null } : item))
+      );
+    }
+  };
 
   const applyCatalogItem = (key: string, catalogId: string) => {
     if (!catalogId) {
@@ -174,15 +205,22 @@ export default function ProposalForm({
   const onSubmit = (formData: FormData) => {
     setError(null);
     formData.set(
+      "projects",
+      JSON.stringify(
+        projects.map(({ id, name, scopeOfWork }) => ({ id, name, scope_of_work: scopeOfWork || null }))
+      )
+    );
+    formData.set(
       "items",
       JSON.stringify(
-        items.map(({ catalog_item_id, description, quantity, rate, billing_type, item_type }) => ({
+        items.map(({ catalog_item_id, description, quantity, rate, billing_type, item_type, project_id }) => ({
           catalog_item_id,
           description,
           quantity,
           rate,
           billing_type,
           item_type,
+          project_id,
         }))
       )
     );
@@ -309,6 +347,72 @@ export default function ProposalForm({
         </Field>
       </Card>
 
+      {/* Projects / companies */}
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="text-body-lg font-semibold">Projects</h2>
+            <p className="text-small text-ink-muted mt-1">
+              If this client has more than one project or company, break the charges out per
+              project below — pricing still adds up per project, you can still land on one final
+              number in Discount below.
+            </p>
+          </div>
+          <button type="button" onClick={addProject} className={buttonStyles.secondary}>
+            <Plus className="size-4" aria-hidden />
+            Add project
+          </button>
+        </div>
+
+        {projects.length === 0 ? (
+          <p className="text-small text-ink-subtle">
+            No projects added — charges below apply to this proposal as a whole.
+          </p>
+        ) : (
+          <div className="space-y-5">
+            {projects.map((project, index) => (
+              <div key={project.key} className="pb-5 border-b border-ink/5 last:border-0 last:pb-0 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="flex-1">
+                    <Field label={`Project ${index + 1} name`} htmlFor={`project-name-${project.key}`}>
+                      <input
+                        id={`project-name-${project.key}`}
+                        required
+                        value={project.name}
+                        onChange={(e) => updateProject(project.key, { name: e.target.value })}
+                        placeholder="e.g. Avenza Restaurant"
+                        className={inputClasses}
+                      />
+                    </Field>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeProject(project.key)}
+                    aria-label="Remove project"
+                    className="shrink-0 mt-7 text-ink-subtle hover:text-red-700 transition-colors"
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                  </button>
+                </div>
+                <Field
+                  label="Scope of work for this project"
+                  htmlFor={`project-scope-${project.key}`}
+                  hint="Optional — what's specifically included for this one."
+                >
+                  <textarea
+                    id={`project-scope-${project.key}`}
+                    value={project.scopeOfWork}
+                    onChange={(e) => updateProject(project.key, { scopeOfWork: e.target.value })}
+                    rows={2}
+                    className={inputClasses}
+                  />
+                </Field>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
       {/* Service charges */}
       <Card className="p-6">
         <div className="flex items-center justify-between mb-5">
@@ -329,7 +433,7 @@ export default function ProposalForm({
                 {index === 0 && (
                   <label className="block text-small font-medium mb-1.5">Description</label>
                 )}
-                <div className="flex gap-2 mb-2">
+                <div className="flex flex-wrap gap-2 mb-2">
                   {catalog.length > 0 && (
                     <select
                       value={item.catalog_item_id ?? ""}
@@ -358,6 +462,21 @@ export default function ProposalForm({
                     <option value="monthly">Monthly Retainer</option>
                     <option value="one_time">One-time / Fixed</option>
                   </select>
+                  {projects.length > 0 && (
+                    <select
+                      value={item.project_id ?? ""}
+                      onChange={(e) => updateItem(item.key, { project_id: e.target.value || null })}
+                      className={`${inputClasses} text-small w-44 shrink-0`}
+                      aria-label="Project"
+                    >
+                      <option value="">General (all projects)</option>
+                      {projects.map((p) => (
+                        <option key={p.key} value={p.id}>
+                          {p.name || "Untitled project"}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 <textarea
                   value={item.description}
@@ -445,6 +564,21 @@ export default function ProposalForm({
                 <div className="col-span-12 sm:col-span-6">
                   {index === 0 && (
                     <label className="block text-small font-medium mb-1.5">Tool / subscription</label>
+                  )}
+                  {projects.length > 0 && (
+                    <select
+                      value={item.project_id ?? ""}
+                      onChange={(e) => updateItem(item.key, { project_id: e.target.value || null })}
+                      className={`${inputClasses} text-small mb-2 w-44`}
+                      aria-label="Project"
+                    >
+                      <option value="">General (all projects)</option>
+                      {projects.map((p) => (
+                        <option key={p.key} value={p.id}>
+                          {p.name || "Untitled project"}
+                        </option>
+                      ))}
+                    </select>
                   )}
                   <textarea
                     value={item.description}

@@ -21,7 +21,7 @@ export default async function PublicProposalPage({
   const [result, settings] = await Promise.all([getProposalByToken(token), getSettings()]);
   if (!result) notFound();
 
-  const { proposal, items } = result;
+  const { proposal, items, projects } = result;
 
   return (
     <main className="min-h-full bg-cloud px-5 py-10 md:py-16">
@@ -29,6 +29,7 @@ export default async function PublicProposalPage({
         <ProposalPreview
           proposal={proposal}
           items={items}
+          projects={projects}
           settings={settings}
           footer={<ProposalAcceptForm token={token} status={proposal.status} />}
         />

@@ -25,7 +25,9 @@ export async function getProposalByToken(
     amount: number;
     billing_type: "monthly" | "one_time";
     item_type: "service" | "tool";
+    project_id: string | null;
   }[];
+  projects: { id: string; name: string; scope_of_work: string | null }[];
 } | null> {
   const { data: proposal } = await db
     .from("proposals")
@@ -52,7 +54,13 @@ export async function getProposalByToken(
     .eq("proposal_id", proposal.id)
     .order("sort_order");
 
-  return { proposal: proposal as Proposal, items: items ?? [] };
+  const { data: projects } = await db
+    .from("proposal_projects")
+    .select("*")
+    .eq("proposal_id", proposal.id)
+    .order("sort_order");
+
+  return { proposal: proposal as Proposal, items: items ?? [], projects: projects ?? [] };
 }
 
 export async function acceptProposal(token: string, signerName: string) {
