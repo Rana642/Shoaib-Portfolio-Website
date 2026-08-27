@@ -36,6 +36,17 @@ type ExistingProposal = {
 let keyCounter = 0;
 const nextKey = () => `item-${keyCounter++}`;
 
+// Starting drafts for a brand-new proposal — professional, fully editable,
+// not fixed boilerplate. Saves starting from a blank page every time.
+const DEFAULT_SITUATION =
+  "Every business reaches a point where growth needs more than ad-hoc effort — a real system for visibility, content, and conversion tracking working together. That's the stage you're at right now: real potential, without yet a joined-up strategy turning attention into measurable results.";
+const DEFAULT_PROPOSED_SOLUTION =
+  "This plan is built around what actually moves the needle for your business specifically — not a fixed package, but the mix of brand presence, content, tracking, and paid media that fits where you are today.";
+const DEFAULT_SCOPE_OF_WORK =
+  "The exact scope is itemized under Investment below — each line scoped specifically to this engagement, not a generic bundle.";
+const DEFAULT_TERMS =
+  "50% due upon signing the agreement, 50% due upon delivery of the first milestone, unless otherwise agreed in writing. This proposal is valid for 14 days from the date sent.";
+
 export default function ProposalForm({
   clients,
   catalog,
@@ -95,7 +106,7 @@ export default function ProposalForm({
     updateItem(key, {
       catalog_item_id: source.id,
       description: source.description ? `${source.name} — ${source.description}` : source.name,
-      rate: Number(source.default_rate),
+      rate: Number(source.discounted_rate ?? source.default_rate),
     });
   };
 
@@ -222,7 +233,7 @@ export default function ProposalForm({
             id="situation"
             name="situation"
             rows={3}
-            defaultValue={proposal?.situation ?? ""}
+            defaultValue={proposal?.situation ?? DEFAULT_SITUATION}
             className={inputClasses}
           />
         </Field>
@@ -231,7 +242,7 @@ export default function ProposalForm({
             id="proposed_solution"
             name="proposed_solution"
             rows={4}
-            defaultValue={proposal?.proposed_solution ?? ""}
+            defaultValue={proposal?.proposed_solution ?? DEFAULT_PROPOSED_SOLUTION}
             className={inputClasses}
           />
         </Field>
@@ -240,7 +251,7 @@ export default function ProposalForm({
             id="scope_of_work"
             name="scope_of_work"
             rows={4}
-            defaultValue={proposal?.scope_of_work ?? ""}
+            defaultValue={proposal?.scope_of_work ?? DEFAULT_SCOPE_OF_WORK}
             className={inputClasses}
           />
         </Field>
@@ -278,7 +289,9 @@ export default function ProposalForm({
                       .filter((c) => c.is_active)
                       .map((c) => (
                         <option key={c.id} value={c.id}>
-                          {c.name} — {formatMoney(Number(c.default_rate), c.currency)}/{c.unit}
+                          {c.name} —{" "}
+                          {formatMoney(Number(c.discounted_rate ?? c.default_rate), c.currency)}/
+                          {c.unit}
                         </option>
                       ))}
                   </select>
@@ -425,7 +438,7 @@ export default function ProposalForm({
             id="terms"
             name="terms"
             rows={4}
-            defaultValue={proposal?.terms ?? settings.payment_terms ?? ""}
+            defaultValue={proposal?.terms ?? DEFAULT_TERMS}
             className={inputClasses}
           />
         </Field>

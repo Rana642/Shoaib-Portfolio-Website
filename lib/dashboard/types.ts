@@ -19,6 +19,7 @@ export type CatalogItem = {
   description: string | null;
   unit: string;
   default_rate: number;
+  discounted_rate: number | null;
   currency: string;
   is_active: boolean;
   sort_order: number;

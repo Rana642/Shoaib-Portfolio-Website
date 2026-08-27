@@ -60,11 +60,18 @@ create table if not exists catalog_items (
   name text not null,
   description text,
   unit text not null default 'month',    -- month / project / hour / item
-  default_rate numeric(12,2) not null default 0,
+  default_rate numeric(12,2) not null default 0,  -- "Standard Rate" in the UI
+  -- "Your Rate" in the UI — what actually tends to get quoted; nullable
+  -- since not every service has a second tier. Purely a dashboard
+  -- reference/anchor, never shown to clients directly.
+  discounted_rate numeric(12,2),
   currency text not null default 'PKR',
   is_active boolean not null default true,
   sort_order int not null default 0
 );
+
+-- Safe to run against an already-existing catalog_items table.
+alter table catalog_items add column if not exists discounted_rate numeric(12,2);
 
 -- ── Document numbering ──────────────────────────────────────
 -- Sequential per type per year, e.g. INV-2026-001.

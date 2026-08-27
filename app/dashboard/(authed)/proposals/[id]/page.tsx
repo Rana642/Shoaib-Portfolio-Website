@@ -3,11 +3,12 @@ import Link from "next/link";
 import { ArrowLeft, Users, FileSignature } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
 import { getSettings } from "@/lib/dashboard/settings";
-import { sendProposal, deleteProposal } from "@/lib/dashboard/actions/proposals";
+import { sendProposal, deleteProposal, markProposalAccepted } from "@/lib/dashboard/actions/proposals";
 import { StatusBadge } from "@/components/dashboard/ui";
 import ProposalPreview from "@/components/dashboard/ProposalPreview";
 import ProposalActions from "@/components/dashboard/ProposalActions";
 import DeleteButton from "@/components/dashboard/DeleteButton";
+import ConfirmActionButton from "@/components/dashboard/ConfirmActionButton";
 import type { Proposal } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +41,11 @@ export default async function ProposalPage({ params }: PageProps<"/dashboard/pro
   async function send() {
     "use server";
     return sendProposal(id);
+  }
+
+  async function markAccepted() {
+    "use server";
+    return markProposalAccepted(id);
   }
 
   async function handleDelete() {
@@ -84,12 +90,20 @@ export default async function ProposalPage({ params }: PageProps<"/dashboard/pro
           )}
         </div>
 
-        <div className="mb-8">
+        <div className="mb-8 space-y-4">
           <ProposalActions
             editHref={`/dashboard/proposals/${id}/edit`}
             status={(proposal as Proposal).status}
             onSend={send}
           />
+
+          {(proposal as Proposal).status !== "accepted" && (proposal as Proposal).status !== "declined" && (
+            <ConfirmActionButton
+              action={markAccepted}
+              label="Mark accepted (confirmed offline)"
+              confirmLabel="Click again to confirm acceptance"
+            />
+          )}
         </div>
       </div>
 

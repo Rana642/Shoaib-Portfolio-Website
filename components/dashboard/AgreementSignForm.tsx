@@ -44,7 +44,7 @@ export default function AgreementSignForm({ token, status }: { token: string; st
     setError(null);
     startTransition(async () => {
       const res = await signAgreement(token, name);
-      if (res?.error) setError(res.error);
+      if ("error" in res) setError(res.error);
       else setResult("signed");
     });
   };

@@ -10,6 +10,8 @@ import { generateNumber } from "./documents";
 import { resend, isResendConfigured, fromEmail } from "../../resend";
 import { proposalSentEmail } from "../../email-templates";
 import { siteUrl } from "../../seo";
+import { performProposalAcceptance } from "../proposal-acceptance";
+import type { Proposal } from "../types";
 
 async function assertAuthed() {
   const user = await getUser();
@@ -199,5 +201,29 @@ export async function sendProposal(id: string) {
 
   revalidatePath(`/dashboard/proposals/${id}`);
   revalidatePath("/dashboard/proposals");
+  return { ok: true };
+}
+
+/** For clients who confirm over a call/WhatsApp instead of the self-serve
+ *  link — runs the exact same acceptance cascade (client creation,
+ *  agreement generation, agreement email) as the public accept flow. */
+export async function markProposalAccepted(id: string) {
+  await assertAuthed();
+
+  const { data: proposal } = await db.from("proposals").select("*").eq("id", id).single();
+  if (!proposal) return { error: "Proposal not found." };
+  if (proposal.status === "accepted") return { error: "This proposal has already been accepted." };
+  if (proposal.status === "declined") return { error: "This proposal was already declined." };
+
+  const result = await performProposalAcceptance(
+    proposal as Proposal,
+    "Confirmed by Shoaib (offline)",
+    null
+  );
+  if ("error" in result) return result;
+
+  revalidatePath(`/dashboard/proposals/${id}`);
+  revalidatePath("/dashboard/proposals");
+  revalidatePath("/dashboard/agreements");
   return { ok: true };
 }

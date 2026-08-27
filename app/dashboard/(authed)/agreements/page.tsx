@@ -1,7 +1,8 @@
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { db } from "@/lib/dashboard/db";
 import { formatDate } from "@/lib/dashboard/format";
-import { PageHeader, Card, EmptyState, StatusBadge } from "@/components/dashboard/ui";
+import { PageHeader, Card, EmptyState, StatusBadge, LinkButton } from "@/components/dashboard/ui";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Agreements" };
@@ -26,13 +27,20 @@ export default async function AgreementsPage() {
     <>
       <PageHeader
         title="Agreements"
-        description="Generated automatically once a proposal is accepted — sign here closes the loop before onboarding."
+        description="Generated once a proposal is accepted — online, or manually for clients who confirm offline."
+        action={
+          <LinkButton href="/dashboard/agreements/new">
+            <Plus className="size-4" aria-hidden />
+            New agreement
+          </LinkButton>
+        }
       />
 
       {agreements.length === 0 ? (
         <EmptyState
           title="No agreements yet"
-          description="These show up automatically once a proposal is accepted."
+          description="These show up once a proposal is accepted — online, or create one yourself from an existing proposal."
+          action={<LinkButton href="/dashboard/agreements/new">New agreement</LinkButton>}
         />
       ) : (
         <Card className="overflow-hidden">

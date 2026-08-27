@@ -47,7 +47,7 @@ export default function CatalogForm({
         />
       </Field>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <Field label="Unit" htmlFor="unit">
           <select
             id="unit"
@@ -62,7 +62,7 @@ export default function CatalogForm({
             ))}
           </select>
         </Field>
-        <Field label="Default rate" htmlFor="default_rate">
+        <Field label="Standard Rate" htmlFor="default_rate">
           <input
             id="default_rate"
             name="default_rate"
@@ -71,6 +71,21 @@ export default function CatalogForm({
             min="0"
             required
             defaultValue={item?.default_rate ?? 0}
+            className={inputClasses}
+          />
+        </Field>
+        <Field
+          label="Your Rate"
+          htmlFor="discounted_rate"
+          hint="Optional — what you actually tend to quote. Left blank if there's no second tier."
+        >
+          <input
+            id="discounted_rate"
+            name="discounted_rate"
+            type="number"
+            step="0.01"
+            min="0"
+            defaultValue={item?.discounted_rate ?? ""}
             className={inputClasses}
           />
         </Field>

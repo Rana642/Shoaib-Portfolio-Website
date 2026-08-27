@@ -91,7 +91,7 @@ export default function DocumentForm({
       description: source.description
         ? `${source.name} — ${source.description}`
         : source.name,
-      rate: Number(source.default_rate),
+      rate: Number(source.discounted_rate ?? source.default_rate),
     });
   };
 
@@ -217,7 +217,9 @@ export default function DocumentForm({
                       .filter((c) => c.is_active)
                       .map((c) => (
                         <option key={c.id} value={c.id}>
-                          {c.name} — {formatMoney(Number(c.default_rate), c.currency)}/{c.unit}
+                          {c.name} —{" "}
+                          {formatMoney(Number(c.discounted_rate ?? c.default_rate), c.currency)}/
+                          {c.unit}
                         </option>
                       ))}
                   </select>

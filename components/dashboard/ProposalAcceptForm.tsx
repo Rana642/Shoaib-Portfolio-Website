@@ -44,7 +44,7 @@ export default function ProposalAcceptForm({ token, status }: { token: string; s
     setError(null);
     startTransition(async () => {
       const res = await acceptProposal(token, name);
-      if (res?.error) setError(res.error);
+      if ("error" in res) setError(res.error);
       else setResult("accepted");
     });
   };

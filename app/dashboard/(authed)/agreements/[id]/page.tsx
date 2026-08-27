@@ -2,9 +2,10 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
-import { resendAgreement } from "@/lib/dashboard/actions/agreements";
+import { resendAgreement, markAgreementSigned } from "@/lib/dashboard/actions/agreements";
 import { StatusBadge, Card } from "@/components/dashboard/ui";
-import ResendAgreementButton from "@/components/dashboard/ResendAgreementButton";
+import AgreementActions from "@/components/dashboard/AgreementActions";
+import ConfirmActionButton from "@/components/dashboard/ConfirmActionButton";
 import type { Agreement } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
@@ -17,16 +18,21 @@ export default async function AgreementPage({ params }: PageProps<"/dashboard/ag
 
   const { clients, ...agreement } = data as Agreement & { clients: { name: string } | null };
 
-  async function resend() {
+  async function send() {
     "use server";
     return resendAgreement(id);
+  }
+
+  async function markSigned() {
+    "use server";
+    return markAgreementSigned(id);
   }
 
   return (
     <>
       <Link
         href="/dashboard/agreements"
-        className="group inline-flex items-center gap-2 text-small text-ink-subtle hover:text-ink transition-colors mb-6"
+        className="group inline-flex items-center gap-2 text-small text-ink-subtle hover:text-ink transition-colors mb-6 print:hidden"
       >
         <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-1" aria-hidden />
         All agreements
@@ -38,11 +44,19 @@ export default async function AgreementPage({ params }: PageProps<"/dashboard/ag
       </div>
       <p className="text-small text-ink-muted mb-8">{clients?.name ?? "—"}</p>
 
-      {agreement.status !== "signed" && agreement.status !== "declined" && (
-        <div className="mb-8">
-          <ResendAgreementButton onResend={resend} />
-        </div>
-      )}
+      <div className="mb-8 space-y-4">
+        <AgreementActions status={agreement.status} onSend={send} />
+
+        {agreement.status !== "signed" && agreement.status !== "declined" && (
+          <div className="print:hidden">
+            <ConfirmActionButton
+              action={markSigned}
+              label="Mark signed (confirmed offline)"
+              confirmLabel="Click again to confirm signing"
+            />
+          </div>
+        )}
+      </div>
 
       <Card className="p-8">
         <p className="text-body whitespace-pre-line">{agreement.content}</p>
