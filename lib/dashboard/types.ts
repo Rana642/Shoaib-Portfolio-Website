@@ -19,7 +19,6 @@ export type CatalogItem = {
   description: string | null;
   unit: string;
   default_rate: number;
-  discounted_rate: number | null;
   currency: string;
   is_active: boolean;
   sort_order: number;
@@ -51,6 +50,10 @@ export type Proposal = {
   proposed_solution: string | null;
   scope_of_work: string | null;
   currency: string;
+  discount_enabled: boolean;
+  discount_type: "percentage" | "fixed";
+  discount_value: number;
+  discount_amount: number;
   tax_enabled: boolean;
   tax_name: string;
   tax_rate: number;
@@ -118,6 +121,10 @@ export type Quotation = {
   issue_date: string;
   valid_until: string | null;
   currency: string;
+  discount_enabled: boolean;
+  discount_type: "percentage" | "fixed";
+  discount_value: number;
+  discount_amount: number;
   tax_enabled: boolean;
   tax_name: string;
   tax_rate: number;

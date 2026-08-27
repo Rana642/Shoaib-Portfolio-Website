@@ -13,6 +13,10 @@ type PreviewProposal = {
   proposed_solution: string | null;
   scope_of_work: string | null;
   currency: string;
+  discount_enabled: boolean;
+  discount_type: "percentage" | "fixed";
+  discount_value: number;
+  discount_amount: number;
   tax_enabled: boolean;
   tax_name: string;
   tax_rate: number;
@@ -149,6 +153,15 @@ export default function ProposalPreview({
             <span className="text-ink-muted">Subtotal</span>
             <span>{formatMoney(Number(proposal.subtotal), proposal.currency)}</span>
           </div>
+          {proposal.discount_enabled && Number(proposal.discount_amount) > 0 && (
+            <div className="flex justify-between text-body">
+              <span className="text-ink-muted">
+                Discount
+                {proposal.discount_type === "percentage" ? ` (${Number(proposal.discount_value)}%)` : ""}
+              </span>
+              <span>−{formatMoney(Number(proposal.discount_amount), proposal.currency)}</span>
+            </div>
+          )}
           {proposal.tax_enabled && (
             <div className="flex justify-between text-body">
               <span className="text-ink-muted">

@@ -22,6 +22,9 @@ type ExistingDocument = {
   issue_date: string;
   due_date: string | null;
   currency: string;
+  discount_enabled?: boolean;
+  discount_type?: "percentage" | "fixed";
+  discount_value?: number;
   tax_enabled: boolean;
   tax_name: string;
   tax_rate: number;
@@ -51,6 +54,11 @@ export default function DocumentForm({
 
   const [clientId, setClientId] = useState(document?.client_id ?? "");
   const [currency, setCurrency] = useState(document?.currency ?? settings.default_currency);
+  const [discountEnabled, setDiscountEnabled] = useState(document?.discount_enabled ?? false);
+  const [discountType, setDiscountType] = useState<"percentage" | "fixed">(
+    document?.discount_type ?? "percentage"
+  );
+  const [discountValue, setDiscountValue] = useState(document?.discount_value ?? 0);
   const [taxEnabled, setTaxEnabled] = useState(document?.tax_enabled ?? settings.tax_enabled);
   const [taxRate, setTaxRate] = useState(document?.tax_rate ?? settings.tax_rate);
   const [items, setItems] = useState<EditableItem[]>(
@@ -59,9 +67,17 @@ export default function DocumentForm({
     ]
   );
 
+  const isQuotation = kind === "quotation";
+
   const totals = useMemo(
-    () => calculateTotals(items, taxEnabled, taxRate),
-    [items, taxEnabled, taxRate]
+    () =>
+      calculateTotals(
+        items,
+        taxEnabled,
+        taxRate,
+        isQuotation ? { enabled: discountEnabled, type: discountType, value: discountValue } : undefined
+      ),
+    [items, taxEnabled, taxRate, isQuotation, discountEnabled, discountType, discountValue]
   );
 
   const updateItem = (key: string, patch: Partial<EditableItem>) =>
@@ -91,7 +107,7 @@ export default function DocumentForm({
       description: source.description
         ? `${source.name} — ${source.description}`
         : source.name,
-      rate: Number(source.discounted_rate ?? source.default_rate),
+      rate: Number(source.default_rate),
     });
   };
 
@@ -217,9 +233,7 @@ export default function DocumentForm({
                       .filter((c) => c.is_active)
                       .map((c) => (
                         <option key={c.id} value={c.id}>
-                          {c.name} —{" "}
-                          {formatMoney(Number(c.discounted_rate ?? c.default_rate), c.currency)}/
-                          {c.unit}
+                          {c.name} — {formatMoney(Number(c.default_rate), c.currency)}/{c.unit}
                         </option>
                       ))}
                   </select>
@@ -291,10 +305,64 @@ export default function DocumentForm({
         </div>
       </Card>
 
-      {/* Tax + totals */}
+      {/* Discount (quotations only) + tax + totals */}
       <Card className="p-6">
         <div className="flex flex-col lg:flex-row gap-8">
-          <div className="flex-1 space-y-4">
+          <div className="flex-1 space-y-5">
+            {isQuotation && (
+              <div className="space-y-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name="discount_enabled"
+                    checked={discountEnabled}
+                    onChange={(e) => setDiscountEnabled(e.target.checked)}
+                    className="size-4 accent-citrus cursor-pointer"
+                  />
+                  <span className="text-small font-medium">Offer a discount on the total</span>
+                </label>
+
+                {discountEnabled && (
+                  <div className="grid grid-cols-2 gap-4 max-w-sm">
+                    <Field label="Type" htmlFor="discount_type">
+                      <select
+                        id="discount_type"
+                        name="discount_type"
+                        value={discountType}
+                        onChange={(e) => setDiscountType(e.target.value as "percentage" | "fixed")}
+                        className={inputClasses}
+                      >
+                        <option value="percentage">Percentage</option>
+                        <option value="fixed">Fixed amount</option>
+                      </select>
+                    </Field>
+                    <Field
+                      label={discountType === "percentage" ? "Rate (%)" : `Amount (${currency})`}
+                      htmlFor="discount_value"
+                    >
+                      <input
+                        id="discount_value"
+                        name="discount_value"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max={discountType === "percentage" ? 100 : undefined}
+                        value={discountValue}
+                        onChange={(e) => setDiscountValue(Number(e.target.value) || 0)}
+                        className={inputClasses}
+                      />
+                    </Field>
+                  </div>
+                )}
+                {!discountEnabled && (
+                  <>
+                    <input type="hidden" name="discount_type" value={discountType} />
+                    <input type="hidden" name="discount_value" value={discountValue} />
+                  </>
+                )}
+              </div>
+            )}
+
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
@@ -344,6 +412,14 @@ export default function DocumentForm({
               <span className="text-ink-muted">Subtotal</span>
               <span className="font-medium">{formatMoney(totals.subtotal, currency)}</span>
             </div>
+            {isQuotation && discountEnabled && totals.discountAmount > 0 && (
+              <div className="flex justify-between text-small">
+                <span className="text-ink-muted">
+                  Discount {discountType === "percentage" ? `(${discountValue}%)` : ""}
+                </span>
+                <span className="font-medium">−{formatMoney(totals.discountAmount, currency)}</span>
+              </div>
+            )}
             {taxEnabled && (
               <div className="flex justify-between text-small">
                 <span className="text-ink-muted">

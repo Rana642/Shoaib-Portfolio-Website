@@ -71,27 +71,10 @@ export default async function CatalogPage() {
                       )}
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap">
-                      {item.discounted_rate != null ? (
-                        <>
-                          <span className="text-small text-ink-subtle line-through">
-                            {formatMoney(Number(item.default_rate), item.currency)}
-                          </span>
-                          <span className="font-medium ml-2">
-                            {formatMoney(Number(item.discounted_rate), item.currency)}
-                          </span>
-                          <span className="text-small text-ink-subtle"> / {item.unit}</span>
-                          <p className="text-tag font-mono uppercase tracking-widest text-ink-subtle">
-                            Your Rate
-                          </p>
-                        </>
-                      ) : (
-                        <>
-                          <span className="font-medium">
-                            {formatMoney(Number(item.default_rate), item.currency)}
-                          </span>
-                          <span className="text-small text-ink-subtle"> / {item.unit}</span>
-                        </>
-                      )}
+                      <span className="font-medium">
+                        {formatMoney(Number(item.default_rate), item.currency)}
+                      </span>
+                      <span className="text-small text-ink-subtle"> / {item.unit}</span>
                     </td>
                     <td className="px-5 py-4 hidden sm:table-cell">
                       <StatusBadge status={item.is_active ? "accepted" : "draft"} />

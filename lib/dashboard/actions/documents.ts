@@ -24,6 +24,9 @@ const documentSchema = z.object({
   issue_date: z.string().min(1),
   due_date: z.string().optional().nullable(),
   currency: z.string().min(1).max(10),
+  discount_enabled: z.boolean(),
+  discount_type: z.enum(["percentage", "fixed"]),
+  discount_value: z.coerce.number().min(0),
   tax_enabled: z.boolean(),
   tax_name: z.string().min(1).max(50),
   tax_rate: z.coerce.number().min(0).max(100),
@@ -47,6 +50,9 @@ function parseDocumentForm(formData: FormData) {
     issue_date: formData.get("issue_date"),
     due_date: formData.get("due_date") || null,
     currency: formData.get("currency"),
+    discount_enabled: formData.get("discount_enabled") === "on",
+    discount_type: formData.get("discount_type") || "percentage",
+    discount_value: formData.get("discount_value") || 0,
     tax_enabled: formData.get("tax_enabled") === "on",
     tax_name: formData.get("tax_name") || "GST",
     tax_rate: formData.get("tax_rate") || 0,
@@ -82,7 +88,10 @@ export async function createDocument(kind: DocumentKind, formData: FormData) {
 
   const parsed = parseDocumentForm(formData);
   if (!parsed.success) return { error: parsed.error };
-  const { items, ...doc } = parsed.data;
+  // Discount only exists on quotations — invoices don't have these
+  // columns, so they're pulled out of `doc` here and only added back for
+  // the quotation branch below.
+  const { items, discount_enabled, discount_type, discount_value, ...doc } = parsed.data;
 
   const { data: settings } = await db.from("settings").select("*").eq("id", 1).single();
   const prefix =
@@ -91,7 +100,12 @@ export async function createDocument(kind: DocumentKind, formData: FormData) {
   const number = await generateNumber(kind, prefix);
   if (!number) return { error: "Couldn't generate a document number. Check the database setup." };
 
-  const totals = calculateTotals(items, doc.tax_enabled, doc.tax_rate);
+  const totals = calculateTotals(
+    items,
+    doc.tax_enabled,
+    doc.tax_rate,
+    kind === "quotation" ? { enabled: discount_enabled, type: discount_type, value: discount_value } : undefined
+  );
   const table = kind === "invoice" ? "invoices" : "quotations";
 
   const { data: created, error } = await db
@@ -102,7 +116,14 @@ export async function createDocument(kind: DocumentKind, formData: FormData) {
       // differently per document type.
       ...(kind === "invoice"
         ? { due_date: doc.due_date }
-        : { valid_until: doc.due_date, due_date: undefined }),
+        : {
+            valid_until: doc.due_date,
+            due_date: undefined,
+            discount_enabled,
+            discount_type,
+            discount_value,
+            discount_amount: totals.discountAmount,
+          }),
       number,
       subtotal: totals.subtotal,
       tax_amount: totals.taxAmount,
@@ -125,9 +146,14 @@ export async function updateDocument(kind: DocumentKind, id: string, formData: F
 
   const parsed = parseDocumentForm(formData);
   if (!parsed.success) return { error: parsed.error };
-  const { items, ...doc } = parsed.data;
+  const { items, discount_enabled, discount_type, discount_value, ...doc } = parsed.data;
 
-  const totals = calculateTotals(items, doc.tax_enabled, doc.tax_rate);
+  const totals = calculateTotals(
+    items,
+    doc.tax_enabled,
+    doc.tax_rate,
+    kind === "quotation" ? { enabled: discount_enabled, type: discount_type, value: discount_value } : undefined
+  );
   const table = kind === "invoice" ? "invoices" : "quotations";
 
   const { error } = await db
@@ -136,7 +162,14 @@ export async function updateDocument(kind: DocumentKind, id: string, formData: F
       ...doc,
       ...(kind === "invoice"
         ? { due_date: doc.due_date }
-        : { valid_until: doc.due_date, due_date: undefined }),
+        : {
+            valid_until: doc.due_date,
+            due_date: undefined,
+            discount_enabled,
+            discount_type,
+            discount_value,
+            discount_amount: totals.discountAmount,
+          }),
       subtotal: totals.subtotal,
       tax_amount: totals.taxAmount,
       total: totals.total,

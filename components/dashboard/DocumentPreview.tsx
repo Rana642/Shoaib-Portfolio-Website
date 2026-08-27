@@ -7,6 +7,10 @@ type PreviewDocument = {
   due_date?: string | null;
   valid_until?: string | null;
   currency: string;
+  discount_enabled?: boolean;
+  discount_type?: "percentage" | "fixed";
+  discount_value?: number;
+  discount_amount?: number;
   tax_enabled: boolean;
   tax_name: string;
   tax_rate: number;
@@ -127,6 +131,15 @@ export default function DocumentPreview({
             <span className="text-ink-muted">Subtotal</span>
             <span>{formatMoney(Number(document.subtotal), document.currency)}</span>
           </div>
+          {document.discount_enabled && Number(document.discount_amount ?? 0) > 0 && (
+            <div className="flex justify-between text-body">
+              <span className="text-ink-muted">
+                Discount
+                {document.discount_type === "percentage" ? ` (${Number(document.discount_value)}%)` : ""}
+              </span>
+              <span>−{formatMoney(Number(document.discount_amount), document.currency)}</span>
+            </div>
+          )}
           {document.tax_enabled && (
             <div className="flex justify-between text-body">
               <span className="text-ink-muted">

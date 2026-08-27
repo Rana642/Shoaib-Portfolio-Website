@@ -34,6 +34,9 @@ const proposalSchema = z.object({
   proposed_solution: z.string().max(5000).optional().nullable(),
   scope_of_work: z.string().max(5000).optional().nullable(),
   currency: z.string().min(1).max(10),
+  discount_enabled: z.boolean(),
+  discount_type: z.enum(["percentage", "fixed"]),
+  discount_value: z.coerce.number().min(0),
   tax_enabled: z.boolean(),
   tax_name: z.string().min(1).max(50),
   tax_rate: z.coerce.number().min(0).max(100),
@@ -58,6 +61,9 @@ function parseProposalForm(formData: FormData) {
     proposed_solution: formData.get("proposed_solution") || null,
     scope_of_work: formData.get("scope_of_work") || null,
     currency: formData.get("currency"),
+    discount_enabled: formData.get("discount_enabled") === "on",
+    discount_type: formData.get("discount_type") || "percentage",
+    discount_value: formData.get("discount_value") || 0,
     tax_enabled: formData.get("tax_enabled") === "on",
     tax_name: formData.get("tax_name") || "GST",
     tax_rate: formData.get("tax_rate") || 0,
@@ -106,7 +112,11 @@ export async function createProposal(formData: FormData) {
   const number = await generateNumber("proposal", settings?.proposal_prefix ?? "PRO");
   if (!number) return { error: "Couldn't generate a proposal number. Check the database setup." };
 
-  const totals = calculateTotals(items, proposal.tax_enabled, proposal.tax_rate);
+  const totals = calculateTotals(items, proposal.tax_enabled, proposal.tax_rate, {
+    enabled: proposal.discount_enabled,
+    type: proposal.discount_type,
+    value: proposal.discount_value,
+  });
 
   const { data: created, error } = await db
     .from("proposals")
@@ -115,6 +125,7 @@ export async function createProposal(formData: FormData) {
       number,
       access_token: crypto.randomUUID(),
       subtotal: totals.subtotal,
+      discount_amount: totals.discountAmount,
       tax_amount: totals.taxAmount,
       total: totals.total,
     })
@@ -137,13 +148,18 @@ export async function updateProposal(id: string, formData: FormData) {
   if (!parsed.success) return { error: parsed.error };
   const { items, ...proposal } = parsed.data;
 
-  const totals = calculateTotals(items, proposal.tax_enabled, proposal.tax_rate);
+  const totals = calculateTotals(items, proposal.tax_enabled, proposal.tax_rate, {
+    enabled: proposal.discount_enabled,
+    type: proposal.discount_type,
+    value: proposal.discount_value,
+  });
 
   const { error } = await db
     .from("proposals")
     .update({
       ...proposal,
       subtotal: totals.subtotal,
+      discount_amount: totals.discountAmount,
       tax_amount: totals.taxAmount,
       total: totals.total,
       updated_at: new Date().toISOString(),

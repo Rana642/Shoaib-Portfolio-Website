@@ -22,22 +22,36 @@ export function formatDate(date: string | null): string {
   });
 }
 
+export type Discount = { enabled: boolean; type: "percentage" | "fixed"; value: number };
+
 /**
  * Single source of truth for document maths. Rounds to 2dp at each step
  * so the stored totals always match what the PDF prints — floating-point
  * drift on a financial document is not acceptable.
+ *
+ * Order is subtotal -> discount -> tax: the discount is a client-specific
+ * break on the work itself, so tax is charged on what they actually pay
+ * for it, not the pre-discount price.
  */
 export function calculateTotals(
   items: { quantity: number; rate: number }[],
   taxEnabled: boolean,
-  taxRate: number
+  taxRate: number,
+  discount?: Discount
 ) {
   const subtotal = round2(
     items.reduce((sum, item) => sum + round2(item.quantity * item.rate), 0)
   );
-  const taxAmount = taxEnabled ? round2((subtotal * taxRate) / 100) : 0;
-  const total = round2(subtotal + taxAmount);
-  return { subtotal, taxAmount, total };
+  const rawDiscount = !discount?.enabled
+    ? 0
+    : discount.type === "percentage"
+      ? (subtotal * discount.value) / 100
+      : discount.value;
+  const discountAmount = round2(Math.min(Math.max(rawDiscount, 0), subtotal));
+  const discountedSubtotal = round2(subtotal - discountAmount);
+  const taxAmount = taxEnabled ? round2((discountedSubtotal * taxRate) / 100) : 0;
+  const total = round2(discountedSubtotal + taxAmount);
+  return { subtotal, discountAmount, taxAmount, total };
 }
 
 export function round2(n: number): number {

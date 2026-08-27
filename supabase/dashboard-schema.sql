@@ -60,18 +60,16 @@ create table if not exists catalog_items (
   name text not null,
   description text,
   unit text not null default 'month',    -- month / project / hour / item
-  default_rate numeric(12,2) not null default 0,  -- "Standard Rate" in the UI
-  -- "Your Rate" in the UI — what actually tends to get quoted; nullable
-  -- since not every service has a second tier. Purely a dashboard
-  -- reference/anchor, never shown to clients directly.
-  discounted_rate numeric(12,2),
+  default_rate numeric(12,2) not null default 0,  -- "Standard Rate" in the UI — Shoaib's own reference figure
   currency text not null default 'PKR',
   is_active boolean not null default true,
   sort_order int not null default 0
 );
 
--- Safe to run against an already-existing catalog_items table.
-alter table catalog_items add column if not exists discounted_rate numeric(12,2);
+-- Reverted 2026-08-27 — Shoaib negotiates on the document total, not a
+-- second per-item rate. Safe to run against an already-existing table
+-- that still has the column from the brief window it existed.
+alter table catalog_items drop column if exists discounted_rate;
 
 -- ── Document numbering ──────────────────────────────────────
 -- Sequential per type per year, e.g. INV-2026-001.
@@ -126,6 +124,14 @@ create table if not exists proposals (
   proposed_solution text,
   scope_of_work text,
   currency text not null default 'PKR',
+  -- A client-specific break on the whole document, applied to the
+  -- subtotal before tax — separate from any per-line rate, since Shoaib
+  -- prices line items at his standard rate and negotiates on the total.
+  discount_enabled boolean not null default false,
+  discount_type text not null default 'percentage'
+    check (discount_type in ('percentage','fixed')),
+  discount_value numeric(12,2) not null default 0,
+  discount_amount numeric(12,2) not null default 0,
   tax_enabled boolean not null default false,
   tax_name text not null default 'GST',
   tax_rate numeric(5,2) not null default 0,
@@ -143,6 +149,13 @@ create table if not exists proposals (
   signed_at timestamptz,
   signer_ip text
 );
+
+-- Safe to run against an already-existing proposals table.
+alter table proposals add column if not exists discount_enabled boolean not null default false;
+alter table proposals add column if not exists discount_type text not null default 'percentage'
+  check (discount_type in ('percentage','fixed'));
+alter table proposals add column if not exists discount_value numeric(12,2) not null default 0;
+alter table proposals add column if not exists discount_amount numeric(12,2) not null default 0;
 
 create index if not exists proposals_client_idx on proposals (client_id);
 create index if not exists proposals_status_idx on proposals (status);
@@ -232,6 +245,11 @@ create table if not exists quotations (
   issue_date date not null default current_date,
   valid_until date,
   currency text not null default 'PKR',
+  discount_enabled boolean not null default false,
+  discount_type text not null default 'percentage'
+    check (discount_type in ('percentage','fixed')),
+  discount_value numeric(12,2) not null default 0,
+  discount_amount numeric(12,2) not null default 0,
   tax_enabled boolean not null default false,
   tax_name text not null default 'GST',
   tax_rate numeric(5,2) not null default 0,
@@ -243,6 +261,13 @@ create table if not exists quotations (
   accepted_at timestamptz,
   rejected_at timestamptz
 );
+
+-- Safe to run against an already-existing quotations table.
+alter table quotations add column if not exists discount_enabled boolean not null default false;
+alter table quotations add column if not exists discount_type text not null default 'percentage'
+  check (discount_type in ('percentage','fixed'));
+alter table quotations add column if not exists discount_value numeric(12,2) not null default 0;
+alter table quotations add column if not exists discount_amount numeric(12,2) not null default 0;
 
 create index if not exists quotations_client_idx on quotations (client_id);
 create index if not exists quotations_status_idx on quotations (status);
