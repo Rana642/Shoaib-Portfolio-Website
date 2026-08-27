@@ -8,6 +8,7 @@ type PreviewLineItem = {
   rate: number;
   amount: number;
   billing_type: "monthly" | "one_time";
+  item_type: "service" | "tool";
 };
 
 type PreviewProposal = {
@@ -27,6 +28,9 @@ type PreviewProposal = {
   tax_enabled: boolean;
   tax_name: string;
   tax_rate: number;
+  tools_tax_enabled: boolean;
+  tools_tax_rate: number;
+  tools_tax_amount: number;
   subtotal: number;
   tax_amount: number;
   total: number;
@@ -50,9 +54,13 @@ export default function ProposalPreview({
   settings: Settings;
   footer?: React.ReactNode;
 }) {
+  const serviceItems = items.filter((i) => i.item_type !== "tool");
+  const toolItems = items.filter((i) => i.item_type === "tool");
+  const toolsSubtotal = toolItems.reduce((sum, item) => sum + Number(item.amount), 0);
+
   const groups = [
-    { key: "monthly", label: "Monthly Retainer", suffix: "/mo", items: items.filter((i) => i.billing_type === "monthly") },
-    { key: "one_time", label: "One-Time / Fixed Cost", suffix: "", items: items.filter((i) => i.billing_type !== "monthly") },
+    { key: "monthly", label: "Monthly Retainer", suffix: "/mo", items: serviceItems.filter((i) => i.billing_type === "monthly") },
+    { key: "one_time", label: "One-Time / Fixed Cost", suffix: "", items: serviceItems.filter((i) => i.billing_type !== "monthly") },
   ].filter((group) => group.items.length > 0);
 
   return (
@@ -122,9 +130,11 @@ export default function ProposalPreview({
       )}
 
       {/* Service charges */}
-      <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-3">
-        Service Charges
-      </p>
+      {groups.length > 0 && (
+        <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-3">
+          Service Charges
+        </p>
+      )}
       {groups.map((group) => (
         <div key={group.key} className="mb-6 last:mb-0">
           {groups.length > 1 && (
@@ -179,6 +189,55 @@ export default function ProposalPreview({
         </div>
       ))}
 
+      {/* Tools & subscriptions */}
+      {toolItems.length > 0 && (
+        <div className={groups.length > 0 ? "mt-8" : undefined}>
+          <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-3">
+            Tools &amp; Subscriptions
+          </p>
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-y border-ink/10">
+                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 pr-4">
+                  Description
+                </th>
+                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 px-3 text-right whitespace-nowrap">
+                  Qty
+                </th>
+                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 px-3 text-right whitespace-nowrap">
+                  Rate
+                </th>
+                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 pl-3 text-right whitespace-nowrap">
+                  Amount
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {toolItems.map((item) => (
+                <tr key={item.id} className="border-b border-ink/5">
+                  <td className="py-4 pr-4 text-body whitespace-pre-line">{item.description}</td>
+                  <td className="py-4 px-3 text-body text-right whitespace-nowrap">{Number(item.quantity)}</td>
+                  <td className="py-4 px-3 text-body text-right whitespace-nowrap">
+                    {formatMoney(Number(item.rate), proposal.currency)}
+                  </td>
+                  <td className="py-4 pl-3 text-body text-right font-medium whitespace-nowrap">
+                    {formatMoney(Number(item.amount), proposal.currency)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="flex justify-end pt-2">
+            <p className="text-small text-ink-muted">
+              Tools subtotal:{" "}
+              <span className="font-medium text-ink">
+                {formatMoney(toolsSubtotal, proposal.currency)}
+              </span>
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Totals */}
       <div className="flex justify-end mt-6">
         <div className="w-full max-w-xs space-y-2.5">
@@ -203,12 +262,26 @@ export default function ProposalPreview({
               <span>{formatMoney(Number(proposal.tax_amount), proposal.currency)}</span>
             </div>
           )}
+          {proposal.tools_tax_enabled && Number(proposal.tools_tax_amount) > 0 && (
+            <div className="flex justify-between text-body">
+              <span className="text-ink-muted">
+                Est. intl. transaction tax ({Number(proposal.tools_tax_rate)}%)
+              </span>
+              <span>{formatMoney(Number(proposal.tools_tax_amount), proposal.currency)}</span>
+            </div>
+          )}
           <div className="flex justify-between pt-2.5 border-t-2 border-ink">
             <span className="font-semibold">Total</span>
             <span className="font-serif italic text-h3 leading-none">
               {formatMoney(Number(proposal.total), proposal.currency)}
             </span>
           </div>
+          {proposal.tools_tax_enabled && Number(proposal.tools_tax_amount) > 0 && (
+            <p className="text-tag text-ink-subtle pt-1">
+              *International transaction tax on tools is estimated and may vary by bank at the
+              time of payment.
+            </p>
+          )}
         </div>
       </div>
 

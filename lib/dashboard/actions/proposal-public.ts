@@ -24,6 +24,7 @@ export async function getProposalByToken(
     rate: number;
     amount: number;
     billing_type: "monthly" | "one_time";
+    item_type: "service" | "tool";
   }[];
 } | null> {
   const { data: proposal } = await db

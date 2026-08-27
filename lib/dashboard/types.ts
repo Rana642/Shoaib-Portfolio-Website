@@ -57,6 +57,9 @@ export type Proposal = {
   tax_enabled: boolean;
   tax_name: string;
   tax_rate: number;
+  tools_tax_enabled: boolean;
+  tools_tax_rate: number;
+  tools_tax_amount: number;
   subtotal: number;
   tax_amount: number;
   total: number;

@@ -9,6 +9,7 @@ import { formatMoney, calculateTotals } from "@/lib/dashboard/format";
 import { CURRENCIES, type CatalogItem, type Client, type Settings } from "@/lib/dashboard/types";
 
 type BillingType = "monthly" | "one_time";
+type ItemType = "service" | "tool";
 
 type EditableItem = {
   key: string;
@@ -17,6 +18,7 @@ type EditableItem = {
   quantity: number;
   rate: number;
   billing_type: BillingType;
+  item_type: ItemType;
 };
 
 type ExistingProposal = {
@@ -35,6 +37,8 @@ type ExistingProposal = {
   tax_enabled: boolean;
   tax_name: string;
   tax_rate: number;
+  tools_tax_enabled: boolean;
+  tools_tax_rate: number;
   terms: string | null;
   items: {
     catalog_item_id: string | null;
@@ -42,6 +46,7 @@ type ExistingProposal = {
     quantity: number;
     rate: number;
     billing_type: BillingType;
+    item_type: ItemType;
   }[];
 };
 
@@ -90,29 +95,49 @@ export default function ProposalForm({
   const [discountValue, setDiscountValue] = useState(proposal?.discount_value ?? 0);
   const [taxEnabled, setTaxEnabled] = useState(proposal?.tax_enabled ?? settings.tax_enabled);
   const [taxRate, setTaxRate] = useState(proposal?.tax_rate ?? settings.tax_rate);
+  const [toolsTaxEnabled, setToolsTaxEnabled] = useState(proposal?.tools_tax_enabled ?? false);
+  const [toolsTaxRate, setToolsTaxRate] = useState(proposal?.tools_tax_rate ?? 18);
   const [items, setItems] = useState<EditableItem[]>(
     proposal?.items.map((item) => ({ ...item, key: nextKey() })) ?? [
-      { key: nextKey(), catalog_item_id: null, description: "", quantity: 1, rate: 0, billing_type: "one_time" },
+      {
+        key: nextKey(),
+        catalog_item_id: null,
+        description: "",
+        quantity: 1,
+        rate: 0,
+        billing_type: "one_time",
+        item_type: "service",
+      },
     ]
   );
 
   const totals = useMemo(
     () =>
-      calculateTotals(items, taxEnabled, taxRate, {
-        enabled: discountEnabled,
-        type: discountType,
-        value: discountValue,
-      }),
-    [items, taxEnabled, taxRate, discountEnabled, discountType, discountValue]
+      calculateTotals(
+        items,
+        taxEnabled,
+        taxRate,
+        { enabled: discountEnabled, type: discountType, value: discountValue },
+        { enabled: toolsTaxEnabled, rate: toolsTaxRate }
+      ),
+    [items, taxEnabled, taxRate, discountEnabled, discountType, discountValue, toolsTaxEnabled, toolsTaxRate]
   );
 
   const updateItem = (key: string, patch: Partial<EditableItem>) =>
     setItems((prev) => prev.map((item) => (item.key === key ? { ...item, ...patch } : item)));
 
-  const addItem = () =>
+  const addItem = (itemType: ItemType) =>
     setItems((prev) => [
       ...prev,
-      { key: nextKey(), catalog_item_id: null, description: "", quantity: 1, rate: 0, billing_type: "one_time" },
+      {
+        key: nextKey(),
+        catalog_item_id: null,
+        description: "",
+        quantity: 1,
+        rate: 0,
+        billing_type: itemType === "tool" ? "monthly" : "one_time",
+        item_type: itemType,
+      },
     ]);
 
   const removeItem = (key: string) =>
@@ -144,17 +169,20 @@ export default function ProposalForm({
     }
   };
 
+  const toolItems = items.filter((item) => item.item_type === "tool");
+
   const onSubmit = (formData: FormData) => {
     setError(null);
     formData.set(
       "items",
       JSON.stringify(
-        items.map(({ catalog_item_id, description, quantity, rate, billing_type }) => ({
+        items.map(({ catalog_item_id, description, quantity, rate, billing_type, item_type }) => ({
           catalog_item_id,
           description,
           quantity,
           rate,
           billing_type,
+          item_type,
         }))
       )
     );
@@ -285,14 +313,14 @@ export default function ProposalForm({
       <Card className="p-6">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-body-lg font-semibold">Service Charges</h2>
-          <button type="button" onClick={addItem} className={buttonStyles.secondary}>
+          <button type="button" onClick={() => addItem("service")} className={buttonStyles.secondary}>
             <Plus className="size-4" aria-hidden />
             Add line
           </button>
         </div>
 
         <div className="space-y-4">
-          {items.map((item, index) => (
+          {items.filter((item) => item.item_type === "service").map((item, index) => (
             <div
               key={item.key}
               className="grid grid-cols-12 gap-3 items-start pb-4 border-b border-ink/5 last:border-0 last:pb-0"
@@ -390,6 +418,137 @@ export default function ProposalForm({
             </div>
           ))}
         </div>
+      </Card>
+
+      {/* Tools & subscriptions */}
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="text-body-lg font-semibold">Tools &amp; Subscriptions</h2>
+            <p className="text-small text-ink-muted mt-1">
+              Third-party software you&apos;re passing through — Canva, ad tools, AI subscriptions, etc.
+            </p>
+          </div>
+          <button type="button" onClick={() => addItem("tool")} className={buttonStyles.secondary}>
+            <Plus className="size-4" aria-hidden />
+            Add tool
+          </button>
+        </div>
+
+        {toolItems.length > 0 && (
+          <div className="space-y-4">
+            {toolItems.map((item, index) => (
+              <div
+                key={item.key}
+                className="grid grid-cols-12 gap-3 items-start pb-4 border-b border-ink/5 last:border-0 last:pb-0"
+              >
+                <div className="col-span-12 sm:col-span-6">
+                  {index === 0 && (
+                    <label className="block text-small font-medium mb-1.5">Tool / subscription</label>
+                  )}
+                  <textarea
+                    value={item.description}
+                    onChange={(e) => updateItem(item.key, { description: e.target.value })}
+                    rows={2}
+                    required
+                    placeholder="e.g. Claude Pro subscription"
+                    className={inputClasses}
+                  />
+                </div>
+
+                <div className="col-span-4 sm:col-span-2">
+                  {index === 0 && <label className="block text-small font-medium mb-1.5">Qty</label>}
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={item.quantity}
+                    onChange={(e) => updateItem(item.key, { quantity: Number(e.target.value) || 0 })}
+                    className={inputClasses}
+                    aria-label="Quantity"
+                  />
+                </div>
+
+                <div className="col-span-5 sm:col-span-2">
+                  {index === 0 && <label className="block text-small font-medium mb-1.5">Rate</label>}
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={item.rate}
+                    onChange={(e) => updateItem(item.key, { rate: Number(e.target.value) || 0 })}
+                    className={inputClasses}
+                    aria-label="Rate"
+                  />
+                </div>
+
+                <div className="col-span-3 sm:col-span-2 flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    {index === 0 && (
+                      <label className="block text-small font-medium mb-1.5">Amount</label>
+                    )}
+                    <p className="py-2.5 text-small font-medium text-right truncate">
+                      {formatMoney(item.quantity * item.rate, currency)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeItem(item.key)}
+                    aria-label="Remove tool"
+                    className={`shrink-0 text-ink-subtle hover:text-red-700 transition-colors ${
+                      index === 0 ? "mt-7" : ""
+                    }`}
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {toolItems.length > 0 ? (
+          <div className="mt-5 pt-5 border-t border-ink/10 space-y-4">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="tools_tax_enabled"
+                checked={toolsTaxEnabled}
+                onChange={(e) => setToolsTaxEnabled(e.target.checked)}
+                className="size-4 accent-citrus cursor-pointer"
+              />
+              <span className="text-small font-medium">
+                Disclose estimated international transaction tax
+              </span>
+            </label>
+            <p className="text-small text-ink-subtle -mt-2 max-w-lg">
+              Pakistani accounts are typically charged this on international card purchases —
+              shown as an estimate since the actual rate varies by bank.
+            </p>
+            {toolsTaxEnabled ? (
+              <Field
+                label="Estimated rate (%)"
+                htmlFor="tools_tax_rate"
+                hint="Applies only to the tools above, not your service fees."
+              >
+                <input
+                  id="tools_tax_rate"
+                  name="tools_tax_rate"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={toolsTaxRate}
+                  onChange={(e) => setToolsTaxRate(Number(e.target.value) || 0)}
+                  className={`${inputClasses} max-w-[10rem]`}
+                />
+              </Field>
+            ) : (
+              <input type="hidden" name="tools_tax_rate" value={toolsTaxRate} />
+            )}
+          </div>
+        ) : (
+          <input type="hidden" name="tools_tax_rate" value={toolsTaxRate} />
+        )}
       </Card>
 
       {/* Discount + tax + totals */}
@@ -510,12 +669,23 @@ export default function ProposalForm({
                 <span className="font-medium">{formatMoney(totals.taxAmount, currency)}</span>
               </div>
             )}
+            {toolsTaxEnabled && totals.toolsTaxAmount > 0 && (
+              <div className="flex justify-between text-small">
+                <span className="text-ink-muted">Est. intl. transaction tax ({toolsTaxRate}%)</span>
+                <span className="font-medium">{formatMoney(totals.toolsTaxAmount, currency)}</span>
+              </div>
+            )}
             <div className="flex justify-between pt-2.5 border-t border-ink/10">
               <span className="font-medium">Total</span>
               <span className="font-serif italic text-h3 leading-none">
                 {formatMoney(totals.total, currency)}
               </span>
             </div>
+            {toolsTaxEnabled && totals.toolsTaxAmount > 0 && (
+              <p className="text-tag text-ink-subtle pt-1">
+                *International transaction tax is estimated and may vary by bank at time of payment.
+              </p>
+            )}
           </div>
         </div>
       </Card>

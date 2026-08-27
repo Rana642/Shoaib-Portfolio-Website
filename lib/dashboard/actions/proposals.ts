@@ -24,6 +24,7 @@ const lineItemSchema = z.object({
   quantity: z.coerce.number().min(0),
   rate: z.coerce.number(),
   billing_type: z.enum(["monthly", "one_time"]).default("one_time"),
+  item_type: z.enum(["service", "tool"]).default("service"),
 });
 
 const proposalSchema = z.object({
@@ -41,6 +42,8 @@ const proposalSchema = z.object({
   tax_enabled: z.boolean(),
   tax_name: z.string().min(1).max(50),
   tax_rate: z.coerce.number().min(0).max(100),
+  tools_tax_enabled: z.boolean(),
+  tools_tax_rate: z.coerce.number().min(0),
   terms: z.string().max(5000).optional().nullable(),
   items: z.array(lineItemSchema).min(1, "Add at least one line item"),
 });
@@ -68,6 +71,8 @@ function parseProposalForm(formData: FormData) {
     tax_enabled: formData.get("tax_enabled") === "on",
     tax_name: formData.get("tax_name") || "GST",
     tax_rate: formData.get("tax_rate") || 0,
+    tools_tax_enabled: formData.get("tools_tax_enabled") === "on",
+    tools_tax_rate: formData.get("tools_tax_rate") || 18,
     terms: formData.get("terms") || null,
     items,
   });
@@ -95,6 +100,7 @@ async function replaceProposalItems(
     quantity: item.quantity,
     rate: item.rate,
     billing_type: item.billing_type,
+    item_type: item.item_type,
     amount: round2(item.quantity * item.rate),
     sort_order: index,
   }));
@@ -114,11 +120,13 @@ export async function createProposal(formData: FormData) {
   const number = await generateNumber("proposal", settings?.proposal_prefix ?? "PRO");
   if (!number) return { error: "Couldn't generate a proposal number. Check the database setup." };
 
-  const totals = calculateTotals(items, proposal.tax_enabled, proposal.tax_rate, {
-    enabled: proposal.discount_enabled,
-    type: proposal.discount_type,
-    value: proposal.discount_value,
-  });
+  const totals = calculateTotals(
+    items,
+    proposal.tax_enabled,
+    proposal.tax_rate,
+    { enabled: proposal.discount_enabled, type: proposal.discount_type, value: proposal.discount_value },
+    { enabled: proposal.tools_tax_enabled, rate: proposal.tools_tax_rate }
+  );
 
   const { data: created, error } = await db
     .from("proposals")
@@ -129,6 +137,7 @@ export async function createProposal(formData: FormData) {
       subtotal: totals.subtotal,
       discount_amount: totals.discountAmount,
       tax_amount: totals.taxAmount,
+      tools_tax_amount: totals.toolsTaxAmount,
       total: totals.total,
     })
     .select("id")
@@ -150,11 +159,13 @@ export async function updateProposal(id: string, formData: FormData) {
   if (!parsed.success) return { error: parsed.error };
   const { items, ...proposal } = parsed.data;
 
-  const totals = calculateTotals(items, proposal.tax_enabled, proposal.tax_rate, {
-    enabled: proposal.discount_enabled,
-    type: proposal.discount_type,
-    value: proposal.discount_value,
-  });
+  const totals = calculateTotals(
+    items,
+    proposal.tax_enabled,
+    proposal.tax_rate,
+    { enabled: proposal.discount_enabled, type: proposal.discount_type, value: proposal.discount_value },
+    { enabled: proposal.tools_tax_enabled, rate: proposal.tools_tax_rate }
+  );
 
   const { error } = await db
     .from("proposals")
@@ -163,6 +174,7 @@ export async function updateProposal(id: string, formData: FormData) {
       subtotal: totals.subtotal,
       discount_amount: totals.discountAmount,
       tax_amount: totals.taxAmount,
+      tools_tax_amount: totals.toolsTaxAmount,
       total: totals.total,
       updated_at: new Date().toISOString(),
     })

@@ -135,6 +135,14 @@ create table if not exists proposals (
   tax_enabled boolean not null default false,
   tax_name text not null default 'GST',
   tax_rate numeric(5,2) not null default 0,
+  -- Estimated international-transaction surcharge Pakistani accounts get
+  -- charged on international card purchases (tool subscriptions billed
+  -- in foreign currency) — applied to tool line items only, on top of
+  -- the tax above, not discountable. The rate drifts with the bank, so
+  -- it's editable per proposal rather than a fixed constant.
+  tools_tax_enabled boolean not null default false,
+  tools_tax_rate numeric(5,2) not null default 18,
+  tools_tax_amount numeric(12,2) not null default 0,
   subtotal numeric(12,2) not null default 0,
   tax_amount numeric(12,2) not null default 0,
   total numeric(12,2) not null default 0,
@@ -156,6 +164,9 @@ alter table proposals add column if not exists discount_type text not null defau
   check (discount_type in ('percentage','fixed'));
 alter table proposals add column if not exists discount_value numeric(12,2) not null default 0;
 alter table proposals add column if not exists discount_amount numeric(12,2) not null default 0;
+alter table proposals add column if not exists tools_tax_enabled boolean not null default false;
+alter table proposals add column if not exists tools_tax_rate numeric(5,2) not null default 18;
+alter table proposals add column if not exists tools_tax_amount numeric(12,2) not null default 0;
 
 create index if not exists proposals_client_idx on proposals (client_id);
 create index if not exists proposals_status_idx on proposals (status);
@@ -173,6 +184,12 @@ create table if not exists proposal_items (
   -- monthly vs. which are a one-off setup/fixed charge.
   billing_type text not null default 'one_time'
     check (billing_type in ('monthly','one_time')),
+  -- 'tool' = a third-party subscription Shoaib is passing through
+  -- (Claude Pro, Canva, ad tools, etc.) — separate section on the
+  -- document from his own 'service' fees, and the only kind of line the
+  -- international-transaction tax estimate above applies to.
+  item_type text not null default 'service'
+    check (item_type in ('service','tool')),
   amount numeric(12,2) not null default 0,
   sort_order int not null default 0
 );
@@ -180,6 +197,8 @@ create table if not exists proposal_items (
 -- Safe to run against an already-existing proposal_items table.
 alter table proposal_items add column if not exists billing_type text not null default 'one_time'
   check (billing_type in ('monthly','one_time'));
+alter table proposal_items add column if not exists item_type text not null default 'service'
+  check (item_type in ('service','tool'));
 
 create index if not exists proposal_items_parent_idx on proposal_items (proposal_id);
 
