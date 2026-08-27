@@ -24,6 +24,21 @@ export default function CatalogForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [isBundle, setIsBundle] = useState(item?.is_bundle ?? false);
+  const [bundlePrice, setBundlePrice] = useState(item?.default_rate ?? 0);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set(memberIds));
+
+  const toggleMember = (id: string, checked: boolean) =>
+    setSelectedMemberIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+
+  const membersTotal = otherItems
+    .filter((m) => selectedMemberIds.has(m.id))
+    .reduce((sum, m) => sum + Number(m.default_rate), 0);
+  const displayCurrency = item?.currency ?? defaultCurrency;
 
   const onSubmit = (formData: FormData) => {
     setError(null);
@@ -78,7 +93,8 @@ export default function CatalogForm({
             step="0.01"
             min="0"
             required
-            defaultValue={item?.default_rate ?? 0}
+            value={bundlePrice}
+            onChange={(e) => setBundlePrice(Number(e.target.value) || 0)}
             className={inputClasses}
           />
         </Field>
@@ -140,28 +156,52 @@ export default function CatalogForm({
                 No other services yet — add some first, then come back to bundle them.
               </p>
             ) : (
-              <div className="border border-ink/15 rounded-lg divide-y divide-ink/5 max-h-64 overflow-y-auto">
-                {otherItems.map((member) => (
-                  <label
-                    key={member.id}
-                    className="flex items-center justify-between gap-3 px-3.5 py-2.5 cursor-pointer hover:bg-ink/[0.02]"
-                  >
-                    <span className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        name="member_ids"
-                        value={member.id}
-                        defaultChecked={memberIds?.includes(member.id)}
-                        className="size-4 accent-citrus cursor-pointer"
-                      />
-                      <span className="text-small">{member.name}</span>
+              <>
+                <div className="border border-ink/15 rounded-lg divide-y divide-ink/5 max-h-64 overflow-y-auto">
+                  {otherItems.map((member) => (
+                    <label
+                      key={member.id}
+                      className="flex items-center justify-between gap-3 px-3.5 py-2.5 cursor-pointer hover:bg-ink/[0.02]"
+                    >
+                      <span className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          name="member_ids"
+                          value={member.id}
+                          checked={selectedMemberIds.has(member.id)}
+                          onChange={(e) => toggleMember(member.id, e.target.checked)}
+                          className="size-4 accent-citrus cursor-pointer"
+                        />
+                        <span className="text-small">{member.name}</span>
+                      </span>
+                      <span className="text-small text-ink-subtle whitespace-nowrap">
+                        {formatMoney(Number(member.default_rate), member.currency)}/{member.unit}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                {selectedMemberIds.size > 0 && (
+                  <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 mt-3 px-3.5 py-2.5 bg-ink/[0.03] rounded-lg text-small">
+                    <span className="text-ink-muted">
+                      Combined total if bought separately:{" "}
+                      <span className="font-medium text-ink">
+                        {formatMoney(membersTotal, displayCurrency)}
+                      </span>
                     </span>
-                    <span className="text-small text-ink-subtle whitespace-nowrap">
-                      {formatMoney(Number(member.default_rate), member.currency)}/{member.unit}
+                    <span className="text-ink-muted">
+                      Bundle price:{" "}
+                      <span className="font-medium text-ink">
+                        {formatMoney(bundlePrice, displayCurrency)}
+                      </span>
                     </span>
-                  </label>
-                ))}
-              </div>
+                    {bundlePrice < membersTotal && (
+                      <span className="text-green-700 font-medium">
+                        Saves {formatMoney(membersTotal - bundlePrice, displayCurrency)}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </Field>
         )}
