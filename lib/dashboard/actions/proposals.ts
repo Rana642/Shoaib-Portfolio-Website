@@ -294,11 +294,13 @@ export async function sendProposal(id: string) {
 }
 
 /** For clients who confirm over a call/WhatsApp instead of the self-serve
- *  link — runs the exact same acceptance cascade (client creation,
- *  agreement generation) as the public accept flow. Email is opt-in:
- *  Shoaib may be sharing the resulting agreement link himself over
- *  WhatsApp rather than by email. */
-export async function markProposalAccepted(id: string, sendEmail: boolean) {
+ *  link. Locks the deal (proposal -> accepted) and generates the
+ *  Agreement as a draft — unsent, no email — same as the manual "Create
+ *  agreement" flow, so Shoaib reviews/edits it and sends it himself
+ *  whenever it's actually needed. The online self-serve accept flow
+ *  (proposal-public.ts) is untouched: it still auto-sends the Agreement
+ *  immediately, since there's no one in that loop to send it manually. */
+export async function markProposalAccepted(id: string) {
   await assertAuthed();
 
   const { data: proposal } = await db.from("proposals").select("*").eq("id", id).single();
@@ -310,7 +312,7 @@ export async function markProposalAccepted(id: string, sendEmail: boolean) {
     proposal as Proposal,
     "Confirmed by Shoaib (offline)",
     null,
-    { sendEmail }
+    { agreementStatus: "draft", sendEmail: false }
   );
   if ("error" in result) return result;
 

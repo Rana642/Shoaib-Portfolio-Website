@@ -3,7 +3,7 @@ import { resend, isResendConfigured, fromEmail } from "../resend";
 import { agreementReadyEmail } from "../email-templates";
 import { siteUrl } from "../seo";
 import { generateNumber } from "./actions/documents";
-import { buildAgreementContent } from "./agreement-template";
+import { buildAgreementClauses } from "./agreement-template";
 import { formatDate } from "./format";
 import type { Proposal } from "./types";
 
@@ -62,7 +62,7 @@ export async function performProposalAcceptance(
     return { error: "Accepted, but couldn't generate an agreement number. Please contact us directly." };
   }
 
-  const content = buildAgreementContent({
+  const clauses = buildAgreementClauses({
     clientName: proposal.prospect_name,
     clientBusiness: proposal.prospect_business || proposal.prospect_name,
     proposalNumber: proposal.number,
@@ -80,7 +80,7 @@ export async function performProposalAcceptance(
       number: agreementNumber,
       proposal_id: proposal.id,
       client_id: clientId,
-      content,
+      clauses,
       status: agreementStatus,
       access_token: agreementToken,
       sent_at: agreementStatus === "sent" ? now : null,

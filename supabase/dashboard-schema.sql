@@ -310,7 +310,17 @@ create table if not exists agreements (
   number text not null unique,
   proposal_id uuid not null references proposals (id) on delete cascade,
   client_id uuid not null references clients (id) on delete cascade,
-  content text not null,
+  -- Legacy frozen text blob — agreements created before clauses existed
+  -- keep rendering from this, untouched, forever (documents are
+  -- snapshots). New agreements populate `clauses` instead and leave this
+  -- null.
+  content text,
+  -- Structured, editable clauses: [{ title, body, showInvestmentSummary? }].
+  -- Lets Shoaib edit wording and add clauses per agreement, and anchors
+  -- the Investment Summary to whichever clause it's most relevant to
+  -- (Fees & Payment, by default) instead of a disconnected block above
+  -- the whole document. Null on legacy rows.
+  clauses jsonb,
   status text not null default 'draft'
     check (status in ('draft','sent','viewed','signed','declined')),
   access_token text not null unique,
@@ -325,6 +335,9 @@ create table if not exists agreements (
 create index if not exists agreements_proposal_idx on agreements (proposal_id);
 create index if not exists agreements_client_idx on agreements (client_id);
 create index if not exists agreements_token_idx on agreements (access_token);
+
+alter table agreements alter column content drop not null;
+alter table agreements add column if not exists clauses jsonb;
 
 -- ── Quotations ──────────────────────────────────────────────
 -- tax_enabled / tax_rate / currency are SNAPSHOTS taken when the

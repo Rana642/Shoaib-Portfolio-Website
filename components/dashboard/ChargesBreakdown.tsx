@@ -71,7 +71,7 @@ function renderCharges(
         </p>
       )}
       {groups.map((group) => (
-        <div key={`${keyPrefix}-${group.key}`} className="mb-6 last:mb-0">
+        <div key={`${keyPrefix}-${group.key}`} className="mb-6 last:mb-0 avoid-break">
           {groups.length > 1 && (
             <p className="text-small font-semibold text-ink mb-2">{group.label}</p>
           )}
@@ -125,7 +125,7 @@ function renderCharges(
       ))}
 
       {toolItems.length > 0 && (
-        <div className={groups.length > 0 ? "mt-8" : undefined}>
+        <div className={`avoid-break${groups.length > 0 ? " mt-8" : ""}`}>
           <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-3">
             Tools &amp; Subscriptions
           </p>
@@ -239,7 +239,7 @@ export default function ChargesBreakdown({
       )}
 
       {/* Totals */}
-      <div className="flex justify-end mt-6">
+      <div className="flex justify-end mt-6 avoid-break">
         <div className="w-full max-w-xs space-y-2.5">
           <div className="flex justify-between text-body">
             <span className="text-ink-muted">{toolsSubtotal > 0 ? "Services subtotal" : "Subtotal"}</span>

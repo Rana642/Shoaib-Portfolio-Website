@@ -1,15 +1,19 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Printer, LoaderCircle, Send } from "lucide-react";
+import Link from "next/link";
+import { Printer, Pencil, LoaderCircle, Send } from "lucide-react";
 import { buttonStyles } from "@/components/dashboard/ui";
 
 export default function AgreementActions({
   status,
   onSend,
+  editHref,
 }: {
   status: string;
   onSend: () => Promise<{ error?: string; ok?: boolean }>;
+  /** Omitted for legacy agreements (pre-dating structured clauses) — there's nothing to edit here. */
+  editHref?: string;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
@@ -30,6 +34,13 @@ export default function AgreementActions({
   return (
     <div className="print:hidden">
       <div className="flex flex-wrap items-center gap-3">
+        {editHref && (
+          <Link href={editHref} className={buttonStyles.secondary}>
+            <Pencil className="size-4" aria-hidden />
+            Edit
+          </Link>
+        )}
+
         <button onClick={() => window.print()} className={buttonStyles.secondary}>
           <Printer className="size-4" aria-hidden />
           Print / PDF

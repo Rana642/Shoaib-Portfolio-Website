@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { getAgreementByToken } from "@/lib/dashboard/actions/agreement-public";
 import { getSettings } from "@/lib/dashboard/settings";
 import AgreementSignForm from "@/components/dashboard/AgreementSignForm";
-import ChargesBreakdown from "@/components/dashboard/ChargesBreakdown";
+import AgreementBody from "@/components/dashboard/AgreementBody";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -43,16 +43,16 @@ export default async function PublicAgreementPage({
             </div>
           </div>
 
-          {proposal && (
-            <div className="mt-8 pb-8 border-b border-ink/10">
-              <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-3">
-                Investment Summary
-              </p>
-              <ChargesBreakdown proposal={proposal} items={items} projects={projects} />
-            </div>
-          )}
-
-          <p className="text-body whitespace-pre-line mt-8">{agreement.content}</p>
+          <div className="mt-8">
+            <AgreementBody
+              content={agreement.content}
+              clauses={agreement.clauses}
+              proposal={proposal}
+              items={items}
+              projects={projects}
+              wrapped={false}
+            />
+          </div>
 
           {agreement.signer_name && (
             <p className="text-small text-ink-muted mt-6">

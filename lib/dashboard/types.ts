@@ -86,6 +86,15 @@ export type Proposal = {
 
 export type AgreementStatus = "draft" | "sent" | "viewed" | "signed" | "declined";
 
+/** One editable section of an Agreement's legal text. At most one clause
+ *  should carry `showInvestmentSummary` — that's where the pricing
+ *  breakdown renders, right after it (Fees & Payment, by default). */
+export type AgreementClause = {
+  title: string;
+  body: string;
+  showInvestmentSummary?: boolean;
+};
+
 export type Agreement = {
   id: string;
   created_at: string;
@@ -93,7 +102,11 @@ export type Agreement = {
   number: string;
   proposal_id: string;
   client_id: string;
-  content: string;
+  /** Legacy frozen text blob — null on agreements created after `clauses`
+   *  shipped, populated (and rendered as-is, forever) on older ones. */
+  content: string | null;
+  /** Structured, editable clauses — null on legacy agreements. */
+  clauses: AgreementClause[] | null;
   status: AgreementStatus;
   access_token: string;
   sent_at: string | null;

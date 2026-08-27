@@ -9,7 +9,7 @@ import { agreementReadyEmail } from "../../email-templates";
 import { siteUrl } from "../../seo";
 import { performProposalAcceptance } from "../proposal-acceptance";
 import { performAgreementSigning } from "../agreement-signing";
-import type { Agreement, Proposal } from "../types";
+import type { Agreement, AgreementClause, Proposal } from "../types";
 
 async function assertAuthed() {
   const user = await getUser();
@@ -93,6 +93,34 @@ export async function createManualAgreement(proposalId: string) {
   revalidatePath("/dashboard/proposals");
   if (result.agreementId) redirect(`/dashboard/agreements/${result.agreementId}`);
   return { error: "Agreement created, but couldn't open it. Check the Agreements list." };
+}
+
+/** Edits an agreement's clauses — title/body of each, and which one (if
+ *  any) the Investment Summary renders after. Always available, even on
+ *  an already-signed agreement: Shoaib may need to correct wording after
+ *  the fact, and unlike Proposals/Quotations there's no separate
+ *  "resend" step that depends on the content being frozen. Legacy
+ *  agreements (pre-dating this field, `clauses` still null) aren't
+ *  reachable here — see the edit page's own guard. */
+export async function updateAgreementClauses(id: string, clauses: AgreementClause[]) {
+  await assertAuthed();
+
+  const cleaned = clauses
+    .map((c) => ({
+      title: c.title.trim(),
+      body: c.body.trim(),
+      showInvestmentSummary: c.showInvestmentSummary === true,
+    }))
+    .filter((c) => c.title || c.body);
+
+  const { error } = await db
+    .from("agreements")
+    .update({ clauses: cleaned, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/dashboard/agreements/${id}`);
+  redirect(`/dashboard/agreements/${id}`);
 }
 
 /** For clients who confirm the agreement itself over a call/WhatsApp

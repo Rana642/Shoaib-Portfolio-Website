@@ -131,6 +131,16 @@
     max-width: none !important;
   }
 
+  /* Keep a table row, a charges group (heading + table + subtotal), the
+     totals block, and each agreement clause from being torn across a
+     page boundary — the alternative is a heading stranded on one page
+     and its content on the next. */
+  tr,
+  .avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
   @page {
     margin: 16mm;
   }

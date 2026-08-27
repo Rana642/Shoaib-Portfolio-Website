@@ -47,9 +47,9 @@ export default async function ProposalPage({ params }: PageProps<"/dashboard/pro
     return sendProposal(id);
   }
 
-  async function markAccepted(sendEmail: boolean) {
+  async function markAccepted() {
     "use server";
-    return markProposalAccepted(id, sendEmail);
+    return markProposalAccepted(id);
   }
 
   async function handleDelete() {
@@ -108,12 +108,17 @@ export default async function ProposalPage({ params }: PageProps<"/dashboard/pro
           </div>
 
           {(proposal as Proposal).status !== "accepted" && (proposal as Proposal).status !== "declined" && (
-            <ConfirmActionButton
-              action={markAccepted}
-              label="Mark accepted (confirmed offline)"
-              confirmLabel="Click again to confirm acceptance"
-              emailCheckboxLabel="Also email the agreement to the client"
-            />
+            <div>
+              <ConfirmActionButton
+                action={markAccepted}
+                label="Mark accepted (confirmed offline)"
+                confirmLabel="Click again to confirm acceptance"
+              />
+              <p className="text-tag text-ink-subtle mt-2 max-w-md">
+                Locks the deal and creates a draft agreement — nothing is emailed until you send it
+                yourself from the Agreement page.
+              </p>
+            </div>
           )}
         </div>
       </div>

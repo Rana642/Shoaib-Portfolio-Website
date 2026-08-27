@@ -4,11 +4,11 @@ import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
 import { resendAgreement, markAgreementSigned } from "@/lib/dashboard/actions/agreements";
 import { siteUrl } from "@/lib/seo";
-import { StatusBadge, Card } from "@/components/dashboard/ui";
+import { StatusBadge } from "@/components/dashboard/ui";
 import AgreementActions from "@/components/dashboard/AgreementActions";
 import ConfirmActionButton from "@/components/dashboard/ConfirmActionButton";
 import WhatsAppShareLink from "@/components/dashboard/WhatsAppShareLink";
-import ChargesBreakdown from "@/components/dashboard/ChargesBreakdown";
+import AgreementBody from "@/components/dashboard/AgreementBody";
 import type { Agreement, Proposal } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +55,11 @@ export default async function AgreementPage({ params }: PageProps<"/dashboard/ag
 
       <div className="mb-8 space-y-4">
         <div className="flex flex-wrap items-center gap-3 print:hidden">
-          <AgreementActions status={agreement.status} onSend={send} />
+          <AgreementActions
+            status={agreement.status}
+            onSend={send}
+            editHref={agreement.clauses ? `/dashboard/agreements/${id}/edit` : undefined}
+          />
           <WhatsAppShareLink
             url={`${siteUrl}/agreement/${agreement.access_token}`}
             message={`Here's your consultation agreement from Ads by Shoaib — ${agreement.number}:`}
@@ -74,18 +78,13 @@ export default async function AgreementPage({ params }: PageProps<"/dashboard/ag
         )}
       </div>
 
-      {proposal && (
-        <Card className="p-8 mb-6">
-          <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-3">
-            Investment Summary
-          </p>
-          <ChargesBreakdown proposal={proposal as Proposal} items={items ?? []} projects={projects ?? []} />
-        </Card>
-      )}
-
-      <Card className="p-8">
-        <p className="text-body whitespace-pre-line">{agreement.content}</p>
-      </Card>
+      <AgreementBody
+        content={agreement.content}
+        clauses={agreement.clauses}
+        proposal={proposal ? (proposal as Proposal) : null}
+        items={items ?? []}
+        projects={projects ?? []}
+      />
 
       {agreement.signer_name && (
         <p className="text-small text-ink-muted mt-6">
