@@ -55,6 +55,23 @@
   }
 }
 
+/* Frosted-glass surfaces for the dashboard (chrome + management cards).
+   Scoped there deliberately — the public brand site keeps its locked flat
+   design. The blur itself comes from Tailwind's own `backdrop-blur-*`
+   utility classes on each element, NOT from here: Tailwind v4's compiler
+   (Lightning CSS) strips a raw `backdrop-filter` declaration out of custom
+   CSS, but keeps its own generated backdrop utilities. These classes just
+   carry the translucent fill, border, and shadow. Print forces them solid
+   (see the @media print block below). */
+.glass-surface {
+  background: rgba(250, 250, 250, 0.62);
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 8px 32px -12px rgba(15, 15, 20, 0.12);
+}
+.glass-dark {
+  background: rgba(15, 15, 20, 0.82);
+}
+
 @layer utilities {
   .container-narrow {
     @apply max-w-5xl mx-auto px-6 md:px-12;
@@ -123,6 +140,18 @@
 
   body {
     background: #fff !important;
+  }
+
+  /* Glass cards must print as solid white — a translucent, blurred panel
+     renders as muddy grey on paper and reads as unprofessional on a
+     client's quotation/invoice/agreement PDF. Also neutralises the
+     Tailwind backdrop-blur utility that sits alongside .glass-surface. */
+  .glass-surface {
+    background: #fff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+    border-color: rgba(15, 15, 20, 0.1) !important;
   }
 
   main {

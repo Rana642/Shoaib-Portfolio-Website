@@ -12,7 +12,7 @@ export default function OnboardingIntakeForm({ token }: { token: string }) {
 
   if (submitted) {
     return (
-      <Card className="p-8 text-center">
+      <Card variant="solid" className="p-8 text-center">
         <p className="text-body-lg font-medium">Thanks — got it.</p>
         <p className="text-small text-ink-muted mt-1">
           I&apos;ll take it from here and be in touch to kick things off.
@@ -32,7 +32,7 @@ export default function OnboardingIntakeForm({ token }: { token: string }) {
 
   return (
     <form action={onSubmit} className="space-y-6">
-      <Card className="p-6 space-y-5">
+      <Card variant="solid" className="p-6 space-y-5">
         <Field
           label="Tell us about your business"
           htmlFor="business_overview"

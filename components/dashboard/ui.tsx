@@ -24,12 +24,29 @@ export function PageHeader({
 export function Card({
   className,
   children,
+  variant = "glass",
 }: {
   className?: string;
   children: React.ReactNode;
+  /** "glass" (default) frosts over the dashboard's ambient background.
+   *  Pass "solid" for client-facing surfaces with no ambient backdrop
+   *  behind them (e.g. the public onboarding form), where glass would
+   *  just look like flat off-white. Print always forces solid — see the
+   *  .glass-surface rule in globals.css's @media print. */
+  variant?: "glass" | "solid";
 }) {
   return (
-    <div className={cn("bg-white border border-ink/10 rounded-xl", className)}>{children}</div>
+    <div
+      className={cn(
+        "border rounded-xl",
+        variant === "glass"
+          ? "glass-surface border-white/50 backdrop-blur-xl backdrop-saturate-150"
+          : "bg-white border-ink/10",
+        className
+      )}
+    >
+      {children}
+    </div>
   );
 }
 
