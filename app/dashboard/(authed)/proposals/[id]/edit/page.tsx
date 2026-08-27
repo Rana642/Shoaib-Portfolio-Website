@@ -13,7 +13,7 @@ export default async function EditProposalPage({
   const { id } = await params;
 
   const [
-    { clients, catalog, bundleMembers, settings },
+    { clients, catalog, bundleMembers, clientProjects, settings },
     { data: proposal },
     { data: itemsData },
     { data: projectsData },
@@ -33,6 +33,7 @@ export default async function EditProposalPage({
         clients={clients}
         catalog={catalog}
         bundleMembers={bundleMembers}
+        clientProjects={clientProjects}
         settings={settings}
         proposal={{ ...proposal, items: itemsData ?? [], projects: projectsData ?? [] }}
       />

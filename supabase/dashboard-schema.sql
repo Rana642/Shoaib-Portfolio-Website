@@ -50,6 +50,23 @@ create table if not exists clients (
 
 create index if not exists clients_name_idx on clients (name);
 
+-- A client's own separate projects/companies, defined once here and
+-- picked from when building a Proposal, instead of retyping the same
+-- project names every time. A Proposal's own proposal_projects row is
+-- still its own copy (name/scope frozen at pick time) — this table is
+-- just the source Shoaib picks from, not a live link.
+create table if not exists client_projects (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references clients (id) on delete cascade,
+  name text not null,
+  notes text,
+  sort_order int not null default 0
+);
+
+create index if not exists client_projects_parent_idx on client_projects (client_id);
+
+alter table client_projects enable row level security;
+
 -- ── Services catalog (line items for quotes/invoices) ───────
 -- Distinct from the website's Services pages, which live in Sanity:
 -- those are marketing copy; these are priced, billable items.

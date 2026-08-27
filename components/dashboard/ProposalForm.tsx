@@ -6,7 +6,7 @@ import { LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { createProposal, updateProposal } from "@/lib/dashboard/actions/proposals";
 import { Field, inputClasses, buttonStyles, Card } from "@/components/dashboard/ui";
 import { formatMoney, calculateTotals } from "@/lib/dashboard/format";
-import { CURRENCIES, type CatalogItem, type Client, type Settings } from "@/lib/dashboard/types";
+import { CURRENCIES, type CatalogItem, type Client, type ClientProject, type Settings } from "@/lib/dashboard/types";
 
 type BillingType = "monthly" | "one_time";
 type ItemType = "service" | "tool";
@@ -78,6 +78,7 @@ export default function ProposalForm({
   clients,
   catalog,
   bundleMembers = {},
+  clientProjects = {},
   settings,
   proposal,
   prefill,
@@ -86,6 +87,8 @@ export default function ProposalForm({
   catalog: CatalogItem[];
   /** catalog item id -> names of the services included, for bundles. */
   bundleMembers?: Record<string, string[]>;
+  /** client id -> that client's own defined projects/companies. */
+  clientProjects?: Record<string, ClientProject[]>;
   settings: Settings;
   proposal?: ExistingProposal;
   /** Prefill from a contact-form lead when arriving via "New proposal" on the Leads page. */
@@ -164,6 +167,20 @@ export default function ProposalForm({
   const addProject = () =>
     setProjects((prev) => [...prev, { key: nextKey(), id: crypto.randomUUID(), name: "", scopeOfWork: "" }]);
 
+  /** Copies one of the selected client's saved projects in — its own
+   *  snapshot from here on, editable, not live-linked back to the
+   *  client record. */
+  const addProjectFromClient = (clientProject: ClientProject) =>
+    setProjects((prev) => [
+      ...prev,
+      {
+        key: nextKey(),
+        id: crypto.randomUUID(),
+        name: clientProject.name,
+        scopeOfWork: clientProject.notes ?? "",
+      },
+    ]);
+
   const updateProject = (key: string, patch: Partial<EditableProject>) =>
     setProjects((prev) => prev.map((p) => (p.key === key ? { ...p, ...patch } : p)));
 
@@ -210,6 +227,11 @@ export default function ProposalForm({
   };
 
   const toolItems = items.filter((item) => item.item_type === "tool");
+
+  const addedProjectNames = new Set(projects.map((p) => p.name.trim().toLowerCase()));
+  const availableClientProjects = (clientId ? clientProjects[clientId] : undefined)?.filter(
+    (cp) => !addedProjectNames.has(cp.name.trim().toLowerCase())
+  ) ?? [];
 
   const onSubmit = (formData: FormData) => {
     setError(null);
@@ -372,6 +394,25 @@ export default function ProposalForm({
             Add project
           </button>
         </div>
+
+        {availableClientProjects.length > 0 && (
+          <div className="mb-5 pb-5 border-b border-ink/5">
+            <p className="text-small font-medium mb-2">From this client&apos;s saved projects</p>
+            <div className="flex flex-wrap gap-2">
+              {availableClientProjects.map((cp) => (
+                <button
+                  key={cp.id}
+                  type="button"
+                  onClick={() => addProjectFromClient(cp)}
+                  className="inline-flex items-center gap-1.5 text-small border border-ink/15 rounded-full px-3 py-1.5 hover:border-citrus hover:bg-citrus/10 transition-colors"
+                >
+                  <Plus className="size-3.5" aria-hidden />
+                  {cp.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {projects.length === 0 ? (
           <p className="text-small text-ink-subtle">
@@ -707,6 +748,15 @@ export default function ProposalForm({
         ) : (
           <input type="hidden" name="tools_tax_rate" value={toolsTaxRate} />
         )}
+
+        {toolItems.length > 0 && (
+          <div className="flex justify-between items-baseline pt-4 mt-4 border-t border-ink/10">
+            <span className="text-small text-ink-muted">
+              Tools total{toolsTaxEnabled && totals.toolsTaxAmount > 0 ? ` (incl. est. ${toolsTaxRate}% intl. tax)` : ""}
+            </span>
+            <span className="font-medium">{formatMoney(totals.toolsTotal, currency)}</span>
+          </div>
+        )}
       </Card>
 
       {/* Discount + tax + totals */}
@@ -808,7 +858,7 @@ export default function ProposalForm({
 
           <div className="lg:w-72 space-y-2.5 lg:border-l lg:border-ink/10 lg:pl-8">
             <div className="flex justify-between text-small">
-              <span className="text-ink-muted">Subtotal</span>
+              <span className="text-ink-muted">{toolItems.length > 0 ? "Services subtotal" : "Subtotal"}</span>
               <span className="font-medium">{formatMoney(totals.subtotal, currency)}</span>
             </div>
             {discountEnabled && totals.discountAmount > 0 && (
@@ -827,10 +877,10 @@ export default function ProposalForm({
                 <span className="font-medium">{formatMoney(totals.taxAmount, currency)}</span>
               </div>
             )}
-            {toolsTaxEnabled && totals.toolsTaxAmount > 0 && (
+            {toolItems.length > 0 && (
               <div className="flex justify-between text-small">
-                <span className="text-ink-muted">Est. intl. transaction tax ({toolsTaxRate}%)</span>
-                <span className="font-medium">{formatMoney(totals.toolsTaxAmount, currency)}</span>
+                <span className="text-ink-muted">Tools &amp; Subscriptions</span>
+                <span className="font-medium">{formatMoney(totals.toolsTotal, currency)}</span>
               </div>
             )}
             <div className="flex justify-between pt-2.5 border-t border-ink/10">
@@ -841,7 +891,8 @@ export default function ProposalForm({
             </div>
             {toolsTaxEnabled && totals.toolsTaxAmount > 0 && (
               <p className="text-tag text-ink-subtle pt-1">
-                *International transaction tax is estimated and may vary by bank at time of payment.
+                *Tools total includes an estimated international transaction tax, which may vary
+                by bank at time of payment.
               </p>
             )}
           </div>

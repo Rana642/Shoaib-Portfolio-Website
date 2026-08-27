@@ -4,11 +4,13 @@ import { ArrowLeft, Users, FileSignature } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
 import { getSettings } from "@/lib/dashboard/settings";
 import { sendProposal, deleteProposal, markProposalAccepted } from "@/lib/dashboard/actions/proposals";
+import { siteUrl } from "@/lib/seo";
 import { StatusBadge } from "@/components/dashboard/ui";
 import ProposalPreview from "@/components/dashboard/ProposalPreview";
 import ProposalActions from "@/components/dashboard/ProposalActions";
 import DeleteButton from "@/components/dashboard/DeleteButton";
 import ConfirmActionButton from "@/components/dashboard/ConfirmActionButton";
+import WhatsAppShareLink from "@/components/dashboard/WhatsAppShareLink";
 import type { Proposal } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
@@ -45,9 +47,9 @@ export default async function ProposalPage({ params }: PageProps<"/dashboard/pro
     return sendProposal(id);
   }
 
-  async function markAccepted() {
+  async function markAccepted(sendEmail: boolean) {
     "use server";
-    return markProposalAccepted(id);
+    return markProposalAccepted(id, sendEmail);
   }
 
   async function handleDelete() {
@@ -93,17 +95,24 @@ export default async function ProposalPage({ params }: PageProps<"/dashboard/pro
         </div>
 
         <div className="mb-8 space-y-4">
-          <ProposalActions
-            editHref={`/dashboard/proposals/${id}/edit`}
-            status={(proposal as Proposal).status}
-            onSend={send}
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            <ProposalActions
+              editHref={`/dashboard/proposals/${id}/edit`}
+              status={(proposal as Proposal).status}
+              onSend={send}
+            />
+            <WhatsAppShareLink
+              url={`${siteUrl}/proposal/${(proposal as Proposal).access_token}`}
+              message={`Here's your proposal from Ads by Shoaib — ${proposal.number}:`}
+            />
+          </div>
 
           {(proposal as Proposal).status !== "accepted" && (proposal as Proposal).status !== "declined" && (
             <ConfirmActionButton
               action={markAccepted}
               label="Mark accepted (confirmed offline)"
               confirmLabel="Click again to confirm acceptance"
+              emailCheckboxLabel="Also email the agreement to the client"
             />
           )}
         </div>

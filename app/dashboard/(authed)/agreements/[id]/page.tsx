@@ -3,9 +3,11 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
 import { resendAgreement, markAgreementSigned } from "@/lib/dashboard/actions/agreements";
+import { siteUrl } from "@/lib/seo";
 import { StatusBadge, Card } from "@/components/dashboard/ui";
 import AgreementActions from "@/components/dashboard/AgreementActions";
 import ConfirmActionButton from "@/components/dashboard/ConfirmActionButton";
+import WhatsAppShareLink from "@/components/dashboard/WhatsAppShareLink";
 import type { Agreement } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
@@ -23,9 +25,9 @@ export default async function AgreementPage({ params }: PageProps<"/dashboard/ag
     return resendAgreement(id);
   }
 
-  async function markSigned() {
+  async function markSigned(sendEmail: boolean) {
     "use server";
-    return markAgreementSigned(id);
+    return markAgreementSigned(id, sendEmail);
   }
 
   return (
@@ -45,7 +47,13 @@ export default async function AgreementPage({ params }: PageProps<"/dashboard/ag
       <p className="text-small text-ink-muted mb-8">{clients?.name ?? "—"}</p>
 
       <div className="mb-8 space-y-4">
-        <AgreementActions status={agreement.status} onSend={send} />
+        <div className="flex flex-wrap items-center gap-3 print:hidden">
+          <AgreementActions status={agreement.status} onSend={send} />
+          <WhatsAppShareLink
+            url={`${siteUrl}/agreement/${agreement.access_token}`}
+            message={`Here's your consultation agreement from Ads by Shoaib — ${agreement.number}:`}
+          />
+        </div>
 
         {agreement.status !== "signed" && agreement.status !== "declined" && (
           <div className="print:hidden">
@@ -53,6 +61,7 @@ export default async function AgreementPage({ params }: PageProps<"/dashboard/ag
               action={markSigned}
               label="Mark signed (confirmed offline)"
               confirmLabel="Click again to confirm signing"
+              emailCheckboxLabel="Also email the onboarding invite to the client"
             />
           </div>
         )}

@@ -97,8 +97,9 @@ export async function createManualAgreement(proposalId: string) {
 
 /** For clients who confirm the agreement itself over a call/WhatsApp
  *  instead of the self-serve link — runs the same signing cascade
- *  (onboarding intake + invite email) as the public sign flow. */
-export async function markAgreementSigned(id: string) {
+ *  (onboarding intake) as the public sign flow. Email is opt-in, same
+ *  reasoning as markProposalAccepted. */
+export async function markAgreementSigned(id: string, sendEmail: boolean) {
   await assertAuthed();
 
   const { data: agreement } = await db.from("agreements").select("*").eq("id", id).single();
@@ -109,7 +110,8 @@ export async function markAgreementSigned(id: string) {
   const result = await performAgreementSigning(
     agreement as Agreement,
     "Confirmed by Shoaib (offline)",
-    null
+    null,
+    { sendEmail }
   );
   if ("error" in result) return result;
 

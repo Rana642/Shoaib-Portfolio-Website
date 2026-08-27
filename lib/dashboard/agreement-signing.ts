@@ -13,8 +13,10 @@ import type { Agreement } from "./types";
 export async function performAgreementSigning(
   agreement: Agreement,
   signerName: string,
-  signerIp: string | null
+  signerIp: string | null,
+  options?: { sendEmail?: boolean }
 ): Promise<{ error: string } | { ok: true }> {
+  const sendEmail = options?.sendEmail ?? true;
   const now = new Date().toISOString();
 
   const { error } = await db
@@ -39,7 +41,7 @@ export async function performAgreementSigning(
   });
   if (intakeError) console.error("[agreement-signing] Failed to create onboarding intake:", intakeError);
 
-  if (isResendConfigured && !intakeError && client?.email) {
+  if (isResendConfigured && !intakeError && sendEmail && client?.email) {
     try {
       await resend.emails.send({
         from: fromEmail,

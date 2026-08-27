@@ -191,6 +191,10 @@ export default function ProposalPreview({
 }) {
   const knownProjectIds = new Set(projects.map((p) => p.id));
   const generalItems = items.filter((i) => !i.project_id || !knownProjectIds.has(i.project_id));
+  const toolsSubtotal = items
+    .filter((i) => i.item_type === "tool")
+    .reduce((sum, i) => sum + Number(i.amount), 0);
+  const toolsTotal = toolsSubtotal + Number(proposal.tools_tax_amount);
 
   return (
     <div className="bg-white border border-ink/10 rounded-xl p-8 md:p-12 print:border-0 print:rounded-none print:p-0">
@@ -296,7 +300,7 @@ export default function ProposalPreview({
       <div className="flex justify-end mt-6">
         <div className="w-full max-w-xs space-y-2.5">
           <div className="flex justify-between text-body">
-            <span className="text-ink-muted">Subtotal</span>
+            <span className="text-ink-muted">{toolsSubtotal > 0 ? "Services subtotal" : "Subtotal"}</span>
             <span>{formatMoney(Number(proposal.subtotal), proposal.currency)}</span>
           </div>
           {proposal.discount_enabled && Number(proposal.discount_amount) > 0 && (
@@ -316,12 +320,10 @@ export default function ProposalPreview({
               <span>{formatMoney(Number(proposal.tax_amount), proposal.currency)}</span>
             </div>
           )}
-          {proposal.tools_tax_enabled && Number(proposal.tools_tax_amount) > 0 && (
+          {toolsSubtotal > 0 && (
             <div className="flex justify-between text-body">
-              <span className="text-ink-muted">
-                Est. intl. transaction tax ({Number(proposal.tools_tax_rate)}%)
-              </span>
-              <span>{formatMoney(Number(proposal.tools_tax_amount), proposal.currency)}</span>
+              <span className="text-ink-muted">Tools &amp; Subscriptions</span>
+              <span>{formatMoney(toolsTotal, proposal.currency)}</span>
             </div>
           )}
           <div className="flex justify-between pt-2.5 border-t-2 border-ink">
@@ -332,8 +334,8 @@ export default function ProposalPreview({
           </div>
           {proposal.tools_tax_enabled && Number(proposal.tools_tax_amount) > 0 && (
             <p className="text-tag text-ink-subtle pt-1">
-              *International transaction tax on tools is estimated and may vary by bank at the
-              time of payment.
+              *Tools total includes an estimated international transaction tax, which may vary by
+              bank at the time of payment.
             </p>
           )}
         </div>

@@ -285,8 +285,10 @@ export async function sendProposal(id: string) {
 
 /** For clients who confirm over a call/WhatsApp instead of the self-serve
  *  link — runs the exact same acceptance cascade (client creation,
- *  agreement generation, agreement email) as the public accept flow. */
-export async function markProposalAccepted(id: string) {
+ *  agreement generation) as the public accept flow. Email is opt-in:
+ *  Shoaib may be sharing the resulting agreement link himself over
+ *  WhatsApp rather than by email. */
+export async function markProposalAccepted(id: string, sendEmail: boolean) {
   await assertAuthed();
 
   const { data: proposal } = await db.from("proposals").select("*").eq("id", id).single();
@@ -297,7 +299,8 @@ export async function markProposalAccepted(id: string) {
   const result = await performProposalAcceptance(
     proposal as Proposal,
     "Confirmed by Shoaib (offline)",
-    null
+    null,
+    { sendEmail }
   );
   if ("error" in result) return result;
 

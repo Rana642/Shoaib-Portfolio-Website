@@ -12,6 +12,14 @@ export type Client = {
   is_active: boolean;
 };
 
+export type ClientProject = {
+  id: string;
+  client_id: string;
+  name: string;
+  notes: string | null;
+  sort_order: number;
+};
+
 export type CatalogItem = {
   id: string;
   created_at: string;
