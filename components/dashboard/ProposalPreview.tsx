@@ -54,7 +54,7 @@ export default function ProposalPreview({
         </div>
         <div className="text-right">
           <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle">Proposal</p>
-          <p className="font-serif italic text-h3 mt-1 leading-none">{proposal.number}</p>
+          <p className="font-serif italic text-h3 mt-1 leading-tight">{proposal.number}</p>
           <div className="text-small text-ink-muted mt-3 space-y-0.5">
             <p>Prepared {formatDate(proposal.created_at)}</p>
           </div>
@@ -103,7 +103,16 @@ export default function ProposalPreview({
         </div>
       )}
 
-      <ChargesBreakdown proposal={proposal} items={items} projects={projects} />
+      {/* Keep the whole investment summary (every project's charges, tools,
+          and the totals) together on one page — if it doesn't fit in the
+          space left under the narrative, it moves as a unit to the next
+          page rather than splitting a project's table across the break.
+          Ignored gracefully when the summary is genuinely taller than a
+          page (many projects), where the inner per-group avoid-breaks still
+          prevent mid-table splits. */}
+      <div className="print:break-inside-avoid">
+        <ChargesBreakdown proposal={proposal} items={items} projects={projects} />
+      </div>
 
       {/* Terms */}
       {proposal.terms && (

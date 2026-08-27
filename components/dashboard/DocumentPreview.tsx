@@ -62,7 +62,7 @@ export default function DocumentPreview({
         </div>
         <div className="text-right">
           <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle">{title}</p>
-          <p className="font-serif italic text-h3 mt-1 leading-none">{document.number}</p>
+          <p className="font-serif italic text-h3 mt-1 leading-tight">{document.number}</p>
           <div className="text-small text-ink-muted mt-3 space-y-0.5">
             <p>Issued {formatDate(document.issue_date)}</p>
             {dateValue && (
@@ -124,8 +124,9 @@ export default function DocumentPreview({
         </tbody>
       </table>
 
-      {/* Totals */}
-      <div className="flex justify-end mt-6">
+      {/* Totals — kept intact across a page break so the grand total never
+          lands alone on a fresh page, split from the figures above it. */}
+      <div className="flex justify-end mt-6 print:break-inside-avoid">
         <div className="w-full max-w-xs space-y-2.5">
           <div className="flex justify-between text-body">
             <span className="text-ink-muted">Subtotal</span>

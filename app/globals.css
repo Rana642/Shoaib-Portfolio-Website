@@ -170,7 +170,20 @@
     page-break-inside: avoid;
   }
 
+  /* Tighten the itemized-table rows so a full investment summary (every
+     project's charges + tools + totals) clears a single page rather than
+     spilling a line or two onto the next. Only the document previews print,
+     so this is scoped enough. */
+  td,
+  th {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+  }
+
+  /* A little extra top margin so the document's own header sits clear of
+     the browser's print header (date / title), which prints in the page
+     margin when "Headers and footers" is left on in the print dialog. */
   @page {
-    margin: 16mm;
+    margin: 20mm 16mm 16mm;
   }
 }
