@@ -41,6 +41,7 @@ export default function DocumentForm({
   clients,
   catalog,
   bundleMembers = {},
+  bundleTotals = {},
   settings,
   document,
 }: {
@@ -49,6 +50,8 @@ export default function DocumentForm({
   catalog: CatalogItem[];
   /** catalog item id -> names of the services included, for bundles. */
   bundleMembers?: Record<string, string[]>;
+  /** bundle id -> combined total of its included services' own rates. */
+  bundleTotals?: Record<string, number>;
   settings: Settings;
   document?: ExistingDocument;
 }) {
@@ -106,8 +109,13 @@ export default function DocumentForm({
     const source = catalog.find((c) => c.id === catalogId);
     if (!source) return;
     const members = bundleMembers[source.id];
+    const bundleTotal = bundleTotals[source.id];
     const description = source.is_bundle
-      ? `${source.name} — includes: ${members?.join(", ") || "see catalog"}`
+      ? `${source.name} — includes: ${members?.join(", ") || "see catalog"}${
+          bundleTotal
+            ? ` (combined value ${formatMoney(bundleTotal, source.currency)}, bundled at ${formatMoney(Number(source.default_rate), source.currency)})`
+            : ""
+        }`
       : source.description
         ? `${source.name} — ${source.description}`
         : source.name;

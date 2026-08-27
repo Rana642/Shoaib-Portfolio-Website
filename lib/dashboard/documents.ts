@@ -13,17 +13,21 @@ export async function getDocumentFormData() {
 
   const items = (catalog ?? []) as CatalogItem[];
   const nameById = new Map(items.map((i) => [i.id, i.name]));
+  const rateById = new Map(items.map((i) => [i.id, Number(i.default_rate)]));
   const bundleMembers: Record<string, string[]> = {};
+  const bundleTotals: Record<string, number> = {};
   for (const row of memberRows ?? []) {
     const name = nameById.get(row.member_id);
     if (!name) continue;
     (bundleMembers[row.bundle_id] ??= []).push(name);
+    bundleTotals[row.bundle_id] = (bundleTotals[row.bundle_id] ?? 0) + (rateById.get(row.member_id) ?? 0);
   }
 
   return {
     clients: (clients ?? []) as Client[],
     catalog: items,
     bundleMembers,
+    bundleTotals,
     settings,
   };
 }

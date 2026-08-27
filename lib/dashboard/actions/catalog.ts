@@ -16,6 +16,9 @@ const catalogSchema = z.object({
   sort_order: z.coerce.number().int().optional(),
   is_bundle: z.boolean(),
   member_ids: z.array(z.string().uuid()),
+  /** Not shown in the form for bundles — falls back to inferring from
+   *  unit so the column (not null) always gets a sensible value. */
+  billing_type: z.enum(["monthly", "one_time"]).optional(),
 });
 
 async function assertAuthed() {
@@ -34,7 +37,14 @@ function parseForm(formData: FormData) {
     sort_order: formData.get("sort_order") || 0,
     is_bundle: formData.get("is_bundle") === "on",
     member_ids: formData.getAll("member_ids"),
+    billing_type: formData.get("billing_type") || undefined,
   });
+}
+
+/** Bundles don't expose Billing Type in the form — infer it from unit,
+ *  same rule the field itself defaults to for a brand-new single service. */
+function resolveBillingType(billingType: "monthly" | "one_time" | undefined, unit: string) {
+  return billingType ?? (unit === "month" ? "monthly" : "one_time");
 }
 
 /** Deletes and reinserts which existing services a bundle includes.
@@ -59,9 +69,10 @@ export async function createCatalogItem(formData: FormData) {
   await assertAuthed();
   const parsed = parseForm(formData);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const { member_ids, ...item } = parsed.data;
+  const { member_ids, billing_type, ...item } = parsed.data;
+  const row = { ...item, billing_type: resolveBillingType(billing_type, item.unit) };
 
-  const { data: created, error } = await db.from("catalog_items").insert(item).select("id").single();
+  const { data: created, error } = await db.from("catalog_items").insert(row).select("id").single();
   if (error) return { error: error.message };
 
   if (item.is_bundle) {
@@ -78,9 +89,10 @@ export async function updateCatalogItem(id: string, formData: FormData) {
   await assertAuthed();
   const parsed = parseForm(formData);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const { member_ids, ...item } = parsed.data;
+  const { member_ids, billing_type, ...item } = parsed.data;
+  const row = { ...item, billing_type: resolveBillingType(billing_type, item.unit) };
 
-  const { error } = await db.from("catalog_items").update(item).eq("id", id);
+  const { error } = await db.from("catalog_items").update(row).eq("id", id);
   if (error) return { error: error.message };
 
   const membersError = await replaceBundleMembers(id, item.is_bundle ? member_ids : []);

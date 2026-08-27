@@ -42,6 +42,7 @@ export default async function EditQuotationPage({
         clients={formData.clients}
         catalog={formData.catalog}
         bundleMembers={formData.bundleMembers}
+        bundleTotals={formData.bundleTotals}
         settings={formData.settings}
         document={{
           id: quote.id,

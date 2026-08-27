@@ -31,6 +31,7 @@ export type CatalogItem = {
   is_active: boolean;
   sort_order: number;
   is_bundle: boolean;
+  billing_type: "monthly" | "one_time";
 };
 
 export type LineItem = {

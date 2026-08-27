@@ -78,6 +78,7 @@ export default function ProposalForm({
   clients,
   catalog,
   bundleMembers = {},
+  bundleTotals = {},
   clientProjects = {},
   settings,
   proposal,
@@ -87,6 +88,8 @@ export default function ProposalForm({
   catalog: CatalogItem[];
   /** catalog item id -> names of the services included, for bundles. */
   bundleMembers?: Record<string, string[]>;
+  /** bundle id -> combined total of its included services' own rates. */
+  bundleTotals?: Record<string, number>;
   /** client id -> that client's own defined projects/companies. */
   clientProjects?: Record<string, ClientProject[]>;
   settings: Settings;
@@ -203,8 +206,13 @@ export default function ProposalForm({
     const source = catalog.find((c) => c.id === catalogId);
     if (!source) return;
     const members = bundleMembers[source.id];
+    const bundleTotal = bundleTotals[source.id];
     const description = source.is_bundle
-      ? `${source.name} — includes: ${members?.join(", ") || "see catalog"}`
+      ? `${source.name} — includes: ${members?.join(", ") || "see catalog"}${
+          bundleTotal
+            ? ` (combined value ${formatMoney(bundleTotal, source.currency)}, bundled at ${formatMoney(Number(source.default_rate), source.currency)})`
+            : ""
+        }`
       : source.description
         ? `${source.name} — ${source.description}`
         : source.name;
@@ -212,7 +220,7 @@ export default function ProposalForm({
       catalog_item_id: source.id,
       description,
       rate: Number(source.default_rate),
-      billing_type: source.unit === "month" ? "monthly" : "one_time",
+      billing_type: source.billing_type,
     });
   };
 

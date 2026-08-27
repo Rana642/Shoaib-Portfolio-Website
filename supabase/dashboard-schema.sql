@@ -86,7 +86,15 @@ create table if not exists catalog_items (
   -- extra code) — is_bundle just means its price is a package price, and
   -- catalog_bundle_members below lists what's actually included, for
   -- Shoaib's own reference and the auto-filled description.
-  is_bundle boolean not null default false
+  is_bundle boolean not null default false,
+  -- Whether picking this into a Proposal line defaults it to Monthly
+  -- Retainer or One-time/Fixed — explicit rather than inferred from unit,
+  -- since "per project" doesn't always mean one-time. Single Services
+  -- only; bundles keep inferring from unit (CatalogForm hides the field
+  -- for them) to avoid a second recurrence concept on top of the bundle
+  -- price/members already there.
+  billing_type text not null default 'one_time'
+    check (billing_type in ('monthly','one_time'))
 );
 
 -- Reverted 2026-08-27 — Shoaib negotiates on the document total, not a
@@ -95,6 +103,12 @@ create table if not exists catalog_items (
 alter table catalog_items drop column if exists discounted_rate;
 
 alter table catalog_items add column if not exists is_bundle boolean not null default false;
+
+alter table catalog_items add column if not exists billing_type text not null default 'one_time'
+  check (billing_type in ('monthly','one_time'));
+-- Backfill existing rows sensibly from their unit rather than leaving
+-- every pre-existing service defaulted to one_time.
+update catalog_items set billing_type = 'monthly' where unit = 'month';
 
 -- A bundle can't include another bundle (checked in the app, not here)
 -- — keeps "what's included" a flat, one-level list.

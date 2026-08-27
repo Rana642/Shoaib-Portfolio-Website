@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "New quotation" };
 
 export default async function NewQuotationPage() {
-  const { clients, catalog, bundleMembers, settings } = await getDocumentFormData();
+  const { clients, catalog, bundleMembers, bundleTotals, settings } = await getDocumentFormData();
 
   return (
     <>
@@ -23,6 +23,7 @@ export default async function NewQuotationPage() {
           clients={clients}
           catalog={catalog}
           bundleMembers={bundleMembers}
+          bundleTotals={bundleTotals}
           settings={settings}
         />
       )}

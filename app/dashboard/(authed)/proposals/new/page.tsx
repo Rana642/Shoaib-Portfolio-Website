@@ -10,7 +10,7 @@ export default async function NewProposalPage({
 }: {
   searchParams: Promise<{ name?: string; email?: string; business?: string }>;
 }) {
-  const { clients, catalog, bundleMembers, clientProjects, settings } = await getProposalFormData();
+  const { clients, catalog, bundleMembers, bundleTotals, clientProjects, settings } = await getProposalFormData();
   const params = await searchParams;
 
   return (
@@ -20,6 +20,7 @@ export default async function NewProposalPage({
         clients={clients}
         catalog={catalog}
         bundleMembers={bundleMembers}
+        bundleTotals={bundleTotals}
         clientProjects={clientProjects}
         settings={settings}
         prefill={{ name: params.name, email: params.email, business: params.business }}

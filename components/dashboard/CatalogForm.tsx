@@ -28,6 +28,9 @@ export default function CatalogForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [isBundle, setIsBundle] = useState(item?.is_bundle ?? defaultIsBundle ?? false);
+  const [billingType, setBillingType] = useState<"monthly" | "one_time">(
+    item?.billing_type ?? ((item?.unit ?? "month") === "month" ? "monthly" : "one_time")
+  );
   const [bundlePrice, setBundlePrice] = useState(item?.default_rate ?? 0);
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set(memberIds));
 
@@ -117,6 +120,25 @@ export default function CatalogForm({
           </select>
         </Field>
       </div>
+
+      {!isBundle && (
+        <Field
+          label="Billing Type"
+          htmlFor="billing_type"
+          hint="What a Proposal line defaults to when this service is picked from the catalog."
+        >
+          <select
+            id="billing_type"
+            name="billing_type"
+            value={billingType}
+            onChange={(e) => setBillingType(e.target.value as "monthly" | "one_time")}
+            className={`${inputClasses} max-w-xs`}
+          >
+            <option value="monthly">Monthly Retainer</option>
+            <option value="one_time">One-time / Fixed</option>
+          </select>
+        </Field>
+      )}
 
       <Field label="Sort order" htmlFor="sort_order" hint="Lower numbers appear first in the list.">
         <input
