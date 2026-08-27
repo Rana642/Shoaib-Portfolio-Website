@@ -6,9 +6,12 @@ import type { CatalogItem } from "@/lib/dashboard/types";
 export default function CatalogTable({
   items,
   membersByBundle,
+  bundleTotals,
 }: {
   items: CatalogItem[];
   membersByBundle: Map<string, string[]>;
+  /** Bundle id -> combined total of its included services' own rates. */
+  bundleTotals?: Map<string, number>;
 }) {
   return (
     <Card className="overflow-hidden">
@@ -49,10 +52,20 @@ export default function CatalogTable({
                   )}
                 </td>
                 <td className="px-5 py-4 whitespace-nowrap">
+                  {item.is_bundle && (bundleTotals?.get(item.id) ?? 0) > 0 && (
+                    <p className="text-small text-ink-subtle line-through">
+                      {formatMoney(bundleTotals!.get(item.id)!, item.currency)}
+                    </p>
+                  )}
                   <span className="font-medium">
                     {formatMoney(Number(item.default_rate), item.currency)}
                   </span>
                   <span className="text-small text-ink-subtle"> / {item.unit}</span>
+                  {item.is_bundle && (bundleTotals?.get(item.id) ?? 0) > 0 && (
+                    <p className="text-tag font-mono uppercase tracking-widest text-ink-subtle">
+                      Bundle Rate
+                    </p>
+                  )}
                 </td>
                 <td className="px-5 py-4 hidden sm:table-cell">
                   <StatusBadge status={item.is_active ? "accepted" : "draft"} />

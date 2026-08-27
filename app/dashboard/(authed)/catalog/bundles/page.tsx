@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Bundle Services" };
 
 export default async function CatalogBundlesPage() {
-  const { bundleServices, membersByBundle } = await getCatalogSplitByBundle();
+  const { bundleServices, membersByBundle, bundleTotals } = await getCatalogSplitByBundle();
 
   return (
     <>
@@ -29,7 +29,7 @@ export default async function CatalogBundlesPage() {
           action={<LinkButton href="/dashboard/catalog/new?type=bundle">Add bundle</LinkButton>}
         />
       ) : (
-        <CatalogTable items={bundleServices} membersByBundle={membersByBundle} />
+        <CatalogTable items={bundleServices} membersByBundle={membersByBundle} bundleTotals={bundleTotals} />
       )}
     </>
   );
