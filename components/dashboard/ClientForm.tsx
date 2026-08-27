@@ -24,7 +24,11 @@ export default function ClientForm({ client }: { client?: Client }) {
 
   return (
     <form action={onSubmit} className="space-y-5 max-w-2xl">
-      <Field label="Name" htmlFor="name" hint="Company name, or the person if there's no company.">
+      <Field
+        label="Client name"
+        htmlFor="name"
+        hint="The person or business you deal with. If they run more than one company or project, keep this as their overall name and list those separately below — there doesn't need to be a 'main' one."
+      >
         <input
           id="name"
           name="name"

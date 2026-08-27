@@ -51,8 +51,10 @@ export default function ClientProjectsManager({
     <Card className="p-6 max-w-2xl mt-10">
       <h2 className="text-body-lg font-semibold mb-1">Projects</h2>
       <p className="text-small text-ink-muted mb-4">
-        This client&apos;s separate projects or companies — pick from these when building a
-        proposal instead of retyping them each time.
+        Add each company or project this client runs — there doesn&apos;t need to be a parent
+        company; they might just hold more than one, with no relation between them. Each gets its
+        own charges and costing when you build a proposal. Pick from these instead of retyping
+        them every time.
       </p>
 
       {projects.length > 0 && (
