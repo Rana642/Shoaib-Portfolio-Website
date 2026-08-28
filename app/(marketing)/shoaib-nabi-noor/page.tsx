@@ -16,6 +16,7 @@ import Tag from "@/components/ui/Tag";
 import Button from "@/components/ui/Button";
 import JsonLd from "@/components/shared/JsonLd";
 import ExperienceAccordion from "@/components/sections/ExperienceAccordion";
+import HostingerPartnerBadge from "@/components/shared/HostingerPartnerBadge";
 import { LinkedinIcon, FacebookIcon, XIcon, InstagramIcon } from "@/components/ui/SocialIcons";
 import { pageMetadata } from "@/lib/seo";
 import { personSchema, breadcrumbSchema } from "@/lib/schema";
@@ -267,6 +268,18 @@ export default async function ResumePage() {
                 </div>
               </Reveal>
             ))}
+            <Reveal>
+              <div className="bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-7 max-w-2xl flex flex-col sm:flex-row sm:items-center gap-5">
+                <HostingerPartnerBadge width={168} />
+                <div>
+                  <p className="text-body-lg font-semibold">Verified Hostinger Partner</p>
+                  <p className="text-small text-ink-muted mt-2">
+                    Official partner status — I set clients up on hosting I trust and pass on a 20%
+                    discount.
+                  </p>
+                </div>
+              </div>
+            </Reveal>
           </div>
         </div>
       </section>

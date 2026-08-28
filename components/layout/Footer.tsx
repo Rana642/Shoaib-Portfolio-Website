@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Mail } from "lucide-react";
 import { LinkedinIcon, InstagramIcon, YoutubeIcon } from "@/components/ui/SocialIcons";
 import NewsletterForm from "@/components/forms/NewsletterForm";
+import HostingerPartnerBadge from "@/components/shared/HostingerPartnerBadge";
 
 const explore = [
   { href: "/services", label: "Services" },
@@ -47,6 +48,13 @@ export default function Footer() {
                 <Icon className="size-4" />
               </a>
             ))}
+          </div>
+          <div className="mt-8">
+            <HostingerPartnerBadge width={150} />
+            <p className="text-tag text-cloud/40 mt-2 max-w-[200px] leading-relaxed">
+              Verified Hostinger Partner. Clients get {" "}
+              <span className="text-cloud/70 font-medium">20% off</span> with code NAWAL20.
+            </p>
           </div>
         </div>
 

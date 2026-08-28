@@ -4,6 +4,7 @@
  */
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import PageWrapper from "@/components/layout/PageWrapper";
 import Reveal from "@/components/shared/Reveal";
 import Tag from "@/components/ui/Tag";
@@ -11,6 +12,7 @@ import Button from "@/components/ui/Button";
 import Philosophy from "@/components/sections/Philosophy";
 import FinalCTA from "@/components/sections/FinalCTA";
 import JsonLd from "@/components/shared/JsonLd";
+import HostingerPartnerBadge from "@/components/shared/HostingerPartnerBadge";
 import { pageMetadata } from "@/lib/seo";
 import { personSchema, breadcrumbSchema } from "@/lib/schema";
 
@@ -238,6 +240,19 @@ export default function AboutPage() {
               <Button href="/contact" withArrow>
                 Get a free audit
               </Button>
+            </div>
+          </Reveal>
+          <Reveal delay={0.25}>
+            <div className="mt-12 pt-8 border-t border-ink/10 flex flex-col sm:flex-row sm:items-center gap-5">
+              <HostingerPartnerBadge width={160} />
+              <p className="text-small text-ink-muted max-w-md">
+                Verified <strong className="text-ink font-semibold">Hostinger Partner</strong> — when
+                a client needs hosting, I set them up on infrastructure I trust and pass on a{" "}
+                <Link href="/hostinger-coupon" className="text-cobalt underline decoration-citrus decoration-2 underline-offset-2 hover:text-ink transition-colors">
+                  20% partner discount
+                </Link>
+                .
+              </p>
             </div>
           </Reveal>
         </div>

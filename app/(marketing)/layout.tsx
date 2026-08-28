@@ -2,6 +2,7 @@ import Nav from "@/components/layout/Nav";
 import Footer from "@/components/layout/Footer";
 import SmoothScroll from "@/components/shared/SmoothScroll";
 import AmbientBackground from "@/components/shared/AmbientBackground";
+import HostingerFloatingBadge from "@/components/shared/HostingerFloatingBadge";
 
 /**
  * Marketing shell: nav, footer, smooth scroll, ambient background.
@@ -14,6 +15,7 @@ export default function MarketingLayout({ children }: LayoutProps<"/">) {
       <Nav />
       {children}
       <Footer />
+      <HostingerFloatingBadge />
     </SmoothScroll>
   );
 }

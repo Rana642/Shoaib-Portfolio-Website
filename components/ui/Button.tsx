@@ -8,6 +8,10 @@ type ButtonProps = {
   withArrow?: boolean;
   /** Renders a plain <a download> instead of next/link — for static file downloads. */
   download?: boolean;
+  /** Renders a plain <a target="_blank"> for off-site links (e.g. affiliate). */
+  external?: boolean;
+  /** rel for external links — defaults to a sponsored affiliate rel. */
+  rel?: string;
   className?: string;
   children: React.ReactNode;
 } & React.ButtonHTMLAttributes<HTMLButtonElement>;
@@ -30,6 +34,8 @@ export default function Button({
   href,
   withArrow = false,
   download = false,
+  external = false,
+  rel = "sponsored noopener noreferrer",
   className,
   children,
   ...props
@@ -46,6 +52,14 @@ export default function Button({
       )}
     </>
   );
+
+  if (href && external) {
+    return (
+      <a href={href} target="_blank" rel={rel} className={classes}>
+        {content}
+      </a>
+    );
+  }
 
   if (href && download) {
     return (

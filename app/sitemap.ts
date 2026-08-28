@@ -12,6 +12,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/case-studies",
     "/blog",
     "/shoaib-nabi-noor",
+    "/hostinger-coupon",
     "/contact",
     "/privacy",
     "/terms",
