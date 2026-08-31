@@ -160,7 +160,7 @@ export default function IntakeForm({
           <div>
             <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle">About you</p>
             <p className="text-small text-ink-muted mt-1">
-              The person filling this out — so I know who I&apos;m coordinating with.
+              Just so I know who I&apos;m coordinating with — that&apos;s all I need about you.
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -170,10 +170,26 @@ export default function IntakeForm({
             <Field label="Your role / designation" htmlFor="contact_role" hint="e.g. Owner, Manager">
               <input id="contact_role" name="contact_role" className={inputClasses} />
             </Field>
-            <Field label="Your email address" htmlFor="contact_emails">
+          </div>
+        </Card>
+
+        <Card variant="solid" className="p-6 space-y-5">
+          <div>
+            <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+              About your business
+            </p>
+            <p className="text-small text-ink-muted mt-1">
+              The company or brand&apos;s own details — these are what go on the public profiles.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <Field label="Business / brand name" htmlFor="registered_name">
+              <input id="registered_name" name="registered_name" className={inputClasses} />
+            </Field>
+            <Field label="Business email" htmlFor="contact_emails">
               <input id="contact_emails" name="contact_emails" type="email" className={inputClasses} />
             </Field>
-            <Field label="Your phone number" htmlFor="contact_phone">
+            <Field label="Business phone number" htmlFor="contact_phone">
               <input
                 id="contact_phone"
                 name="contact_phone"
@@ -182,8 +198,11 @@ export default function IntakeForm({
                 className={inputClasses}
               />
             </Field>
+            <Field label="Business website (if any)" htmlFor="website">
+              <input id="website" name="website" placeholder="https://" className={inputClasses} />
+            </Field>
           </div>
-          <Field label="Your WhatsApp number" htmlFor="whatsapp">
+          <Field label="Business WhatsApp" htmlFor="whatsapp">
             <input
               id="whatsapp"
               value={whatsapp}
@@ -198,28 +217,9 @@ export default function IntakeForm({
                 onChange={(e) => onSameWhatsapp(e.target.checked)}
                 className="size-4 accent-citrus cursor-pointer"
               />
-              <span className="text-small text-ink-muted">Same as phone number</span>
+              <span className="text-small text-ink-muted">Same as business phone</span>
             </label>
           </Field>
-        </Card>
-
-        <Card variant="solid" className="p-6 space-y-5">
-          <div>
-            <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
-              About your business
-            </p>
-            <p className="text-small text-ink-muted mt-1">
-              Details about the company, brand, or project itself — not you personally.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <Field label="Business / brand name" htmlFor="registered_name">
-              <input id="registered_name" name="registered_name" className={inputClasses} />
-            </Field>
-            <Field label="Business website (if any)" htmlFor="website">
-              <input id="website" name="website" placeholder="https://" className={inputClasses} />
-            </Field>
-          </div>
           <Field label="Business address" htmlFor="address" hint="The location that should appear on profiles and maps.">
             <textarea id="address" name="address" rows={2} className={inputClasses} />
           </Field>
