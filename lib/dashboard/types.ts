@@ -135,6 +135,38 @@ export type OnboardingIntake = {
   submitted_at: string | null;
 };
 
+/** One file the client uploaded to object storage. `key` is the storage
+ *  object key; the file itself lives in R2/B2/Storj, not the database. */
+export type IntakeAsset = {
+  key: string;
+  name: string;
+  size: number;
+  type: string;
+};
+
+export type ClientIntake = {
+  id: string;
+  created_at: string;
+  client_id: string | null;
+  business_name: string;
+  access_token: string;
+  status: OnboardingStatus;
+  contact_name: string | null;
+  contact_emails: string | null;
+  contact_phone: string | null;
+  address: string | null;
+  website: string | null;
+  social_handles: string | null;
+  competitors: string | null;
+  target_audience: string | null;
+  brand_notes: string | null;
+  account_access_notes: string | null;
+  brand_asset_links: string | null;
+  assets: IntakeAsset[];
+  additional_notes: string | null;
+  submitted_at: string | null;
+};
+
 export type QuotationStatus = "draft" | "sent" | "accepted" | "rejected" | "expired";
 
 export type Quotation = {

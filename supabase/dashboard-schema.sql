@@ -296,6 +296,46 @@ create table if not exists onboarding_intakes (
 create index if not exists onboarding_intakes_proposal_idx on onboarding_intakes (proposal_id);
 create index if not exists onboarding_intakes_token_idx on onboarding_intakes (access_token);
 
+-- ── Client intakes ──────────────────────────────────────────
+-- On-demand information requests Shoaib sends a client (via link /
+-- WhatsApp / email) to collect what's needed to set their social accounts
+-- up: business details, competitors, brand assets, and so on. Unlike
+-- onboarding_intakes (auto-created when an agreement is signed), these are
+-- created by hand for any client at any time. Uploaded files live in
+-- S3-compatible object storage (Cloudflare R2 / Backblaze B2 / Storj) —
+-- only their metadata is kept here in `assets`.
+create table if not exists client_intakes (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  -- Optional link to a client record; a business name is always captured
+  -- so an intake can be sent before a formal client row exists.
+  client_id uuid references clients (id) on delete set null,
+  business_name text not null,
+  access_token text not null unique,
+  status text not null default 'pending' check (status in ('pending','submitted')),
+  -- Collected fields — all optional, the client fills what they can.
+  contact_name text,
+  contact_emails text,
+  contact_phone text,
+  address text,
+  website text,
+  social_handles text,
+  competitors text,
+  target_audience text,
+  brand_notes text,           -- colours, fonts, voice, do's and don'ts
+  account_access_notes text,  -- existing accounts / who currently has access
+  brand_asset_links text,     -- Drive / Dropbox / WeTransfer links
+  -- Files uploaded straight to object storage: [{ key, name, size, type }].
+  assets jsonb not null default '[]'::jsonb,
+  additional_notes text,
+  submitted_at timestamptz
+);
+
+create index if not exists client_intakes_client_idx on client_intakes (client_id);
+create index if not exists client_intakes_token_idx on client_intakes (access_token);
+
+alter table client_intakes enable row level security;
+
 -- ── Agreements ──────────────────────────────────────────────
 -- Generated automatically when a proposal is accepted. content is a
 -- FROZEN snapshot (rendered from lib/dashboard/agreement-template.ts at

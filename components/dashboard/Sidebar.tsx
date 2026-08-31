@@ -13,6 +13,7 @@ import {
   Send,
   FileSignature,
   ClipboardList,
+  FolderInput,
   Settings as SettingsIcon,
   PenSquare,
   LogOut,
@@ -39,6 +40,7 @@ const nav: NavItem[] = [
   { href: "/dashboard/proposals", label: "Proposals", icon: Send },
   { href: "/dashboard/agreements", label: "Agreements", icon: FileSignature },
   { href: "/dashboard/onboarding", label: "Onboarding", icon: ClipboardList },
+  { href: "/dashboard/intakes", label: "Intakes", icon: FolderInput },
   { href: "/dashboard/clients", label: "Clients", icon: Users },
   {
     label: "Services Catalog",
