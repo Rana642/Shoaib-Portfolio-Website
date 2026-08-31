@@ -186,7 +186,9 @@ export default function IntakeForm({
 
   const removeAsset = (key: string) => setAssets((prev) => prev.filter((a) => a.key !== key));
 
-  const onSubmit = (formData: FormData) => {
+  const handleSubmit = () => {
+    if (!formRef.current) return;
+    const formData = new FormData(formRef.current);
     setError(null);
     formData.set("whatsapp", whatsapp);
     formData.set("operating_days", days.join(", "));
@@ -236,10 +238,12 @@ export default function IntakeForm({
   return (
     <form
       ref={formRef}
-      action={onSubmit}
+      // No native form action — submit only happens via the Review step's
+      // button (handleSubmit). This prevents Enter, and the button-node
+      // reuse between "Review" (type=button) and a would-be type=submit,
+      // from ever auto-submitting.
+      onSubmit={(e) => e.preventDefault()}
       onKeyDown={(e) => {
-        // Stop Enter in a text field from submitting the whole wizard —
-        // submit only happens on the Review step's button.
         if (e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA") {
           e.preventDefault();
         }
@@ -621,12 +625,18 @@ export default function IntakeForm({
         </button>
 
         {step < STEPS.length - 1 ? (
-          <button type="button" onClick={goNext} className={buttonStyles.primary}>
+          <button key="nav-next" type="button" onClick={goNext} className={buttonStyles.primary}>
             {step === STEPS.length - 2 ? "Review" : "Next"}
             <ArrowRight className="size-4" aria-hidden />
           </button>
         ) : (
-          <button type="submit" disabled={pending || uploading !== null} className={buttonStyles.primary}>
+          <button
+            key="nav-submit"
+            type="button"
+            onClick={handleSubmit}
+            disabled={pending || uploading !== null}
+            className={buttonStyles.primary}
+          >
             {pending ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Check className="size-4" aria-hidden />}
             Submit
           </button>
