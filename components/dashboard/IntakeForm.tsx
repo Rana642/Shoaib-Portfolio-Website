@@ -153,23 +153,27 @@ export default function IntakeForm({
         </div>
       </div>
 
-      {/* Step 1 — Contact & Company */}
-      <div className={step === 0 ? "" : "hidden"}>
+      {/* Step 1 — Contact & Company (split so it's clear which answers are
+          about the person vs. about the business) */}
+      <div className={step === 0 ? "space-y-6" : "hidden"}>
         <Card variant="solid" className="p-6 space-y-5">
-          <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
-            Primary contact &amp; company
-          </p>
+          <div>
+            <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle">About you</p>
+            <p className="text-small text-ink-muted mt-1">
+              The person filling this out — so I know who I&apos;m coordinating with.
+            </p>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <Field label="Full name" htmlFor="contact_name">
+            <Field label="Your full name" htmlFor="contact_name">
               <input id="contact_name" name="contact_name" className={inputClasses} />
             </Field>
-            <Field label="Designation / role" htmlFor="contact_role">
+            <Field label="Your role / designation" htmlFor="contact_role" hint="e.g. Owner, Manager">
               <input id="contact_role" name="contact_role" className={inputClasses} />
             </Field>
-            <Field label="Email address" htmlFor="contact_emails">
+            <Field label="Your email address" htmlFor="contact_emails">
               <input id="contact_emails" name="contact_emails" type="email" className={inputClasses} />
             </Field>
-            <Field label="Direct phone number" htmlFor="contact_phone">
+            <Field label="Your phone number" htmlFor="contact_phone">
               <input
                 id="contact_phone"
                 name="contact_phone"
@@ -179,7 +183,7 @@ export default function IntakeForm({
               />
             </Field>
           </div>
-          <Field label="WhatsApp number" htmlFor="whatsapp">
+          <Field label="Your WhatsApp number" htmlFor="whatsapp">
             <input
               id="whatsapp"
               value={whatsapp}
@@ -197,15 +201,26 @@ export default function IntakeForm({
               <span className="text-small text-ink-muted">Same as phone number</span>
             </label>
           </Field>
+        </Card>
+
+        <Card variant="solid" className="p-6 space-y-5">
+          <div>
+            <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+              About your business
+            </p>
+            <p className="text-small text-ink-muted mt-1">
+              Details about the company, brand, or project itself — not you personally.
+            </p>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <Field label="Registered business name" htmlFor="registered_name">
+            <Field label="Business / brand name" htmlFor="registered_name">
               <input id="registered_name" name="registered_name" className={inputClasses} />
             </Field>
-            <Field label="Existing website (if any)" htmlFor="website">
+            <Field label="Business website (if any)" htmlFor="website">
               <input id="website" name="website" placeholder="https://" className={inputClasses} />
             </Field>
           </div>
-          <Field label="Complete physical address" htmlFor="address">
+          <Field label="Business address" htmlFor="address" hint="The location that should appear on profiles and maps.">
             <textarea id="address" name="address" rows={2} className={inputClasses} />
           </Field>
         </Card>
