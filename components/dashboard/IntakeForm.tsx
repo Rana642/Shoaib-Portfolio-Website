@@ -9,7 +9,16 @@ import type { IntakeAsset } from "@/lib/dashboard/types";
 const MAX_BYTES = 50 * 1024 * 1024;
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const PLATFORMS = ["Facebook", "Instagram", "LinkedIn", "TikTok", "YouTube", "X (Twitter)", "Pinterest", "Snapchat"];
-const STEPS = ["Contact & Company", "Hours & Locations", "Brand & Audience", "Preferences"];
+const STEPS = ["Contact & Company", "Hours & Locations", "Brand & Audience", "Preferences", "Review"];
+
+type ReviewRow = { label: string; value: string };
+type ReviewSection = {
+  title: string;
+  step: number;
+  rows: ReviewRow[];
+  colors?: string[];
+  files?: { name: string; kind?: string }[];
+};
 
 function humanSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -40,6 +49,77 @@ export default function IntakeForm({
   const [platforms, setPlatforms] = useState<string[]>([]);
   const [assets, setAssets] = useState<IntakeAsset[]>([]);
   const [uploading, setUploading] = useState<"logo" | "media" | null>(null);
+  const [review, setReview] = useState<ReviewSection[]>([]);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Snapshot everything entered so far for the read-only review step. Plain
+  // inputs come from the form's FormData; the interactive widgets from state.
+  const buildSummary = (): ReviewSection[] => {
+    const fd = formRef.current ? new FormData(formRef.current) : new FormData();
+    const g = (k: string) => String(fd.get(k) ?? "").trim();
+    const hours = [g("hours_open"), g("hours_close")].filter(Boolean).join(" – ");
+    const comps = [g("competitor_1"), g("competitor_2"), g("competitor_3")].filter(Boolean).join("\n");
+    return [
+      {
+        title: "About you",
+        step: 0,
+        rows: [
+          { label: "Full name", value: g("contact_name") },
+          { label: "Role", value: g("contact_role") },
+        ],
+      },
+      {
+        title: "Business",
+        step: 0,
+        rows: [
+          { label: "Business / brand name", value: g("registered_name") },
+          { label: "Business email", value: g("contact_emails") },
+          { label: "Business phone", value: phone },
+          { label: "Business WhatsApp", value: whatsapp },
+          { label: "Website", value: g("website") },
+          { label: "Address", value: g("address") },
+        ],
+      },
+      {
+        title: "Hours & locations",
+        step: 1,
+        rows: [
+          { label: "Operating days", value: days.join(", ") },
+          { label: "Hours", value: hours },
+          { label: "Service areas", value: areas.join(", ") },
+          { label: "Landmark", value: g("landmark") },
+        ],
+      },
+      {
+        title: "Brand & audience",
+        step: 2,
+        rows: [
+          { label: "Ideal customer", value: g("target_audience") },
+          { label: "Brand notes", value: g("brand_notes") },
+          { label: "Asset links", value: g("brand_asset_links") },
+        ],
+        colors,
+        files: assets,
+      },
+      {
+        title: "Preferences",
+        step: 3,
+        rows: [
+          { label: "Competitor / reference sites", value: comps },
+          { label: "Preferred platforms", value: platforms.join(", ") },
+          { label: "Desired handles", value: g("social_handles") },
+          { label: "Master Gmail", value: g("master_email") },
+          { label: "Notes", value: g("additional_notes") },
+        ],
+      },
+    ];
+  };
+
+  const goNext = () => {
+    const next = step + 1;
+    if (next === STEPS.length - 1) setReview(buildSummary());
+    setStep(next);
+  };
 
   const toggle = (list: string[], set: (v: string[]) => void, val: string) =>
     set(list.includes(val) ? list.filter((x) => x !== val) : [...list, val]);
@@ -136,7 +216,7 @@ export default function IntakeForm({
   const media = assets.filter((a) => a.kind === "media");
 
   return (
-    <form action={onSubmit} className="space-y-6">
+    <form ref={formRef} action={onSubmit} className="space-y-6">
       {/* Progress */}
       <div>
         <div className="flex items-center justify-between mb-2">
@@ -427,6 +507,72 @@ export default function IntakeForm({
         </Card>
       </div>
 
+      {/* Step 5 — Review */}
+      <div className={step === 4 ? "space-y-4" : "hidden"}>
+        <p className="text-small text-ink-muted">
+          Please review everything before submitting — once you submit, the form locks.
+        </p>
+        {review.map((section) => {
+          const filled = section.rows.filter((r) => r.value.trim());
+          const hasColors = (section.colors?.length ?? 0) > 0;
+          const hasFiles = (section.files?.length ?? 0) > 0;
+          const empty = filled.length === 0 && !hasColors && !hasFiles;
+          return (
+            <Card key={section.title} variant="solid" className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                  {section.title}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setStep(section.step)}
+                  className="text-small text-cobalt hover:text-ink transition-colors"
+                >
+                  Edit
+                </button>
+              </div>
+              {empty ? (
+                <p className="text-small text-ink-subtle">Nothing added.</p>
+              ) : (
+                <dl className="space-y-3">
+                  {filled.map((r) => (
+                    <div key={r.label} className="grid grid-cols-1 sm:grid-cols-3 gap-1 sm:gap-4">
+                      <dt className="text-small text-ink-subtle">{r.label}</dt>
+                      <dd className="sm:col-span-2 text-body whitespace-pre-line">{r.value}</dd>
+                    </div>
+                  ))}
+                  {hasColors && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 sm:gap-4">
+                      <dt className="text-small text-ink-subtle">Brand colours</dt>
+                      <dd className="sm:col-span-2 flex flex-wrap gap-2">
+                        {section.colors!.map((c) => (
+                          <span key={c} className="inline-flex items-center gap-1.5">
+                            <span
+                              className="size-5 rounded border border-ink/10"
+                              style={{ backgroundColor: c }}
+                              aria-hidden
+                            />
+                            <span className="font-mono text-tag uppercase">{c}</span>
+                          </span>
+                        ))}
+                      </dd>
+                    </div>
+                  )}
+                  {hasFiles && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 sm:gap-4">
+                      <dt className="text-small text-ink-subtle">Uploaded files</dt>
+                      <dd className="sm:col-span-2 text-body">
+                        {section.files!.map((f) => `${f.name}${f.kind ? ` (${f.kind})` : ""}`).join(", ")}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+
       {error && (
         <p className="text-small text-red-700 bg-red-500/10 border border-red-600/20 rounded-lg px-4 py-3">
           {error}
@@ -446,8 +592,8 @@ export default function IntakeForm({
         </button>
 
         {step < STEPS.length - 1 ? (
-          <button type="button" onClick={() => setStep((s) => s + 1)} className={buttonStyles.primary}>
-            Next
+          <button type="button" onClick={goNext} className={buttonStyles.primary}>
+            {step === STEPS.length - 2 ? "Review" : "Next"}
             <ArrowRight className="size-4" aria-hidden />
           </button>
         ) : (
