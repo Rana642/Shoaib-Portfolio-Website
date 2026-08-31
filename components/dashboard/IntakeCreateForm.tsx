@@ -3,11 +3,19 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { LoaderCircle } from "lucide-react";
+import { Plus } from "lucide-react";
 import { createIntake } from "@/lib/dashboard/actions/intakes";
 import { Field, inputClasses, buttonStyles, Card } from "@/components/dashboard/ui";
-import type { Client } from "@/lib/dashboard/types";
+import type { Client, ClientProject } from "@/lib/dashboard/types";
 
-export default function IntakeCreateForm({ clients }: { clients: Client[] }) {
+export default function IntakeCreateForm({
+  clients,
+  clientProjects = {},
+}: {
+  clients: Client[];
+  /** client id -> that client's saved projects, offered as quick-pick chips. */
+  clientProjects?: Record<string, ClientProject[]>;
+}) {
   const [clientId, setClientId] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -19,6 +27,8 @@ export default function IntakeCreateForm({ clients }: { clients: Client[] }) {
     const client = clients.find((c) => c.id === id);
     if (client) setBusinessName(client.name);
   };
+
+  const projects = clientId ? clientProjects[clientId] ?? [] : [];
 
   const onSubmit = (formData: FormData) => {
     setError(null);
@@ -52,6 +62,32 @@ export default function IntakeCreateForm({ clients }: { clients: Client[] }) {
               ))}
             </select>
           </Field>
+        )}
+
+        {projects.length > 0 && (
+          <div>
+            <p className="text-small font-medium mb-2">This client&apos;s projects</p>
+            <div className="flex flex-wrap gap-2">
+              {projects.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setBusinessName(p.name)}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-small transition-all ${
+                    businessName === p.name
+                      ? "border-citrus bg-citrus/15 text-ink font-medium"
+                      : "border-ink/15 hover:border-citrus hover:bg-citrus/10"
+                  }`}
+                >
+                  <Plus className="size-3.5" aria-hidden />
+                  {p.name}
+                </button>
+              ))}
+            </div>
+            <p className="text-tag text-ink-subtle mt-2">
+              Click a project to use it as the intake&apos;s name, or type your own below.
+            </p>
+          </div>
         )}
 
         <Field
