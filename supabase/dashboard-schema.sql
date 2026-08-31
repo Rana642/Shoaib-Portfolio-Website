@@ -325,9 +325,23 @@ create table if not exists client_intakes (
   brand_notes text,           -- colours, fonts, voice, do's and don'ts
   account_access_notes text,  -- existing accounts / who currently has access
   brand_asset_links text,     -- Drive / Dropbox / WeTransfer links
-  -- Files uploaded straight to object storage: [{ key, name, size, type }].
+  -- Files uploaded straight to object storage: [{ key, name, size, type,
+  -- kind }] — kind is "logo" or "media".
   assets jsonb not null default '[]'::jsonb,
   additional_notes text,
+  -- Richer intake fields (added 2026-08-28 for the multi-step form). All
+  -- optional text; multi-value ones are stored comma-separated.
+  contact_role text,        -- designation
+  whatsapp text,
+  registered_name text,     -- client's registered business name
+  operating_days text,      -- "Mon, Tue, ..."
+  hours_open text,
+  hours_close text,
+  service_areas text,       -- cities / regions, comma-separated
+  landmark text,
+  brand_colors text,        -- hex values, comma-separated
+  platforms text,           -- preferred social platforms, comma-separated
+  master_email text,        -- master Gmail for asset assignment
   submitted_at timestamptz
 );
 
@@ -335,6 +349,19 @@ create index if not exists client_intakes_client_idx on client_intakes (client_i
 create index if not exists client_intakes_token_idx on client_intakes (access_token);
 
 alter table client_intakes enable row level security;
+
+-- Safe to run against an already-existing client_intakes table.
+alter table client_intakes add column if not exists contact_role text;
+alter table client_intakes add column if not exists whatsapp text;
+alter table client_intakes add column if not exists registered_name text;
+alter table client_intakes add column if not exists operating_days text;
+alter table client_intakes add column if not exists hours_open text;
+alter table client_intakes add column if not exists hours_close text;
+alter table client_intakes add column if not exists service_areas text;
+alter table client_intakes add column if not exists landmark text;
+alter table client_intakes add column if not exists brand_colors text;
+alter table client_intakes add column if not exists platforms text;
+alter table client_intakes add column if not exists master_email text;
 
 -- ── Agreements ──────────────────────────────────────────────
 -- Generated automatically when a proposal is accepted. content is a

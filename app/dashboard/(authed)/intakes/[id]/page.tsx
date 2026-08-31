@@ -14,17 +14,27 @@ import type { ClientIntake } from "@/lib/dashboard/types";
 export const dynamic = "force-dynamic";
 
 const fields: { key: keyof ClientIntake; label: string }[] = [
-  { key: "contact_name", label: "Contact name" },
-  { key: "contact_emails", label: "Contact email(s)" },
-  { key: "contact_phone", label: "Phone / WhatsApp" },
-  { key: "address", label: "Business address" },
+  { key: "contact_name", label: "Full name" },
+  { key: "contact_role", label: "Designation" },
+  { key: "contact_emails", label: "Email" },
+  { key: "contact_phone", label: "Phone" },
+  { key: "whatsapp", label: "WhatsApp" },
+  { key: "registered_name", label: "Registered business name" },
   { key: "website", label: "Website" },
-  { key: "social_handles", label: "Existing social profiles" },
-  { key: "competitors", label: "Competitors" },
-  { key: "target_audience", label: "Target audience" },
+  { key: "address", label: "Business address" },
+  { key: "operating_days", label: "Operating days" },
+  { key: "hours_open", label: "Opening time" },
+  { key: "hours_close", label: "Closing time" },
+  { key: "service_areas", label: "Service areas" },
+  { key: "landmark", label: "Landmark / directions" },
+  { key: "target_audience", label: "Ideal customer" },
   { key: "brand_notes", label: "Brand notes" },
-  { key: "account_access_notes", label: "Existing account access" },
-  { key: "brand_asset_links", label: "Brand asset links" },
+  { key: "competitors", label: "Competitor / reference sites" },
+  { key: "platforms", label: "Preferred platforms" },
+  { key: "social_handles", label: "Desired handles" },
+  { key: "master_email", label: "Master Gmail" },
+  { key: "account_access_notes", label: "Account access" },
+  { key: "brand_asset_links", label: "Asset links" },
   { key: "additional_notes", label: "Notes" },
 ];
 
@@ -32,6 +42,38 @@ function humanSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+type AssetLink = { key: string; name: string; size: number; url: string | null };
+
+function AssetGroup({ title, items }: { title: string; items: AssetLink[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="mt-8 pt-6 border-t border-ink/10">
+      <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-3">
+        {title} ({items.length})
+      </p>
+      <ul className="space-y-2">
+        {items.map((a) => (
+          <li key={a.key} className="flex items-center gap-3 rounded-lg border border-ink/10 bg-white px-3.5 py-2.5">
+            <span className="text-small truncate flex-1">{a.name}</span>
+            <span className="text-tag text-ink-subtle whitespace-nowrap">{humanSize(a.size)}</span>
+            {a.url ? (
+              <a
+                href={a.url}
+                className="inline-flex items-center gap-1.5 text-small text-cobalt hover:text-ink transition-colors"
+              >
+                <Download className="size-4" aria-hidden />
+                Download
+              </a>
+            ) : (
+              <span className="text-tag text-ink-subtle">storage off</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 export default async function IntakeDetailPage({ params }: PageProps<"/dashboard/intakes/[id]">) {
@@ -128,37 +170,28 @@ export default async function IntakeDetailPage({ params }: PageProps<"/dashboard
             ))}
           </dl>
 
-          {assetLinks.length > 0 && (
-            <div className="mt-8 pt-6 border-t border-ink/10">
-              <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-3">
-                Uploaded assets ({assetLinks.length})
+          {intake.brand_colors?.trim() && (
+            <div className="mt-6">
+              <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-2">
+                Brand colours
               </p>
-              <ul className="space-y-2">
-                {assetLinks.map((a) => (
-                  <li
-                    key={a.key}
-                    className="flex items-center gap-3 rounded-lg border border-ink/10 bg-white px-3.5 py-2.5"
-                  >
-                    <span className="text-small truncate flex-1">{a.name}</span>
-                    <span className="text-tag text-ink-subtle whitespace-nowrap">
-                      {humanSize(a.size)}
+              <div className="flex flex-wrap gap-3">
+                {intake.brand_colors.split(",").map((c) => {
+                  const hex = c.trim();
+                  return (
+                    <span key={hex} className="inline-flex items-center gap-2 rounded-lg border border-ink/10 pl-1.5 pr-2.5 py-1">
+                      <span className="size-6 rounded border border-ink/10" style={{ backgroundColor: hex }} aria-hidden />
+                      <span className="font-mono text-tag uppercase">{hex}</span>
                     </span>
-                    {a.url ? (
-                      <a
-                        href={a.url}
-                        className="inline-flex items-center gap-1.5 text-small text-cobalt hover:text-ink transition-colors"
-                      >
-                        <Download className="size-4" aria-hidden />
-                        Download
-                      </a>
-                    ) : (
-                      <span className="text-tag text-ink-subtle">storage off</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
+                  );
+                })}
+              </div>
             </div>
           )}
+
+          <AssetGroup title="Logo" items={assetLinks.filter((a) => a.kind === "logo")} />
+          <AssetGroup title="Media & product photos" items={assetLinks.filter((a) => a.kind === "media")} />
+          <AssetGroup title="Other files" items={assetLinks.filter((a) => a.kind !== "logo" && a.kind !== "media")} />
 
           {filled.length === 0 && assetLinks.length === 0 && (
             <p className="text-small text-ink-muted">The client submitted the form with no details filled in.</p>

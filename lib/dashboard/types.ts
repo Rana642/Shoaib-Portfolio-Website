@@ -142,6 +142,8 @@ export type IntakeAsset = {
   name: string;
   size: number;
   type: string;
+  /** "logo" or "media" — which upload zone it came from. */
+  kind?: "logo" | "media";
 };
 
 export type ClientIntake = {
@@ -152,14 +154,25 @@ export type ClientIntake = {
   access_token: string;
   status: OnboardingStatus;
   contact_name: string | null;
+  contact_role: string | null;
   contact_emails: string | null;
   contact_phone: string | null;
+  whatsapp: string | null;
+  registered_name: string | null;
   address: string | null;
   website: string | null;
-  social_handles: string | null;
-  competitors: string | null;
+  operating_days: string | null;
+  hours_open: string | null;
+  hours_close: string | null;
+  service_areas: string | null;
+  landmark: string | null;
+  brand_colors: string | null;
   target_audience: string | null;
   brand_notes: string | null;
+  social_handles: string | null;
+  competitors: string | null;
+  platforms: string | null;
+  master_email: string | null;
   account_access_notes: string | null;
   brand_asset_links: string | null;
   assets: IntakeAsset[];
