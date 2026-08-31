@@ -45,6 +45,17 @@ export async function deleteIntake(id: string) {
   redirect("/dashboard/intakes");
 }
 
+/** Lock (or unlock) an intake. Once locked, the client can no longer edit
+ *  their submission from the public link — Shoaib closes it when the info
+ *  is final. */
+export async function setIntakeLocked(id: string, locked: boolean) {
+  await assertAuthed();
+  const { error } = await db.from("client_intakes").update({ locked }).eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath(`/dashboard/intakes/${id}`);
+  return { ok: true };
+}
+
 /** Public — validated by access_token alone, same pattern as the other
  *  token-gated public actions. */
 export async function getIntakeByToken(token: string): Promise<ClientIntake | null> {
@@ -95,12 +106,14 @@ const submitSchema = z.object({
 export async function submitIntake(token: string, formData: FormData) {
   const { data: intake } = await db
     .from("client_intakes")
-    .select("id, status")
+    .select("id, locked")
     .eq("access_token", token)
     .maybeSingle();
 
   if (!intake) return { error: "This intake link isn't valid." };
-  if (intake.status === "submitted") return { error: "This form has already been submitted." };
+  // Re-submitting is allowed (the client can keep editing) until Shoaib
+  // locks the form from the dashboard.
+  if (intake.locked) return { error: "This form is closed for edits — please get in touch to update anything." };
 
   let assets: IntakeAsset[] = [];
   try {

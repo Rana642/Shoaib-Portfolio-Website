@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Download, Mail } from "lucide-react";
+import { ArrowLeft, Download, Mail, Lock, LockOpen } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
 import { formatDate } from "@/lib/dashboard/format";
 import { siteUrl } from "@/lib/seo";
-import { deleteIntake } from "@/lib/dashboard/actions/intakes";
+import { deleteIntake, setIntakeLocked } from "@/lib/dashboard/actions/intakes";
 import { isStorageConfigured, presignDownload } from "@/lib/storage";
 import { Card, StatusBadge, buttonStyles } from "@/components/dashboard/ui";
 import WhatsAppShareLink from "@/components/dashboard/WhatsAppShareLink";
@@ -99,6 +99,11 @@ export default async function IntakeDetailPage({ params }: PageProps<"/dashboard
     return deleteIntake(id);
   }
 
+  async function toggleLock() {
+    "use server";
+    await setIntakeLocked(id, !intake.locked);
+  }
+
   const filled = fields.filter((f) => (intake[f.key] as string | null)?.trim());
 
   return (
@@ -144,6 +149,24 @@ export default async function IntakeDetailPage({ params }: PageProps<"/dashboard
           <a href={publicUrl} target="_blank" rel="noopener noreferrer" className={buttonStyles.secondary}>
             Open form
           </a>
+        </div>
+
+        <div className="mt-5 pt-4 border-t border-ink/10 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-small text-ink-muted flex items-center gap-2">
+            {intake.locked ? (
+              <Lock className="size-4 text-ink-subtle" aria-hidden />
+            ) : (
+              <LockOpen className="size-4 text-ink-subtle" aria-hidden />
+            )}
+            {intake.locked
+              ? "Locked — the client can no longer edit."
+              : "Open — the client can still edit and re-submit from the link."}
+          </p>
+          <form action={toggleLock}>
+            <button type="submit" className={buttonStyles.secondary}>
+              {intake.locked ? "Unlock (allow edits)" : "Lock form (stop edits)"}
+            </button>
+          </form>
         </div>
       </Card>
 

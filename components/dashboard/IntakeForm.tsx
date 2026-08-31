@@ -4,7 +4,9 @@ import { useState, useRef, useTransition } from "react";
 import { LoaderCircle, Upload, X, FileText, Check, ArrowLeft, ArrowRight, Plus } from "lucide-react";
 import { submitIntake } from "@/lib/dashboard/actions/intakes";
 import { Field, inputClasses, buttonStyles, Card } from "@/components/dashboard/ui";
-import type { IntakeAsset } from "@/lib/dashboard/types";
+import type { ClientIntake, IntakeAsset } from "@/lib/dashboard/types";
+
+const csv = (s?: string | null) => (s ? s.split(",").map((x) => x.trim()).filter(Boolean) : []);
 
 const MAX_BYTES = 50 * 1024 * 1024;
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -29,25 +31,31 @@ function humanSize(bytes: number) {
 export default function IntakeForm({
   token,
   uploadsEnabled,
+  initial,
 }: {
   token: string;
   uploadsEnabled: boolean;
+  /** Existing answers, so a client returning to the link can edit them. */
+  initial?: ClientIntake;
 }) {
+  const comps = (initial?.competitors ?? "").split("\n");
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  // Already-submitted clients land on the "thanks" screen but can re-open
+  // the (pre-filled) wizard to edit, until Shoaib locks the form.
+  const [submitted, setSubmitted] = useState(initial?.status === "submitted");
   const [pending, startTransition] = useTransition();
 
-  // Stateful (non-plain-input) fields.
-  const [phone, setPhone] = useState("");
-  const [whatsapp, setWhatsapp] = useState("");
+  // Stateful (non-plain-input) fields — seeded from any existing answers.
+  const [phone, setPhone] = useState(initial?.contact_phone ?? "");
+  const [whatsapp, setWhatsapp] = useState(initial?.whatsapp ?? "");
   const [sameWhatsapp, setSameWhatsapp] = useState(false);
-  const [days, setDays] = useState<string[]>([]);
-  const [areas, setAreas] = useState<string[]>([]);
+  const [days, setDays] = useState<string[]>(csv(initial?.operating_days));
+  const [areas, setAreas] = useState<string[]>(csv(initial?.service_areas));
   const [areaInput, setAreaInput] = useState("");
-  const [colors, setColors] = useState<string[]>([]);
-  const [platforms, setPlatforms] = useState<string[]>([]);
-  const [assets, setAssets] = useState<IntakeAsset[]>([]);
+  const [colors, setColors] = useState<string[]>(csv(initial?.brand_colors));
+  const [platforms, setPlatforms] = useState<string[]>(csv(initial?.platforms));
+  const [assets, setAssets] = useState<IntakeAsset[]>(initial?.assets ?? []);
   const [uploading, setUploading] = useState<"logo" | "media" | null>(null);
   const [review, setReview] = useState<ReviewSection[]>([]);
   const formRef = useRef<HTMLFormElement>(null);
@@ -208,6 +216,16 @@ export default function IntakeForm({
         <p className="text-small text-ink-muted mt-1">
           I&apos;ll take it from here and be in touch to get your accounts set up.
         </p>
+        <button
+          type="button"
+          onClick={() => {
+            setSubmitted(false);
+            setStep(0);
+          }}
+          className={`${buttonStyles.secondary} mt-6`}
+        >
+          Need to change something? Edit my answers
+        </button>
       </Card>
     );
   }
@@ -216,7 +234,18 @@ export default function IntakeForm({
   const media = assets.filter((a) => a.kind === "media");
 
   return (
-    <form ref={formRef} action={onSubmit} className="space-y-6">
+    <form
+      ref={formRef}
+      action={onSubmit}
+      onKeyDown={(e) => {
+        // Stop Enter in a text field from submitting the whole wizard —
+        // submit only happens on the Review step's button.
+        if (e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA") {
+          e.preventDefault();
+        }
+      }}
+      className="space-y-6"
+    >
       {/* Progress */}
       <div>
         <div className="flex items-center justify-between mb-2">
@@ -245,10 +274,10 @@ export default function IntakeForm({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <Field label="Your full name" htmlFor="contact_name">
-              <input id="contact_name" name="contact_name" className={inputClasses} />
+              <input id="contact_name" name="contact_name" defaultValue={initial?.contact_name ?? ""} className={inputClasses} />
             </Field>
             <Field label="Your role / designation" htmlFor="contact_role" hint="e.g. Owner, Manager">
-              <input id="contact_role" name="contact_role" className={inputClasses} />
+              <input id="contact_role" name="contact_role" defaultValue={initial?.contact_role ?? ""} className={inputClasses} />
             </Field>
           </div>
         </Card>
@@ -264,10 +293,10 @@ export default function IntakeForm({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <Field label="Business / brand name" htmlFor="registered_name">
-              <input id="registered_name" name="registered_name" className={inputClasses} />
+              <input id="registered_name" name="registered_name" defaultValue={initial?.registered_name ?? ""} className={inputClasses} />
             </Field>
             <Field label="Business email" htmlFor="contact_emails">
-              <input id="contact_emails" name="contact_emails" type="email" className={inputClasses} />
+              <input id="contact_emails" name="contact_emails" type="email" defaultValue={initial?.contact_emails ?? ""} className={inputClasses} />
             </Field>
             <Field label="Business phone number" htmlFor="contact_phone">
               <input
@@ -279,7 +308,7 @@ export default function IntakeForm({
               />
             </Field>
             <Field label="Business website (if any)" htmlFor="website">
-              <input id="website" name="website" placeholder="https://" className={inputClasses} />
+              <input id="website" name="website" placeholder="https://" defaultValue={initial?.website ?? ""} className={inputClasses} />
             </Field>
           </div>
           <Field label="Business WhatsApp" htmlFor="whatsapp">
@@ -301,7 +330,7 @@ export default function IntakeForm({
             </label>
           </Field>
           <Field label="Business address" htmlFor="address" hint="The location that should appear on profiles and maps.">
-            <textarea id="address" name="address" rows={2} className={inputClasses} />
+            <textarea id="address" name="address" rows={2} defaultValue={initial?.address ?? ""} className={inputClasses} />
           </Field>
         </Card>
       </div>
@@ -332,10 +361,10 @@ export default function IntakeForm({
           </Field>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <Field label="Opening time" htmlFor="hours_open">
-              <input id="hours_open" name="hours_open" type="time" className={inputClasses} />
+              <input id="hours_open" name="hours_open" type="time" defaultValue={initial?.hours_open ?? ""} className={inputClasses} />
             </Field>
             <Field label="Closing time" htmlFor="hours_close">
-              <input id="hours_close" name="hours_close" type="time" className={inputClasses} />
+              <input id="hours_close" name="hours_close" type="time" defaultValue={initial?.hours_close ?? ""} className={inputClasses} />
             </Field>
           </div>
           <Field label="Service areas / delivery regions" hint="Cities or areas you serve — type and press Enter.">
@@ -373,7 +402,7 @@ export default function IntakeForm({
             )}
           </Field>
           <Field label="Landmark / directions" htmlFor="landmark" hint="Anything that helps people find you.">
-            <textarea id="landmark" name="landmark" rows={2} className={inputClasses} />
+            <textarea id="landmark" name="landmark" rows={2} defaultValue={initial?.landmark ?? ""} className={inputClasses} />
           </Field>
         </Card>
       </div>
@@ -428,11 +457,11 @@ export default function IntakeForm({
             htmlFor="target_audience"
             hint="Age group, lifestyle, and the problem you solve for them."
           >
-            <textarea id="target_audience" name="target_audience" rows={3} className={inputClasses} />
+            <textarea id="target_audience" name="target_audience" rows={3} defaultValue={initial?.target_audience ?? ""} className={inputClasses} />
           </Field>
 
           <Field label="Brand notes" htmlFor="brand_notes" hint="Fonts, tone of voice, anything to do or avoid.">
-            <textarea id="brand_notes" name="brand_notes" rows={2} className={inputClasses} />
+            <textarea id="brand_notes" name="brand_notes" rows={2} defaultValue={initial?.brand_notes ?? ""} className={inputClasses} />
           </Field>
 
           <UploadZone
@@ -451,7 +480,7 @@ export default function IntakeForm({
             htmlFor="brand_asset_links"
             hint="Google Drive / Dropbox / WeTransfer links."
           >
-            <textarea id="brand_asset_links" name="brand_asset_links" rows={2} className={inputClasses} />
+            <textarea id="brand_asset_links" name="brand_asset_links" rows={2} defaultValue={initial?.brand_asset_links ?? ""} className={inputClasses} />
           </Field>
         </Card>
       </div>
@@ -464,9 +493,9 @@ export default function IntakeForm({
           </p>
           <Field label="Competitor or reference websites you like" hint="Up to three — links you admire.">
             <div className="space-y-2">
-              <input name="competitor_1" type="url" placeholder="https://" className={inputClasses} />
-              <input name="competitor_2" type="url" placeholder="https://" className={inputClasses} />
-              <input name="competitor_3" type="url" placeholder="https://" className={inputClasses} />
+              <input name="competitor_1" type="url" placeholder="https://" defaultValue={comps[0] ?? ""} className={inputClasses} />
+              <input name="competitor_2" type="url" placeholder="https://" defaultValue={comps[1] ?? ""} className={inputClasses} />
+              <input name="competitor_3" type="url" placeholder="https://" defaultValue={comps[2] ?? ""} className={inputClasses} />
             </div>
           </Field>
           <Field label="Preferred social platforms">
@@ -492,17 +521,17 @@ export default function IntakeForm({
             htmlFor="social_handles"
             hint="e.g. @yourbrand — one per line if they differ per platform."
           >
-            <textarea id="social_handles" name="social_handles" rows={2} className={inputClasses} />
+            <textarea id="social_handles" name="social_handles" rows={2} defaultValue={initial?.social_handles ?? ""} className={inputClasses} />
           </Field>
           <Field
             label="Master Gmail address"
             htmlFor="master_email"
             hint="The Google account new profiles and assets should be assigned to."
           >
-            <input id="master_email" name="master_email" type="email" className={inputClasses} />
+            <input id="master_email" name="master_email" type="email" defaultValue={initial?.master_email ?? ""} className={inputClasses} />
           </Field>
           <Field label="Anything else?" htmlFor="additional_notes">
-            <textarea id="additional_notes" name="additional_notes" rows={3} className={inputClasses} />
+            <textarea id="additional_notes" name="additional_notes" rows={3} defaultValue={initial?.additional_notes ?? ""} className={inputClasses} />
           </Field>
         </Card>
       </div>

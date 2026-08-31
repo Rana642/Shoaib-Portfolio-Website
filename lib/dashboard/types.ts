@@ -153,6 +153,7 @@ export type ClientIntake = {
   business_name: string;
   access_token: string;
   status: OnboardingStatus;
+  locked: boolean;
   contact_name: string | null;
   contact_role: string | null;
   contact_emails: string | null;

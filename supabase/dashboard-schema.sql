@@ -313,6 +313,9 @@ create table if not exists client_intakes (
   business_name text not null,
   access_token text not null unique,
   status text not null default 'pending' check (status in ('pending','submitted')),
+  -- The client can keep editing their submission until Shoaib locks it from
+  -- the dashboard; once locked, the public form is read-only.
+  locked boolean not null default false,
   -- Collected fields — all optional, the client fills what they can.
   contact_name text,
   contact_emails text,
@@ -351,6 +354,7 @@ create index if not exists client_intakes_token_idx on client_intakes (access_to
 alter table client_intakes enable row level security;
 
 -- Safe to run against an already-existing client_intakes table.
+alter table client_intakes add column if not exists locked boolean not null default false;
 alter table client_intakes add column if not exists contact_role text;
 alter table client_intakes add column if not exists whatsapp text;
 alter table client_intakes add column if not exists registered_name text;

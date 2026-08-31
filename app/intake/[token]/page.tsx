@@ -31,12 +31,12 @@ export default async function PublicIntakePage({
           nothing here is mandatory, and you can share files or links for your brand assets.
         </p>
 
-        {intake.status === "submitted" ? (
+        {intake.locked ? (
           <p className="text-body-lg font-medium">
-            This has already been submitted — thanks, I&apos;m all set.
+            This form is now closed. If you need to update anything, please get in touch.
           </p>
         ) : (
-          <IntakeForm token={token} uploadsEnabled={isStorageConfigured} />
+          <IntakeForm token={token} uploadsEnabled={isStorageConfigured} initial={intake} />
         )}
       </div>
     </main>
