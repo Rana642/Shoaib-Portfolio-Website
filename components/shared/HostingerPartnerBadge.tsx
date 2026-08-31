@@ -10,16 +10,30 @@ import { hostinger } from "@/lib/hostinger";
 export default function HostingerPartnerBadge({
   width = 168,
   square = false,
+  asLink = true,
   className = "",
 }: {
   width?: number;
   /** Use the square lockup instead of the horizontal pill. */
   square?: boolean;
+  /** When false, renders the badge as a plain credential image with no
+   *  referral link — for client-facing documents (proposals, agreements)
+   *  where an affiliate link would be out of place. */
+  asLink?: boolean;
   className?: string;
 }) {
   const src = square ? hostinger.badge.square : hostinger.badge.horizontal;
   // Source aspect ratios: horizontal 320×120, square 240×240.
   const height = square ? width : Math.round((width * 120) / 320);
+  const img = <Image src={src} alt="Verified Hostinger Partner" width={width} height={height} />;
+
+  if (!asLink) {
+    return (
+      <span className={`inline-block shrink-0 ${className}`} title="Verified Hostinger Partner">
+        {img}
+      </span>
+    );
+  }
 
   return (
     <a
@@ -30,7 +44,7 @@ export default function HostingerPartnerBadge({
       title="Verified Hostinger Partner"
       className={`inline-block shrink-0 transition-transform duration-300 hover:-translate-y-0.5 ${className}`}
     >
-      <Image src={src} alt="Verified Hostinger Partner" width={width} height={height} />
+      {img}
     </a>
   );
 }

@@ -1,5 +1,6 @@
 import { formatDate } from "@/lib/dashboard/format";
 import type { Settings } from "@/lib/dashboard/types";
+import HostingerPartnerBadge from "@/components/shared/HostingerPartnerBadge";
 import ChargesBreakdown, {
   type ChargesBreakdownProposal,
   type PreviewLineItem,
@@ -123,6 +124,15 @@ export default function ProposalPreview({
           <p className="text-small text-ink-muted whitespace-pre-line">{proposal.terms}</p>
         </div>
       )}
+
+      {/* Partner credential */}
+      <div className="mt-10 pt-6 border-t border-ink/10 flex items-center gap-4 avoid-break">
+        <HostingerPartnerBadge width={128} asLink={false} />
+        <p className="text-tag text-ink-subtle max-w-xs leading-relaxed">
+          Your site is built and hosted on infrastructure I trust — as a verified Hostinger
+          Partner, I pass on a 20% discount.
+        </p>
+      </div>
 
       {footer}
     </div>
