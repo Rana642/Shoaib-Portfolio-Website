@@ -544,3 +544,44 @@ alter table quotation_items enable row level security;
 alter table invoices enable row level security;
 alter table invoice_items enable row level security;
 alter table payments enable row level security;
+
+-- ── Password vault (zero-knowledge) ─────────────────────────
+-- A NordPass-style vault for client credentials. EVERYTHING sensitive is
+-- encrypted in the BROWSER (AES-256-GCM) with a key that never touches the
+-- server — Supabase only ever stores ciphertext and wrapped keys, so a DB
+-- leak exposes nothing usable. See lib/vault-crypto.ts.
+
+-- Single row (id = 1): the crypto material needed to unlock. The data key
+-- is wrapped twice — once by the master password, once by a recovery key
+-- shown to Shoaib only at setup. None of these are secret on their own.
+create table if not exists vault_meta (
+  id int primary key default 1 check (id = 1),
+  created_at timestamptz not null default now(),
+  salt text not null,
+  iterations int not null,
+  wrapped_dk text not null,
+  wrapped_dk_iv text not null,
+  wrapped_dk_recovery text not null,
+  wrapped_dk_recovery_iv text not null
+);
+
+alter table vault_meta enable row level security;
+
+create table if not exists vault_entries (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  -- Non-secret, for listing/linking only.
+  client_id uuid references clients (id) on delete set null,
+  title text not null,
+  service text,
+  -- The encrypted payload: { username, password, totp, backupCodes,
+  -- recoveryEmail, recoveryPhone, securityQa, url, notes }. Opaque to the
+  -- server.
+  ciphertext text not null,
+  iv text not null
+);
+
+create index if not exists vault_entries_client_idx on vault_entries (client_id);
+
+alter table vault_entries enable row level security;

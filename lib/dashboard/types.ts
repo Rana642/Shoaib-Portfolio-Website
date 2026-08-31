@@ -1,3 +1,42 @@
+/** Crypto material to unlock the zero-knowledge vault. None of this is
+ *  secret on its own — the data key is only recoverable with the master
+ *  password or the recovery key, neither of which is ever stored. */
+export type VaultMeta = {
+  id: number;
+  salt: string;
+  iterations: number;
+  wrapped_dk: string;
+  wrapped_dk_iv: string;
+  wrapped_dk_recovery: string;
+  wrapped_dk_recovery_iv: string;
+};
+
+/** A vault entry as stored — the sensitive payload lives encrypted in
+ *  `ciphertext`; only the title/service/client link are plaintext. */
+export type VaultEntry = {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  client_id: string | null;
+  title: string;
+  service: string | null;
+  ciphertext: string;
+  iv: string;
+};
+
+/** The decrypted shape inside a vault entry's ciphertext (browser only). */
+export type VaultSecret = {
+  username?: string;
+  password?: string;
+  totp?: string;
+  backupCodes?: string;
+  recoveryEmail?: string;
+  recoveryPhone?: string;
+  securityQa?: string;
+  url?: string;
+  notes?: string;
+};
+
 export type Client = {
   id: string;
   created_at: string;

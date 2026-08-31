@@ -14,6 +14,7 @@ import {
   FileSignature,
   ClipboardList,
   FolderInput,
+  KeyRound,
   Settings as SettingsIcon,
   PenSquare,
   LogOut,
@@ -52,6 +53,7 @@ const nav: NavItem[] = [
   },
   { href: "/dashboard/quotations", label: "Quotations", icon: FileText },
   { href: "/dashboard/invoices", label: "Invoices", icon: Receipt },
+  { href: "/dashboard/vault", label: "Vault", icon: KeyRound },
   { href: "/dashboard/settings", label: "Settings", icon: SettingsIcon },
 ];
 
