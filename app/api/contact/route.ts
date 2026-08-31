@@ -4,6 +4,7 @@ import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { resend, isResendConfigured, fromEmail, toEmail } from "@/lib/resend";
 import { contactNotificationEmail, contactAutoReplyEmail } from "@/lib/email-templates";
 import { sendMetaCapiEvent } from "@/lib/meta-capi";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const schema = z.object({
   name: z.string().min(2).max(200),
@@ -14,6 +15,12 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
+  // Cap audit-request submissions per IP so the form can't be used to spam
+  // Shoaib's inbox or burn Resend/Meta quota.
+  if (!(await rateLimit(`contact:${clientIp(request)}`, 5, 600))) {
+    return NextResponse.json({ error: "Too many requests. Please try again shortly." }, { status: 429 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();

@@ -585,3 +585,40 @@ create table if not exists vault_entries (
 create index if not exists vault_entries_client_idx on vault_entries (client_id);
 
 alter table vault_entries enable row level security;
+
+-- ── Rate limiting ───────────────────────────────────────────
+-- Shared, atomic per-key request counter for public endpoints (contact,
+-- newsletter, intake uploads) — serverless instances don't share memory,
+-- so the limiter lives in the DB. check_rate_limit() increments (or resets
+-- once the window passes) and returns whether the request is allowed.
+create table if not exists rate_limits (
+  key text primary key,
+  count int not null default 0,
+  window_start timestamptz not null default now()
+);
+
+alter table rate_limits enable row level security;
+
+create or replace function check_rate_limit(p_key text, p_limit int, p_window_seconds int)
+returns boolean
+language plpgsql
+as $$
+declare
+  v_count int;
+begin
+  insert into rate_limits (key, count, window_start)
+  values (p_key, 1, now())
+  on conflict (key) do update set
+    count = case
+      when rate_limits.window_start < now() - make_interval(secs => p_window_seconds) then 1
+      else rate_limits.count + 1
+    end,
+    window_start = case
+      when rate_limits.window_start < now() - make_interval(secs => p_window_seconds) then now()
+      else rate_limits.window_start
+    end
+  returning count into v_count;
+
+  return v_count <= p_limit;
+end;
+$$;

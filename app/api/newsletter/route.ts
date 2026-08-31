@@ -3,10 +3,15 @@ import { z } from "zod";
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { resend, isResendConfigured, fromEmail } from "@/lib/resend";
 import { newsletterWelcomeEmail } from "@/lib/email-templates";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const schema = z.object({ email: z.string().email().max(320) });
 
 export async function POST(request: Request) {
+  if (!(await rateLimit(`news:${clientIp(request)}`, 5, 600))) {
+    return NextResponse.json({ error: "Too many requests. Please try again shortly." }, { status: 429 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();

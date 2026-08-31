@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/dashboard/db";
 import { isStorageConfigured, presignUpload } from "@/lib/storage";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 /**
  * Public endpoint the intake form calls to get a short-lived presigned PUT
@@ -13,6 +14,12 @@ export async function POST(request: Request, ctx: { params: Promise<{ token: str
   }
 
   const { token } = await ctx.params;
+
+  // Cap presigned-URL requests so a leaked/shared intake link can't be used
+  // to hammer object storage and run up R2 costs.
+  if (!(await rateLimit(`intakeup:${clientIp(request)}:${token}`, 40, 600))) {
+    return NextResponse.json({ error: "Too many uploads. Please wait a moment." }, { status: 429 });
+  }
 
   const { data: intake } = await db
     .from("client_intakes")
