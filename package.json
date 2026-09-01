@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "generate:resume-pdf": "tsx scripts/generate-resume-pdf.tsx",
-    "migrate:sanity": "tsx --env-file=.env.local scripts/migrate-to-sanity.ts"
+    "migrate:sanity": "tsx --env-file=.env.local scripts/migrate-to-sanity.ts",
+    "backup:db": "node scripts/backup-db.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1121.0",
