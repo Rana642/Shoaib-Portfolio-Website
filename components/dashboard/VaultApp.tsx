@@ -351,7 +351,9 @@ function SetupScreen({
 
   const submit = async () => {
     setLocalErr(null);
-    if (pw.length < 8) return setLocalErr("Use at least 8 characters.");
+    // This one password protects every client credential, so hold it to a
+    // higher bar than a normal login — length is the strongest lever.
+    if (pw.length < 12) return setLocalErr("Use at least 12 characters — a passphrase works well.");
     if (pw !== confirm) return setLocalErr("Passwords don't match.");
     const rk = await onSetup(pw);
     if (rk) setRecoveryKey(rk);
@@ -407,8 +409,8 @@ function SetupScreen({
       </div>
       <h2 className="text-body-lg font-semibold">Set up your vault</h2>
       <p className="text-small text-ink-muted mt-2 mb-6">
-        Choose a master password. It&apos;s never sent anywhere and can&apos;t be reset — everything
-        is encrypted with it in your browser.
+        Choose a strong master password (at least 12 characters — a passphrase is ideal). It&apos;s
+        never sent anywhere and can&apos;t be reset — everything is encrypted with it in your browser.
       </p>
       <div className="space-y-4">
         <Field label="Master password" htmlFor="mp">

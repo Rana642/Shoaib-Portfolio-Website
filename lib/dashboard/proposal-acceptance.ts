@@ -2,7 +2,7 @@ import { db } from "./db";
 import { resend, isResendConfigured, fromEmail } from "../resend";
 import { agreementReadyEmail } from "../email-templates";
 import { siteUrl } from "../seo";
-import { generateNumber } from "./actions/documents";
+import { generateNumber } from "./numbering";
 import { buildAgreementClauses } from "./agreement-template";
 import { formatDate } from "./format";
 import type { Proposal } from "./types";

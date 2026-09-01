@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "../db";
 import { getUser } from "../auth";
 import { calculateTotals, round2 } from "../format";
-import { generateNumber } from "./documents";
+import { generateNumber } from "../numbering";
 import { resend, isResendConfigured, fromEmail } from "../../resend";
 import { proposalSentEmail } from "../../email-templates";
 import { siteUrl } from "../../seo";

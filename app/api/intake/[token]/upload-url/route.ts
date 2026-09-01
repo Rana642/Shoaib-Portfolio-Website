@@ -53,7 +53,9 @@ export async function POST(request: Request, ctx: { params: Promise<{ token: str
   const key = `intakes/${token}/${crypto.randomUUID()}-${safeName}`;
 
   try {
-    const url = await presignUpload(key, type);
+    // Bake the declared size into the signature so the browser can't upload
+    // a larger body than it claimed (caps R2 cost abuse at the 50 MB limit).
+    const url = await presignUpload(key, type, size);
     return NextResponse.json({ url, key });
   } catch {
     return NextResponse.json({ error: "Couldn't prepare the upload." }, { status: 500 });

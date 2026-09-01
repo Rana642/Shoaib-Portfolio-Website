@@ -28,7 +28,10 @@ function buildCsp(nonce: string): string {
     // Inline styles are needed by Next, next/font, and React style props;
     // style injection is far lower-risk than script injection.
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https:",
+    // No blanket https: — that would let an XSS payload beacon a stolen
+    // vault secret out as an <img> request to any host. Only our own
+    // images, inline data/blob, and Sanity's CDN.
+    "img-src 'self' data: blob: https://cdn.sanity.io",
     "font-src 'self' data:",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.r2.cloudflarestorage.com https://cdn.sanity.io https://*.sanity.io https://*.apicdn.sanity.io https://www.googletagmanager.com https://www.google-analytics.com https://region1.google-analytics.com https://connect.facebook.net https://*.facebook.com https://vitals.vercel-insights.com",
     "frame-src 'self' https://www.googletagmanager.com",

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "../db";
 import { getUser } from "../auth";
 import { calculateTotals, round2 } from "../format";
+import { generateNumber } from "../numbering";
 
 async function assertAuthed() {
   const user = await getUser();
@@ -65,22 +66,6 @@ function parseDocumentForm(formData: FormData) {
     return { success: false as const, error: parsed.error.issues[0].message };
   }
   return { success: true as const, data: parsed.data };
-}
-
-/**
- * Reserves the next number for the year, e.g. INV-2026-001. The counter
- * lives in Postgres so two documents created at once can't collide.
- * Numbers are consumed even if the insert later fails — a gap is far less
- * dangerous on financial records than a duplicate.
- */
-export async function generateNumber(kind: string, prefix: string): Promise<string | null> {
-  const year = new Date().getFullYear();
-  const { data, error } = await db.rpc("next_document_number", {
-    p_doc_type: kind,
-    p_year: year,
-  });
-  if (error || data == null) return null;
-  return `${prefix}-${year}-${String(data).padStart(3, "0")}`;
 }
 
 export async function createDocument(kind: DocumentKind, formData: FormData) {

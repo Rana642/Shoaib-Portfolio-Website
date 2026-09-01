@@ -34,7 +34,13 @@ export default function LoginForm() {
       return;
     }
 
-    router.push(searchParams.get("next") || "/dashboard");
+    // Only follow `next` if it's a same-origin relative path — never an
+    // absolute or protocol-relative URL — so a crafted ?next=https://evil.com
+    // link can't turn login into an open redirect (phishing).
+    const nextParam = searchParams.get("next");
+    const safeNext =
+      nextParam && /^\/(?![/\\])/.test(nextParam) ? nextParam : "/dashboard";
+    router.push(safeNext);
     router.refresh();
   };
 

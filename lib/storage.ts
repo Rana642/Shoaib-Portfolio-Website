@@ -33,10 +33,24 @@ const client = isStorageConfigured
   : null;
 
 /** Presigned PUT so the browser uploads straight to storage — credentials
- *  stay on the server and the upload skips the serverless body-size limit. */
-export async function presignUpload(key: string, contentType: string, expiresIn = 600) {
+ *  stay on the server and the upload skips the serverless body-size limit.
+ *  When contentLength is given it's baked into the signature, so the client
+ *  can't upload more bytes than it declared (an oversized body fails the
+ *  signature) — this is what actually caps upload size at the object store,
+ *  since the declared size alone is client-controlled. */
+export async function presignUpload(
+  key: string,
+  contentType: string,
+  contentLength?: number,
+  expiresIn = 600
+) {
   if (!client) throw new Error("Object storage is not configured.");
-  const cmd = new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType });
+  const cmd = new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    ContentType: contentType,
+    ...(contentLength ? { ContentLength: contentLength } : {}),
+  });
   return getSignedUrl(client, cmd, { expiresIn });
 }
 
