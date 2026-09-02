@@ -150,6 +150,25 @@ export async function rewrapMaster(dkRaw: Uint8Array, newMasterPassword: string)
   return { salt: b64encode(salt), iterations: PBKDF2_ITERATIONS, wrapped_dk: wrapped.ct, wrapped_dk_iv: wrapped.iv };
 }
 
+/** Mint a brand-new recovery key and re-wrap the data key under it, from an
+ *  already-unlocked vault (the caller holds dkRaw). Any previous recovery key
+ *  stops working the moment this is persisted. Returns the new recovery key
+ *  to show the user once, plus the wrapped_dk_recovery to persist. */
+export async function rewrapRecovery(dkRaw: Uint8Array): Promise<{
+  recoveryKey: string;
+  wrapped_dk_recovery: string;
+  wrapped_dk_recovery_iv: string;
+}> {
+  const recoveryRaw = randomBytes(32);
+  const recoveryKey = await importRawKey(recoveryRaw);
+  const wrapped = await aesEncrypt(recoveryKey, dkRaw);
+  return {
+    recoveryKey: b64encode(recoveryRaw),
+    wrapped_dk_recovery: wrapped.ct,
+    wrapped_dk_recovery_iv: wrapped.iv,
+  };
+}
+
 /** Encrypt an entry's secret payload with the data key. */
 export async function encryptSecret(dataKey: CryptoKey, secret: unknown): Promise<{ ciphertext: string; iv: string }> {
   const { ct, iv } = await aesEncrypt(dataKey, te.encode(JSON.stringify(secret)));

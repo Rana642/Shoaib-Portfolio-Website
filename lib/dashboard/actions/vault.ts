@@ -51,6 +51,19 @@ export async function updateVaultMaster(meta: {
   return { ok: true };
 }
 
+/** Store a freshly-minted recovery-key wrap. Replaces the old recovery wrap,
+ *  so the previous recovery key stops working. Only the wrapped data key is
+ *  sent — the server never sees the recovery key itself. */
+export async function updateVaultRecovery(meta: {
+  wrapped_dk_recovery: string;
+  wrapped_dk_recovery_iv: string;
+}) {
+  await assertAuthed();
+  const { error } = await db.from("vault_meta").update(meta).eq("id", 1);
+  if (error) return { error: error.message };
+  return { ok: true };
+}
+
 export async function listVaultEntries(): Promise<VaultEntry[]> {
   await assertAuthed();
   const { data } = await db.from("vault_entries").select("*").order("title");

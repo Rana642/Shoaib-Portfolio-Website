@@ -22,12 +22,14 @@ import {
   unlockWithPassword,
   unlockWithRecovery,
   rewrapMaster,
+  rewrapRecovery,
   encryptSecret,
   decryptSecret,
 } from "@/lib/vault-crypto";
 import {
   setupVaultMeta,
   updateVaultMaster,
+  updateVaultRecovery,
   listVaultEntries,
   createVaultEntry,
   updateVaultEntry,
@@ -84,6 +86,8 @@ export default function VaultApp({
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState<Draft | null>(null);
+  // A freshly-minted recovery key, held only long enough to show it once.
+  const [newRecoveryKey, setNewRecoveryKey] = useState<string | null>(null);
   const clientName = (id: string | null) => clients.find((c) => c.id === id)?.name ?? null;
 
   const decryptAll = useCallback(async (key: CryptoKey, rows: VaultEntry[]) => {
@@ -112,6 +116,7 @@ export default function VaultApp({
     dkRawRef.current = null;
     setItems([]);
     setDraft(null);
+    setNewRecoveryKey(null);
   }, []);
 
   // Auto-lock after idle.
@@ -247,6 +252,33 @@ export default function VaultApp({
     }
   };
 
+  // Mint a new recovery key from the unlocked data key. Needs dkRaw, which we
+  // only hold after a password/recovery unlock (not after first setup — but
+  // setup already handed out a recovery key).
+  const regenerateRecovery = async () => {
+    if (!dkRawRef.current) {
+      setError("Re-unlock with your master password first, then generate a recovery key.");
+      return;
+    }
+    if (!window.confirm("Generate a new recovery key? Any previous recovery key will stop working.")) {
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      const { recoveryKey, wrapped_dk_recovery, wrapped_dk_recovery_iv } = await rewrapRecovery(
+        dkRawRef.current
+      );
+      const res = await updateVaultRecovery({ wrapped_dk_recovery, wrapped_dk_recovery_iv });
+      if (res?.error) throw new Error(res.error);
+      setNewRecoveryKey(recoveryKey);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't generate a recovery key.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <>
       <div className="flex flex-wrap items-center gap-3 mb-6">
@@ -262,6 +294,15 @@ export default function VaultApp({
         <button onClick={() => setDraft({ ...emptyDraft })} className={buttonStyles.primary}>
           <Plus className="size-4" aria-hidden />
           Add
+        </button>
+        <button
+          onClick={regenerateRecovery}
+          disabled={busy}
+          title="Generate a new recovery key to save"
+          className={buttonStyles.secondary}
+        >
+          <RefreshCw className="size-4" aria-hidden />
+          Recovery key
         </button>
         <button onClick={lock} className={buttonStyles.secondary}>
           <Lock className="size-4" aria-hidden />
@@ -329,7 +370,59 @@ export default function VaultApp({
           busy={busy}
         />
       )}
+
+      {newRecoveryKey && (
+        <RecoveryKeyModal recoveryKey={newRecoveryKey} onClose={() => setNewRecoveryKey(null)} />
+      )}
     </>
+  );
+}
+
+// ── New recovery key (shown once) ──────────────────────────────
+function RecoveryKeyModal({ recoveryKey, onClose }: { recoveryKey: string; onClose: () => void }) {
+  const [ack, setAck] = useState(false);
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-sm">
+      <Card className="p-8 max-w-xl w-full">
+        <div className="inline-flex size-11 items-center justify-center rounded-full bg-citrus/20 text-ink mb-4">
+          <KeyRound className="size-5" aria-hidden />
+        </div>
+        <h2 className="text-body-lg font-semibold">Your new recovery key</h2>
+        <p className="text-small text-ink-muted mt-2">
+          This replaces any previous recovery key — the old one no longer works. It&apos;s the{" "}
+          <strong>only</strong> way back in if you forget your master password. Store it somewhere
+          safe and offline; it is shown once and never again.
+        </p>
+        <div className="mt-4 rounded-lg border border-ink/15 bg-ink/[0.03] p-4 font-mono text-small break-all select-all">
+          {recoveryKey}
+        </div>
+        <div className="mt-3">
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(recoveryKey).catch(() => {});
+              setCopied(true);
+            }}
+            className={buttonStyles.secondary}
+          >
+            {copied ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+        <label className="flex items-center gap-2.5 mt-5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={ack}
+            onChange={(e) => setAck(e.target.checked)}
+            className="size-4 accent-citrus cursor-pointer"
+          />
+          <span className="text-small">I&apos;ve saved my recovery key somewhere safe.</span>
+        </label>
+        <button onClick={onClose} disabled={!ack} className={`${buttonStyles.primary} mt-5`}>
+          Done
+        </button>
+      </Card>
+    </div>
   );
 }
 
