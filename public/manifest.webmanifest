@@ -1,0 +1,15 @@
+{
+  "id": "/dashboard",
+  "name": "Ads by Shoaib — Dashboard",
+  "short_name": "Shoaib Dashboard",
+  "description": "Business dashboard for adsbyshoaib.com — clients, proposals, agreements, invoices, and the credential vault.",
+  "start_url": "/dashboard",
+  "scope": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0F0F14",
+  "theme_color": "#0F0F14",
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/dashboard/Sidebar";
+import PwaRegister from "@/components/dashboard/PwaRegister";
 import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "dashboard-sidebar-collapsed";
@@ -53,6 +54,7 @@ export default function DashboardShell({
 
   return (
     <div className="relative min-h-screen bg-cloud">
+      <PwaRegister />
       {/* Ambient colour wash — gives the frosted-glass panels something to
           actually frost over. Purely decorative, behind everything, and
           non-interactive. */}

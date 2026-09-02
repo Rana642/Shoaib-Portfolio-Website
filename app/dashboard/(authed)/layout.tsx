@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { redirect } from "next/navigation";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import { getUser } from "@/lib/dashboard/auth";
@@ -6,6 +6,21 @@ import { getUser } from "@/lib/dashboard/auth";
 export const metadata: Metadata = {
   title: { default: "Dashboard", template: "%s — Dashboard" },
   robots: { index: false, follow: false },
+  // PWA: makes the dashboard installable to a phone home screen and opened
+  // like an app. Scoped to /dashboard so only the admin area is the "app".
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Shoaib Dashboard",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+export const viewport: Viewport = {
+  // Dark ink to match the dashboard's glass shell — colours the mobile
+  // status bar / browser chrome when installed.
+  themeColor: "#0F0F14",
+  viewportFit: "cover",
 };
 
 /**
