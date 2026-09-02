@@ -5,7 +5,7 @@ import HostingerPartnerBadge from "@/components/shared/HostingerPartnerBadge";
  */
 const signals = [
   "Meta Ads — Certified Media Buyer",
-  "Google Ads — Certified",
+  "Google Ads — Hands-On Media Buyer",
   "GA4 & Tag Manager",
   "6+ Years in Paid Media",
   "8 Industries Served",
