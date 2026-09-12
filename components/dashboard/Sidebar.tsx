@@ -15,6 +15,7 @@ import {
   ClipboardList,
   FolderInput,
   KeyRound,
+  Share2,
   Settings as SettingsIcon,
   PenSquare,
   LogOut,
@@ -54,6 +55,14 @@ const nav: NavItem[] = [
   { href: "/dashboard/quotations", label: "Quotations", icon: FileText },
   { href: "/dashboard/invoices", label: "Invoices", icon: Receipt },
   { href: "/dashboard/vault", label: "Vault", icon: KeyRound },
+  {
+    label: "Social",
+    icon: Share2,
+    children: [
+      { href: "/dashboard/social/planner", label: "Planner" },
+      { href: "/dashboard/social", label: "Connections" },
+    ],
+  },
   { href: "/dashboard/settings", label: "Settings", icon: SettingsIcon },
 ];
 
@@ -70,8 +79,7 @@ export default function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [catalogOpen, setCatalogOpen] = useState(false);
-  const isCatalogRoute = pathname.startsWith("/dashboard/catalog");
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const signOut = async () => {
     const supabase = createBrowserClient(
@@ -83,16 +91,27 @@ export default function Sidebar({
     router.refresh();
   };
 
-  const isCatalogChildActive = (href: string) =>
-    href === "/dashboard/catalog"
-      ? pathname === "/dashboard/catalog" ||
-        (pathname.startsWith("/dashboard/catalog/") && !pathname.startsWith("/dashboard/catalog/bundles"))
-      : pathname.startsWith(href);
+  // A group's own route is "active" if the current path is under any of its
+  // children's base paths.
+  const isGroupRoute = (children: { href: string }[]) =>
+    children.some((c) => pathname === c.href || pathname.startsWith(`${c.href}/`));
+
+  // A specific child is active if the path is under its base path AND no
+  // sibling with a more specific (longer) href also matches — e.g. under
+  // "Services Catalog", "/dashboard/catalog/bundles/x" should highlight
+  // "Bundle Services", not both entries.
+  const isChildActive = (children: { href: string }[], href: string) => {
+    if (pathname === href) return true;
+    if (!pathname.startsWith(`${href}/`)) return false;
+    const moreSpecificSibling = children.some(
+      (c) => c.href !== href && c.href.startsWith(href) && pathname.startsWith(c.href)
+    );
+    return !moreSpecificSibling;
+  };
 
   // `rail` = the desktop collapsed icon-only state. The mobile drawer
   // passes rail=false so it always shows full labels.
   const renderNav = (rail: boolean) => {
-    const showCatalogChildren = !rail && (catalogOpen || isCatalogRoute);
 
     return (
       <>
@@ -136,6 +155,7 @@ export default function Sidebar({
         <nav className={cn("flex-1 space-y-1", rail ? "px-2" : "px-3")}>
           {nav.map((item) => {
             if ("children" in item) {
+              const groupActive = isGroupRoute(item.children);
               // Collapsed rail can't show a dropdown legibly — the group
               // becomes a single icon linking to its first page instead.
               if (rail) {
@@ -147,7 +167,7 @@ export default function Sidebar({
                     title={item.label}
                     className={cn(
                       "flex items-center justify-center rounded-lg py-2.5 transition-colors",
-                      isCatalogRoute
+                      groupActive
                         ? "bg-citrus text-ink"
                         : "text-cloud/60 hover:text-cloud hover:bg-cloud/5"
                     )}
@@ -156,14 +176,15 @@ export default function Sidebar({
                   </Link>
                 );
               }
+              const showChildren = !rail && (openGroups[item.label] || groupActive);
               return (
                 <div key={item.label}>
                   <button
                     type="button"
-                    onClick={() => setCatalogOpen((prev) => !prev)}
+                    onClick={() => setOpenGroups((prev) => ({ ...prev, [item.label]: !prev[item.label] }))}
                     className={cn(
                       "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-small transition-colors cursor-pointer",
-                      isCatalogRoute
+                      groupActive
                         ? "text-cloud font-medium"
                         : "text-cloud/60 hover:text-cloud hover:bg-cloud/5"
                     )}
@@ -173,12 +194,12 @@ export default function Sidebar({
                     <ChevronDown
                       className={cn(
                         "size-3.5 shrink-0 ml-auto transition-transform",
-                        showCatalogChildren ? "rotate-180" : ""
+                        showChildren ? "rotate-180" : ""
                       )}
                       aria-hidden
                     />
                   </button>
-                  {showCatalogChildren && (
+                  {showChildren && (
                     <div className="mt-1 ml-4 pl-3 border-l border-cloud/10 space-y-1">
                       {item.children.map((child) => (
                         <Link
@@ -187,7 +208,7 @@ export default function Sidebar({
                           onClick={() => setOpen(false)}
                           className={cn(
                             "block rounded-lg px-3 py-2 text-small transition-colors",
-                            isCatalogChildActive(child.href)
+                            isChildActive(item.children, child.href)
                               ? "bg-citrus text-ink font-medium"
                               : "text-cloud/60 hover:text-cloud hover:bg-cloud/5"
                           )}

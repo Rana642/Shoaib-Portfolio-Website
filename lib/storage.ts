@@ -1,5 +1,5 @@
 import "server-only";
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 /**
@@ -63,4 +63,27 @@ export async function presignDownload(key: string, filename?: string, expiresIn 
     ...(filename ? { ResponseContentDisposition: `attachment; filename="${filename.replace(/"/g, "")}"` } : {}),
   });
   return getSignedUrl(client, cmd, { expiresIn });
+}
+
+/** Direct server-side upload — for trusted server contexts (e.g. the social
+ *  MCP server uploading a local file) where a presigned browser PUT isn't
+ *  needed. */
+export async function uploadObject(key: string, body: Buffer, contentType: string) {
+  if (!client) throw new Error("Object storage is not configured.");
+  await client.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType }));
+}
+
+/** Direct server-side download — for the social MCP server reading an
+ *  uploaded image's bytes to show Claude (OCR/vision) or re-upload elsewhere. */
+export async function fetchObject(key: string): Promise<{ buffer: Buffer; contentType: string }> {
+  if (!client) throw new Error("Object storage is not configured.");
+  const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  const bytes = await res.Body?.transformToByteArray();
+  if (!bytes) throw new Error(`Object not found: ${key}`);
+  return { buffer: Buffer.from(bytes), contentType: res.ContentType || "application/octet-stream" };
+}
+
+export async function deleteObject(key: string) {
+  if (!client) throw new Error("Object storage is not configured.");
+  await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
 }

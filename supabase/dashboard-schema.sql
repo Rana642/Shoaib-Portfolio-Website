@@ -622,3 +622,101 @@ begin
   return v_count <= p_limit;
 end;
 $$;
+
+-- ── Social poster ───────────────────────────────────────────
+-- Shoaib is admin on every client's Facebook Page himself, so ONE personal
+-- Facebook login (stored here) is enough to discover every Page he manages
+-- via the Graph API's /me/accounts — no per-client OAuth needed. Tokens are
+-- encrypted at rest with a server-held key (lib/social-crypto.ts) — this is
+-- NOT the zero-knowledge vault (vault_meta/vault_entries): those need
+-- Shoaib's master password to decrypt, which would block unattended
+-- scheduled posting, so these use a plain server-side key instead.
+
+create table if not exists social_connections (
+  id int primary key default 1 check (id = 1),
+  fb_user_id text,
+  fb_user_token_encrypted text,        -- long-lived User Access Token
+  fb_token_expires_at timestamptz,
+  connected_at timestamptz,
+  -- Same idea for LinkedIn: Shoaib's own login discovers every Company Page
+  -- he administers via /organizationAcls, instead of per-client OAuth.
+  li_user_token_encrypted text,
+  li_token_expires_at timestamptz,
+  li_connected_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+
+alter table social_connections add column if not exists li_user_token_encrypted text;
+alter table social_connections add column if not exists li_token_expires_at timestamptz;
+alter table social_connections add column if not exists li_connected_at timestamptz;
+
+-- One row per PROJECT (client_projects, not clients) per connected platform
+-- account — a client can run several separate businesses (e.g. Ahmed
+-- Jahanzaib Shah runs both "Tad Pharma" and "Meezab Z International"), each
+-- with its own Facebook Page/Instagram/LinkedIn, so the connection belongs
+-- to the specific project, not the umbrella client. A client's Facebook
+-- Page + its linked Instagram Business Account share one row's discovery,
+-- but are stored as separate rows here since they post independently.
+-- Every client that wants social posting needs at least one client_projects
+-- row (even if it's just their own name) — there's no client-level fallback.
+create table if not exists client_social_accounts (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  project_id uuid not null references client_projects (id) on delete cascade,
+  platform text not null check (platform in ('facebook', 'instagram', 'linkedin')),
+  label text not null,                 -- e.g. the Page/account display name
+  external_id text not null,           -- Page id / IG Business Account id / LinkedIn URN
+  access_token_encrypted text not null,
+  token_expires_at timestamptz,        -- null = doesn't expire (Meta long-lived Page tokens)
+  is_active boolean not null default true
+);
+
+-- One-time rename from the original client_id design (2026-09-10) — tables
+-- were empty when this landed, so this is mostly future-proofing if it's
+-- ever re-run against a database that still has the old shape.
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_name = 'client_social_accounts' and column_name = 'client_id') then
+    alter table client_social_accounts drop constraint if exists client_social_accounts_client_id_fkey;
+    alter table client_social_accounts rename column client_id to project_id;
+    alter table client_social_accounts add constraint client_social_accounts_project_id_fkey
+      foreign key (project_id) references client_projects (id) on delete cascade;
+  end if;
+end $$;
+
+create index if not exists client_social_accounts_project_idx on client_social_accounts (project_id);
+alter table client_social_accounts enable row level security;
+
+-- A queued post. Uploaded via the dashboard with a date-bearing filename;
+-- Claude (via the MCP server) reads the image, writes the caption, and
+-- moves status from 'pending_caption' to 'scheduled'. The cron in
+-- app/api/social/cron then fires anything due and moves it to 'posted' /
+-- 'failed'. Platforms aren't chosen per-post — publishing targets every
+-- active client_social_accounts row for that PROJECT (Shoaib's decision:
+-- keep it simple, one image goes everywhere that project is connected).
+create table if not exists scheduled_posts (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  project_id uuid not null references client_projects (id) on delete cascade,
+  media_key text not null,             -- R2 object key
+  original_filename text not null,
+  caption text,
+  scheduled_at timestamptz,            -- null until Claude sets it (parsed from filename)
+  status text not null default 'pending_caption'
+    check (status in ('pending_caption', 'scheduled', 'posted', 'failed')),
+  result jsonb,                        -- per-platform post ids / error messages
+  posted_at timestamptz
+);
+
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_name = 'scheduled_posts' and column_name = 'client_id') then
+    alter table scheduled_posts drop constraint if exists scheduled_posts_client_id_fkey;
+    alter table scheduled_posts rename column client_id to project_id;
+    alter table scheduled_posts add constraint scheduled_posts_project_id_fkey
+      foreign key (project_id) references client_projects (id) on delete cascade;
+  end if;
+end $$;
+
+create index if not exists scheduled_posts_status_idx on scheduled_posts (status, scheduled_at);
+create index if not exists scheduled_posts_project_idx on scheduled_posts (project_id);

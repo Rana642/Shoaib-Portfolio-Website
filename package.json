@@ -9,12 +9,14 @@
     "lint": "eslint",
     "generate:resume-pdf": "tsx scripts/generate-resume-pdf.tsx",
     "migrate:sanity": "tsx --env-file=.env.local scripts/migrate-to-sanity.ts",
-    "backup:db": "node scripts/backup-db.mjs"
+    "backup:db": "node scripts/backup-db.mjs",
+    "mcp:social": "tsx --conditions=react-server mcp/index.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1121.0",
     "@aws-sdk/s3-request-presigner": "^3.1121.0",
     "@hookform/resolvers": "^5.9.1",
+    "@modelcontextprotocol/sdk": "^1.6.1",
     "@sanity/client": "^7.26.2",
     "@sanity/vision": "^6.10.1",
     "@supabase/ssr": "^0.12.4",
@@ -40,6 +42,7 @@
     "@react-pdf/renderer": "^4.6.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "dotenv": "^16.4.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

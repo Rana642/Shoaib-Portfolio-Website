@@ -51,6 +51,45 @@ export type Client = {
   is_active: boolean;
 };
 
+export type SocialPlatform = "facebook" | "instagram" | "linkedin";
+
+/** A client_projects row flattened with its parent client's name, for
+ *  project-picker dropdowns across the social poster UI/MCP. Social
+ *  accounts and scheduled posts bind to the project, not the client
+ *  directly — a client can run several separate businesses. */
+export type ProjectOption = {
+  id: string;
+  label: string; // "Client — Project"
+  client_id: string;
+};
+
+export type ClientSocialAccount = {
+  id: string;
+  created_at: string;
+  project_id: string;
+  platform: SocialPlatform;
+  label: string;
+  external_id: string;
+  access_token_encrypted: string;
+  token_expires_at: string | null;
+  is_active: boolean;
+};
+
+export type ScheduledPostStatus = "pending_caption" | "scheduled" | "posted" | "failed";
+
+export type ScheduledPost = {
+  id: string;
+  created_at: string;
+  project_id: string;
+  media_key: string;
+  original_filename: string;
+  caption: string | null;
+  scheduled_at: string | null;
+  status: ScheduledPostStatus;
+  result: Record<string, unknown> | null;
+  posted_at: string | null;
+};
+
 export type ClientProject = {
   id: string;
   client_id: string;
