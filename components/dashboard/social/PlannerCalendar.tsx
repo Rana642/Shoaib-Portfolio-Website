@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import type { ProjectOption, ScheduledPost } from "@/lib/dashboard/types";
 
 type PostWithUrl = ScheduledPost & { imageUrl: string | null };
+type ViewMode = "week" | "month";
 
 const STATUS_RING: Record<string, string> = {
   pending_caption: "ring-citrus",
@@ -24,6 +25,10 @@ function dateKey(iso: string): string {
   return iso.slice(0, 10);
 }
 
+function timeLabel(iso: string): string {
+  return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
+}
+
 function monthLabel(d: Date): string {
   return d.toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" });
 }
@@ -32,12 +37,19 @@ function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
 
+function toKey(d: Date): string {
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+}
+
 /** "YYYY-MM-DD" + n days, in UTC so it can't drift across a DST-less
  *  server clock. */
 function addDays(dateStr: string, n: number): string {
   const [y, m, d] = dateStr.split("-").map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d + n));
-  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+  return toKey(new Date(Date.UTC(y, m - 1, d + n)));
+}
+
+function startOfWeek(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - d.getUTCDay()));
 }
 
 export default function PlannerCalendar({
@@ -50,10 +62,12 @@ export default function PlannerCalendar({
   posts: PostWithUrl[];
 }) {
   const router = useRouter();
+  const [view, setView] = useState<ViewMode>("week");
   const [monthCursor, setMonthCursor] = useState(() => {
     const now = new Date();
     return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   });
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [uploadDate, setUploadDate] = useState<string | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
@@ -66,21 +80,16 @@ export default function PlannerCalendar({
       const key = dateKey(p.scheduled_at);
       map.set(key, [...(map.get(key) ?? []), p]);
     }
+    for (const rows of map.values()) rows.sort((a, b) => (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""));
     return map;
   }, [posts]);
 
-  const year = monthCursor.getUTCFullYear();
-  const month = monthCursor.getUTCMonth();
-  const firstWeekday = new Date(Date.UTC(year, month, 1)).getUTCDay();
-  const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-
-  const cells: (string | null)[] = [
-    ...Array(firstWeekday).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => `${year}-${pad(month + 1)}-${pad(i + 1)}`),
-  ];
-  while (cells.length % 7 !== 0) cells.push(null);
-
   const todayKey = new Date().toISOString().slice(0, 10);
+  const goToToday = () => {
+    setWeekStart(startOfWeek(new Date()));
+    const now = new Date();
+    setMonthCursor(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)));
+  };
 
   const onDropOnDay = (targetKey: string, e: React.DragEvent) => {
     e.preventDefault();
@@ -92,9 +101,85 @@ export default function PlannerCalendar({
     });
   };
 
+  const dayDropProps = (key: string) => ({
+    onDragOver: (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOverKey(key);
+    },
+    onDragLeave: () => setDragOverKey((cur) => (cur === key ? null : cur)),
+    onDrop: (e: React.DragEvent) => onDropOnDay(key, e),
+  });
+
+  // Month grid cells (padded to full weeks).
+  const year = monthCursor.getUTCFullYear();
+  const month = monthCursor.getUTCMonth();
+  const firstWeekday = new Date(Date.UTC(year, month, 1)).getUTCDay();
+  const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const monthCells: (string | null)[] = [
+    ...Array(firstWeekday).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => `${year}-${pad(month + 1)}-${pad(i + 1)}`),
+  ];
+  while (monthCells.length % 7 !== 0) monthCells.push(null);
+
+  // Week columns.
+  const weekKeys = Array.from({ length: 7 }, (_, i) => toKey(new Date(Date.UTC(
+    weekStart.getUTCFullYear(),
+    weekStart.getUTCMonth(),
+    weekStart.getUTCDate() + i
+  ))));
+
+  const headerLabel = view === "week" ? monthLabel(new Date(weekKeys[0])) : monthLabel(monthCursor);
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-1 rounded-lg border border-ink/15 p-1 w-fit">
+          {(["week", "month"] as ViewMode[]).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setView(v)}
+              className={cn(
+                "px-3 py-1.5 rounded-md text-small font-medium capitalize transition-colors cursor-pointer",
+                view === v ? "bg-citrus text-ink" : "text-ink-muted hover:text-ink"
+              )}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            aria-label={view === "week" ? "Previous week" : "Previous month"}
+            onClick={() =>
+              view === "week"
+                ? setWeekStart(new Date(Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate() - 7)))
+                : setMonthCursor(new Date(Date.UTC(year, month - 1, 1)))
+            }
+            className="p-2 rounded-lg text-ink-subtle hover:text-ink hover:bg-ink/5 transition-colors"
+          >
+            <ChevronLeft className="size-4" aria-hidden />
+          </button>
+          <button type="button" onClick={goToToday} className={buttonStyles.secondary}>
+            Today
+          </button>
+          <p className="font-medium min-w-40 text-center">{headerLabel}</p>
+          <button
+            type="button"
+            aria-label={view === "week" ? "Next week" : "Next month"}
+            onClick={() =>
+              view === "week"
+                ? setWeekStart(new Date(Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate() + 7)))
+                : setMonthCursor(new Date(Date.UTC(year, month + 1, 1)))
+            }
+            className="p-2 rounded-lg text-ink-subtle hover:text-ink hover:bg-ink/5 transition-colors"
+          >
+            <ChevronRight className="size-4" aria-hidden />
+          </button>
+        </div>
+
         <div className="flex flex-wrap items-center gap-3">
           <select
             className={`${inputClasses} max-w-72`}
@@ -112,83 +197,141 @@ export default function PlannerCalendar({
             Bulk upload
           </button>
         </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            aria-label="Previous month"
-            onClick={() => setMonthCursor(new Date(Date.UTC(year, month - 1, 1)))}
-            className="p-2 rounded-lg text-ink-subtle hover:text-ink hover:bg-ink/5 transition-colors"
-          >
-            <ChevronLeft className="size-4" aria-hidden />
-          </button>
-          <p className="font-medium min-w-40 text-center">{monthLabel(monthCursor)}</p>
-          <button
-            type="button"
-            aria-label="Next month"
-            onClick={() => setMonthCursor(new Date(Date.UTC(year, month + 1, 1)))}
-            className="p-2 rounded-lg text-ink-subtle hover:text-ink hover:bg-ink/5 transition-colors"
-          >
-            <ChevronRight className="size-4" aria-hidden />
-          </button>
-        </div>
       </div>
 
-      <Card className="p-3 overflow-x-auto">
-        <div className="grid grid-cols-7 gap-2 min-w-[720px]">
-          {WEEKDAYS.map((w) => (
-            <div key={w} className="font-mono uppercase text-tag tracking-widest text-ink-subtle px-2 py-1">
-              {w}
-            </div>
-          ))}
-          {cells.map((key, i) => {
-            if (!key) return <div key={`blank-${i}`} className="min-h-28" />;
-            const dayPosts = postsByDate.get(key) ?? [];
-            const dayNum = Number(key.slice(-2));
-            return (
-              <div
-                key={key}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOverKey(key);
-                }}
-                onDragLeave={() => setDragOverKey((cur) => (cur === key ? null : cur))}
-                onDrop={(e) => onDropOnDay(key, e)}
-                className={cn(
-                  "min-h-28 rounded-lg border p-2 flex flex-col gap-1.5 transition-colors",
-                  dragOverKey === key
-                    ? "border-cobalt/60 bg-cobalt/5"
-                    : key === todayKey
-                      ? "border-citrus/60 bg-citrus/5"
-                      : "border-ink/10"
-                )}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-small text-ink-subtle">{dayNum}</span>
-                  <button
-                    type="button"
-                    aria-label={`Add post on ${key}`}
-                    onClick={() => setUploadDate(key)}
-                    className="text-ink-subtle hover:text-ink transition-colors"
+      {view === "week" ? (
+        <Card className="p-0 overflow-x-auto">
+          <div className="grid grid-cols-7 min-w-[980px] w-full divide-x divide-ink/10">
+            {weekKeys.map((key) => {
+              const dayPosts = postsByDate.get(key) ?? [];
+              const d = new Date(key);
+              const isToday = key === todayKey;
+              return (
+                <div
+                  key={key}
+                  {...dayDropProps(key)}
+                  className={cn(
+                    "min-h-[calc(100vh-320px)] flex flex-col transition-colors",
+                    dragOverKey === key ? "bg-cobalt/5" : isToday ? "bg-citrus/5" : ""
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "px-3 py-2 text-center border-b sticky top-0",
+                      isToday ? "border-citrus/40 text-ink font-semibold" : "border-ink/10 text-ink-subtle"
+                    )}
                   >
-                    <Plus className="size-3.5" aria-hidden />
-                  </button>
+                    <p className="font-mono uppercase text-tag tracking-widest">{WEEKDAYS[d.getUTCDay()]}</p>
+                    <p className="text-body-lg">{d.getUTCDate()}</p>
+                  </div>
+                  <div className="flex-1 p-2 space-y-2">
+                    {dayPosts.map((p) => (
+                      <WeekPostCard key={p.id} post={p} />
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setUploadDate(key)}
+                      className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-ink/15 text-ink-subtle hover:text-ink hover:border-ink/30 transition-colors py-2 text-small"
+                    >
+                      <Plus className="size-3.5" aria-hidden />
+                      Add
+                    </button>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  {dayPosts.map((p) => (
-                    <DayPostThumb key={p.id} post={p} />
-                  ))}
-                </div>
+              );
+            })}
+          </div>
+        </Card>
+      ) : (
+        <Card className="p-3 overflow-x-auto">
+          <div className="grid grid-cols-7 gap-2 min-w-[720px]">
+            {WEEKDAYS.map((w) => (
+              <div key={w} className="font-mono uppercase text-tag tracking-widest text-ink-subtle px-2 py-1">
+                {w}
               </div>
-            );
-          })}
-        </div>
-      </Card>
+            ))}
+            {monthCells.map((key, i) => {
+              if (!key) return <div key={`blank-${i}`} className="min-h-28" />;
+              const dayPosts = postsByDate.get(key) ?? [];
+              const dayNum = Number(key.slice(-2));
+              return (
+                <div
+                  key={key}
+                  {...dayDropProps(key)}
+                  className={cn(
+                    "min-h-28 rounded-lg border p-2 flex flex-col gap-1.5 transition-colors",
+                    dragOverKey === key
+                      ? "border-cobalt/60 bg-cobalt/5"
+                      : key === todayKey
+                        ? "border-citrus/60 bg-citrus/5"
+                        : "border-ink/10"
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-small text-ink-subtle">{dayNum}</span>
+                    <button
+                      type="button"
+                      aria-label={`Add post on ${key}`}
+                      onClick={() => setUploadDate(key)}
+                      className="text-ink-subtle hover:text-ink transition-colors"
+                    >
+                      <Plus className="size-3.5" aria-hidden />
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {dayPosts.map((p) => (
+                      <DayPostThumb key={p.id} post={p} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       {uploadDate && (
         <UploadModal date={uploadDate} projectId={selectedProjectId} onClose={() => setUploadDate(null)} />
       )}
       {bulkOpen && <BulkUploadModal projectId={selectedProjectId} onClose={() => setBulkOpen(false)} />}
+    </div>
+  );
+}
+
+function WeekPostCard({ post }: { post: PostWithUrl }) {
+  const [pending, startTransition] = useTransition();
+  const ring = STATUS_RING[post.status] ?? "ring-ink/20";
+
+  return (
+    <div
+      className="relative group rounded-lg border border-ink/10 overflow-hidden cursor-grab active:cursor-grabbing bg-white"
+      title={post.caption ?? post.original_filename}
+      draggable
+      onDragStart={(e) => e.dataTransfer.setData(DRAG_MIME, post.id)}
+    >
+      {post.scheduled_at && (
+        <p className="text-tag text-ink-subtle px-2 pt-1.5">{timeLabel(post.scheduled_at)}</p>
+      )}
+      <div className="p-1.5 pt-1">
+        {post.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={post.imageUrl} alt="" className={cn("w-full aspect-square rounded object-cover ring-2", ring)} />
+        ) : (
+          <div className={cn("w-full aspect-square rounded bg-ink/10 ring-2", ring)} />
+        )}
+      </div>
+      {post.caption && (
+        <p className="text-tag text-ink-muted px-2 pb-1.5 line-clamp-2">{post.caption}</p>
+      )}
+      <button
+        type="button"
+        aria-label="Remove post"
+        disabled={pending}
+        onClick={() => startTransition(() => deletePost(post.id))}
+        className="absolute top-1 right-1 hidden group-hover:flex items-center justify-center size-5 rounded-full bg-ink text-cloud"
+      >
+        {pending ? <LoaderCircle className="size-3 animate-spin" aria-hidden /> : <Trash2 className="size-3" aria-hidden />}
+      </button>
     </div>
   );
 }
@@ -254,7 +397,11 @@ function UploadModal({ date, projectId, onClose }: { date: string; projectId: st
         fd.set("media_key", urlBody.key);
         fd.set("original_filename", file.name);
         fd.set("date", date);
-        fd.set("offset_minutes", String(done * 5));
+        // Spread same-day posts ~45 min apart rather than back-to-back —
+        // Meta's anti-spam systems watch for bot-like, tightly-clustered
+        // posting cadence on Pages, so same-day posts shouldn't land seconds
+        // apart even though nothing technically stops it.
+        fd.set("offset_minutes", String(done * 45));
         if (caption.trim()) fd.set("caption", caption.trim());
         const result = await createPlannerPost(fd);
         if (result?.error) throw new Error(result.error);

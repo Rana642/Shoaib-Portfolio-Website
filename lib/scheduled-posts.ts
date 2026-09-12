@@ -21,16 +21,21 @@ export async function createScheduledPost(input: {
   original_filename: string;
   scheduled_at: string;
   caption?: string;
-}) {
-  const { error } = await db.from("scheduled_posts").insert({
-    project_id: input.project_id,
-    media_key: input.media_key,
-    original_filename: input.original_filename,
-    scheduled_at: input.scheduled_at,
-    caption: input.caption ?? null,
-    status: input.caption ? "scheduled" : "pending_caption",
-  });
+}): Promise<string> {
+  const { data, error } = await db
+    .from("scheduled_posts")
+    .insert({
+      project_id: input.project_id,
+      media_key: input.media_key,
+      original_filename: input.original_filename,
+      scheduled_at: input.scheduled_at,
+      caption: input.caption ?? null,
+      status: input.caption ? "scheduled" : "pending_caption",
+    })
+    .select("id")
+    .single();
   if (error) throw new Error(error.message);
+  return data.id as string;
 }
 
 export async function listPendingCaptionPosts(): Promise<ScheduledPost[]> {
@@ -64,6 +69,15 @@ export async function setCaptionAndSchedule(id: string, caption: string, schedul
   };
   if (scheduledAt) patch.scheduled_at = scheduledAt;
   const { error } = await db.from("scheduled_posts").update(patch).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+/** Records the outcome of handing eligible accounts to Meta's own scheduler
+ *  right after captioning — merged under `result.native` while status stays
+ *  'scheduled' (the cron still owns whatever's left, e.g. Instagram, and
+ *  flips status once that's done too). */
+export async function recordNativeScheduleResult(id: string, nativeResults: unknown) {
+  const { error } = await db.from("scheduled_posts").update({ result: { native: nativeResults } }).eq("id", id);
   if (error) throw new Error(error.message);
 }
 

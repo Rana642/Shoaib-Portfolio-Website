@@ -51,7 +51,9 @@ export async function addManualSocialAccount(input: {
  *  client_social_accounts rows yet — that happens in saveFacebookPageMappings. */
 export async function connectFacebookAccount(shortLivedToken: string): Promise<DiscoveredPage[]> {
   const { access_token, expires_in } = await exchangeForLongLivedUserToken(shortLivedToken);
-  const expiresAt = new Date(Date.now() + expires_in * 1000).toISOString();
+  // A System User token has no expires_in at all (it doesn't expire) —
+  // leave fb_token_expires_at null rather than crash on Date(NaN).
+  const expiresAt = expires_in ? new Date(Date.now() + expires_in * 1000).toISOString() : null;
 
   await db.from("social_connections").upsert({
     id: 1,

@@ -20,6 +20,7 @@ import {
   dateToScheduledAt,
   rescheduleScheduledPost,
 } from "../../scheduled-posts";
+import { submitNativeScheduleForPost, rescheduleNativePosts } from "../../social-post";
 import type { DiscoveredPage } from "../../social-fb";
 import type { DiscoveredOrganization } from "../../social-linkedin";
 
@@ -170,8 +171,9 @@ export async function createPlannerPost(formData: FormData) {
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
+  let postId: string;
   try {
-    await createScheduledPost({
+    postId = await createScheduledPost({
       project_id: parsed.data.project_id,
       media_key: parsed.data.media_key,
       original_filename: parsed.data.original_filename,
@@ -181,6 +183,9 @@ export async function createPlannerPost(formData: FormData) {
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Couldn't queue the upload." };
   }
+  // Best-effort: hand any eligible Facebook account straight to Meta's own
+  // scheduler now rather than waiting for the cron to fire it later.
+  if (parsed.data.caption) await submitNativeScheduleForPost(postId);
   revalidatePath("/dashboard/social/planner");
   return { ok: true };
 }
@@ -200,5 +205,9 @@ export async function movePost(id: string, date: string) {
   const parsed = dateSchema.safeParse(date);
   if (!parsed.success) return { error: "Invalid date." };
   await rescheduleScheduledPost(id, parsed.data);
+  // If this was already handed to Meta's scheduler for the old date, that
+  // draft needs deleting and resubmitting for the new one — otherwise Meta
+  // would still fire the stale one too.
+  await rescheduleNativePosts(id);
   revalidatePath("/dashboard/social/planner");
 }

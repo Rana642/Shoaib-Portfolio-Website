@@ -1,9 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import PwaRegister from "@/components/dashboard/PwaRegister";
 import { cn } from "@/lib/utils";
+
+// Most dashboard pages (forms, line-item tables) read best at a contained
+// width. The Planner's week-column calendar wants the opposite — it should
+// use whatever horizontal space is actually there instead of scrolling
+// sideways inside a narrower box, so it's the one page that opts out.
+const WIDE_ROUTES = ["/dashboard/social/planner"];
 
 const STORAGE_KEY = "dashboard-sidebar-collapsed";
 
@@ -23,6 +30,8 @@ export default function DashboardShell({
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const pathname = usePathname();
+  const isWide = WIDE_ROUTES.some((route) => pathname.startsWith(route));
 
   // Reading persisted UI state from localStorage has to happen after mount
   // — doing it during render would diverge from the server's HTML and
@@ -76,7 +85,7 @@ export default function DashboardShell({
           collapsed ? "lg:pl-[5rem]" : "lg:pl-[16rem]"
         )}
       >
-        <div className="px-5 py-8 md:px-8 md:py-10 max-w-6xl">{children}</div>
+        <div className={cn("px-5 py-8 md:px-8 md:py-10", isWide ? "max-w-none" : "max-w-6xl")}>{children}</div>
       </main>
     </div>
   );
