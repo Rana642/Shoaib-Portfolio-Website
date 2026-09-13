@@ -1,0 +1,23 @@
+name: Social poster cron
+
+# Vercel's Hobby plan only allows cron jobs that run once a day, but the
+# social poster needs to check for due posts every ~15 minutes (Instagram
+# has no native scheduling API, so it has to be fired at the right time by
+# something). GitHub Actions' scheduled workflows have no such daily-only
+# restriction, so this calls the same /api/social/cron endpoint instead of
+# using vercel.json's crons — that config was silently blocking every
+# deployment (Vercel rejects the whole build if the cron schedule isn't
+# Hobby-eligible), which is why deploys stopped going out entirely.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call social poster cron endpoint
+        run: |
+          curl -sf -X GET "https://adsbyshoaib.com/api/social/cron" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
