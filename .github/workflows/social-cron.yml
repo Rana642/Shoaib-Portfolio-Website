@@ -18,6 +18,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Call social poster cron endpoint
+        # Print the status and body before failing — `curl -f` alone exits
+        # 22 on any 4xx/5xx without saying which, so a 401 (secret mismatch
+        # with Vercel's CRON_SECRET) and a 500 looked identical in the log.
         run: |
-          curl -sf -X GET "https://adsbyshoaib.com/api/social/cron" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          status=$(curl -sS -o response.json -w "%{http_code}" \
+            "https://adsbyshoaib.com/api/social/cron" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+          echo "HTTP $status"
+          cat response.json; echo
+          test "$status" -ge 200 && test "$status" -lt 300
