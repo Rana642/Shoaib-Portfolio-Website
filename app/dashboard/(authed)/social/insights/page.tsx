@@ -13,6 +13,7 @@ import StatTile from "@/components/dashboard/social/insights/StatTile";
 import TrendChart from "@/components/dashboard/social/insights/TrendChart";
 import BarList from "@/components/dashboard/social/insights/BarList";
 import TopPostsTable from "@/components/dashboard/social/insights/TopPostsTable";
+import PostingTimesPanel from "@/components/dashboard/social/insights/PostingTimesPanel";
 import type { SocialPlatform } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
@@ -89,6 +90,8 @@ function FacebookBlock({ s, range }: { s: FacebookInsights; range: InsightRange 
           <TopPostsTable platform="facebook" posts={s.topPosts} />
         </div>
       </div>
+
+      <PostingTimesPanel analysis={s.postingTimes} />
     </section>
   );
 }
@@ -150,6 +153,8 @@ function InstagramBlock({ s, range }: { s: InstagramInsights; range: InsightRang
         </p>
         <TopPostsTable platform="instagram" posts={s.topPosts} />
       </div>
+
+      <PostingTimesPanel analysis={s.postingTimes} />
     </section>
   );
 }

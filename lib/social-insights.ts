@@ -65,6 +65,89 @@ function toSeries(values: DailyValue[] | undefined): TrendPoint[] {
 
 const sumOf = (points: TrendPoint[]) => points.reduce((sum, p) => sum + p.value, 0);
 
+// ── Best posting times ───────────────────────────────────────
+// Meta retired every audience-online-time metric (page_fans_online,
+// audience_gender_age, etc. — confirmed by live probe, not docs) years ago,
+// so there's no direct "when are my followers online" answer left. The
+// honest substitute: look at when THIS account's own past posts actually
+// reached people, using data we already fetch per post. Reach (not views)
+// is the metric, since that's the organic-reach question being asked.
+
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+// 4-hour PKT slots — narrow enough to be actionable, wide enough that a
+// month of posts doesn't scatter to 1-2 per bucket.
+const HOUR_SLOTS: { label: string; start: number }[] = [
+  { label: "12–4 AM", start: 0 },
+  { label: "4–8 AM", start: 4 },
+  { label: "8 AM–12 PM", start: 8 },
+  { label: "12–4 PM", start: 12 },
+  { label: "4–8 PM", start: 16 },
+  { label: "8 PM–12 AM", start: 20 },
+];
+const PKT_OFFSET_MS = 5 * 3600 * 1000;
+const MIN_POSTS_FOR_ANALYSIS = 8;
+
+export type TimeBucket = { label: string; medianReach: number; count: number };
+
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+export type PostingTimeAnalysis = {
+  byDayOfWeek: TimeBucket[];
+  byHour: TimeBucket[];
+  sampleSize: number;
+  /** Below MIN_POSTS_FOR_ANALYSIS, the split gets too noisy to act on. */
+  reliable: boolean;
+};
+
+function pktParts(dateIso: string): { day: number; hour: number } {
+  const shifted = new Date(new Date(dateIso).getTime() + PKT_OFFSET_MS);
+  return { day: shifted.getUTCDay(), hour: shifted.getUTCHours() };
+}
+
+// Median, not mean — a single viral post otherwise dominates its whole
+// day/hour bucket and makes one lucky post look like a pattern (seen live:
+// one 38k-reach outlier made a client's Thursday average 45x its other
+// days). Median reflects what a typical post in that slot actually gets.
+function bucketMedians<K>(posts: PostRow[], keyOf: (p: PostRow) => K, labelOf: (k: K) => string, order: K[]): TimeBucket[] {
+  const groups = new Map<string, number[]>();
+  for (const p of posts) {
+    const key = String(keyOf(p));
+    const reach = p.reach || p.views;
+    groups.set(key, [...(groups.get(key) ?? []), reach]);
+  }
+  return order
+    .map((k) => {
+      const values = groups.get(String(k)) ?? [];
+      return { label: labelOf(k), medianReach: median(values), count: values.length };
+    })
+    .sort((a, b) => b.medianReach - a.medianReach);
+}
+
+function analyzePostingTimes(posts: PostRow[]): PostingTimeAnalysis {
+  const byDayOfWeek = bucketMedians(
+    posts,
+    (p) => pktParts(p.date).day,
+    (d) => WEEKDAY_LABELS[d],
+    [0, 1, 2, 3, 4, 5, 6]
+  );
+  const byHour = bucketMedians(
+    posts,
+    (p) => {
+      const hour = pktParts(p.date).hour;
+      let slot = HOUR_SLOTS[0].start;
+      for (const s of HOUR_SLOTS) if (hour >= s.start) slot = s.start;
+      return slot;
+    },
+    (start) => HOUR_SLOTS.find((s) => s.start === start)!.label,
+    HOUR_SLOTS.map((s) => s.start)
+  );
+  return { byDayOfWeek, byHour, sampleSize: posts.length, reliable: posts.length >= MIN_POSTS_FOR_ANALYSIS };
+}
+
 export type PostRow = {
   id: string;
   date: string;
@@ -126,6 +209,7 @@ export type FacebookInsights = {
   reactions: { label: string; value: number }[];
   topPosts: PostRow[];
   postCount: number;
+  postingTimes: PostingTimeAnalysis;
 };
 
 async function fbDaily(pageId: string, token: string, w: Window): Promise<Map<string, DailyValue[]>> {
@@ -251,6 +335,7 @@ async function facebookInsights(account: ClientSocialAccount, rangeDays: Insight
       .sort((a, b) => b.value - a.value),
     topPosts: [...posts].sort((a, b) => b.views - a.views).slice(0, 10),
     postCount: posts.length,
+    postingTimes: analyzePostingTimes(posts),
   };
 }
 
@@ -288,6 +373,7 @@ export type InstagramInsights = {
   profileActivity: { label: string; value: number }[];
   topPosts: PostRow[];
   postCount: number;
+  postingTimes: PostingTimeAnalysis;
 };
 
 async function igTotals(igId: string, token: string, windows: Window[]): Promise<IgTotals> {
@@ -415,6 +501,7 @@ async function instagramInsights(account: ClientSocialAccount, rangeDays: Insigh
     ],
     topPosts: [...media].sort((a, b) => b.views - a.views).slice(0, 10),
     postCount: media.length,
+    postingTimes: analyzePostingTimes(media),
   };
 }
 
