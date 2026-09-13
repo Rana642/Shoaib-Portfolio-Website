@@ -7,10 +7,10 @@ import PwaRegister from "@/components/dashboard/PwaRegister";
 import { cn } from "@/lib/utils";
 
 // Most dashboard pages (forms, line-item tables) read best at a contained
-// width. The Planner's week-column calendar wants the opposite — it should
-// use whatever horizontal space is actually there instead of scrolling
-// sideways inside a narrower box, so it's the one page that opts out.
-const WIDE_ROUTES = ["/dashboard/social/planner"];
+// width. The Planner's week columns and the Insights charts want the
+// opposite — they should use whatever horizontal space is actually there
+// instead of scrolling sideways or leaving the right side empty.
+const WIDE_ROUTES = ["/dashboard/social/planner", "/dashboard/social/insights"];
 
 const STORAGE_KEY = "dashboard-sidebar-collapsed";
 

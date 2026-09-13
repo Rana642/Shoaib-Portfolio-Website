@@ -26,20 +26,40 @@ import { NextResponse, type NextRequest } from "next/server";
  * beacon a decrypted secret out to an attacker-controlled host.
  */
 
-function buildCsp(): string {
+/** Our own R2 bucket's account-specific host (where presigned post-upload
+ *  URLs point) — deliberately not the *.r2.cloudflarestorage.com wildcard,
+ *  since anyone can open an R2 account and receive requests there. */
+function r2Origin(): string | null {
+  try {
+    return new URL(process.env.S3_ENDPOINT || "").origin;
+  } catch {
+    return null;
+  }
+}
+
+function buildCsp(pathname: string): string {
   // Next's dev tooling (HMR / Fast Refresh) needs eval; production never
   // does, so this only loosens local development, not the live site.
   const devEval = process.env.NODE_ENV !== "production" ? " 'unsafe-eval'" : "";
+  // No blanket https: — that would let an XSS payload beacon a stolen
+  // vault secret out as an <img> request to any host. Only our own images,
+  // inline data/blob, and Sanity's CDN — plus, on the social Planner and
+  // Insights pages only, the hosts their images actually live on: our R2
+  // bucket (uploaded posts) and Meta's CDNs (post thumbnails from the Graph
+  // API). The vault and the public site keep the original tight list.
+  const imgSrc = ["'self'", "data:", "blob:", "https://cdn.sanity.io"];
+  if (pathname.startsWith("/dashboard/social")) {
+    const r2 = r2Origin();
+    if (r2) imgSrc.push(r2);
+    imgSrc.push("https://*.fbcdn.net", "https://*.cdninstagram.com");
+  }
   return [
     "default-src 'self'",
     `script-src 'self' 'unsafe-inline' https:${devEval}`,
     // Inline styles are needed by Next, next/font, and React style props;
     // style injection is far lower-risk than script injection.
     "style-src 'self' 'unsafe-inline'",
-    // No blanket https: — that would let an XSS payload beacon a stolen
-    // vault secret out as an <img> request to any host. Only our own
-    // images, inline data/blob, and Sanity's CDN.
-    "img-src 'self' data: blob: https://cdn.sanity.io",
+    `img-src ${imgSrc.join(" ")}`,
     "font-src 'self' data:",
     // Locks where fetch/XHR/WebSocket (and analytics beacons) may go — the
     // main guard against an injected script exfiltrating a vault secret.
@@ -53,12 +73,12 @@ function buildCsp(): string {
   ].join("; ");
 }
 
-function applySecurityHeaders(res: NextResponse, applyCsp: boolean) {
+function applySecurityHeaders(res: NextResponse, applyCsp: boolean, pathname: string) {
   // Sanity Studio is a heavy SPA (eval/workers/blobs) that a strict CSP
   // would break — it's an admin-only tool, so it keeps the other headers
   // but not the CSP.
   if (applyCsp) {
-    res.headers.set("Content-Security-Policy", buildCsp());
+    res.headers.set("Content-Security-Policy", buildCsp(pathname));
   }
   res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains");
   res.headers.set("X-Content-Type-Options", "nosniff");
@@ -117,7 +137,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  applySecurityHeaders(response, applyCsp);
+  applySecurityHeaders(response, applyCsp, pathname);
   return response;
 }
 

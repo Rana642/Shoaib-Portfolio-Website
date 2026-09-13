@@ -13,6 +13,21 @@ export function formatMoney(amount: number, currency: string): string {
   }
 }
 
+const groupedNumber = new Intl.NumberFormat("en-US");
+const compactNumber = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+
+/** Thousands-comma'd whole number (1,284) — for tables and tooltips. */
+export function formatNumber(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return "—";
+  return groupedNumber.format(Math.round(n));
+}
+
+/** Stat-tile style: full figure below 10k (1,284), compact above (12.9K, 4.2M). */
+export function formatCompact(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return "—";
+  return Math.abs(n) < 10_000 ? groupedNumber.format(Math.round(n)) : compactNumber.format(n);
+}
+
 export function formatDate(date: string | null): string {
   if (!date) return "—";
   return new Date(date).toLocaleDateString("en-GB", {

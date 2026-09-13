@@ -60,6 +60,7 @@ const nav: NavItem[] = [
     icon: Share2,
     children: [
       { href: "/dashboard/social/planner", label: "Planner" },
+      { href: "/dashboard/social/insights", label: "Insights" },
       { href: "/dashboard/social", label: "Connections" },
     ],
   },

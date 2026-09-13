@@ -6,8 +6,12 @@ import "server-only";
  * per-client OAuth — see the note in supabase/dashboard-schema.sql.
  */
 
-const GRAPH_VERSION = "v21.0";
-const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
+// The live API already answers this app's v21.0 requests as v26.0 (the
+// `facebook-api-version` response header) — Meta won't serve an app an older
+// version than the one current when the app was created — so name the
+// version that's actually in effect rather than a misleading older one.
+const GRAPH_VERSION = "v26.0";
+export const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 type GraphError = { error?: { message?: string; type?: string; code?: number } };
 
