@@ -481,8 +481,9 @@ function dayOfWeek(dateStr: string): number {
  *  for recurring Jummah/Friday content), which is held back for the next
  *  actual Friday instead of just falling wherever it lands in sequence.
  *  Everything else fills in around those Fridays in filename order. A
- *  Friday with no Friday-named file left just takes the next regular file,
- *  so no day sits empty unless both queues are exhausted. */
+ *  Friday with no Friday-named file left stays empty on purpose — Shoaib
+ *  adds something there himself rather than a regular file filling the
+ *  gap automatically. */
 function planBulkDates(fileNames: string[], startDate: string): string[] {
   const fridayIdx: number[] = [];
   const otherIdx: number[] = [];
@@ -495,12 +496,10 @@ function planBulkDates(fileNames: string[], startDate: string): string[] {
   while (fi < fridayIdx.length || oi < otherIdx.length) {
     if (dayOfWeek(cursor) === 5) {
       if (fi < fridayIdx.length) dates[fridayIdx[fi++]] = cursor;
-      else if (oi < otherIdx.length) dates[otherIdx[oi++]] = cursor;
+      // else: leave this Friday empty rather than using a regular file.
     } else if (oi < otherIdx.length) {
       dates[otherIdx[oi++]] = cursor;
     }
-    // Not Friday and no regular files left, but Friday-named ones remain —
-    // skip this day rather than putting Friday content on the wrong day.
     cursor = addDays(cursor, 1);
   }
   return dates;
