@@ -4,7 +4,7 @@ import { postFacebookPhoto, postInstagramPhoto, scheduleFacebookPhoto, deleteFac
 import { postLinkedInPhoto } from "./social-linkedin";
 import { getScheduledPost, recordNativeScheduleResult } from "./scheduled-posts";
 import { presignDownload } from "./storage";
-import type { ClientSocialAccount } from "./dashboard/types";
+import type { ClientSocialAccount, ScheduledPost } from "./dashboard/types";
 
 export type PlatformPostResult = {
   platform: string;
@@ -130,6 +130,26 @@ export async function submitNativeScheduleForPost(postId: string): Promise<void>
   }
 }
 
+/** Deletes any already-submitted Meta native-schedule drafts for a post
+ *  (result.native entries that succeeded) — shared by rescheduleNativePosts
+ *  (which then resubmits for the new date) and deletePost (which doesn't).
+ *  Without this, dragging a post to a new day or deleting it outright would
+ *  leave the OLD draft live on Meta's side, which still fires at the
+ *  original time — a surprise post on a real client Page. Best-effort: a
+ *  delete failure here just leaves a stale unpublished draft, not data loss. */
+async function cancelNativeSchedule(post: ScheduledPost): Promise<void> {
+  const native = (post.result as { native?: PlatformPostResult[] } | null)?.native ?? [];
+  const stillLive = native.filter((r) => r.native && r.ok && r.post_id);
+  if (stillLive.length === 0) return;
+
+  const accounts = await listSocialAccountsForProject(post.project_id);
+  for (const r of stillLive) {
+    const account = accounts.find((a) => a.external_id === r.external_id);
+    if (!account || !r.post_id) continue;
+    await deleteFacebookPost(r.post_id, decryptAccountToken(account));
+  }
+}
+
 /** Call after dragging a post to a different day (or otherwise changing its
  *  scheduled_at) — if it was already handed to Meta's scheduler for the OLD
  *  time, that draft has to be deleted and resubmitted for the new time,
@@ -140,20 +160,25 @@ export async function rescheduleNativePosts(scheduledPostId: string): Promise<vo
   try {
     const post = await getScheduledPost(scheduledPostId);
     if (!post || !post.caption || !post.scheduled_at) return;
-    const native = (post.result as { native?: PlatformPostResult[] } | null)?.native ?? [];
-    const stillLive = native.filter((r) => r.native && r.ok && r.post_id);
-    if (stillLive.length === 0) return;
-
-    const accounts = await listSocialAccountsForProject(post.project_id);
-    for (const r of stillLive) {
-      const account = accounts.find((a) => a.external_id === r.external_id);
-      if (!account || !r.post_id) continue;
-      await deleteFacebookPost(r.post_id, decryptAccountToken(account));
-    }
+    await cancelNativeSchedule(post);
 
     const imageUrl = await presignDownload(post.media_key);
     const results = await submitNativeSchedule(post.project_id, imageUrl, post.caption, post.scheduled_at);
     await recordNativeScheduleResult(scheduledPostId, results);
+  } catch {
+    /* best-effort — worst case a stale draft post sits unpublished on Meta's side */
+  }
+}
+
+/** Call before removing a post from the planner outright — cancels any
+ *  already-submitted Meta native-schedule draft first (see
+ *  cancelNativeSchedule), so a deleted post can never still surprise-publish
+ *  on Meta's own schedule later. */
+export async function cancelPostEverywhere(scheduledPostId: string): Promise<void> {
+  try {
+    const post = await getScheduledPost(scheduledPostId);
+    if (!post) return;
+    await cancelNativeSchedule(post);
   } catch {
     /* best-effort — worst case a stale draft post sits unpublished on Meta's side */
   }

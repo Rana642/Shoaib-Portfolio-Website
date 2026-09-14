@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { listDuePosts, markPostResult } from "@/lib/scheduled-posts";
 import { postToAllProjectAccounts, type PlatformPostResult } from "@/lib/social-post";
-import { presignDownload } from "@/lib/storage";
+import { presignDownload, deleteObject } from "@/lib/storage";
 
 // Cron runs every 15 min (vercel.json) but a batch of due posts still fires
 // within one invocation — space them out a few seconds apart rather than
@@ -54,6 +54,21 @@ export async function GET(request: Request) {
       const ok = allResults.length > 0 && allResults.every((r) => r.ok);
       await markPostResult(post.id, ok, { platforms: allResults });
       results.push({ id: post.id, ok, platforms: allResults });
+
+      // Once every connected account has confirmed the post live, Meta/IG
+      // already hold their own copy — the original in R2 is no longer
+      // needed. Deliberately NOT deleted right after native scheduling
+      // (published=false): that only guarantees Meta *accepted* the
+      // schedule, not that it already fetched the image, so cleanup waits
+      // for this confirmed 'posted' outcome instead. Best-effort: a storage
+      // failure here must never turn a successful post into a failed one.
+      if (ok) {
+        try {
+          await deleteObject(post.media_key);
+        } catch {
+          /* orphaned object, cleaned up by a future storage audit — not fatal */
+        }
+      }
 
       const peakUsage = Math.max(0, ...allResults.map((r) => r.usagePercent ?? 0));
       if (peakUsage >= USAGE_BACKOFF_THRESHOLD) {

@@ -17,10 +17,12 @@ import {
 import {
   createScheduledPost,
   deleteScheduledPost,
+  getScheduledPost,
   dateToScheduledAt,
   rescheduleScheduledPost,
 } from "../../scheduled-posts";
-import { submitNativeScheduleForPost, rescheduleNativePosts } from "../../social-post";
+import { submitNativeScheduleForPost, rescheduleNativePosts, cancelPostEverywhere } from "../../social-post";
+import { deleteObject } from "../../storage";
 import type { DiscoveredPage } from "../../social-fb";
 import type { DiscoveredOrganization } from "../../social-linkedin";
 
@@ -192,6 +194,24 @@ export async function createPlannerPost(formData: FormData) {
 
 export async function deletePost(id: string) {
   await assertAuthed();
+  const post = await getScheduledPost(id);
+
+  // If this was already handed to Meta's own scheduler, that draft has to be
+  // cancelled too — otherwise it still fires at the original time even
+  // though it's gone from here (a surprise post on a real client Page).
+  await cancelPostEverywhere(id);
+
+  // Best-effort media cleanup — never block the delete on a storage hiccup,
+  // and this post was never actually posted, so nothing on Meta's side needs
+  // the original file anymore either way.
+  if (post) {
+    try {
+      await deleteObject(post.media_key);
+    } catch {
+      /* orphaned object, not fatal */
+    }
+  }
+
   await deleteScheduledPost(id);
   revalidatePath("/dashboard/social/planner");
 }
