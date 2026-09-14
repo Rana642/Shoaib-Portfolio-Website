@@ -25,8 +25,12 @@ function dateKey(iso: string): string {
   return iso.slice(0, 10);
 }
 
+// Posts are scheduled in Pakistan time (see DEFAULT_POST_HOUR_UTC in
+// scheduled-posts.ts — 05:00 UTC really is 10:00 AM PKT) but this was
+// displaying the raw UTC hour instead, so a 10 AM post showed as "5:00 AM"
+// on the calendar. Asia/Karachi has no DST, so this is always exactly +5.
 function timeLabel(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
+  return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZone: "Asia/Karachi" });
 }
 
 function monthLabel(d: Date): string {
