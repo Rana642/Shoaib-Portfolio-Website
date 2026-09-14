@@ -720,3 +720,27 @@ end $$;
 
 create index if not exists scheduled_posts_status_idx on scheduled_posts (status, scheduled_at);
 create index if not exists scheduled_posts_project_idx on scheduled_posts (project_id);
+
+-- API Vault: operational API credentials (Google Ads, Meta Marketing API,
+-- GA4, GTM, GSC, GMB, etc.) that an MCP server will later read to make live
+-- API calls on Shoaib's behalf. Deliberately NOT the zero-knowledge vault
+-- (lib/vault-crypto.ts) — that requires a master password to decrypt in the
+-- browser, which defeats an automated MCP reading these unattended. Instead
+-- this follows the same server-held-key pattern as client_social_accounts:
+-- each field's value is individually AES-256-GCM encrypted with
+-- API_VAULT_ENCRYPTION_KEY (lib/api-vault-crypto.ts) before storage. Field
+-- NAMES are plaintext JSONB keys (not secret) so the list view can show
+-- which fields exist without decrypting anything.
+create table if not exists api_credentials (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  service text not null,               -- e.g. 'google_ads', 'meta_marketing', 'custom'
+  label text not null,                 -- display name, e.g. "Google Ads — Ads by Shoaib"
+  fields jsonb not null default '{}',  -- { "<field name>": "<AES-256-GCM ciphertext, base64>" }
+  notes text,
+  is_active boolean not null default true
+);
+
+create index if not exists api_credentials_service_idx on api_credentials (service);
+alter table api_credentials enable row level security;

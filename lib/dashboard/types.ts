@@ -349,6 +349,64 @@ export type Settings = {
   updated_at: string;
 };
 
+/** A named API credential set (Google Ads, Meta Marketing API, GA4, GTM,
+ *  GSC, GMB, or a custom service) — the API Vault, kept deliberately
+ *  separate from the zero-knowledge password vault. `fields` maps a
+ *  plaintext field name (e.g. "developer_token") to its AES-256-GCM
+ *  ciphertext — never the plaintext value itself. */
+export type ApiCredential = {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  service: string;
+  label: string;
+  fields: Record<string, string>;
+  notes: string | null;
+  is_active: boolean;
+};
+
+/** A known service preset — just suggests field names when adding a new
+ *  credential; any service can still be entered freely as "custom". */
+export type ApiServicePreset = {
+  value: string;
+  label: string;
+  suggestedFields: string[];
+};
+
+export const API_SERVICE_PRESETS: ApiServicePreset[] = [
+  {
+    value: "google_ads",
+    label: "Google Ads API",
+    suggestedFields: ["developer_token", "client_id", "client_secret", "refresh_token", "customer_id"],
+  },
+  {
+    value: "meta_marketing",
+    label: "Meta Marketing API",
+    suggestedFields: ["app_id", "app_secret", "access_token", "ad_account_id"],
+  },
+  {
+    value: "ga4",
+    label: "Google Analytics 4 (GA4)",
+    suggestedFields: ["client_id", "client_secret", "refresh_token", "property_id"],
+  },
+  {
+    value: "gtm",
+    label: "Google Tag Manager (GTM)",
+    suggestedFields: ["client_id", "client_secret", "refresh_token", "container_id"],
+  },
+  {
+    value: "gsc",
+    label: "Google Search Console (GSC)",
+    suggestedFields: ["client_id", "client_secret", "refresh_token", "site_url"],
+  },
+  {
+    value: "gmb",
+    label: "Google Business Profile (GBP/GMB)",
+    suggestedFields: ["client_id", "client_secret", "refresh_token"],
+  },
+  { value: "custom", label: "Custom / other", suggestedFields: ["api_key"] },
+];
+
 export const CURRENCIES = ["PKR", "USD", "EUR", "GBP", "SEK", "AED"] as const;
 
 export const UNITS = ["month", "project", "hour", "item", "campaign"] as const;

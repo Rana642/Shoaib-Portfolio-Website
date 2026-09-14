@@ -10,6 +10,7 @@
     "generate:resume-pdf": "tsx scripts/generate-resume-pdf.tsx",
     "migrate:sanity": "tsx --env-file=.env.local scripts/migrate-to-sanity.ts",
     "backup:db": "node scripts/backup-db.mjs",
+    "db:sql": "node scripts/run-sql.mjs",
     "mcp:social": "tsx --conditions=react-server mcp/index.ts"
   },
   "dependencies": {
@@ -42,11 +43,12 @@
     "@react-pdf/renderer": "^4.6.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
-    "dotenv": "^16.4.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^16.4.5",
     "eslint": "^9",
     "eslint-config-next": "16.3.2",
+    "pg": "^8.23.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
     "typescript": "^5"
