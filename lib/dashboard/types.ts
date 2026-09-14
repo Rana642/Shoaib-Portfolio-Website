@@ -95,6 +95,10 @@ export type ClientProject = {
   client_id: string;
   name: string;
   notes: string | null;
+  /** Business-specific posting style guide — emoji use, tone, language,
+   *  do's and don'ts. Read by the social MCP tools so caption-writing
+   *  follows each business's voice without being told every time. */
+  posting_instructions: string | null;
   sort_order: number;
 };
 

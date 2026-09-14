@@ -63,6 +63,11 @@ create table if not exists client_projects (
   sort_order int not null default 0
 );
 
+-- Per-business posting style guide (emoji use, tone, language, do's and
+-- don'ts) — read by the social MCP tools and folded into caption-writing so
+-- Claude follows each business's voice without being told every time.
+alter table client_projects add column if not exists posting_instructions text;
+
 create index if not exists client_projects_parent_idx on client_projects (client_id);
 
 alter table client_projects enable row level security;

@@ -24,24 +24,38 @@ const CONTENT_TYPES: Record<string, string> = {
   ".webp": "image/webp",
 };
 
-type ProjectRow = { id: string; name: string; client_id: string; clients: { name: string } | { name: string }[] | null };
+type ProjectRow = {
+  id: string;
+  name: string;
+  client_id: string;
+  posting_instructions: string | null;
+  clients: { name: string } | { name: string }[] | null;
+};
 
 function projectLabel(p: ProjectRow): string {
   const clientName = Array.isArray(p.clients) ? p.clients[0]?.name : p.clients?.name;
   return `${clientName ?? "Unknown"} — ${p.name}`;
 }
 
-async function projectLabelMap(): Promise<Map<string, string>> {
-  const { data } = await db.from("client_projects").select("id, name, client_id, clients(name)");
+type ProjectContext = { label: string; postingInstructions: string | null };
+
+async function projectContextMap(): Promise<Map<string, ProjectContext>> {
+  const { data } = await db.from("client_projects").select("id, name, client_id, posting_instructions, clients(name)");
   const rows = (data ?? []) as ProjectRow[];
-  return new Map(rows.map((p) => [p.id, projectLabel(p)]));
+  return new Map(rows.map((p) => [p.id, { label: projectLabel(p), postingInstructions: p.posting_instructions }]));
+}
+
+/** Back-compat thin wrapper for call sites that only need the label. */
+async function projectLabelMap(): Promise<Map<string, string>> {
+  const ctx = await projectContextMap();
+  return new Map([...ctx.entries()].map(([id, c]) => [id, c.label]));
 }
 
 /** Fuzzy-matches a project by its own name or the combined "Client — Project"
  *  label (posting binds to a project, not a client — see the note in
  *  supabase/dashboard-schema.sql). */
 async function findProjectByName(name: string): Promise<{ id: string; label: string }> {
-  const { data } = await db.from("client_projects").select("id, name, client_id, clients(name)");
+  const { data } = await db.from("client_projects").select("id, name, client_id, posting_instructions, clients(name)");
   const rows = (data ?? []) as ProjectRow[];
   const needle = name.toLowerCase();
   const matches = rows.filter(
@@ -63,24 +77,29 @@ export function registerSocialTools(server: McpServer): void {
       title: "List Pending-Caption Posts",
       description: `Lists images uploaded via the /dashboard/social/planner calendar that still need a caption (status='pending_caption') — the date is already set from the calendar day they were dropped on.
 
-For each, use social_get_post_image to view the image, then social_set_caption_and_schedule to finish it.
+For each, use social_get_post_image to view the image (which also returns that project's posting style guide, if one is set — follow it when writing the caption), then social_set_caption_and_schedule to finish it.
 
-Returns (JSON): { count, posts: [{ id, project_label, original_filename, scheduled_at }] }`,
+Returns (JSON): { count, posts: [{ id, project_label, original_filename, scheduled_at, posting_instructions }] }`,
       inputSchema: {},
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     async () => {
       try {
-        const [posts, labels] = await Promise.all([listPendingCaptionPosts(), projectLabelMap()]);
-        const rows = posts.map((p) => ({
-          id: p.id,
-          project_label: labels.get(p.project_id) ?? "Unknown project",
-          original_filename: p.original_filename,
-          scheduled_at: p.scheduled_at,
-        }));
+        const [posts, projects] = await Promise.all([listPendingCaptionPosts(), projectContextMap()]);
+        const rows = posts.map((p) => {
+          const ctx = projects.get(p.project_id);
+          return {
+            id: p.id,
+            project_label: ctx?.label ?? "Unknown project",
+            original_filename: p.original_filename,
+            scheduled_at: p.scheduled_at,
+            posting_instructions: ctx?.postingInstructions ?? null,
+          };
+        });
         const lines = [`# Pending posts (${rows.length})`, ""];
         for (const r of rows) {
           lines.push(`- \`${r.id}\` — **${r.project_label}** — ${r.original_filename} (${r.scheduled_at ?? "no date set"})`);
+          if (r.posting_instructions) lines.push(`  Posting style: ${r.posting_instructions}`);
         }
         return {
           content: [{ type: "text", text: lines.join("\n") }],
@@ -96,12 +115,12 @@ Returns (JSON): { count, posts: [{ id, project_label, original_filename, schedul
     "social_get_post_image",
     {
       title: "Get Post Image",
-      description: `Fetches the actual image for a pending/queued post so you can read any text in it (OCR) and write a caption.
+      description: `Fetches the actual image for a pending/queued post so you can read any text in it (OCR) and write a caption. Also returns that post's project posting style guide, if one is set — follow it (emoji use, tone, language, do's and don'ts) when writing the caption, without needing to be told again.
 
 Args:
   - postId (string, UUID): from social_list_pending_posts.
 
-Returns: the image itself (view it directly), plus the post's original filename as text.`,
+Returns: the image itself (view it directly), plus the post's original filename and posting style guide as text.`,
       inputSchema: { postId: z.string().uuid() },
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
@@ -109,10 +128,14 @@ Returns: the image itself (view it directly), plus the post's original filename 
       try {
         const post = await getScheduledPost(postId);
         if (!post) return { content: [{ type: "text", text: `Error: No post found with id '${postId}'.` }], isError: true };
-        const { buffer, contentType } = await fetchObject(post.media_key);
+        const [{ buffer, contentType }, projects] = await Promise.all([fetchObject(post.media_key), projectContextMap()]);
+        const ctx = projects.get(post.project_id);
+        const styleText = ctx?.postingInstructions
+          ? `Posting style for ${ctx.label}: ${ctx.postingInstructions}`
+          : `No posting style guide set for ${ctx?.label ?? "this project"} — use your own judgement.`;
         return {
           content: [
-            { type: "text", text: `File: ${post.original_filename}` },
+            { type: "text", text: `File: ${post.original_filename}\n${styleText}` },
             { type: "image", data: buffer.toString("base64"), mimeType: contentType },
           ],
         };
