@@ -2,6 +2,7 @@ import "server-only";
 import { listSocialAccountsForProject, decryptAccountToken } from "./social-accounts";
 import { postFacebookPhoto, postInstagramPhoto, scheduleFacebookPhoto, deleteFacebookPost } from "./social-fb";
 import { postLinkedInPhoto } from "./social-linkedin";
+import { getFreshTikTokAccessToken, publishTikTokPhotoPost, mintTikTokMediaUrl } from "./social-tiktok";
 import { getScheduledPost, recordNativeScheduleResult } from "./scheduled-posts";
 import { presignDownload } from "./storage";
 import type { ClientSocialAccount, ScheduledPost } from "./dashboard/types";
@@ -33,23 +34,36 @@ export function isWithinNativeScheduleWindow(scheduledAtIso: string): boolean {
 async function postToOneAccount(
   account: ClientSocialAccount,
   imageUrl: string,
-  caption: string
+  caption: string,
+  mediaKey: string
 ): Promise<PlatformPostResult> {
-  const token = decryptAccountToken(account);
   const base = { platform: account.platform, label: account.label, external_id: account.external_id };
   try {
     let post_id = "";
     let usagePercent: number | null = null;
-    if (account.platform === "facebook") {
-      const r = await postFacebookPhoto(account.external_id, token, imageUrl, caption);
-      post_id = r.post_id;
-      usagePercent = r.usagePercent;
-    } else if (account.platform === "instagram") {
-      const r = await postInstagramPhoto(account.external_id, token, imageUrl, caption);
-      post_id = r.post_id;
-      usagePercent = r.usagePercent;
-    } else if (account.platform === "linkedin") {
-      post_id = (await postLinkedInPhoto(account.external_id, token, imageUrl, caption)).post_id;
+    if (account.platform === "tiktok") {
+      // TikTok's PULL_FROM_URL needs a URL under a verified domain, not the
+      // R2 presigned URL every other platform uses here — see
+      // mintTikTokMediaUrl. Publishing is also async: this returns once
+      // TikTok accepts the post, not once it's fully live (see
+      // publishTikTokPhotoPost).
+      const token = await getFreshTikTokAccessToken(account);
+      const result = await publishTikTokPhotoPost(token, [mintTikTokMediaUrl(mediaKey)], caption);
+      if (result.status === "FAILED") throw new Error(result.failReason || "TikTok rejected the post.");
+      post_id = result.publish_id;
+    } else {
+      const token = decryptAccountToken(account);
+      if (account.platform === "facebook") {
+        const r = await postFacebookPhoto(account.external_id, token, imageUrl, caption);
+        post_id = r.post_id;
+        usagePercent = r.usagePercent;
+      } else if (account.platform === "instagram") {
+        const r = await postInstagramPhoto(account.external_id, token, imageUrl, caption);
+        post_id = r.post_id;
+        usagePercent = r.usagePercent;
+      } else if (account.platform === "linkedin") {
+        post_id = (await postLinkedInPhoto(account.external_id, token, imageUrl, caption)).post_id;
+      }
     }
     return { ...base, ok: true, post_id, usagePercent };
   } catch (error) {
@@ -67,6 +81,7 @@ export async function postToAllProjectAccounts(
   projectId: string,
   imageUrl: string,
   caption: string,
+  mediaKey: string,
   excludeExternalIds: string[] = []
 ): Promise<PlatformPostResult[]> {
   const all = await listSocialAccountsForProject(projectId);
@@ -77,7 +92,7 @@ export async function postToAllProjectAccounts(
   }
   const remaining = all.filter((a) => !excludeExternalIds.includes(a.external_id));
   if (remaining.length === 0) return [];
-  return Promise.all(remaining.map((a) => postToOneAccount(a, imageUrl, caption)));
+  return Promise.all(remaining.map((a) => postToOneAccount(a, imageUrl, caption, mediaKey)));
 }
 
 /** Hands eligible Facebook accounts to Meta's own scheduler as soon as a

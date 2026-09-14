@@ -3,26 +3,37 @@ import { listProjectOptions, listClientsMissingProject } from "@/lib/dashboard/p
 import { PageHeader, Card } from "@/components/dashboard/ui";
 import FacebookConnectPanel from "@/components/dashboard/social/FacebookConnectPanel";
 import LinkedInConnectPanel from "@/components/dashboard/social/LinkedInConnectPanel";
+import TikTokConnectPanel from "@/components/dashboard/social/TikTokConnectPanel";
 import ManualAccountForm from "@/components/dashboard/social/ManualAccountForm";
 import AccountsList from "@/components/dashboard/social/AccountsList";
+import { getTikTokAccountSummary, type TikTokAccountSummary } from "@/lib/social-tiktok";
 import type { ClientSocialAccount } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Social connections" };
 
 export default async function SocialConnectionsPage() {
-  const [projects, clientsMissingProject, { data: accounts }, { data: connection }] = await Promise.all([
-    listProjectOptions(),
-    listClientsMissingProject(),
-    db.from("client_social_accounts").select("*").order("created_at"),
-    db.from("social_connections").select("connected_at, fb_token_expires_at, li_connected_at").eq("id", 1).maybeSingle(),
-  ]);
+  const [projects, clientsMissingProject, { data: accounts }, { data: connection }, { data: tiktokCredential }] =
+    await Promise.all([
+      listProjectOptions(),
+      listClientsMissingProject(),
+      db.from("client_social_accounts").select("*").order("created_at"),
+      db.from("social_connections").select("connected_at, fb_token_expires_at, li_connected_at").eq("id", 1).maybeSingle(),
+      db.from("api_credentials").select("id").eq("service", "tiktok").maybeSingle(),
+    ]);
+
+  const allAccounts = (accounts ?? []) as ClientSocialAccount[];
+  const tiktokAccounts = allAccounts.filter((a) => a.platform === "tiktok");
+  const tiktokSummaryEntries = await Promise.all(
+    tiktokAccounts.map(async (a) => [a.id, await getTikTokAccountSummary(a)] as const)
+  );
+  const tiktokSummaries: Record<string, TikTokAccountSummary> = Object.fromEntries(tiktokSummaryEntries);
 
   return (
     <>
       <PageHeader
         title="Social connections"
-        description="Connect a project's Facebook/Instagram/LinkedIn accounts. Bound to projects (client_projects), not clients directly — a client can run more than one business. Upload and schedule posts from the Planner."
+        description="Connect a project's Facebook/Instagram/LinkedIn/TikTok accounts. Bound to projects (client_projects), not clients directly — a client can run more than one business. Upload and schedule posts from the Planner."
       />
 
       {clientsMissingProject.length > 0 && (
@@ -50,6 +61,16 @@ export default async function SocialConnectionsPage() {
         </Card>
 
         <Card className="p-6">
+          <h2 className="text-body-lg font-semibold mb-4">TikTok connection</h2>
+          <TikTokConnectPanel
+            projects={projects}
+            accounts={tiktokAccounts}
+            summaries={tiktokSummaries}
+            vaultConfigured={Boolean(tiktokCredential)}
+          />
+        </Card>
+
+        <Card className="p-6">
           <h2 className="text-body-lg font-semibold mb-4">Add manual account</h2>
           <p className="text-small text-ink-muted mb-4">
             For LinkedIn, or an Instagram account not linked to a Facebook Page — paste its access token
@@ -60,7 +81,7 @@ export default async function SocialConnectionsPage() {
 
         <div>
           <h2 className="text-body-lg font-semibold mb-4">Connected accounts</h2>
-          <AccountsList projects={projects} accounts={(accounts ?? []) as ClientSocialAccount[]} />
+          <AccountsList projects={projects} accounts={allAccounts} />
         </div>
       </div>
     </>

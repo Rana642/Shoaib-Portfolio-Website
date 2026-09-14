@@ -49,7 +49,7 @@ export async function GET(request: Request) {
 
     try {
       const imageUrl = await presignDownload(post.media_key);
-      const liveResults = await postToAllProjectAccounts(post.project_id, imageUrl, post.caption ?? "", alreadyHandled);
+      const liveResults = await postToAllProjectAccounts(post.project_id, imageUrl, post.caption ?? "", post.media_key, alreadyHandled);
       const allResults = [...nativeResults, ...liveResults];
       const ok = allResults.length > 0 && allResults.every((r) => r.ok);
       await markPostResult(post.id, ok, { platforms: allResults });

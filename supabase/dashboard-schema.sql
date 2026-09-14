@@ -668,13 +668,25 @@ create table if not exists client_social_accounts (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
   project_id uuid not null references client_projects (id) on delete cascade,
-  platform text not null check (platform in ('facebook', 'instagram', 'linkedin')),
+  platform text not null check (platform in ('facebook', 'instagram', 'linkedin', 'tiktok')),
   label text not null,                 -- e.g. the Page/account display name
-  external_id text not null,           -- Page id / IG Business Account id / LinkedIn URN
+  external_id text not null,           -- Page id / IG Business Account id / LinkedIn URN / TikTok open_id
   access_token_encrypted text not null,
+  -- TikTok tokens expire (~24h) and must be refreshed via refresh_token —
+  -- unlike Meta's long-lived Page tokens / LinkedIn's member token, which
+  -- don't, so this stays null for every other platform.
+  refresh_token_encrypted text,
   token_expires_at timestamptz,        -- null = doesn't expire (Meta long-lived Page tokens)
   is_active boolean not null default true
 );
+
+-- Widen the platform CHECK and add refresh_token_encrypted on a database
+-- that already had this table before TikTok support landed (2026-09-15) —
+-- `create table if not exists` above only applies to a brand-new database.
+alter table client_social_accounts drop constraint if exists client_social_accounts_platform_check;
+alter table client_social_accounts add constraint client_social_accounts_platform_check
+  check (platform in ('facebook', 'instagram', 'linkedin', 'tiktok'));
+alter table client_social_accounts add column if not exists refresh_token_encrypted text;
 
 -- One-time rename from the original client_id design (2026-09-10) — tables
 -- were empty when this landed, so this is mostly future-proofing if it's

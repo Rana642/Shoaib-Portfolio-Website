@@ -51,7 +51,7 @@ export type Client = {
   is_active: boolean;
 };
 
-export type SocialPlatform = "facebook" | "instagram" | "linkedin";
+export type SocialPlatform = "facebook" | "instagram" | "linkedin" | "tiktok";
 
 /** A client_projects row flattened with its parent client's name, for
  *  project-picker dropdowns across the social poster UI/MCP. Social
@@ -71,6 +71,7 @@ export type ClientSocialAccount = {
   label: string;
   external_id: string;
   access_token_encrypted: string;
+  refresh_token_encrypted: string | null;
   token_expires_at: string | null;
   is_active: boolean;
 };

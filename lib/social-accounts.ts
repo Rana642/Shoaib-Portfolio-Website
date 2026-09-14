@@ -117,6 +117,68 @@ export function decryptAccountToken(account: ClientSocialAccount): string {
   return decryptToken(account.access_token_encrypted);
 }
 
+export function decryptAccountRefreshToken(account: ClientSocialAccount): string | null {
+  return account.refresh_token_encrypted ? decryptToken(account.refresh_token_encrypted) : null;
+}
+
+/** Saves (or re-saves, on reconnect) a TikTok creator account. Unlike
+ *  Facebook/LinkedIn there's no separate "discover, then map" step — Login
+ *  Kit's OAuth consent already scopes to exactly one creator account per
+ *  authorization, with the target project chosen up front (carried through
+ *  as the `state` param), so this both discovers and persists in one call.
+ *  No unique DB constraint backs an upsert here, so this checks manually. */
+export async function saveTikTokAccount(input: {
+  project_id: string;
+  open_id: string;
+  display_name: string;
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+}) {
+  const tokenFields = {
+    label: input.display_name,
+    access_token_encrypted: encryptToken(input.access_token),
+    refresh_token_encrypted: encryptToken(input.refresh_token),
+    token_expires_at: new Date(Date.now() + input.expires_in * 1000).toISOString(),
+    is_active: true,
+  };
+  const { data: existing } = await db
+    .from("client_social_accounts")
+    .select("id")
+    .eq("project_id", input.project_id)
+    .eq("platform", "tiktok")
+    .eq("external_id", input.open_id)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await db.from("client_social_accounts").update(tokenFields).eq("id", existing.id);
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await db
+      .from("client_social_accounts")
+      .insert({ project_id: input.project_id, platform: "tiktok", external_id: input.open_id, ...tokenFields });
+    if (error) throw new Error(error.message);
+  }
+}
+
+/** Persists a rotated TikTok access/refresh token pair after a refresh call
+ *  — TikTok's refresh_token itself rotates on every use, so the old one
+ *  stops working right after and must be overwritten, not just the access token. */
+export async function updateTikTokAccountTokens(
+  accountId: string,
+  tokens: { access_token: string; refresh_token: string; expires_in: number }
+) {
+  const { error } = await db
+    .from("client_social_accounts")
+    .update({
+      access_token_encrypted: encryptToken(tokens.access_token),
+      refresh_token_encrypted: encryptToken(tokens.refresh_token),
+      token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+    })
+    .eq("id", accountId);
+  if (error) throw new Error(error.message);
+}
+
 /** LinkedIn equivalent of connectFacebookAccount — a member access token
  *  (LinkedIn has no simple "Graph API Explorer"; Shoaib generates one from
  *  his Developer app's own OAuth Token Generator) exchanged for the list of

@@ -279,7 +279,7 @@ Returns (JSON): per-platform results.`,
         await uploadObject(key, bytes, contentType);
         const imageUrl = await presignDownload(key);
 
-        const results = await postToAllProjectAccounts(project.id, imageUrl, caption);
+        const results = await postToAllProjectAccounts(project.id, imageUrl, caption, key);
         const lines = results.map((r) => (r.ok ? `✓ ${r.platform} (${r.label}) — post id ${r.post_id}` : `✗ ${r.platform} (${r.label}) — ${r.error}`));
         return {
           content: [{ type: "text", text: lines.join("\n") }],
