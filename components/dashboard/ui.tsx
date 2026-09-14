@@ -70,8 +70,8 @@ export function EmptyState({
 
 const statusStyles: Record<string, string> = {
   draft: "bg-ink/8 text-ink-muted border-ink/15",
-  sent: "bg-cobalt/10 text-cobalt border-cobalt/25",
-  viewed: "bg-cobalt/10 text-cobalt border-cobalt/25",
+  sent: "bg-cobalt/10 text-ink border-cobalt/25",
+  viewed: "bg-cobalt/10 text-ink border-cobalt/25",
   accepted: "bg-green-500/10 text-green-700 border-green-600/25",
   signed: "bg-green-500/10 text-green-700 border-green-600/25",
   submitted: "bg-green-500/10 text-green-700 border-green-600/25",

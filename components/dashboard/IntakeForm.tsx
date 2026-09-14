@@ -447,7 +447,7 @@ export default function IntakeForm({
               ))}
               <button
                 type="button"
-                onClick={() => setColors([...colors, "#eab308"])}
+                onClick={() => setColors([...colors, "#fec107"])}
                 className={`${buttonStyles.secondary} px-3 py-2`}
               >
                 <Plus className="size-4" aria-hidden />
@@ -559,7 +559,7 @@ export default function IntakeForm({
                 <button
                   type="button"
                   onClick={() => setStep(section.step)}
-                  className="text-small text-cobalt hover:text-ink transition-colors"
+                  className="text-small text-ink hover:text-cobalt transition-colors"
                 >
                   Edit
                 </button>

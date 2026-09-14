@@ -1,11 +1,24 @@
 @import "tailwindcss";
 
 @theme {
-  /* ── Colors (65% cloud / 25% ink / 8% citrus accent / 2% cobalt highlight) ── */
+  /* ── Colors ── Rebranded 2026-09-15 to match the new "Ads by Shoaib" logo
+     mark exactly (mountain glyph: blue peak, yellow/green base strokes).
+     Citrus and Cobalt keep their existing NAMES/ROLES (decorative accent /
+     decorative highlight) so every one of the 50+ files already using
+     bg-citrus, text-citrus, bg-cobalt etc. picks up the new brand colors
+     automatically — only the values changed, not the token names.
+     IMPORTANT: the new Cobalt (#2196f3) is a brighter blue than the old one
+     and fails text contrast on Cloud (2.99:1, same problem Citrus already
+     had) — so, same rule as Citrus: Cobalt is decorative-only from now on
+     (badges, icons, underlines, borders, backgrounds). Text-level accents
+     that used to read text-cobalt now read text-ink — see the color-swap
+     memory/CLAUDE.md for the audit. Forest (new) is the logo's third color,
+     used sparingly as a tasteful third accent, never for body text either. */
   --color-cloud: #fafafa;
   --color-ink: #0f0f14;
-  --color-citrus: #eab308;
-  --color-cobalt: #1e40af;
+  --color-citrus: #fec107;
+  --color-cobalt: #2196f3;
+  --color-forest: #3fa343;
   --color-ink-muted: rgba(15, 15, 20, 0.75);
   --color-ink-subtle: rgba(15, 15, 20, 0.5);
   --color-ink-faint: rgba(15, 15, 20, 0.1);

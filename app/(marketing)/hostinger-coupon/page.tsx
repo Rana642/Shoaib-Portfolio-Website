@@ -203,7 +203,7 @@ export default function HostingerCouponPage() {
               <Reveal key={plan.name} delay={(i % 2) * 0.07}>
                 <div className="h-full border border-ink/10 rounded-2xl p-7 hover:border-citrus/50 hover:bg-citrus/5 transition-all duration-300">
                   <h3 className="text-body-lg font-semibold">{plan.name}</h3>
-                  <p className="text-small text-cobalt mt-2">{plan.who}</p>
+                  <p className="text-small text-ink mt-2">{plan.who}</p>
                   <p className="text-small text-ink-muted mt-3">{plan.note}</p>
                 </div>
               </Reveal>

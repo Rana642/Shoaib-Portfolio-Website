@@ -22,8 +22,8 @@ export default function StudioPage() {
             <a href="https://sanity.io" className="underline" target="_blank" rel="noopener noreferrer">
               sanity.io
             </a>
-            , then set <code className="text-[#eab308]">NEXT_PUBLIC_SANITY_PROJECT_ID</code> in{" "}
-            <code className="text-[#eab308]">.env.local</code> and restart the dev server.
+            , then set <code className="text-[#fec107]">NEXT_PUBLIC_SANITY_PROJECT_ID</code> in{" "}
+            <code className="text-[#fec107]">.env.local</code> and restart the dev server.
           </p>
         </div>
       </div>

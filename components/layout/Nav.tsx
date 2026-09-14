@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -36,8 +37,8 @@ export default function Nav() {
   return (
     <header className="fixed top-0 inset-x-0 z-50 bg-cloud/80 backdrop-blur-md border-b border-ink/5">
       <nav className="container-wide flex items-center justify-between h-16 md:h-20">
-        <Link href="/" className="font-serif italic text-xl md:text-2xl tracking-tight">
-          ads by shoaib<span className="text-citrus not-italic font-sans font-bold">.</span>
+        <Link href="/" aria-label="Ads by Shoaib home">
+          <Image src="/brand/logo-horizontal.svg" alt="Ads by Shoaib" width={168} height={55} priority className="h-9 md:h-10 w-auto" />
         </Link>
 
         <ul className="hidden md:flex items-center gap-8">

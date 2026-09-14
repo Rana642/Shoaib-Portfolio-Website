@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import Image from "next/image";
 import LoginForm from "@/components/dashboard/LoginForm";
 
 export const metadata: Metadata = {
@@ -12,9 +13,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-ink px-6">
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
-          <span className="font-serif italic text-2xl text-cloud">
-            ads by shoaib<span className="text-citrus not-italic font-sans font-bold">.</span>
-          </span>
+          <Image src="/brand/logo-horizontal-light.svg" alt="Ads by Shoaib" width={168} height={55} className="h-10 w-auto mx-auto" />
           <p className="font-mono uppercase text-tag tracking-widest text-cloud/40 mt-3">
             Dashboard
           </p>

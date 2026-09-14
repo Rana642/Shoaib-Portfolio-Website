@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -121,16 +122,12 @@ export default function Sidebar({
         <div className={cn("py-6", rail ? "px-3" : "px-5")}>
           <div className={cn("flex items-center", rail ? "justify-center" : "justify-between")}>
             {rail ? (
-              <Link
-                href="/dashboard"
-                className="font-serif italic text-xl text-cloud"
-                title="ads by shoaib"
-              >
-                a<span className="text-citrus not-italic font-sans font-bold">.</span>
+              <Link href="/dashboard" title="Ads by Shoaib">
+                <Image src="/brand/mark.svg" alt="Ads by Shoaib" width={28} height={30} className="size-7" />
               </Link>
             ) : (
-              <Link href="/dashboard" className="font-serif italic text-xl text-cloud">
-                ads by shoaib<span className="text-citrus not-italic font-sans font-bold">.</span>
+              <Link href="/dashboard" aria-label="Ads by Shoaib home">
+                <Image src="/brand/logo-horizontal-light.svg" alt="Ads by Shoaib" width={168} height={55} className="h-8 w-auto" />
               </Link>
             )}
             {onToggle && (
@@ -294,8 +291,8 @@ export default function Sidebar({
     <>
       {/* Mobile top bar */}
       <div className="lg:hidden fixed top-0 inset-x-0 z-50 h-14 glass-dark backdrop-blur-xl backdrop-saturate-150 border-b border-cloud/10 flex items-center justify-between px-4">
-        <Link href="/dashboard" className="font-serif italic text-lg text-cloud">
-          ads by shoaib<span className="text-citrus not-italic font-sans font-bold">.</span>
+        <Link href="/dashboard" aria-label="Ads by Shoaib home">
+          <Image src="/brand/logo-horizontal-light.svg" alt="Ads by Shoaib" width={168} height={55} className="h-7 w-auto" />
         </Link>
         <button
           onClick={() => setOpen(!open)}

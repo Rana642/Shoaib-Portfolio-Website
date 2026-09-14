@@ -187,7 +187,7 @@ export default async function ServicesPage() {
             {process.map((p, i) => (
               <Reveal key={p.step} delay={i * 0.06}>
                 <li className="grid grid-cols-[auto_1fr] gap-6 py-7 border-b border-ink/10">
-                  <span className="font-serif italic text-h3 text-cobalt leading-none w-10">
+                  <span className="font-serif italic text-h3 text-ink leading-none w-10">
                     {i + 1}
                   </span>
                   <div>

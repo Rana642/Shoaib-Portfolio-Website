@@ -73,7 +73,7 @@ function PrimaryRoleCard({ role, index }: { role: PrimaryRole; index: number }) 
         >
           <div>
             <h3 className="text-body-lg font-semibold">{role.role}</h3>
-            <p className="text-small text-cobalt font-medium mt-1">
+            <p className="text-small text-ink font-medium mt-1">
               {role.company} · {role.location}
             </p>
             <div className="flex flex-wrap gap-2 mt-3">
@@ -159,7 +159,7 @@ function RemoteProjectCard({ project, index }: { project: RemoteProject; index: 
                 </a>
               )}
             </h3>
-            <p className="text-small text-cobalt font-medium mt-1">{project.role}</p>
+            <p className="text-small text-ink font-medium mt-1">{project.role}</p>
             {project.period && (
               <span className="inline-block font-mono uppercase text-tag tracking-widest text-ink-subtle border border-ink/10 rounded-full px-3 py-1.5 mt-3">
                 {project.period}

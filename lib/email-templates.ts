@@ -7,7 +7,7 @@
 const wrapper = (body: string) => `
   <div style="font-family: -apple-system, Helvetica, Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #0F0F14;">
     <div style="padding: 4px 0 20px; font-style: italic; font-size: 20px;">
-      ads by shoaib<span style="font-style: normal; color: #EAB308;">.</span>
+      ads by shoaib<span style="font-style: normal; color: #FEC107;">.</span>
     </div>
     ${body}
     <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #eee; font-size: 12px; color: #888;">
@@ -67,7 +67,7 @@ export function proposalSentEmail(data: { name: string; url: string }) {
       scope, and investment, all in one place.
     </p>
     <p style="margin: 24px 0;">
-      <a href="${data.url}" style="display: inline-block; background: #EAB308; color: #0F0F14; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
+      <a href="${data.url}" style="display: inline-block; background: #FEC107; color: #0F0F14; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
         View the proposal
       </a>
     </p>
@@ -88,7 +88,7 @@ export function agreementReadyEmail(data: { name: string; url: string }) {
       and sign when you're ready.
     </p>
     <p style="margin: 24px 0;">
-      <a href="${data.url}" style="display: inline-block; background: #EAB308; color: #0F0F14; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
+      <a href="${data.url}" style="display: inline-block; background: #FEC107; color: #0F0F14; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
         Review & sign
       </a>
     </p>
@@ -108,7 +108,7 @@ export function onboardingInviteEmail(data: { name: string; url: string }) {
       your business so the work starts on the right foot.
     </p>
     <p style="margin: 24px 0;">
-      <a href="${data.url}" style="display: inline-block; background: #EAB308; color: #0F0F14; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
+      <a href="${data.url}" style="display: inline-block; background: #FEC107; color: #0F0F14; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
         Complete onboarding
       </a>
     </p>

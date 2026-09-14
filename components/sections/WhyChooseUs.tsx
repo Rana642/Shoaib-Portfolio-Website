@@ -3,6 +3,10 @@
  */
 import Reveal from "@/components/shared/Reveal";
 
+// Cycles through the logo's three colors across the cards, echoing the
+// mark itself rather than repeating one accent five times in a row.
+const borderColors = ["border-citrus", "border-cobalt", "border-forest"];
+
 const reasons = [
   {
     title: "One accountable brain",
@@ -52,8 +56,8 @@ export default function WhyChooseUs() {
               delay={i * 0.07}
               className="min-w-[75%] sm:min-w-[45%] lg:min-w-0 snap-start"
             >
-              <div className="h-full border-t-2 border-citrus pt-6">
-                <span className="font-serif italic text-hero text-cobalt leading-none select-none">
+              <div className={`h-full border-t-2 ${borderColors[i % borderColors.length]} pt-6`}>
+                <span className="font-serif italic text-hero text-ink leading-none select-none">
                   {i + 1}
                 </span>
                 <h3 className="text-body-lg font-semibold mt-4">{reason.title}</h3>

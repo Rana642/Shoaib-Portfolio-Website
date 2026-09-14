@@ -236,7 +236,7 @@ export default async function ResumePage() {
               {education.map((edu) => (
                 <li key={edu.degree}>
                   <p className="text-body font-medium">{edu.degree}</p>
-                  <p className="text-small text-cobalt mt-0.5">{edu.institution}</p>
+                  <p className="text-small text-ink mt-0.5">{edu.institution}</p>
                   <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-1.5">
                     {edu.period}
                   </p>

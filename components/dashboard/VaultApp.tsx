@@ -343,7 +343,7 @@ export default function VaultApp({
                     </p>
                   </div>
                   {clientName(i.client_id) && (
-                    <span className="text-small text-cobalt hidden sm:block truncate max-w-[160px]">
+                    <span className="text-small text-ink hidden sm:block truncate max-w-[160px]">
                       {clientName(i.client_id)}
                     </span>
                   )}

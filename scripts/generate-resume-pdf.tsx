@@ -17,8 +17,8 @@ import { Document, Page, Text, View, StyleSheet, Link, renderToFile } from "@rea
 const INK = "#0F0F14";
 const INK_MUTED = "#4A4A52";
 const INK_SUBTLE = "#7A7A82";
-const CITRUS = "#B8860B"; // darker than web citrus (#EAB308) — legible as text/lines on white paper
-const COBALT = "#1E40AF";
+const CITRUS = "#C19201"; // darker than web citrus (#FEC107) — legible as a decorative line on white paper
+const COBALT = "#0960A5"; // darker than web cobalt (#2196F3) — legible as text on white paper
 const LINE = "#E4E4E7";
 
 const styles = StyleSheet.create({

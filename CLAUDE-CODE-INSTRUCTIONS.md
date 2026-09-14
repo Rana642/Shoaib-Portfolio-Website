@@ -43,8 +43,9 @@
 colors: {
   cloud: '#FAFAFA',       // 65% — background
   ink: '#0F0F14',         // 25% — text
-  citrus: '#EAB308',      // 8% — brand accent (SWAPPED 2026-08-21, was cobalt)
-  cobalt: '#1E40AF',      // 2% — highlight (SWAPPED 2026-08-21, was citrus)
+  citrus: '#FEC107',      // 8% — brand accent (REBRANDED 2026-09-15, was #EAB308)
+  cobalt: '#2196F3',      // 2% — decorative highlight only (REBRANDED 2026-09-15, was #1E40AF)
+  forest: '#3FA343',      // sparing accent — third mark color (NEW 2026-09-15)
   // Semantic
   'ink-muted': 'rgba(15, 15, 20, 0.75)',
   'ink-subtle': 'rgba(15, 15, 20, 0.5)',
@@ -56,10 +57,28 @@ colors: {
 > accent (8%) and Cobalt the rare highlight (2%). Everywhere this document says
 > "Cobalt" as accent (tags, secondary buttons, selection, icons, animated lines),
 > read Citrus — and vice versa for highlight moments.
-> **Accessibility rule:** Citrus #EAB308 on Cloud #FAFAFA fails text contrast.
+
+> **LOGO REBRAND (2026-09-15, per Shoaib):** Official "Ads by Shoaib" logo
+> delivered by the designer — a mountain/triangle "A" mark in the three colors
+> above, paired with an "ADS BY SHOAIB" wordmark. Shoaib's instruction: apply
+> this exact color scheme everywhere, completely replacing the old Citrus/Cobalt
+> hex values (token NAMES unchanged — only the hex values under `@theme` in
+> `app/globals.css` changed, so existing `bg-citrus`/`text-cobalt` usage recolors
+> automatically). The real logo files live in `public/brand/` (`logo-horizontal.svg`,
+> `logo-horizontal-light.svg` for dark backgrounds, `logo-stacked.svg`, `mark.svg`
+> mark-only) and have replaced the old CSS-text wordmark (`ads by shoaib<span
+> className="text-citrus">.</span>`) everywhere it appeared — use `<Image>` with
+> one of these SVGs for any new logo placement, never retype the wordmark as text.
+> **Accessibility rule (updated):** the new Cobalt `#2196F3` is BRIGHTER than the
+> old `#1E40AF` and now also fails text contrast on Cloud (same as Citrus always
+> has) — per Shoaib's explicit call, Cobalt is decorative-only (badges, icons,
+> underlines, backgrounds); any real body/link text that used to read `text-cobalt`
+> must use Ink instead. Forest `#3FA343` is a sparing third accent — use it where
+> it looks aesthetically good (a card border, an ambient blob), not on every element.
 > Use Citrus for: backgrounds/badges (with Ink text), underlines, icon fills,
-> decorative lines, hover glows. Keep body-level text accents in Ink or Cobalt
-> (Cobalt passes contrast on Cloud). Confirm per-element with Shoaib during build.
+> decorative lines, hover glows. Keep body-level text accents in Ink only now
+> (Cobalt no longer passes contrast on Cloud). Confirm per-element with Shoaib
+> during build.
 
 ### Typography
 

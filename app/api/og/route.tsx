@@ -24,7 +24,7 @@ export async function GET(request: Request) {
               width: 10,
               height: 10,
               borderRadius: "50%",
-              backgroundColor: "#EAB308",
+              backgroundColor: "#FEC107",
             }}
           />
           <span

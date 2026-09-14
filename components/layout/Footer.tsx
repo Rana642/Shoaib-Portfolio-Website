@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Mail } from "lucide-react";
 import { LinkedinIcon, InstagramIcon, YoutubeIcon } from "@/components/ui/SocialIcons";
 import NewsletterForm from "@/components/forms/NewsletterForm";
@@ -25,8 +26,8 @@ export default function Footer() {
       <div className="container-wide py-16 md:py-20 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
         {/* Brand */}
         <div>
-          <Link href="/" className="font-serif italic text-2xl">
-            ads by shoaib<span className="text-citrus not-italic font-sans font-bold">.</span>
+          <Link href="/" aria-label="Ads by Shoaib home">
+            <Image src="/brand/logo-horizontal-light.svg" alt="Ads by Shoaib" width={168} height={55} className="h-9 w-auto" />
           </Link>
           <p className="text-small text-cloud/60 mt-4 max-w-xs">
             Independent performance marketing practice led by Shoaib Nabi Noor.
@@ -111,8 +112,7 @@ export default function Footer() {
       <div className="border-t border-cloud/10">
         <div className="container-wide py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-small text-cloud/40">
           <p>
-            © {new Date().getFullYear()} Ads by Shoaib (formerly Socially Snap). All rights
-            reserved.
+            © {new Date().getFullYear()} Ads by Shoaib (formerly Socially Snap). All rights reserved.
           </p>
           <div className="flex gap-6">
             <Link href="/privacy" className="hover:text-cloud/70 transition-colors">

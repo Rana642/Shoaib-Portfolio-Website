@@ -248,7 +248,7 @@ export default function AboutPage() {
               <p className="text-small text-ink-muted max-w-md">
                 Verified <strong className="text-ink font-semibold">Hostinger Partner</strong> — when
                 a client needs hosting, I set them up on infrastructure I trust and pass on a{" "}
-                <Link href="/hostinger-coupon" className="text-cobalt underline decoration-citrus decoration-2 underline-offset-2 hover:text-ink transition-colors">
+                <Link href="/hostinger-coupon" className="text-ink underline decoration-cobalt decoration-2 underline-offset-2 hover:text-cobalt transition-colors">
                   20% partner discount
                 </Link>
                 .

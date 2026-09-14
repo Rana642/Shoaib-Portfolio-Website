@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import Image from "next/image";
 import { getIntakeByToken } from "@/lib/dashboard/actions/onboarding";
 import OnboardingIntakeForm from "@/components/dashboard/OnboardingIntakeForm";
 
@@ -21,9 +22,7 @@ export default async function PublicOnboardingPage({
   return (
     <main className="min-h-full bg-cloud px-5 py-10 md:py-16">
       <div className="max-w-2xl mx-auto">
-        <p className="font-serif italic text-h3 leading-none mb-2">
-          ads by shoaib<span className="text-citrus not-italic font-sans font-bold">.</span>
-        </p>
+        <Image src="/brand/logo-horizontal.svg" alt="Ads by Shoaib" width={168} height={55} className="h-8 w-auto mb-2" />
         <h1 className="font-serif italic text-h2 mt-6">
           Welcome{clientName ? `, ${clientName}` : ""}
         </h1>

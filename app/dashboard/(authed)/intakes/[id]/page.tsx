@@ -61,7 +61,7 @@ function AssetGroup({ title, items }: { title: string; items: AssetLink[] }) {
             {a.url ? (
               <a
                 href={a.url}
-                className="inline-flex items-center gap-1.5 text-small text-cobalt hover:text-ink transition-colors"
+                className="inline-flex items-center gap-1.5 text-small text-ink hover:text-cobalt transition-colors"
               >
                 <Download className="size-4" aria-hidden />
                 Download

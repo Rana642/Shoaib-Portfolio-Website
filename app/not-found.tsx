@@ -1,12 +1,13 @@
 import Link from "next/link";
+import Image from "next/image";
 import Button from "@/components/ui/Button";
 
 export default function NotFound() {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="h-16 md:h-20 flex items-center container-wide">
-        <Link href="/" className="font-serif italic text-xl md:text-2xl tracking-tight">
-          ads by shoaib<span className="text-citrus not-italic font-sans font-bold">.</span>
+        <Link href="/" aria-label="Ads by Shoaib home">
+          <Image src="/brand/logo-horizontal.svg" alt="Ads by Shoaib" width={168} height={55} className="h-9 md:h-10 w-auto" />
         </Link>
       </header>
 
