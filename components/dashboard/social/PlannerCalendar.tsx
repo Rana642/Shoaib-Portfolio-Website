@@ -471,12 +471,48 @@ function UploadModal({ date, projectId, onClose }: { date: string; projectId: st
   );
 }
 
+function dayOfWeek(dateStr: string): number {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun … 5=Fri … 6=Sat
+}
+
+/** Assigns each filename a date starting from `startDate`, one per day —
+ *  except any filename containing "Friday" (Shoaib's own naming convention
+ *  for recurring Jummah/Friday content), which is held back for the next
+ *  actual Friday instead of just falling wherever it lands in sequence.
+ *  Everything else fills in around those Fridays in filename order. A
+ *  Friday with no Friday-named file left just takes the next regular file,
+ *  so no day sits empty unless both queues are exhausted. */
+function planBulkDates(fileNames: string[], startDate: string): string[] {
+  const fridayIdx: number[] = [];
+  const otherIdx: number[] = [];
+  fileNames.forEach((name, i) => (/friday/i.test(name) ? fridayIdx : otherIdx).push(i));
+
+  const dates = new Array<string>(fileNames.length);
+  let cursor = startDate;
+  let fi = 0;
+  let oi = 0;
+  while (fi < fridayIdx.length || oi < otherIdx.length) {
+    if (dayOfWeek(cursor) === 5) {
+      if (fi < fridayIdx.length) dates[fridayIdx[fi++]] = cursor;
+      else if (oi < otherIdx.length) dates[otherIdx[oi++]] = cursor;
+    } else if (oi < otherIdx.length) {
+      dates[otherIdx[oi++]] = cursor;
+    }
+    // Not Friday and no regular files left, but Friday-named ones remain —
+    // skip this day rather than putting Friday content on the wrong day.
+    cursor = addDays(cursor, 1);
+  }
+  return dates;
+}
+
 /** Bulk import: pick a start date and drop in a whole batch (e.g. a
- *  client's 30-day content pack) — each file lands on the next consecutive
- *  day, one per day, in the order the files were selected. No caption field
- *  here since every image needs its own — those get written later (tell
- *  Claude in chat, or via the pending-caption MCP tools). Wrong day after
- *  auto-fill (a Friday post, an event post)? Just drag it to the right one. */
+ *  client's 30-day content pack) — each file lands one per day in filename
+ *  order, except any file named with "Friday" (see planBulkDates), which
+ *  maps onto the next real Friday automatically. No caption field here
+ *  since every image needs its own — those get written later (tell Claude
+ *  in chat, or via the pending-caption MCP tools). Wrong day after
+ *  auto-fill? Just drag it to the right one. */
 function BulkUploadModal({ projectId, onClose }: { projectId: string; onClose: () => void }) {
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [busy, setBusy] = useState(false);
@@ -493,8 +529,8 @@ function BulkUploadModal({ projectId, onClose }: { projectId: string; onClose: (
       // lands in the right order — selection order in a file picker isn't
       // guaranteed to match visual/alphabetical order across browsers.
       const fileArr = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-      for (const file of fileArr) {
-        const dayIndex = done;
+      const dates = planBulkDates(fileArr.map((f) => f.name), startDate);
+      for (const [i, file] of fileArr.entries()) {
         setStatus(`Uploading ${file.name} (${++done}/${fileArr.length})…`);
         const urlRes = await fetch("/api/dashboard/social/upload-url", {
           method: "POST",
@@ -511,7 +547,7 @@ function BulkUploadModal({ projectId, onClose }: { projectId: string; onClose: (
         fd.set("project_id", projectId);
         fd.set("media_key", urlBody.key);
         fd.set("original_filename", file.name);
-        fd.set("date", addDays(startDate, dayIndex));
+        fd.set("date", dates[i]);
         const result = await createPlannerPost(fd);
         if (result?.error) throw new Error(result.error);
       }
@@ -533,8 +569,9 @@ function BulkUploadModal({ projectId, onClose }: { projectId: string; onClose: (
         <div>
           <p className="font-medium">Bulk upload</p>
           <p className="text-small text-ink-muted mt-1">
-            One post per day, starting from the date below, in filename order. Drag any post afterward to
-            move it to a different day.
+            One post per day, starting from the date below, in filename order. Any file named with
+            &quot;Friday&quot; (e.g. Friday-1, Friday-2) automatically maps onto the next real Friday instead —
+            everything else fills in around those. Drag any post afterward to move it to a different day.
           </p>
         </div>
 
