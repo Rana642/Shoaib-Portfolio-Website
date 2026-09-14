@@ -385,6 +385,11 @@ export const API_SERVICE_PRESETS: ApiServicePreset[] = [
     suggestedFields: ["app_id", "app_secret", "access_token", "ad_account_id"],
   },
   {
+    value: "meta_posting",
+    label: "Meta Posting API (Facebook/Instagram)",
+    suggestedFields: ["app_id", "app_secret", "access_token"],
+  },
+  {
     value: "ga4",
     label: "Google Analytics 4 (GA4)",
     suggestedFields: ["client_id", "client_secret", "refresh_token", "property_id"],
