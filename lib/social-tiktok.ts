@@ -223,6 +223,20 @@ export async function publishTikTokPhotoPost(
   photoUrls: string[],
   caption: string
 ): Promise<TikTokPublishResult> {
+  // Pre-warm each media URL ourselves first — the first real attempt failed
+  // with photo_pull_failed even though the route serves a correct image; a
+  // cold Vercel function fetching from R2 for the first time took ~3s in
+  // testing, which a strict crawler timeout could plausibly miss. Hitting it
+  // once here means TikTok's own fetch moments later lands on an already-warm
+  // function. Best-effort — a failure here shouldn't block the real attempt.
+  await Promise.all(
+    photoUrls.map((url) =>
+      fetch(url).catch(() => {
+        /* best-effort warm-up only */
+      })
+    )
+  );
+
   const { publish_id } = await apiPost<{ publish_id: string }>("/v2/post/publish/content/init/", accessToken, {
     media_type: "PHOTO",
     post_mode: "MEDIA_UPLOAD",
