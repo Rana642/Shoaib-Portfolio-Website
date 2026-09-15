@@ -4,6 +4,19 @@ import { getClient, consumeAuthorizationCode, verifyPkce, signAccessToken, issue
 /** Must accept application/x-www-form-urlencoded per RFC 6749 §4.1.3 —
  *  Claude sends both the initial exchange and refresh requests this way. */
 export async function POST(request: Request) {
+  try {
+    return await handlePost(request);
+  } catch (error) {
+    // TEMPORARY — the route was returning a bare empty 500 with no way to
+    // tell why. Remove once the real cause is confirmed fixed.
+    return NextResponse.json(
+      { error: "server_error", error_description: error instanceof Error ? `${error.message}\n${error.stack}` : String(error) },
+      { status: 500 }
+    );
+  }
+}
+
+async function handlePost(request: Request) {
   const contentType = request.headers.get("content-type") || "";
   if (!contentType.includes("application/x-www-form-urlencoded")) {
     return NextResponse.json({ error: "invalid_request", error_description: "Expected application/x-www-form-urlencoded." }, { status: 400 });
