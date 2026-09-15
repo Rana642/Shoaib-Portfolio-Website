@@ -19,6 +19,13 @@ const STATUS_RING: Record<string, string> = {
   failed: "ring-red-600",
 };
 
+const STATUS_LABEL: Record<string, { text: string; classes: string }> = {
+  pending_caption: { text: "Needs caption", classes: "bg-citrus/15 text-ink" },
+  scheduled: { text: "Scheduled", classes: "bg-cobalt/10 text-ink" },
+  posted: { text: "Posted", classes: "bg-green-600/10 text-green-700" },
+  failed: { text: "Failed", classes: "bg-red-600/10 text-red-700" },
+};
+
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DRAG_MIME = "application/x-scheduled-post-id";
 
@@ -328,6 +335,7 @@ export default function PlannerCalendar({
         <BulkUploadModal
           projectId={selectedProjectId}
           connectedPlatforms={connectedPlatforms}
+          occupiedDates={postsByDate}
           onClose={() => setBulkOpen(false)}
         />
       )}
@@ -338,6 +346,7 @@ export default function PlannerCalendar({
 function WeekPostCard({ post }: { post: PostWithUrl }) {
   const [pending, startTransition] = useTransition();
   const ring = STATUS_RING[post.status] ?? "ring-ink/20";
+  const label = STATUS_LABEL[post.status];
 
   return (
     <div
@@ -346,9 +355,14 @@ function WeekPostCard({ post }: { post: PostWithUrl }) {
       draggable
       onDragStart={(e) => e.dataTransfer.setData(DRAG_MIME, post.id)}
     >
-      {post.scheduled_at && (
-        <p className="text-tag text-ink-subtle px-2 pt-1.5">{timeLabel(post.scheduled_at)}</p>
-      )}
+      <div className="flex items-center justify-between px-2 pt-1.5 gap-1">
+        {post.scheduled_at && <p className="text-tag text-ink-subtle">{timeLabel(post.scheduled_at)}</p>}
+        {label && (
+          <span className={cn("text-tag font-medium rounded-full px-1.5 py-0.5 shrink-0", label.classes)}>
+            {label.text}
+          </span>
+        )}
+      </div>
       <div className="p-1.5 pt-1">
         {post.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -705,7 +719,12 @@ function dayOfWeek(dateStr: string): number {
  *  Friday with no Friday-named file left stays empty on purpose — Shoaib
  *  adds something there himself rather than a regular file filling the
  *  gap automatically. */
-function planBulkDates(fileNames: string[], startDate: string): string[] {
+/** `occupiedDates` — dates that already have at least one post — are
+ *  skipped entirely (for both the Friday and regular queues) so a new bulk
+ *  batch fills whatever gaps already exist in the calendar first, then
+ *  continues into fresh dates once those run out, rather than stacking a
+ *  second post onto a day some earlier batch (or a manual add) already used. */
+function planBulkDates(fileNames: string[], startDate: string, occupiedDates: Set<string>): string[] {
   const fridayIdx: number[] = [];
   const otherIdx: number[] = [];
   fileNames.forEach((name, i) => (/friday/i.test(name) ? fridayIdx : otherIdx).push(i));
@@ -715,11 +734,13 @@ function planBulkDates(fileNames: string[], startDate: string): string[] {
   let fi = 0;
   let oi = 0;
   while (fi < fridayIdx.length || oi < otherIdx.length) {
-    if (dayOfWeek(cursor) === 5) {
-      if (fi < fridayIdx.length) dates[fridayIdx[fi++]] = cursor;
-      // else: leave this Friday empty rather than using a regular file.
-    } else if (oi < otherIdx.length) {
-      dates[otherIdx[oi++]] = cursor;
+    if (!occupiedDates.has(cursor)) {
+      if (dayOfWeek(cursor) === 5) {
+        if (fi < fridayIdx.length) dates[fridayIdx[fi++]] = cursor;
+        // else: leave this Friday empty rather than using a regular file.
+      } else if (oi < otherIdx.length) {
+        dates[otherIdx[oi++]] = cursor;
+      }
     }
     cursor = addDays(cursor, 1);
   }
@@ -736,10 +757,14 @@ function planBulkDates(fileNames: string[], startDate: string): string[] {
 function BulkUploadModal({
   projectId,
   connectedPlatforms,
+  occupiedDates,
   onClose,
 }: {
   projectId: string;
   connectedPlatforms: string[];
+  /** Dates that already have at least one post — gap-filled before the
+   *  batch spills into fresh dates. */
+  occupiedDates: Map<string, unknown>;
   onClose: () => void;
 }) {
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -773,7 +798,7 @@ function BulkUploadModal({
       // lands in the right order — selection order in a file picker isn't
       // guaranteed to match visual/alphabetical order across browsers.
       const fileArr = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-      const dates = planBulkDates(fileArr.map((f) => f.name), startDate);
+      const dates = planBulkDates(fileArr.map((f) => f.name), startDate, new Set(occupiedDates.keys()));
       // Only send `platforms` when it's a strict subset of every connected
       // platform — otherwise omit it so a post keeps meaning "everywhere
       // this project is connected" even if a new platform gets connected later.
@@ -818,9 +843,11 @@ function BulkUploadModal({
         <div>
           <p className="font-medium">Bulk upload</p>
           <p className="text-small text-ink-muted mt-1">
-            One post per day, starting from the date below, in filename order. Any file named with
-            &quot;Friday&quot; (e.g. Friday-1, Friday-2) automatically maps onto the next real Friday instead —
-            everything else fills in around those. Drag any post afterward to move it to a different day.
+            One post per day, starting from the date below, in filename order — days that already have a
+            post are skipped (gaps get filled first), then the batch continues into fresh dates. Any file
+            named with &quot;Friday&quot; (e.g. Friday-1, Friday-2) automatically maps onto the next real,
+            still-empty Friday instead — everything else fills in around those. Drag any post afterward to
+            move it to a different day.
           </p>
         </div>
 
