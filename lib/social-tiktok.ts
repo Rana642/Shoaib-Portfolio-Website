@@ -31,6 +31,12 @@ const USE_SANDBOX = process.env.TIKTOK_SANDBOX_MODE === "true";
 export async function getTikTokAppCredentials(): Promise<{ client_key: string; client_secret: string }> {
   if (!isApiVaultCryptoConfigured) throw new Error("API_VAULT_ENCRYPTION_KEY is not configured.");
   const service = USE_SANDBOX ? "tiktok_sandbox" : "tiktok";
+  // Temporary debug line for the Sandbox rollout — check Vercel's function
+  // logs to confirm which app a given authorize/callback request actually
+  // used, since a mismatch between the two (one Sandbox, one Production)
+  // surfaces as TikTok's generic "client key or secret is incorrect" at the
+  // token-exchange step. Remove once TIKTOK_SANDBOX_MODE is retired.
+  console.log(`[tiktok] using '${service}' credentials (TIKTOK_SANDBOX_MODE=${process.env.TIKTOK_SANDBOX_MODE ?? "unset"})`);
   const { data: row, error } = await db.from("api_credentials").select("fields").eq("service", service).maybeSingle();
   if (error || !row) throw new Error(`No '${service}' credential in the API Vault yet — save client_key/client_secret first.`);
   try {
