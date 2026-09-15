@@ -245,6 +245,18 @@ export async function publishTikTokPhotoPost(
 
 const MEDIA_URL_TTL_MS = 15 * 60 * 1000;
 
+// encryptToken/decryptToken emit standard base64 (+, /, = padding), which
+// needs heavy %-escaping in a query string (the first real attempt's URL was
+// almost entirely %2F-encoded) — converting to the URL-safe base64 alphabet
+// keeps the token itself clean, in case TikTok's URL fetcher mishandled that.
+function toBase64Url(b64: string): string {
+  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function fromBase64Url(b64url: string): string {
+  const padded = b64url.replace(/-/g, "+").replace(/_/g, "/");
+  return padded + "=".repeat((4 - (padded.length % 4)) % 4);
+}
+
 /** Wraps an R2 object as a short-lived, publicly-fetchable URL under
  *  adsbyshoaib.com — TikTok's PULL_FROM_URL requires the URL's domain to be
  *  verified in the Developer Portal, and R2's own bucket/gateway domain
@@ -253,11 +265,11 @@ const MEDIA_URL_TTL_MS = 15 * 60 * 1000;
  *  not from auth — TikTok's own servers fetch this, not a logged-in user. */
 export function mintTikTokMediaUrl(mediaKey: string): string {
   const token = encryptToken(JSON.stringify({ key: mediaKey, exp: Date.now() + MEDIA_URL_TTL_MS }));
-  return `${siteUrl}/api/social/tiktok-media?t=${encodeURIComponent(token)}`;
+  return `${siteUrl}/api/social/tiktok-media?t=${toBase64Url(token)}`;
 }
 
 export function verifyTikTokMediaToken(token: string): string {
-  const { key, exp } = JSON.parse(decryptToken(token)) as { key: string; exp: number };
+  const { key, exp } = JSON.parse(decryptToken(fromBase64Url(token))) as { key: string; exp: number };
   if (Date.now() > exp) throw new Error("This media link has expired.");
   return key;
 }
