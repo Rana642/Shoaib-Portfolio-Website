@@ -307,7 +307,13 @@ export default function PlannerCalendar({
           onClose={() => setUploadDate(null)}
         />
       )}
-      {bulkOpen && <BulkUploadModal projectId={selectedProjectId} onClose={() => setBulkOpen(false)} />}
+      {bulkOpen && (
+        <BulkUploadModal
+          projectId={selectedProjectId}
+          connectedPlatforms={connectedPlatforms}
+          onClose={() => setBulkOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -670,14 +676,38 @@ function planBulkDates(fileNames: string[], startDate: string): string[] {
  *  since every image needs its own — those get written later (tell Claude
  *  in chat, or via the pending-caption MCP tools). Wrong day after
  *  auto-fill? Just drag it to the right one. */
-function BulkUploadModal({ projectId, onClose }: { projectId: string; onClose: () => void }) {
+function BulkUploadModal({
+  projectId,
+  connectedPlatforms,
+  onClose,
+}: {
+  projectId: string;
+  connectedPlatforms: string[];
+  onClose: () => void;
+}) {
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  // Same "post to" selection as the single-post composer — applied to
+  // every file in the batch, since a bulk upload has no per-image UI.
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(() => new Set(connectedPlatforms));
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const togglePlatform = (platform: string) => {
+    setSelectedPlatforms((prev) => {
+      const next = new Set(prev);
+      if (next.has(platform)) next.delete(platform);
+      else next.add(platform);
+      return next;
+    });
+  };
+
   const onFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+    if (connectedPlatforms.length > 0 && selectedPlatforms.size === 0) {
+      setError("Select at least one platform to post to.");
+      return;
+    }
     setError(null);
     setBusy(true);
     let done = 0;
@@ -687,6 +717,10 @@ function BulkUploadModal({ projectId, onClose }: { projectId: string; onClose: (
       // guaranteed to match visual/alphabetical order across browsers.
       const fileArr = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
       const dates = planBulkDates(fileArr.map((f) => f.name), startDate);
+      // Only send `platforms` when it's a strict subset of every connected
+      // platform — otherwise omit it so a post keeps meaning "everywhere
+      // this project is connected" even if a new platform gets connected later.
+      const isSubset = selectedPlatforms.size > 0 && selectedPlatforms.size < connectedPlatforms.length;
       for (const [i, file] of fileArr.entries()) {
         setStatus(`Uploading ${file.name} (${++done}/${fileArr.length})…`);
         const urlRes = await fetch("/api/dashboard/social/upload-url", {
@@ -705,6 +739,7 @@ function BulkUploadModal({ projectId, onClose }: { projectId: string; onClose: (
         fd.set("media_key", urlBody.key);
         fd.set("original_filename", file.name);
         fd.set("date", dates[i]);
+        if (isSubset) fd.set("platforms", JSON.stringify([...selectedPlatforms]));
         const result = await createPlannerPost(fd);
         if (result?.error) throw new Error(result.error);
       }
@@ -731,6 +766,34 @@ function BulkUploadModal({ projectId, onClose }: { projectId: string; onClose: (
             everything else fills in around those. Drag any post afterward to move it to a different day.
           </p>
         </div>
+
+        {connectedPlatforms.length > 0 && (
+          <div>
+            <p className="text-small font-medium mb-1.5">Post to (applies to every file in this batch):</p>
+            <div className="flex flex-wrap gap-2">
+              {connectedPlatforms.map((platform) => {
+                const Icon = PLATFORM_ICONS[platform];
+                const active = selectedPlatforms.has(platform);
+                return (
+                  <button
+                    key={platform}
+                    type="button"
+                    onClick={() => togglePlatform(platform)}
+                    disabled={busy}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-small font-medium transition-colors cursor-pointer",
+                      active ? "bg-ink text-cloud border-ink" : "border-ink/15 text-ink-muted hover:border-ink/30"
+                    )}
+                  >
+                    {active && <Check className="size-3.5" aria-hidden />}
+                    {Icon && <Icon className="size-3.5" aria-hidden />}
+                    {PLATFORM_LABELS[platform] ?? platform}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <label className="block">
           <span className="text-small font-medium mb-1.5 block">Start date</span>
