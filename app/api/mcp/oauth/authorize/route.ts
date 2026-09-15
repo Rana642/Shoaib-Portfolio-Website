@@ -98,9 +98,13 @@ export async function POST(request: Request) {
   const redirectUrl = new URL(params.redirect_uri);
   if (params.state) redirectUrl.searchParams.set("state", params.state);
 
+  // 303, not the default 307: this redirect follows a POST (the consent
+  // form submission), and only 303 tells the browser to switch to GET for
+  // the target — Claude's OAuth callback expects a GET with ?code=/?error=,
+  // not a re-issued POST.
   if (action !== "approve") {
     redirectUrl.searchParams.set("error", "access_denied");
-    return NextResponse.redirect(redirectUrl.toString());
+    return NextResponse.redirect(redirectUrl.toString(), 303);
   }
 
   const code = await createAuthorizationCode({
@@ -109,5 +113,5 @@ export async function POST(request: Request) {
     codeChallenge: params.code_challenge,
   });
   redirectUrl.searchParams.set("code", code);
-  return NextResponse.redirect(redirectUrl.toString());
+  return NextResponse.redirect(redirectUrl.toString(), 303);
 }
