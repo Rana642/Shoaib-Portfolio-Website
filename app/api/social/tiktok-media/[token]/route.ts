@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import sharp from "sharp";
 import { verifyTikTokMediaToken } from "@/lib/social-tiktok";
 import { fetchObject } from "@/lib/storage";
 
@@ -12,14 +13,17 @@ import { fetchObject } from "@/lib/storage";
  *
  * Path-based (not `?t=...`) — a query-string version kept failing
  * photo_pull_failed even with a verified domain, correct Content-Type, and
- * an explicit Content-Length; trying a plain, extension-free path in case
- * TikTok's fetcher is picky about query strings. The token itself may still
- * contain a trailing filename-looking segment appended by the caller
- * (cosmetic only, ignored here) — see mintTikTokMediaUrl.
+ * an explicit Content-Length; a plain path with an extension fixed that.
+ *
+ * Always re-encodes to JPEG regardless of the source format: TikTok's photo
+ * post rejects PNG outright (file_format_check_failed) — the Planner accepts
+ * png/jpg/webp uniformly since Meta/LinkedIn don't care, so normalizing here
+ * is simpler than tracking per-platform format support upstream. See
+ * mintTikTokMediaUrl, which always mints a `.jpg` URL to match.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token: rawToken } = await params;
-  // Strip a cosmetic extension (e.g. "<token>.png") if present — the token
+  // Strip the cosmetic ".jpg" extension (e.g. "<token>.jpg") — the token
   // itself never contains a literal dot.
   const token = rawToken.split(".")[0];
 
@@ -31,11 +35,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
   }
 
   try {
-    const { buffer, contentType } = await fetchObject(mediaKey);
-    return new NextResponse(new Uint8Array(buffer), {
+    const { buffer } = await fetchObject(mediaKey);
+    const jpeg = await sharp(buffer).flatten({ background: "#ffffff" }).jpeg({ quality: 90 }).toBuffer();
+    return new NextResponse(new Uint8Array(jpeg), {
       headers: {
-        "Content-Type": contentType,
-        "Content-Length": String(buffer.length),
+        "Content-Type": "image/jpeg",
+        "Content-Length": String(jpeg.length),
         "Cache-Control": "private, max-age=900",
       },
     });

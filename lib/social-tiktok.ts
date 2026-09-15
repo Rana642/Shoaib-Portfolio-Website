@@ -279,11 +279,10 @@ function fromBase64Url(b64url: string): string {
  *  not from auth — TikTok's own servers fetch this, not a logged-in user. */
 export function mintTikTokMediaUrl(mediaKey: string): string {
   const token = encryptToken(JSON.stringify({ key: mediaKey, exp: Date.now() + MEDIA_URL_TTL_MS }));
-  // Cosmetic extension matching the source object, in case TikTok's fetcher
-  // sniffs the URL itself rather than trusting the Content-Type header — the
-  // route strips this back off before decrypting the token underneath it.
-  const ext = mediaKey.match(/\.(jpe?g|png|webp)$/i)?.[1]?.toLowerCase() ?? "jpg";
-  return `${siteUrl}/api/social/tiktok-media/${toBase64Url(token)}.${ext}`;
+  // Always .jpg — the route re-encodes every source image to JPEG
+  // (TikTok's photo post rejects PNG outright), so the cosmetic extension
+  // should match what's actually served, not the original object's format.
+  return `${siteUrl}/api/social/tiktok-media/${toBase64Url(token)}.jpg`;
 }
 
 export function verifyTikTokMediaToken(token: string): string {
