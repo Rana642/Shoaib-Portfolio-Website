@@ -192,6 +192,7 @@ export default function PlannerCalendar({
         <div className="flex flex-wrap items-center gap-3">
           {connectedPlatforms.length > 0 && (
             <div className="flex items-center gap-1.5" title="Connected for this project">
+              <span className="text-tag uppercase tracking-widest text-ink-subtle mr-0.5">Connected:</span>
               {connectedPlatforms.map((platform) => {
                 const Icon = PLATFORM_ICONS[platform];
                 return (
