@@ -213,11 +213,16 @@ export async function publishTikTokPhotoPost(
   photoUrls: string[],
   caption: string
 ): Promise<TikTokPublishResult> {
-  const creator = await getTikTokCreatorInfo(accessToken);
-  const privacyLevel = creator.privacy_level_options.includes("SELF_ONLY")
-    ? "SELF_ONLY"
-    : creator.privacy_level_options[0];
-  if (!privacyLevel) throw new Error("TikTok returned no usable privacy_level_options for this account.");
+  // Still queried per TikTok's own integration guidelines (respects the
+  // creator's other settings, and is required before a Direct Post call),
+  // but privacy_level itself is hardcoded rather than picked from
+  // creator.privacy_level_options: an unaudited app (this one, until App
+  // Review approves public posting) is restricted to SELF_ONLY regardless
+  // of what that list otherwise offers — trying anything else fails with
+  // TikTok's generic "review our integration guidelines" error even when
+  // SELF_ONLY is technically present in the list.
+  await getTikTokCreatorInfo(accessToken);
+  const privacyLevel = "SELF_ONLY";
 
   const { publish_id } = await apiPost<{ publish_id: string }>("/v2/post/publish/content/init/", accessToken, {
     media_type: "PHOTO",
