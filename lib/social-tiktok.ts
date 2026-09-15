@@ -18,10 +18,21 @@ const TIKTOK_API_BASE = "https://open.tiktokapis.com";
 
 type TikTokErrorShape = { error?: { code?: string; message?: string; log_id?: string } };
 
-async function getTikTokAppCredentials(): Promise<{ client_key: string; client_secret: string }> {
+// TEMPORARY: TikTok's own app-review form requires demo footage of a
+// working end-to-end integration, which requires actually connecting an
+// account first — but the Production app's Redirect URI/scopes can't be
+// tested pre-review without going through TikTok's separate Sandbox app
+// (its own client_key/secret, saved as a second 'tiktok_sandbox' API Vault
+// credential). Setting TIKTOK_SANDBOX_MODE=true in .env.local (never on
+// Vercel) points every TikTok call at Sandbox instead of Production —
+// unset it once the demo video is recorded and App Review is submitted.
+const USE_SANDBOX = process.env.TIKTOK_SANDBOX_MODE === "true";
+
+export async function getTikTokAppCredentials(): Promise<{ client_key: string; client_secret: string }> {
   if (!isApiVaultCryptoConfigured) throw new Error("API_VAULT_ENCRYPTION_KEY is not configured.");
-  const { data: row, error } = await db.from("api_credentials").select("fields").eq("service", "tiktok").maybeSingle();
-  if (error || !row) throw new Error("No 'tiktok' credential in the API Vault yet — save client_key/client_secret first.");
+  const service = USE_SANDBOX ? "tiktok_sandbox" : "tiktok";
+  const { data: row, error } = await db.from("api_credentials").select("fields").eq("service", service).maybeSingle();
+  if (error || !row) throw new Error(`No '${service}' credential in the API Vault yet — save client_key/client_secret first.`);
   try {
     return { client_key: decryptField(row.fields.client_key), client_secret: decryptField(row.fields.client_secret) };
   } catch {

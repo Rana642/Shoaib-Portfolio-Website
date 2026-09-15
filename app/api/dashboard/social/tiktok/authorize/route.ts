@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getUser } from "@/lib/dashboard/auth";
-import { db } from "@/lib/dashboard/db";
-import { decryptField, isApiVaultCryptoConfigured } from "@/lib/api-vault-crypto";
+import { getTikTokAppCredentials } from "@/lib/social-tiktok";
 
 /** Matches the scopes already added to the TikTok app's Login Kit + Content
  *  Posting API products (see the "Add scopes" step done in the Developer
@@ -21,17 +20,11 @@ export async function GET(request: Request) {
   const projectId = url.searchParams.get("project_id");
   if (!projectId) return NextResponse.json({ error: "Missing project_id." }, { status: 400 });
 
-  if (!isApiVaultCryptoConfigured) {
-    return NextResponse.json({ error: "API_VAULT_ENCRYPTION_KEY is not configured." }, { status: 500 });
-  }
-  const { data: row } = await db.from("api_credentials").select("fields").eq("service", "tiktok").maybeSingle();
-  if (!row) return NextResponse.json({ error: "No 'tiktok' credential in the API Vault yet." }, { status: 500 });
-
   let client_key: string;
   try {
-    client_key = decryptField(row.fields.client_key);
-  } catch {
-    return NextResponse.json({ error: "Couldn't decrypt the stored TikTok client_key." }, { status: 500 });
+    ({ client_key } = await getTikTokAppCredentials());
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Couldn't load the TikTok app credentials." }, { status: 500 });
   }
 
   const authorizeUrl = new URL("https://www.tiktok.com/v2/auth/authorize/");
