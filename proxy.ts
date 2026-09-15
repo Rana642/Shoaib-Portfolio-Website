@@ -68,7 +68,13 @@ function buildCsp(pathname: string): string {
     "frame-ancestors 'none'",
     "object-src 'none'",
     "base-uri 'self'",
-    "form-action 'self'",
+    // The MCP OAuth consent form (app/api/mcp/oauth/authorize) submits to
+    // itself, then the server redirects cross-origin to whichever MCP
+    // client's own callback URL (Claude.ai, Claude Code's loopback, etc.) —
+    // some browsers apply form-action through that redirect chain, so a
+    // bare 'self' here silently blocks the approve/deny buttons from ever
+    // completing. Every other route keeps the strict same-origin default.
+    pathname === "/api/mcp/oauth/authorize" ? "form-action 'self' https: http://localhost:*" : "form-action 'self'",
     "upgrade-insecure-requests",
   ].join("; ");
 }
