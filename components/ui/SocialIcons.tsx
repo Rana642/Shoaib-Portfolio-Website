@@ -36,6 +36,14 @@ export function FacebookIcon(props: IconProps) {
   );
 }
 
+export function TikTokIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...props}>
+      <path d="M16.6 5.82c-1.005-.986-1.57-2.328-1.57-3.82h-3.19v13.51a3.11 3.11 0 0 1-3.11 3.02 3.11 3.11 0 0 1 0-6.22c.323 0 .631.05.921.14V9.36a6.35 6.35 0 0 0-.921-.07A6.29 6.29 0 0 0 2.44 15.6a6.29 6.29 0 0 0 6.29 6.28 6.29 6.29 0 0 0 6.29-6.28V9.01a9.35 9.35 0 0 0 5.44 1.75V7.57a5.94 5.94 0 0 1-3.86-1.75z" />
+    </svg>
+  );
+}
+
 export function XIcon(props: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...props}>

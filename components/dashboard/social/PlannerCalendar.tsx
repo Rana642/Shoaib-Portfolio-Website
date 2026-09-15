@@ -2,10 +2,11 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check } from "lucide-react";
 import { createPlannerPost, deletePost, movePost } from "@/lib/dashboard/actions/social";
 import { inputClasses, buttonStyles, Card } from "@/components/dashboard/ui";
 import { cn } from "@/lib/utils";
+import { FacebookIcon, InstagramIcon, LinkedinIcon, TikTokIcon } from "@/components/ui/SocialIcons";
 import type { ProjectOption, ScheduledPost } from "@/lib/dashboard/types";
 
 type PostWithUrl = ScheduledPost & { imageUrl: string | null };
@@ -386,6 +387,17 @@ const PLATFORM_LABELS: Record<string, string> = {
   tiktok: "TikTok",
 };
 
+const PLATFORM_ICONS: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {
+  facebook: FacebookIcon,
+  instagram: InstagramIcon,
+  linkedin: LinkedinIcon,
+  tiktok: TikTokIcon,
+};
+
+/** One post, one image, composed with an explicit "which channels" step and
+ *  a live preview — modeled on Buffer/Metricool's composer (Shoaib's
+ *  reference) rather than the original bare "pick a file" flow. Multi-file
+ *  batches still go through Bulk upload; this is for a single, deliberate post. */
 function UploadModal({
   date,
   projectId,
@@ -401,6 +413,9 @@ function UploadModal({
   // Defaults to every connected platform selected — matches the original
   // "one image goes everywhere" behavior unless something's deselected.
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(() => new Set(connectedPlatforms));
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -414,49 +429,56 @@ function UploadModal({
     });
   };
 
-  const onFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
+  const pickFile = (picked: File | null) => {
+    if (!picked) return;
+    setError(null);
+    setFile(picked);
+    setPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(picked);
+    });
+  };
+
+  const previewPlatform = [...selectedPlatforms][0] ?? connectedPlatforms[0];
+  const PreviewIcon = previewPlatform ? PLATFORM_ICONS[previewPlatform] : null;
+
+  const onSubmit = async () => {
+    if (!file) {
+      setError("Choose an image first.");
+      return;
+    }
     if (connectedPlatforms.length > 0 && selectedPlatforms.size === 0) {
       setError("Select at least one platform to post to.");
       return;
     }
     setError(null);
     setBusy(true);
-    let done = 0;
     try {
-      const fileArr = Array.from(files);
+      setStatus(`Uploading ${file.name}…`);
+      const urlRes = await fetch("/api/dashboard/social/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, type: file.type, size: file.size, projectId }),
+      });
+      const urlBody = await urlRes.json();
+      if (!urlRes.ok) throw new Error(urlBody.error || "Couldn't get an upload URL.");
+
+      const putRes = await fetch(urlBody.url, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+      if (!putRes.ok) throw new Error(`Upload failed for ${file.name}.`);
+
+      const fd = new FormData();
+      fd.set("project_id", projectId);
+      fd.set("media_key", urlBody.key);
+      fd.set("original_filename", file.name);
+      fd.set("date", date);
+      if (caption.trim()) fd.set("caption", caption.trim());
       // Only send `platforms` when it's a strict subset of every connected
       // platform — otherwise omit it so the post keeps meaning "everywhere
       // this project is connected" even if a new platform gets connected later.
       const isSubset = selectedPlatforms.size > 0 && selectedPlatforms.size < connectedPlatforms.length;
-      for (const file of fileArr) {
-        setStatus(`Uploading ${file.name} (${++done}/${fileArr.length})…`);
-        const urlRes = await fetch("/api/dashboard/social/upload-url", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: file.name, type: file.type, size: file.size, projectId }),
-        });
-        const urlBody = await urlRes.json();
-        if (!urlRes.ok) throw new Error(urlBody.error || "Couldn't get an upload URL.");
-
-        const putRes = await fetch(urlBody.url, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
-        if (!putRes.ok) throw new Error(`Upload failed for ${file.name}.`);
-
-        const fd = new FormData();
-        fd.set("project_id", projectId);
-        fd.set("media_key", urlBody.key);
-        fd.set("original_filename", file.name);
-        fd.set("date", date);
-        // Spread same-day posts ~45 min apart rather than back-to-back —
-        // Meta's anti-spam systems watch for bot-like, tightly-clustered
-        // posting cadence on Pages, so same-day posts shouldn't land seconds
-        // apart even though nothing technically stops it.
-        fd.set("offset_minutes", String(done * 45));
-        if (caption.trim()) fd.set("caption", caption.trim());
-        if (isSubset) fd.set("platforms", JSON.stringify([...selectedPlatforms]));
-        const result = await createPlannerPost(fd);
-        if (result?.error) throw new Error(result.error);
-      }
+      if (isSubset) fd.set("platforms", JSON.stringify([...selectedPlatforms]));
+      const result = await createPlannerPost(fd);
+      if (result?.error) throw new Error(result.error);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
@@ -469,68 +491,137 @@ function UploadModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" onClick={onClose}>
       <div
-        className="w-full max-w-md p-6 space-y-4 bg-white border border-ink/10 rounded-xl"
+        className="w-full max-w-3xl bg-white border border-ink/10 rounded-xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div>
-          <p className="font-medium">Add post — {date}</p>
-          <p className="text-small text-ink-muted mt-1">
-            Caption is optional here — leave it blank and tell Claude in chat to write it later.
-          </p>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-ink/10">
+          <p className="font-medium">Create post — {date}</p>
+          <button type="button" onClick={onClose} className="text-ink-subtle hover:text-ink text-small">
+            Close
+          </button>
         </div>
 
-        <textarea
-          className={inputClasses}
-          rows={3}
-          placeholder="Caption (optional)"
-          value={caption}
-          onChange={(e) => setCaption(e.target.value)}
-          disabled={busy}
-        />
-
         {connectedPlatforms.length > 0 && (
-          <div>
-            <p className="text-small font-medium mb-1.5">Post to:</p>
-            <div className="flex flex-wrap gap-3">
-              {connectedPlatforms.map((platform) => (
-                <label key={platform} className="flex items-center gap-1.5 text-small cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedPlatforms.has(platform)}
-                    onChange={() => togglePlatform(platform)}
-                    disabled={busy}
-                    className="accent-ink"
-                  />
+          <div className="flex flex-wrap gap-2 px-6 pt-4">
+            {connectedPlatforms.map((platform) => {
+              const Icon = PLATFORM_ICONS[platform];
+              const active = selectedPlatforms.has(platform);
+              return (
+                <button
+                  key={platform}
+                  type="button"
+                  onClick={() => togglePlatform(platform)}
+                  disabled={busy}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-small font-medium transition-colors cursor-pointer",
+                    active ? "bg-ink text-cloud border-ink" : "border-ink/15 text-ink-muted hover:border-ink/30"
+                  )}
+                >
+                  {active && <Check className="size-3.5" aria-hidden />}
+                  {Icon && <Icon className="size-3.5" aria-hidden />}
                   {PLATFORM_LABELS[platform] ?? platform}
-                </label>
-              ))}
-            </div>
+                </button>
+              );
+            })}
           </div>
         )}
 
-        <label className={`${buttonStyles.secondary} cursor-pointer w-fit`}>
-          {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : null}
-          Choose images
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            multiple
-            hidden
-            disabled={busy}
-            onChange={(e) => onFiles(e.target.files)}
-          />
-        </label>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+          {/* Left: image + caption */}
+          <div className="space-y-4">
+            <label
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                pickFile(e.dataTransfer.files?.[0] ?? null);
+              }}
+              className={cn(
+                "flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-8 text-center cursor-pointer transition-colors",
+                dragOver ? "border-cobalt bg-cobalt/5" : "border-ink/15 hover:border-ink/30"
+              )}
+            >
+              <UploadCloud className="size-6 text-ink-subtle" aria-hidden />
+              <p className="text-small text-ink-muted">
+                {file ? file.name : "Drag & drop or click to choose an image"}
+              </p>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                hidden
+                disabled={busy}
+                onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+              />
+            </label>
 
-        {status && <p className="text-small text-ink-muted">{status}</p>}
-        {error && (
-          <p className="text-small text-red-700 bg-red-500/10 border border-red-600/20 rounded-lg px-4 py-3">
-            {error}
-          </p>
-        )}
+            <div>
+              <textarea
+                className={inputClasses}
+                rows={5}
+                placeholder="Write a caption…"
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                disabled={busy}
+                maxLength={2200}
+              />
+              <p className="text-tag text-ink-subtle mt-1 text-right">{caption.length} / 2200</p>
+            </div>
+          </div>
 
-        <div className="flex justify-end">
-          <button type="button" onClick={onClose} className={buttonStyles.secondary}>
-            Close
+          {/* Right: live preview */}
+          <div className="flex flex-col items-center">
+            <p className="text-tag uppercase tracking-widest text-ink-subtle mb-2 self-start">Preview</p>
+            <div className="relative w-full max-w-[220px] aspect-[9/16] rounded-2xl bg-ink overflow-hidden">
+              {previewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={previewUrl} alt="" className="absolute inset-0 size-full object-cover" />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center text-cloud/40 text-small">
+                  No image yet
+                </div>
+              )}
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/80 to-transparent p-3 pt-8">
+                <p className="text-cloud text-tag font-medium">Shoaib Nabi Noor</p>
+                {caption && <p className="text-cloud/90 text-tag mt-1 line-clamp-2">{caption}</p>}
+              </div>
+              <div className="absolute right-2 bottom-16 flex flex-col items-center gap-3 text-cloud">
+                <div className="flex flex-col items-center gap-0.5">
+                  <Heart className="size-5" aria-hidden />
+                  <span className="text-tag">0</span>
+                </div>
+                <div className="flex flex-col items-center gap-0.5">
+                  <MessageCircle className="size-5" aria-hidden />
+                  <span className="text-tag">0</span>
+                </div>
+                <div className="flex flex-col items-center gap-0.5">
+                  <Share2 className="size-5" aria-hidden />
+                  <span className="text-tag">0</span>
+                </div>
+              </div>
+              {PreviewIcon && (
+                <div className="absolute top-2 left-2 flex items-center justify-center size-6 rounded-full bg-cloud/90 text-ink">
+                  <PreviewIcon className="size-3.5" aria-hidden />
+                </div>
+              )}
+            </div>
+            <p className="text-tag text-ink-subtle mt-2 text-center">
+              Approximate — the real post may look slightly different.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-ink/10">
+          <div className="text-small text-ink-muted min-h-5">
+            {status}
+            {error && <span className="text-red-700">{error}</span>}
+          </div>
+          <button type="button" onClick={onSubmit} disabled={busy} className={buttonStyles.primary}>
+            {busy && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
+            Schedule
           </button>
         </div>
       </div>
