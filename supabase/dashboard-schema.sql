@@ -767,3 +767,43 @@ create table if not exists api_credentials (
 
 create index if not exists api_credentials_service_idx on api_credentials (service);
 alter table api_credentials enable row level security;
+
+-- ── Remote MCP server OAuth (Claude web/mobile custom connector) ────────
+-- A minimal, single-tenant OAuth 2.1 authorization server backing
+-- app/api/mcp — lets Claude.ai (web/mobile/desktop, not just Claude Code)
+-- connect to the same social-poster tools the local stdio MCP server
+-- (mcp/index.ts) exposes. Access tokens are short-lived HMAC-signed opaque
+-- strings verified without a DB read (lib/mcp-oauth.ts) — only
+-- authorization codes and refresh tokens need a table, since those must be
+-- revocable/single-use. There's no separate "user" concept: the only human
+-- who can ever reach the /authorize consent screen is whoever is already
+-- logged into /dashboard (lib/dashboard/auth.ts), so a client that
+-- completes the OAuth dance is implicitly Shoaib.
+
+create table if not exists mcp_oauth_clients (
+  client_id text primary key,
+  client_name text,
+  redirect_uris text[] not null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists mcp_oauth_codes (
+  code text primary key,
+  client_id text not null references mcp_oauth_clients (client_id) on delete cascade,
+  redirect_uri text not null,
+  code_challenge text not null,
+  expires_at timestamptz not null,
+  used boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists mcp_oauth_refresh_tokens (
+  token text primary key,
+  client_id text not null references mcp_oauth_clients (client_id) on delete cascade,
+  expires_at timestamptz not null,
+  revoked boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists mcp_oauth_codes_expires_idx on mcp_oauth_codes (expires_at);
+create index if not exists mcp_oauth_refresh_tokens_expires_idx on mcp_oauth_refresh_tokens (expires_at);
