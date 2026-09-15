@@ -36,8 +36,9 @@ export default function TikTokConnectPanel({
   return (
     <div className="space-y-5">
       <p className="text-small text-ink-muted">
-        Unaudited apps can only post privately (SELF_ONLY) — that&apos;s expected until App Review approves
-        public posting.
+        Posts upload as a draft to the creator&apos;s TikTok inbox rather than publishing directly — an
+        unaudited app (until App Review approves public posting) can only direct-publish to an account
+        that&apos;s also set to Private in its own TikTok settings, which this account isn&apos;t.
       </p>
 
       {accounts.length > 0 && (

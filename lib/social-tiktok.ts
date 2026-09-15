@@ -172,18 +172,6 @@ export async function listTikTokVideos(accessToken: string, maxCount = 5): Promi
   return parsed.data?.videos ?? [];
 }
 
-type TikTokCreatorInfo = {
-  privacy_level_options: string[];
-};
-
-/** TikTok requires calling this right before a Direct Post, both to respect
- *  the creator's own posting settings and because an unaudited app (this one,
- *  until App Review approves it) can only ever use SELF_ONLY — see the note
- *  in TikTokConnectPanel.tsx. */
-async function getTikTokCreatorInfo(accessToken: string): Promise<TikTokCreatorInfo> {
-  return apiPost<TikTokCreatorInfo>("/v2/post/publish/creator_info/query/", accessToken, {});
-}
-
 export type TikTokPublishResult = { publish_id: string; status: string; failReason?: string };
 
 type TikTokStatusResult = { status: string; fail_reason?: string };
@@ -217,32 +205,30 @@ async function pollTikTokPublishStatus(
  *  image-based Planner queue. `photoUrls` must be publicly fetchable under a
  *  domain verified in the TikTok Developer Portal (adsbyshoaib.com already
  *  is) — see mintTikTokMediaUrl, which proxies R2 objects through that
- *  domain since R2's own bucket domain isn't verified. */
+ *  domain since R2's own bucket domain isn't verified.
+ *
+ *  Uses MEDIA_UPLOAD, not DIRECT_POST: an unaudited app (this one, until App
+ *  Review approves public posting) can only DIRECT_POST to a creator account
+ *  that's ALSO set to Private in its own TikTok settings — an account-level
+ *  toggle, separate from and not satisfiable by this call's own
+ *  privacy_level field, and one Shoaib's real test account couldn't hold
+ *  (kept reverting to Public). MEDIA_UPLOAD sidesteps that restriction
+ *  entirely: it hands the content to the creator's TikTok inbox as a draft
+ *  they finish/publish themselves in the app, rather than direct-publishing
+ *  via the API — which is also an explicitly legitimate, expected use of
+ *  the video.upload scope (see TikTokConnectPanel.tsx's App Review copy),
+ *  not a workaround being smuggled past review. */
 export async function publishTikTokPhotoPost(
   accessToken: string,
   photoUrls: string[],
   caption: string
 ): Promise<TikTokPublishResult> {
-  // Still queried per TikTok's own integration guidelines (respects the
-  // creator's other settings, and is required before a Direct Post call),
-  // but privacy_level itself is hardcoded rather than picked from
-  // creator.privacy_level_options: an unaudited app (this one, until App
-  // Review approves public posting) is restricted to SELF_ONLY regardless
-  // of what that list otherwise offers — trying anything else fails with
-  // TikTok's generic "review our integration guidelines" error even when
-  // SELF_ONLY is technically present in the list.
-  await getTikTokCreatorInfo(accessToken);
-  const privacyLevel = "SELF_ONLY";
-
   const { publish_id } = await apiPost<{ publish_id: string }>("/v2/post/publish/content/init/", accessToken, {
     media_type: "PHOTO",
-    post_mode: "DIRECT_POST",
+    post_mode: "MEDIA_UPLOAD",
     post_info: {
       title: caption.slice(0, 90),
       description: caption.slice(0, 4000),
-      privacy_level: privacyLevel,
-      disable_comment: false,
-      auto_add_music: true,
       brand_content_toggle: false,
       brand_organic_toggle: false,
     },
