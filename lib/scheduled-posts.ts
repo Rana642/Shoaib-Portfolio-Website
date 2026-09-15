@@ -21,6 +21,8 @@ export async function createScheduledPost(input: {
   original_filename: string;
   scheduled_at: string;
   caption?: string;
+  /** null/omitted = every active connected account for the project. */
+  target_platforms?: string[] | null;
 }): Promise<string> {
   const { data, error } = await db
     .from("scheduled_posts")
@@ -31,6 +33,7 @@ export async function createScheduledPost(input: {
       scheduled_at: input.scheduled_at,
       caption: input.caption ?? null,
       status: input.caption ? "scheduled" : "pending_caption",
+      target_platforms: input.target_platforms ?? null,
     })
     .select("id")
     .single();

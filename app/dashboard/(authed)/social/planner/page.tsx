@@ -31,11 +31,15 @@ export default async function PlannerPage({
 
   const selectedProjectId = projects.some((p) => p.id === projectParam) ? projectParam! : projects[0].id;
 
-  const { data: posts } = await db
-    .from("scheduled_posts")
-    .select("*")
-    .eq("project_id", selectedProjectId)
-    .order("scheduled_at", { ascending: true, nullsFirst: true });
+  const [{ data: posts }, { data: accounts }] = await Promise.all([
+    db
+      .from("scheduled_posts")
+      .select("*")
+      .eq("project_id", selectedProjectId)
+      .order("scheduled_at", { ascending: true, nullsFirst: true }),
+    db.from("client_social_accounts").select("platform").eq("project_id", selectedProjectId).eq("is_active", true),
+  ]);
+  const connectedPlatforms = [...new Set((accounts ?? []).map((a) => a.platform as string))];
 
   const postsWithUrls = await Promise.all(
     ((posts ?? []) as ScheduledPost[]).map(async (p) => ({
@@ -50,7 +54,12 @@ export default async function PlannerPage({
         title="Planner"
         description="Upload images straight onto a date — one place to upload, one project at a time. Add more than one post to the same day whenever you like."
       />
-      <PlannerCalendar projects={projects} selectedProjectId={selectedProjectId} posts={postsWithUrls} />
+      <PlannerCalendar
+        projects={projects}
+        selectedProjectId={selectedProjectId}
+        posts={postsWithUrls}
+        connectedPlatforms={connectedPlatforms}
+      />
     </>
   );
 }

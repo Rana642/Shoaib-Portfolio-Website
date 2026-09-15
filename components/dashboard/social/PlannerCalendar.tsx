@@ -60,10 +60,14 @@ export default function PlannerCalendar({
   projects,
   selectedProjectId,
   posts,
+  connectedPlatforms,
 }: {
   projects: ProjectOption[];
   selectedProjectId: string;
   posts: PostWithUrl[];
+  /** Platforms this project has an active connected account for — drives
+   *  the upload modal's "post to" checkboxes. */
+  connectedPlatforms: string[];
 }) {
   const router = useRouter();
   const [view, setView] = useState<ViewMode>("week");
@@ -295,7 +299,12 @@ export default function PlannerCalendar({
       )}
 
       {uploadDate && (
-        <UploadModal date={uploadDate} projectId={selectedProjectId} onClose={() => setUploadDate(null)} />
+        <UploadModal
+          date={uploadDate}
+          projectId={selectedProjectId}
+          connectedPlatforms={connectedPlatforms}
+          onClose={() => setUploadDate(null)}
+        />
       )}
       {bulkOpen && <BulkUploadModal projectId={selectedProjectId} onClose={() => setBulkOpen(false)} />}
     </div>
@@ -370,19 +379,56 @@ function DayPostThumb({ post }: { post: PostWithUrl }) {
   );
 }
 
-function UploadModal({ date, projectId, onClose }: { date: string; projectId: string; onClose: () => void }) {
+const PLATFORM_LABELS: Record<string, string> = {
+  facebook: "Facebook",
+  instagram: "Instagram",
+  linkedin: "LinkedIn",
+  tiktok: "TikTok",
+};
+
+function UploadModal({
+  date,
+  projectId,
+  connectedPlatforms,
+  onClose,
+}: {
+  date: string;
+  projectId: string;
+  connectedPlatforms: string[];
+  onClose: () => void;
+}) {
   const [caption, setCaption] = useState("");
+  // Defaults to every connected platform selected — matches the original
+  // "one image goes everywhere" behavior unless something's deselected.
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(() => new Set(connectedPlatforms));
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const togglePlatform = (platform: string) => {
+    setSelectedPlatforms((prev) => {
+      const next = new Set(prev);
+      if (next.has(platform)) next.delete(platform);
+      else next.add(platform);
+      return next;
+    });
+  };
+
   const onFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+    if (connectedPlatforms.length > 0 && selectedPlatforms.size === 0) {
+      setError("Select at least one platform to post to.");
+      return;
+    }
     setError(null);
     setBusy(true);
     let done = 0;
     try {
       const fileArr = Array.from(files);
+      // Only send `platforms` when it's a strict subset of every connected
+      // platform — otherwise omit it so the post keeps meaning "everywhere
+      // this project is connected" even if a new platform gets connected later.
+      const isSubset = selectedPlatforms.size > 0 && selectedPlatforms.size < connectedPlatforms.length;
       for (const file of fileArr) {
         setStatus(`Uploading ${file.name} (${++done}/${fileArr.length})…`);
         const urlRes = await fetch("/api/dashboard/social/upload-url", {
@@ -407,6 +453,7 @@ function UploadModal({ date, projectId, onClose }: { date: string; projectId: st
         // apart even though nothing technically stops it.
         fd.set("offset_minutes", String(done * 45));
         if (caption.trim()) fd.set("caption", caption.trim());
+        if (isSubset) fd.set("platforms", JSON.stringify([...selectedPlatforms]));
         const result = await createPlannerPost(fd);
         if (result?.error) throw new Error(result.error);
       }
@@ -440,6 +487,26 @@ function UploadModal({ date, projectId, onClose }: { date: string; projectId: st
           onChange={(e) => setCaption(e.target.value)}
           disabled={busy}
         />
+
+        {connectedPlatforms.length > 0 && (
+          <div>
+            <p className="text-small font-medium mb-1.5">Post to:</p>
+            <div className="flex flex-wrap gap-3">
+              {connectedPlatforms.map((platform) => (
+                <label key={platform} className="flex items-center gap-1.5 text-small cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedPlatforms.has(platform)}
+                    onChange={() => togglePlatform(platform)}
+                    disabled={busy}
+                    className="accent-ink"
+                  />
+                  {PLATFORM_LABELS[platform] ?? platform}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
 
         <label className={`${buttonStyles.secondary} cursor-pointer w-fit`}>
           {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : null}

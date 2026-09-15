@@ -156,6 +156,9 @@ const plannerUploadSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD"),
   offset_minutes: z.coerce.number().int().min(0).max(1000).default(0),
   caption: z.string().max(2200).optional(),
+  // JSON-encoded string[] of platforms to target, or omitted for "all
+  // connected accounts" (the original, still-default behavior).
+  platforms: z.string().optional(),
 });
 
 /** Creates one planner post for the day the user clicked on the calendar —
@@ -170,8 +173,19 @@ export async function createPlannerPost(formData: FormData) {
     date: formData.get("date"),
     offset_minutes: formData.get("offset_minutes") ?? 0,
     caption: formData.get("caption") || undefined,
+    platforms: formData.get("platforms") || undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  let targetPlatforms: string[] | null = null;
+  if (parsed.data.platforms) {
+    try {
+      const arr = JSON.parse(parsed.data.platforms);
+      if (Array.isArray(arr) && arr.every((p) => typeof p === "string")) targetPlatforms = arr;
+    } catch {
+      return { error: "Invalid platforms selection." };
+    }
+  }
 
   let postId: string;
   try {
@@ -181,6 +195,7 @@ export async function createPlannerPost(formData: FormData) {
       original_filename: parsed.data.original_filename,
       scheduled_at: dateToScheduledAt(parsed.data.date, parsed.data.offset_minutes),
       caption: parsed.data.caption,
+      target_platforms: targetPlatforms,
     });
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Couldn't queue the upload." };

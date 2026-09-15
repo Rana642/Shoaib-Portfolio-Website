@@ -82,7 +82,11 @@ export async function postToAllProjectAccounts(
   imageUrl: string,
   caption: string,
   mediaKey: string,
-  excludeExternalIds: string[] = []
+  excludeExternalIds: string[] = [],
+  /** null/omitted = every active connected account for the project — set
+   *  from the Planner's upload modal to restrict a specific post to only
+   *  some of a project's connected platforms. */
+  targetPlatforms?: string[] | null
 ): Promise<PlatformPostResult[]> {
   const all = await listSocialAccountsForProject(projectId);
   if (all.length === 0) {
@@ -90,7 +94,10 @@ export async function postToAllProjectAccounts(
       { platform: "-", label: "-", external_id: "-", ok: false, error: "This project has no connected social accounts." },
     ];
   }
-  const remaining = all.filter((a) => !excludeExternalIds.includes(a.external_id));
+  let remaining = all.filter((a) => !excludeExternalIds.includes(a.external_id));
+  if (targetPlatforms && targetPlatforms.length > 0) {
+    remaining = remaining.filter((a) => targetPlatforms.includes(a.platform));
+  }
   if (remaining.length === 0) return [];
   return Promise.all(remaining.map((a) => postToOneAccount(a, imageUrl, caption, mediaKey)));
 }
@@ -105,9 +112,11 @@ export async function submitNativeSchedule(
   projectId: string,
   imageUrl: string,
   caption: string,
-  scheduledAtIso: string
+  scheduledAtIso: string,
+  targetPlatforms?: string[] | null
 ): Promise<PlatformPostResult[]> {
   if (!isWithinNativeScheduleWindow(scheduledAtIso)) return [];
+  if (targetPlatforms && targetPlatforms.length > 0 && !targetPlatforms.includes("facebook")) return [];
   const accounts = await listSocialAccountsForProject(projectId);
   const eligible = accounts.filter((a) => a.platform === "facebook");
   if (eligible.length === 0) return [];
@@ -138,7 +147,7 @@ export async function submitNativeScheduleForPost(postId: string): Promise<void>
     const post = await getScheduledPost(postId);
     if (!post || !post.caption || !post.scheduled_at) return;
     const imageUrl = await presignDownload(post.media_key);
-    const results = await submitNativeSchedule(post.project_id, imageUrl, post.caption, post.scheduled_at);
+    const results = await submitNativeSchedule(post.project_id, imageUrl, post.caption, post.scheduled_at, post.target_platforms);
     if (results.length > 0) await recordNativeScheduleResult(postId, results);
   } catch {
     /* best-effort — the cron's due-time path still covers this post */
@@ -178,7 +187,7 @@ export async function rescheduleNativePosts(scheduledPostId: string): Promise<vo
     await cancelNativeSchedule(post);
 
     const imageUrl = await presignDownload(post.media_key);
-    const results = await submitNativeSchedule(post.project_id, imageUrl, post.caption, post.scheduled_at);
+    const results = await submitNativeSchedule(post.project_id, imageUrl, post.caption, post.scheduled_at, post.target_platforms);
     await recordNativeScheduleResult(scheduledPostId, results);
   } catch {
     /* best-effort — worst case a stale draft post sits unpublished on Meta's side */

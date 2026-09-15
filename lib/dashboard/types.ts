@@ -89,6 +89,9 @@ export type ScheduledPost = {
   status: ScheduledPostStatus;
   result: Record<string, unknown> | null;
   posted_at: string | null;
+  /** null = every active connected account for the project; otherwise
+   *  restricts publishing to just these platforms. */
+  target_platforms: string[] | null;
 };
 
 export type ClientProject = {

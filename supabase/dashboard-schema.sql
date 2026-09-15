@@ -722,8 +722,14 @@ create table if not exists scheduled_posts (
   status text not null default 'pending_caption'
     check (status in ('pending_caption', 'scheduled', 'posted', 'failed')),
   result jsonb,                        -- per-platform post ids / error messages
-  posted_at timestamptz
+  posted_at timestamptz,
+  -- null = every active connected account for the project (original,
+  -- still-default behavior); otherwise restricts publishing to just these
+  -- platforms, e.g. {'tiktok'} — set from the Planner's upload modal.
+  target_platforms text[]
 );
+
+alter table scheduled_posts add column if not exists target_platforms text[];
 
 do $$
 begin
