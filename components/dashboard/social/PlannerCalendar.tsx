@@ -190,6 +190,22 @@ export default function PlannerCalendar({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {connectedPlatforms.length > 0 && (
+            <div className="flex items-center gap-1.5" title="Connected for this project">
+              {connectedPlatforms.map((platform) => {
+                const Icon = PLATFORM_ICONS[platform];
+                return (
+                  <span
+                    key={platform}
+                    title={PLATFORM_LABELS[platform] ?? platform}
+                    className="flex items-center justify-center size-7 rounded-full border border-ink/15 text-ink-muted"
+                  >
+                    {Icon ? <Icon className="size-3.5" aria-hidden /> : (PLATFORM_LABELS[platform] ?? platform)[0]}
+                  </span>
+                );
+              })}
+            </div>
+          )}
           <select
             className={`${inputClasses} max-w-72`}
             value={selectedProjectId}
