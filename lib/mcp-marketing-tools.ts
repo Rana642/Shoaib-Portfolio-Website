@@ -7,7 +7,8 @@ import { metaMarketingRequest, listMetaAdAccounts } from "./meta-marketing-clien
 
 /**
  * Full-functionality marketing-API tools: Google Ads (audit/edit/create),
- * Meta Marketing API, GA4, Google Search Console, and Google Tag Manager —
+ * Meta Marketing API, GA4, Google Search Console, Google Tag Manager, and
+ * YouTube (Data + Analytics API) —
  * per Shoaib's explicit "full functionality, sab APIs" request (2026-09-16),
  * a deliberate step up from the social-poster tools' "start small" scoping.
  *
@@ -286,6 +287,60 @@ Note: siteUrl must be URL-encoded exactly as Search Console has it registered (e
       try {
         if (method !== "GET" && !confirm) return previewResult(`GSC ${method} ${path}`, { path, method, body: body ?? {} });
         return jsonResult(await googleApiRequest("gsc", "https://searchconsole.googleapis.com/v1", path, method, body));
+      } catch (error) {
+        return { content: [{ type: "text", text: formatError(error) }], isError: true };
+      }
+    }
+  );
+
+  // ── YouTube (Data API + Analytics API) ──────────────────────────────
+  server.registerTool(
+    "youtube_request",
+    {
+      title: "YouTube Data API — Videos/Playlists/Channels/Comments",
+      description: `Passthrough to the YouTube Data API v3 (https://www.googleapis.com/youtube/v3) — list/update channel + video metadata, manage playlists, captions, comments, live broadcasts. (Video file upload itself needs a separate resumable-upload flow, not this JSON passthrough — ask if that's needed.)
+
+Args:
+  - path (string): e.g. "videos", "playlists", "commentThreads", "channels".
+  - method ("GET" | "POST" | "PUT" | "DELETE").
+  - params (object, optional): query params for GET, e.g. { "part": "snippet,statistics", "id": "VIDEO_ID" } or { "part": "snippet", "mine": "true" }.
+  - body (object, optional): request body for POST/PUT, exactly as the Data API expects.
+  - confirm (boolean): required true for POST/PUT/DELETE — false/omitted returns a preview instead. GET always executes.`,
+      inputSchema: {
+        path: z.string().min(1),
+        method: z.enum(["GET", "POST", "PUT", "DELETE"]),
+        params: z.record(z.string(), z.any()).optional(),
+        body: z.record(z.string(), z.any()).optional(),
+        confirm: z.boolean().optional(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+    },
+    async ({ path, method, params, body, confirm }: { path: string; method: "GET" | "POST" | "PUT" | "DELETE"; params?: Record<string, unknown>; body?: Record<string, unknown>; confirm?: boolean }) => {
+      try {
+        const query = params ? `?${new URLSearchParams(params as Record<string, string>).toString()}` : "";
+        if (method !== "GET" && !confirm) return previewResult(`YouTube ${method} ${path}`, { path, method, body: body ?? {} });
+        return jsonResult(await googleApiRequest("youtube", "https://www.googleapis.com/youtube/v3", `${path}${query}`, method, body));
+      } catch (error) {
+        return { content: [{ type: "text", text: formatError(error) }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    "youtube_analytics_report",
+    {
+      title: "YouTube Analytics API — Channel/Video Report",
+      description: `Runs a read-only report against the YouTube Analytics API v2 (reports.query) — views, watch time, subscribers gained, revenue (if monetized), traffic sources, by day/video/country/etc.
+
+Args:
+  - params (object): query params exactly as the Analytics API expects, e.g. { "ids": "channel==MINE", "startDate": "2026-08-01", "endDate": "2026-09-01", "metrics": "views,estimatedMinutesWatched,subscribersGained", "dimensions": "day" }.`,
+      inputSchema: { params: z.record(z.string(), z.any()) },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    },
+    async ({ params }: { params: Record<string, unknown> }) => {
+      try {
+        const query = new URLSearchParams(params as Record<string, string>).toString();
+        return jsonResult(await googleApiRequest("youtube", "https://youtubeanalytics.googleapis.com/v2", `reports?${query}`, "GET"));
       } catch (error) {
         return { content: [{ type: "text", text: formatError(error) }], isError: true };
       }
