@@ -50,7 +50,7 @@ function consentHtml(params: ReturnType<typeof readParams>, clientName: string |
 <body>
   <form method="POST" class="card">
     <h1>Connect to Ads by Shoaib</h1>
-    <p><strong>${escape(clientName || "This app")}</strong> wants to access your social-poster tools (queue, caption, and schedule posts) on adsbyshoaib.com.</p>
+    <p><strong>${escape(clientName || "This app")}</strong> wants to access your adsbyshoaib.com tools: the social poster (queue, caption, schedule posts) and marketing APIs (Google Ads, Meta Ads, GA4, Search Console, Tag Manager) — including creating and editing live campaigns/tags.</p>
     <input type="hidden" name="client_id" value="${escape(params.client_id)}">
     <input type="hidden" name="redirect_uri" value="${escape(params.redirect_uri)}">
     <input type="hidden" name="code_challenge" value="${escape(params.code_challenge)}">

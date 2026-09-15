@@ -24,6 +24,7 @@ const REQUIRED_ENV = [
   "S3_SECRET_ACCESS_KEY",
   "S3_BUCKET",
   "SOCIAL_TOKENS_ENCRYPTION_KEY",
+  "API_VAULT_ENCRYPTION_KEY",
 ] as const;
 const missing = REQUIRED_ENV.filter((key) => !process.env[key]);
 if (missing.length > 0) {
@@ -34,6 +35,7 @@ if (missing.length > 0) {
 const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
 const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
 const { registerSocialTools } = await import("./tools/social.js");
+const { registerMarketingTools } = await import("./tools/marketing.js");
 
 const server = new McpServer({
   name: "adsbyshoaib-social-mcp-server",
@@ -41,6 +43,7 @@ const server = new McpServer({
 });
 
 registerSocialTools(server);
+registerMarketingTools(server);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
