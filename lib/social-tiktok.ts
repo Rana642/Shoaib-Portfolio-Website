@@ -28,6 +28,14 @@ type TikTokErrorShape = { error?: { code?: string; message?: string; log_id?: st
 // unset it once the demo video is recorded and App Review is submitted.
 const USE_SANDBOX = process.env.TIKTOK_SANDBOX_MODE === "true";
 
+/** Debug helper for the temporary Sandbox rollout — lets a caller (the
+ *  oauth-callback route) put which credential set was used directly into an
+ *  error response, since Vercel's function logs are otherwise the only place
+ *  to see it. Remove alongside TIKTOK_SANDBOX_MODE. */
+export function tiktokCredentialModeForDebug(): string {
+  return USE_SANDBOX ? "tiktok_sandbox" : "tiktok";
+}
+
 export async function getTikTokAppCredentials(): Promise<{ client_key: string; client_secret: string }> {
   if (!isApiVaultCryptoConfigured) throw new Error("API_VAULT_ENCRYPTION_KEY is not configured.");
   const service = USE_SANDBOX ? "tiktok_sandbox" : "tiktok";

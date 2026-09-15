@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUser } from "@/lib/dashboard/auth";
 import { isApiVaultCryptoConfigured } from "@/lib/api-vault-crypto";
-import { exchangeTikTokCode, queryTikTokUserInfo } from "@/lib/social-tiktok";
+import { exchangeTikTokCode, queryTikTokUserInfo, tiktokCredentialModeForDebug } from "@/lib/social-tiktok";
 import { saveTikTokAccount } from "@/lib/social-accounts";
 
 /**
@@ -44,7 +44,14 @@ export async function GET(request: Request) {
   try {
     tokens = await exchangeTikTokCode(code, `${url.origin}/api/tiktok/oauth-callback`);
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Token exchange failed." }, { status: 502 });
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Token exchange failed.",
+        // TEMPORARY debug field — remove alongside TIKTOK_SANDBOX_MODE.
+        debug_credential_set: tiktokCredentialModeForDebug(),
+      },
+      { status: 502 }
+    );
   }
 
   // A bare manual test (hitting the authorize URL by hand, or TikTok's own
