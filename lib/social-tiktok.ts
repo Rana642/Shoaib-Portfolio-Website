@@ -96,7 +96,12 @@ async function apiPost<T>(path: string, accessToken: string, body: unknown): Pro
   });
   const parsed = (await res.json()) as { data?: T } & TikTokErrorShape;
   if (!res.ok || (parsed.error?.code && parsed.error.code !== "ok")) {
-    throw new Error(parsed.error?.message || `TikTok API error (HTTP ${res.status})`);
+    // TEMPORARY: include the raw error code/log_id, not just the message —
+    // TikTok's message text is often a generic pointer to docs while the
+    // code is the actually diagnostic part. Remove once TikTok publishing
+    // is confirmed reliably working.
+    const detail = [parsed.error?.code, parsed.error?.log_id].filter(Boolean).join(" / ");
+    throw new Error(`${parsed.error?.message || `TikTok API error (HTTP ${res.status})`}${detail ? ` [${detail}]` : ""}`);
   }
   return parsed.data ?? ({} as T);
 }
@@ -107,7 +112,12 @@ async function apiGet<T>(path: string, accessToken: string, params: Record<strin
   const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${accessToken}` } });
   const parsed = (await res.json()) as { data?: T } & TikTokErrorShape;
   if (!res.ok || (parsed.error?.code && parsed.error.code !== "ok")) {
-    throw new Error(parsed.error?.message || `TikTok API error (HTTP ${res.status})`);
+    // TEMPORARY: include the raw error code/log_id, not just the message —
+    // TikTok's message text is often a generic pointer to docs while the
+    // code is the actually diagnostic part. Remove once TikTok publishing
+    // is confirmed reliably working.
+    const detail = [parsed.error?.code, parsed.error?.log_id].filter(Boolean).join(" / ");
+    throw new Error(`${parsed.error?.message || `TikTok API error (HTTP ${res.status})`}${detail ? ` [${detail}]` : ""}`);
   }
   return parsed.data ?? ({} as T);
 }
