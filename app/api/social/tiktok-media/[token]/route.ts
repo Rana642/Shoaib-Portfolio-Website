@@ -36,7 +36,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
 
   try {
     const { buffer } = await fetchObject(mediaKey);
-    const jpeg = await sharp(buffer).flatten({ background: "#ffffff" }).jpeg({ quality: 90 }).toBuffer();
+    // TikTok's photo post wants a 9:16 canvas (1080x1920) — a source image
+    // of some other shape gets letterboxed onto one rather than cropped, so
+    // nothing in the original photo is lost.
+    const jpeg = await sharp(buffer)
+      .resize(1080, 1920, { fit: "contain", background: "#ffffff" })
+      .flatten({ background: "#ffffff" })
+      .jpeg({ quality: 90 })
+      .toBuffer();
     return new NextResponse(new Uint8Array(jpeg), {
       headers: {
         "Content-Type": "image/jpeg",
