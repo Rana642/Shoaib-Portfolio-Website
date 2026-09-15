@@ -24,7 +24,11 @@ export async function GET(request: Request) {
   try {
     const { buffer, contentType } = await fetchObject(mediaKey);
     return new NextResponse(new Uint8Array(buffer), {
-      headers: { "Content-Type": contentType, "Cache-Control": "private, max-age=900" },
+      headers: {
+        "Content-Type": contentType,
+        "Content-Length": String(buffer.length),
+        "Cache-Control": "private, max-age=900",
+      },
     });
   } catch {
     return NextResponse.json({ error: "Media not found." }, { status: 404 });
