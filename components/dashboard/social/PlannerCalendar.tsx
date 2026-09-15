@@ -595,42 +595,82 @@ function UploadModal({
             </div>
           </div>
 
-          {/* Right: live preview */}
+          {/* Right: live preview — TikTok/Instagram Reels-style content is a
+              full-bleed vertical video frame; a Facebook/Instagram/LinkedIn
+              FEED post looks nothing like that (square image, caption below,
+              not overlaid), so the mockup shape follows whichever platform
+              is actually selected instead of one universal look. */}
           <div className="flex flex-col items-center">
             <p className="text-tag uppercase tracking-widest text-ink-subtle mb-2 self-start">Preview</p>
-            <div className="relative w-full max-w-[220px] aspect-[9/16] rounded-2xl bg-ink overflow-hidden">
-              {previewUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={previewUrl} alt="" className="absolute inset-0 size-full object-cover" />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center text-cloud/40 text-small">
-                  No image yet
+            {previewPlatform === "tiktok" ? (
+              <div className="relative w-full max-w-[220px] aspect-[9/16] rounded-2xl bg-ink overflow-hidden">
+                {previewUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={previewUrl} alt="" className="absolute inset-0 size-full object-cover" />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-cloud/40 text-small">
+                    No image yet
+                  </div>
+                )}
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/80 to-transparent p-3 pt-8">
+                  <p className="text-cloud text-tag font-medium">Shoaib Nabi Noor</p>
+                  {caption && <p className="text-cloud/90 text-tag mt-1 line-clamp-2">{caption}</p>}
                 </div>
-              )}
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/80 to-transparent p-3 pt-8">
-                <p className="text-cloud text-tag font-medium">Shoaib Nabi Noor</p>
-                {caption && <p className="text-cloud/90 text-tag mt-1 line-clamp-2">{caption}</p>}
+                <div className="absolute right-2 bottom-16 flex flex-col items-center gap-3 text-cloud">
+                  <div className="flex flex-col items-center gap-0.5">
+                    <Heart className="size-5" aria-hidden />
+                    <span className="text-tag">0</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <MessageCircle className="size-5" aria-hidden />
+                    <span className="text-tag">0</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <Share2 className="size-5" aria-hidden />
+                    <span className="text-tag">0</span>
+                  </div>
+                </div>
+                {PreviewIcon && (
+                  <div className="absolute top-2 left-2 flex items-center justify-center size-6 rounded-full bg-cloud/90 text-ink">
+                    <PreviewIcon className="size-3.5" aria-hidden />
+                  </div>
+                )}
               </div>
-              <div className="absolute right-2 bottom-16 flex flex-col items-center gap-3 text-cloud">
-                <div className="flex flex-col items-center gap-0.5">
+            ) : (
+              <div className="w-full max-w-[260px] rounded-lg border border-ink/10 overflow-hidden bg-white">
+                <div className="flex items-center gap-2 px-3 py-2.5">
+                  <div className="flex items-center justify-center size-8 rounded-full bg-ink/10 text-ink-subtle shrink-0">
+                    {PreviewIcon ? <PreviewIcon className="size-4" aria-hidden /> : null}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-small font-medium leading-tight truncate">Shoaib Nabi Noor</p>
+                    <p className="text-tag text-ink-subtle leading-tight">
+                      {previewPlatform ? PLATFORM_LABELS[previewPlatform] ?? previewPlatform : "—"}
+                    </p>
+                  </div>
+                </div>
+                <div className="relative w-full aspect-square bg-ink/5">
+                  {previewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={previewUrl} alt="" className="absolute inset-0 size-full object-cover" />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-ink-subtle text-small">
+                      No image yet
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-4 px-3 py-2.5 text-ink-muted">
                   <Heart className="size-5" aria-hidden />
-                  <span className="text-tag">0</span>
-                </div>
-                <div className="flex flex-col items-center gap-0.5">
                   <MessageCircle className="size-5" aria-hidden />
-                  <span className="text-tag">0</span>
-                </div>
-                <div className="flex flex-col items-center gap-0.5">
                   <Share2 className="size-5" aria-hidden />
-                  <span className="text-tag">0</span>
                 </div>
+                {caption && (
+                  <p className="px-3 pb-3 text-small line-clamp-3">
+                    <span className="font-medium">Shoaib Nabi Noor</span> {caption}
+                  </p>
+                )}
               </div>
-              {PreviewIcon && (
-                <div className="absolute top-2 left-2 flex items-center justify-center size-6 rounded-full bg-cloud/90 text-ink">
-                  <PreviewIcon className="size-3.5" aria-hidden />
-                </div>
-              )}
-            </div>
+            )}
             <p className="text-tag text-ink-subtle mt-2 text-center">
               Approximate — the real post may look slightly different.
             </p>
