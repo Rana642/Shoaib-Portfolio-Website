@@ -9,10 +9,19 @@ import { fetchObject } from "@/lib/storage";
  * domain isn't, so this proxies the object through here instead. No
  * dashboard auth: TikTok's own servers fetch this, not a logged-in user —
  * security instead comes from the token itself (short-lived, unguessable).
+ *
+ * Path-based (not `?t=...`) — a query-string version kept failing
+ * photo_pull_failed even with a verified domain, correct Content-Type, and
+ * an explicit Content-Length; trying a plain, extension-free path in case
+ * TikTok's fetcher is picky about query strings. The token itself may still
+ * contain a trailing filename-looking segment appended by the caller
+ * (cosmetic only, ignored here) — see mintTikTokMediaUrl.
  */
-export async function GET(request: Request) {
-  const token = new URL(request.url).searchParams.get("t");
-  if (!token) return NextResponse.json({ error: "Missing token." }, { status: 400 });
+export async function GET(request: Request, { params }: { params: Promise<{ token: string }> }) {
+  const { token: rawToken } = await params;
+  // Strip a cosmetic extension (e.g. "<token>.png") if present — the token
+  // itself never contains a literal dot.
+  const token = rawToken.split(".")[0];
 
   let mediaKey: string;
   try {
