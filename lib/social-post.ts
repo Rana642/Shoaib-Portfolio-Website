@@ -3,6 +3,7 @@ import { listSocialAccountsForProject, decryptAccountToken } from "./social-acco
 import { postFacebookPhoto, postInstagramPhoto, scheduleFacebookPhoto, deleteFacebookPost } from "./social-fb";
 import { postLinkedInPhoto } from "./social-linkedin";
 import { getFreshTikTokAccessToken, publishTikTokPhotoPost, mintTikTokMediaUrl } from "./social-tiktok";
+import { mintInstagramMediaUrl } from "./social-instagram-media";
 import { getScheduledPost, recordNativeScheduleResult } from "./scheduled-posts";
 import { presignDownload } from "./storage";
 import type { ClientSocialAccount, ScheduledPost } from "./dashboard/types";
@@ -58,7 +59,10 @@ async function postToOneAccount(
         post_id = r.post_id;
         usagePercent = r.usagePercent;
       } else if (account.platform === "instagram") {
-        const r = await postInstagramPhoto(account.external_id, token, imageUrl, caption);
+        // Always the JPEG-proxy URL, not the raw R2 imageUrl — Instagram's
+        // media container creation rejects PNG outright (see
+        // lib/social-instagram-media.ts).
+        const r = await postInstagramPhoto(account.external_id, token, mintInstagramMediaUrl(mediaKey), caption);
         post_id = r.post_id;
         usagePercent = r.usagePercent;
       } else if (account.platform === "linkedin") {
