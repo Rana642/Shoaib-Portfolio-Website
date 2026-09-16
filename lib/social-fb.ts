@@ -190,6 +190,29 @@ async function assertInstagramPublishingHeadroom(igUserId: string, pageAccessTok
   }
 }
 
+/** Polls a just-created IG media container until Meta finishes processing it
+ *  (status_code FINISHED) before we try to publish. Without this wait,
+ *  media_publish can race the container's own processing and fail with
+ *  "Media ID is not available" even though the container is perfectly
+ *  valid — it just wasn't ready yet (hit in production 2026-09-16). Photo
+ *  containers normally finish in a few seconds. */
+async function waitForContainerFinished(containerId: string, pageAccessToken: string): Promise<void> {
+  const maxAttempts = 20;
+  const intervalMs = 1500;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const { status_code } = await graphGet<{ status_code: string }>(`/${containerId}`, {
+      fields: "status_code",
+      access_token: pageAccessToken,
+    });
+    if (status_code === "FINISHED") return;
+    if (status_code === "ERROR" || status_code === "EXPIRED") {
+      throw new Error(`Instagram media container ${status_code.toLowerCase()} before it could be published.`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  throw new Error("Instagram media container did not finish processing in time — try again in a moment.");
+}
+
 /** Two-step Instagram publish: create a media container, then publish it.
  *  Requires the IG account to be a Business/Creator account linked to a
  *  Facebook Page — Meta does not allow API posting to a standalone account.
@@ -213,6 +236,8 @@ export async function postInstagramPhoto(
   if (!createRes.ok || created.error || !created.id) {
     throw new Error(created.error?.message || "Instagram media container creation failed");
   }
+
+  await waitForContainerFinished(created.id, pageAccessToken);
 
   const publishRes = await fetch(`${GRAPH_BASE}/${igUserId}/media_publish`, {
     method: "POST",
