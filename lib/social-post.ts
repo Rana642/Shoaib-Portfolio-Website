@@ -4,8 +4,8 @@ import { postFacebookPhoto, postInstagramPhoto, scheduleFacebookPhoto, deleteFac
 import { postLinkedInPhoto } from "./social-linkedin";
 import { getFreshTikTokAccessToken, publishTikTokPhotoPost, mintTikTokMediaUrl } from "./social-tiktok";
 import { mintInstagramMediaUrl } from "./social-instagram-media";
+import { mintFacebookMediaUrl } from "./social-facebook-media";
 import { getScheduledPost, recordNativeScheduleResult } from "./scheduled-posts";
-import { presignDownload } from "./storage";
 import type { ClientSocialAccount, ScheduledPost } from "./dashboard/types";
 
 export type PlatformPostResult = {
@@ -55,7 +55,10 @@ async function postToOneAccount(
     } else {
       const token = decryptAccountToken(account);
       if (account.platform === "facebook") {
-        const r = await postFacebookPhoto(account.external_id, token, imageUrl, caption);
+        // Always the resized JPEG-proxy URL, not the raw R2 imageUrl —
+        // Facebook's photo-via-URL endpoint fails large source images with
+        // a generic "Invalid parameter" (see lib/social-facebook-media.ts).
+        const r = await postFacebookPhoto(account.external_id, token, mintFacebookMediaUrl(mediaKey), caption);
         post_id = r.post_id;
         usagePercent = r.usagePercent;
       } else if (account.platform === "instagram") {
@@ -114,7 +117,7 @@ export async function postToAllProjectAccounts(
  *  all), so it's never included here — it always waits for the cron. */
 export async function submitNativeSchedule(
   projectId: string,
-  imageUrl: string,
+  mediaKey: string,
   caption: string,
   scheduledAtIso: string,
   targetPlatforms?: string[] | null
@@ -126,6 +129,7 @@ export async function submitNativeSchedule(
   if (eligible.length === 0) return [];
 
   const scheduledUnix = Math.floor(new Date(scheduledAtIso).getTime() / 1000);
+  const imageUrl = mintFacebookMediaUrl(mediaKey);
   return Promise.all(
     eligible.map(async (a) => {
       const token = decryptAccountToken(a);
@@ -150,8 +154,7 @@ export async function submitNativeScheduleForPost(postId: string): Promise<void>
   try {
     const post = await getScheduledPost(postId);
     if (!post || !post.caption || !post.scheduled_at) return;
-    const imageUrl = await presignDownload(post.media_key);
-    const results = await submitNativeSchedule(post.project_id, imageUrl, post.caption, post.scheduled_at, post.target_platforms);
+    const results = await submitNativeSchedule(post.project_id, post.media_key, post.caption, post.scheduled_at, post.target_platforms);
     if (results.length > 0) await recordNativeScheduleResult(postId, results);
   } catch {
     /* best-effort — the cron's due-time path still covers this post */
@@ -190,8 +193,7 @@ export async function rescheduleNativePosts(scheduledPostId: string): Promise<vo
     if (!post || !post.caption || !post.scheduled_at) return;
     await cancelNativeSchedule(post);
 
-    const imageUrl = await presignDownload(post.media_key);
-    const results = await submitNativeSchedule(post.project_id, imageUrl, post.caption, post.scheduled_at, post.target_platforms);
+    const results = await submitNativeSchedule(post.project_id, post.media_key, post.caption, post.scheduled_at, post.target_platforms);
     await recordNativeScheduleResult(scheduledPostId, results);
   } catch {
     /* best-effort — worst case a stale draft post sits unpublished on Meta's side */
