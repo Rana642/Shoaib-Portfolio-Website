@@ -100,6 +100,18 @@ export default function PlannerCalendar({
     return map;
   }, [posts]);
 
+  // Filename → the date it's already scheduled on, so a bulk upload can
+  // recognize "this exact file was already added before" (e.g. Shoaib
+  // re-selecting the same content-pack folder by mistake) instead of
+  // silently creating a duplicate post.
+  const existingByFilename = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of posts) {
+      if (p.original_filename && p.scheduled_at) map.set(p.original_filename, dateKey(p.scheduled_at));
+    }
+    return map;
+  }, [posts]);
+
   const todayKey = new Date().toISOString().slice(0, 10);
   const goToToday = () => {
     setWeekStart(startOfWeek(new Date()));
@@ -336,6 +348,7 @@ export default function PlannerCalendar({
           projectId={selectedProjectId}
           connectedPlatforms={connectedPlatforms}
           occupiedDates={postsByDate}
+          existingByFilename={existingByFilename}
           onClose={() => setBulkOpen(false)}
         />
       )}
@@ -758,6 +771,7 @@ function BulkUploadModal({
   projectId,
   connectedPlatforms,
   occupiedDates,
+  existingByFilename,
   onClose,
 }: {
   projectId: string;
@@ -765,6 +779,9 @@ function BulkUploadModal({
   /** Dates that already have at least one post — gap-filled before the
    *  batch spills into fresh dates. */
   occupiedDates: Map<string, unknown>;
+  /** Filename → date it's already scheduled on — files matching one of
+   *  these are skipped rather than re-uploaded as a duplicate. */
+  existingByFilename: Map<string, string>;
   onClose: () => void;
 }) {
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -797,7 +814,21 @@ function BulkUploadModal({
       // Sort by filename so a naturally-numbered pack (day01, day02, ...)
       // lands in the right order — selection order in a file picker isn't
       // guaranteed to match visual/alphabetical order across browsers.
-      const fileArr = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      const sorted = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+      // Skip any file that's already been uploaded before (e.g. Shoaib
+      // re-selecting the same content-pack folder) instead of creating a
+      // duplicate post — surfaced afterward as its already-scheduled date.
+      const alreadyScheduled: { name: string; date: string }[] = [];
+      const fileArr = sorted.filter((file) => {
+        const existingDate = existingByFilename.get(file.name);
+        if (existingDate) {
+          alreadyScheduled.push({ name: file.name, date: existingDate });
+          return false;
+        }
+        return true;
+      });
+
       const dates = planBulkDates(fileArr.map((f) => f.name), startDate, new Set(occupiedDates.keys()));
       // Only send `platforms` when it's a strict subset of every connected
       // platform — otherwise omit it so a post keeps meaning "everywhere
@@ -825,7 +856,13 @@ function BulkUploadModal({
         const result = await createPlannerPost(fd);
         if (result?.error) throw new Error(result.error);
       }
-      onClose();
+
+      if (alreadyScheduled.length > 0) {
+        const list = alreadyScheduled.map((s) => `${s.name} (already on ${s.date})`).join(", ");
+        setStatus(`Uploaded ${fileArr.length} new file(s). Skipped ${alreadyScheduled.length} already scheduled: ${list}`);
+      } else {
+        onClose();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
       setStatus(null);
@@ -847,7 +884,8 @@ function BulkUploadModal({
             post are skipped (gaps get filled first), then the batch continues into fresh dates. Any file
             named with &quot;Friday&quot; (e.g. Friday-1, Friday-2) automatically maps onto the next real,
             still-empty Friday instead — everything else fills in around those. Drag any post afterward to
-            move it to a different day.
+            move it to a different day. A file already uploaded before is skipped, not duplicated — you&apos;ll
+            see which ones and their existing date.
           </p>
         </div>
 
