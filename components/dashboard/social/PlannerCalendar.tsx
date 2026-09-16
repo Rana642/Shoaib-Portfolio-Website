@@ -340,6 +340,7 @@ export default function PlannerCalendar({
           date={uploadDate}
           projectId={selectedProjectId}
           connectedPlatforms={connectedPlatforms}
+          existingByFilename={existingByFilename}
           onClose={() => setUploadDate(null)}
         />
       )}
@@ -452,11 +453,15 @@ function UploadModal({
   date,
   projectId,
   connectedPlatforms,
+  existingByFilename,
   onClose,
 }: {
   date: string;
   projectId: string;
   connectedPlatforms: string[];
+  /** Filename → date it's already scheduled on — warns instead of letting
+   *  the same image get queued twice. */
+  existingByFilename: Map<string, string>;
   onClose: () => void;
 }) {
   const [caption, setCaption] = useState("");
@@ -469,6 +474,7 @@ function UploadModal({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [duplicateDate, setDuplicateDate] = useState<string | null>(null);
 
   const togglePlatform = (platform: string) => {
     setSelectedPlatforms((prev) => {
@@ -483,6 +489,7 @@ function UploadModal({
     if (!picked) return;
     setError(null);
     setFile(picked);
+    setDuplicateDate(existingByFilename.get(picked.name) ?? null);
     setPreviewUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
       return URL.createObjectURL(picked);
@@ -499,6 +506,10 @@ function UploadModal({
     }
     if (connectedPlatforms.length > 0 && selectedPlatforms.size === 0) {
       setError("Select at least one platform to post to.");
+      return;
+    }
+    if (duplicateDate) {
+      setError(`"${file.name}" is already scheduled for ${duplicateDate} — choose a different image.`);
       return;
     }
     setError(null);
@@ -608,6 +619,12 @@ function UploadModal({
               />
             </label>
 
+            {duplicateDate && (
+              <p className="text-small text-red-700 bg-red-500/10 border border-red-600/20 rounded-lg px-4 py-3">
+                &quot;{file?.name}&quot; is already scheduled for {duplicateDate} — choose a different image.
+              </p>
+            )}
+
             <div>
               <textarea
                 className={inputClasses}
@@ -709,7 +726,7 @@ function UploadModal({
             {status}
             {error && <span className="text-red-700">{error}</span>}
           </div>
-          <button type="button" onClick={onSubmit} disabled={busy} className={buttonStyles.primary}>
+          <button type="button" onClick={onSubmit} disabled={busy || !!duplicateDate} className={buttonStyles.primary}>
             {busy && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
             Schedule
           </button>
