@@ -2,7 +2,10 @@ import "server-only";
 import { getGoogleAccessToken } from "./google-oauth-token";
 import { getVaultCredential } from "./marketing-vault";
 
-const API_VERSION = "v19";
+// Google Ads API versions sunset on a strict ~1yr schedule — v19/v20/v21
+// are already gone (404, not a JSON error) as of 2026-09-16; verified live
+// against the real API (not just docs, which can lag) that v22-v25 all work.
+const API_VERSION = "v22";
 const BASE = `https://googleads.googleapis.com/${API_VERSION}`;
 
 async function headers(loginCustomerId?: string): Promise<Record<string, string>> {

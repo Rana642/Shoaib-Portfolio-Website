@@ -266,15 +266,18 @@ Args:
     "gsc_request",
     {
       title: "Search Console API — Sites/Sitemaps/Search Analytics",
-      description: `Passthrough to the Search Console API v1 (https://searchconsole.googleapis.com/v1) — list/add/delete verified sites, submit/list/delete sitemaps, run searchanalytics.query for clicks/impressions/CTR/position by query/page/country/device, URL inspection.
+      description: `Passthrough to Search Console's two real API surfaces — verified live 2026-09-16, since "searchconsole.googleapis.com/v1" alone (the commonly-assumed base) 404s for everything except URL inspection:
+  - sites, sitemaps, searchanalytics.query → https://www.googleapis.com/webmasters/v3 (the "Search Console API", formerly "Webmasters API")
+  - URL inspection only → https://searchconsole.googleapis.com/v1 (path starting with "urlInspection")
+This tool picks the right one automatically from your path.
 
 Args:
-  - path (string): e.g. "sites", "sites/{siteUrl}/sitemaps", "urlInspection/index:inspect", "sites/{siteUrl}/searchAnalytics/query".
+  - path (string): e.g. "sites", "sites/{siteUrl}/sitemaps", "sites/{siteUrl}/searchAnalytics/query", or "urlInspection/index:inspect".
   - method ("GET" | "POST" | "PUT" | "DELETE").
-  - body (object, optional): for POST/PUT, e.g. a searchAnalytics/query body { "startDate": "2026-08-01", "endDate": "2026-09-01", "dimensions": ["query"], "rowLimit": 25 }.
+  - body (object, optional): for POST/PUT, e.g. a searchAnalytics/query body { "startDate": "2026-08-01", "endDate": "2026-09-01", "dimensions": ["query"], "rowLimit": 25 }, or for urlInspection/index:inspect { "inspectionUrl": "https://example.com/", "siteUrl": "sc-domain:example.com" }.
   - confirm (boolean): required true for POST/PUT/DELETE (site verification changes, sitemap submit/delete) — false/omitted returns a preview instead. GET always executes.
 
-Note: siteUrl must be URL-encoded exactly as Search Console has it registered (e.g. "https%3A%2F%2Fadsbyshoaib.com%2F" or "sc-domain%3Aadsbyshoaib.com").`,
+Note: siteUrl in a path must be URL-encoded exactly as Search Console has it registered (e.g. "sc-domain%3Aexample.com").`,
       inputSchema: {
         path: z.string().min(1),
         method: z.enum(["GET", "POST", "PUT", "DELETE"]),
@@ -286,7 +289,8 @@ Note: siteUrl must be URL-encoded exactly as Search Console has it registered (e
     async ({ path, method, body, confirm }: { path: string; method: "GET" | "POST" | "PUT" | "DELETE"; body?: Record<string, unknown>; confirm?: boolean }) => {
       try {
         if (method !== "GET" && !confirm) return previewResult(`GSC ${method} ${path}`, { path, method, body: body ?? {} });
-        return jsonResult(await googleApiRequest("gsc", "https://searchconsole.googleapis.com/v1", path, method, body));
+        const base = path.startsWith("urlInspection") ? "https://searchconsole.googleapis.com/v1" : "https://www.googleapis.com/webmasters/v3";
+        return jsonResult(await googleApiRequest("gsc", base, path, method, body));
       } catch (error) {
         return { content: [{ type: "text", text: formatError(error) }], isError: true };
       }
