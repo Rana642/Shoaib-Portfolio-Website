@@ -7,8 +7,9 @@ import { metaMarketingRequest, listMetaAdAccounts } from "./meta-marketing-clien
 
 /**
  * Full-functionality marketing-API tools: Google Ads (audit/edit/create),
- * Meta Marketing API, GA4, Google Search Console, Google Tag Manager, and
- * YouTube (Data + Analytics API) —
+ * Meta Marketing API, GA4, Google Search Console, Google Tag Manager,
+ * YouTube (Data + Analytics API), and Google Ad Manager (publisher-side
+ * inventory/orders/reporting) —
  * per Shoaib's explicit "full functionality, sab APIs" request (2026-09-16),
  * a deliberate step up from the social-poster tools' "start small" scoping.
  *
@@ -375,6 +376,40 @@ Args:
       try {
         if (method !== "GET" && !confirm) return previewResult(`GTM ${method} ${path}`, { path, method, body: body ?? {} });
         return jsonResult(await googleApiRequest("gtm", "https://www.googleapis.com/tagmanager/v2", path, method, body));
+      } catch (error) {
+        return { content: [{ type: "text", text: formatError(error) }], isError: true };
+      }
+    }
+  );
+
+  // ── Google Ad Manager (publisher-side ad serving, not Google Ads) ──────
+  server.registerTool(
+    "gam_request",
+    {
+      title: "Ad Manager API — Inventory/Orders/Creatives/Reports",
+      description: `Passthrough to the Google Ad Manager API (Beta) v1 (https://admanager.googleapis.com/v1) — for PUBLISHERS managing their own ad inventory/sales, not advertiser campaigns (that's google_ads_*). Verified live against Google's current docs 2026-09-17, since this Beta API is new and evolving.
+
+Covers: adUnits, placements, orders, customTargetingKeys/Values, audienceSegments, creativeSets, creativeWrappers, sites, companies, contacts, labels, and reports (async report creation/execution for impressions/clicks/revenue). Note: lineItems is read-only in this API version — line item creation/edit isn't yet supported by Ad Manager's REST API.
+
+Args:
+  - path (string): always starts with "networks/{networkCode}/...", e.g. "networks/123456/adUnits", "networks/123456/orders", "networks/123456/reports:run".
+  - method ("GET" | "POST" | "PATCH" | "DELETE").
+  - body (object, optional): for POST/PATCH, exactly as the Ad Manager API expects for that resource.
+  - confirm (boolean): required true for POST/PATCH/DELETE (creating/activating orders, publishing creatives, etc. — real inventory changes) — false/omitted returns a preview instead. GET always executes.
+
+Note: requires a 'gam' credential in the API Vault (client_id/client_secret/refresh_token with the admanager or admanager.readonly scope) — not yet set up as of 2026-09-17, so this will error until that's added.`,
+      inputSchema: {
+        path: z.string().min(1),
+        method: z.enum(["GET", "POST", "PATCH", "DELETE"]),
+        body: z.record(z.string(), z.any()).optional(),
+        confirm: z.boolean().optional(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+    },
+    async ({ path, method, body, confirm }: { path: string; method: "GET" | "POST" | "PATCH" | "DELETE"; body?: Record<string, unknown>; confirm?: boolean }) => {
+      try {
+        if (method !== "GET" && !confirm) return previewResult(`Ad Manager ${method} ${path}`, { path, method, body: body ?? {} });
+        return jsonResult(await googleApiRequest("gam", "https://admanager.googleapis.com/v1", path, method, body));
       } catch (error) {
         return { content: [{ type: "text", text: formatError(error) }], isError: true };
       }
