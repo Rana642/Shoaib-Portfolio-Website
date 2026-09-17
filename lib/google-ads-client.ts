@@ -55,6 +55,16 @@ export async function googleAdsSearch(customerId: string, gaql: string, loginCus
   return call(`customers/${id}/googleAds:search`, { query: gaql }, loginCustomerId);
 }
 
+/** Keyword Planner's keyword-ideas generator — search volume, competition,
+ *  bid ranges for new keyword suggestions. Not expressible via GAQL
+ *  (googleAdsSearch only reports on keywords already in the account); this
+ *  is a separate custom-method endpoint. Verified live 2026-09-17 against
+ *  a real account (real search-volume data returned for "hotel in multan"). */
+export async function generateKeywordIdeas(customerId: string, requestBody: Record<string, unknown>, loginCustomerId?: string): Promise<unknown> {
+  const id = customerId.replace(/-/g, "");
+  return call(`customers/${id}:generateKeywordIdeas`, requestBody, loginCustomerId);
+}
+
 /** Arbitrary create/update/remove across any mutable Google Ads resource
  *  (campaigns, campaignBudgets, adGroups, adGroupAds, adGroupCriteria,
  *  campaignCriteria, ...) — the operations shape matches Google's own

@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { listAccessibleCustomers, googleAdsSearch, googleAdsMutate } from "./google-ads-client";
+import { listAccessibleCustomers, googleAdsSearch, googleAdsMutate, generateKeywordIdeas } from "./google-ads-client";
 import { googleApiRequest } from "./google-api-passthrough";
 import { metaMarketingRequest, listMetaAdAccounts } from "./meta-marketing-client";
 
@@ -71,7 +71,7 @@ export function registerMarketingTools(server: McpServer): void {
     "google_ads_search",
     {
       title: "Google Ads Audit (GAQL Search)",
-      description: `Runs a read-only GAQL query against the Google Ads API (v19) — this IS the audit tool: query campaign/ad_group/ad_group_ad/keyword_view/search_term_view/campaign_budget/metrics.* etc. Example: "SELECT campaign.id, campaign.name, campaign.status, metrics.cost_micros, metrics.clicks FROM campaign WHERE segments.date DURING LAST_30_DAYS".
+      description: `Runs a read-only GAQL query against the Google Ads API — this IS the audit tool: query campaign/ad_group/ad_group_ad/keyword_view/search_term_view/campaign_budget/metrics.* etc. Example: "SELECT campaign.id, campaign.name, campaign.status, metrics.cost_micros, metrics.clicks FROM campaign WHERE segments.date DURING LAST_30_DAYS". Only reports on data already in the account — to generate NEW keyword suggestions with search volume, use google_ads_keyword_ideas instead (GAQL can't do that).
 
 Args:
   - customerId (string): the Ads account to query, digits only or with dashes (e.g. "123-456-7890").
@@ -87,6 +87,52 @@ Args:
     async ({ customerId, gaql, loginCustomerId }: { customerId: string; gaql: string; loginCustomerId?: string }) => {
       try {
         return jsonResult(await googleAdsSearch(customerId, gaql, loginCustomerId));
+      } catch (error) {
+        return { content: [{ type: "text", text: formatError(error) }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    "google_ads_keyword_ideas",
+    {
+      title: "Google Ads Keyword Planner — Ideas & Search Volume",
+      description: `Generates NEW keyword suggestions with real search volume, competition, and bid-range data — this is Keyword Planner's actual "Generate Keyword Ideas" feature, verified live 2026-09-17 against a real account (real monthly search volumes returned). Not the same as google_ads_search: GAQL can only report on keywords already in the account, this discovers new ones.
+
+Args:
+  - customerId (string): any accessible Ads account — Keyword Planner doesn't need spend history on it.
+  - keywords (array of strings, optional): seed keywords, e.g. ["hotel booking", "multan hotels"].
+  - url (string, optional): a page URL to derive keyword ideas from instead of/alongside seed keywords.
+  - languageId (string, optional): numeric language criterion id, e.g. "1000" for English. Defaults to English if omitted.
+  - geoTargetIds (array of strings, optional): numeric geo target criterion ids, e.g. ["2586"] for Pakistan. Omit for worldwide.
+  - loginCustomerId (string, optional): manager (MCC) account id if needed.
+
+At least one of "keywords" or "url" is required. Returns each idea's text, avgMonthlySearches, competition (LOW/MEDIUM/HIGH), and bid range in micros (divide by 1,000,000 for currency units).`,
+      inputSchema: {
+        customerId: z.string().min(1),
+        keywords: z.array(z.string()).optional(),
+        url: z.string().optional(),
+        languageId: z.string().optional(),
+        geoTargetIds: z.array(z.string()).optional(),
+        loginCustomerId: z.string().optional(),
+      },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    },
+    async ({ customerId, keywords, url, languageId, geoTargetIds, loginCustomerId }: {
+      customerId: string; keywords?: string[]; url?: string; languageId?: string; geoTargetIds?: string[]; loginCustomerId?: string;
+    }) => {
+      try {
+        if (!keywords?.length && !url) {
+          return { content: [{ type: "text", text: "Error: pass at least one of keywords or url." }], isError: true };
+        }
+        const body: Record<string, unknown> = {
+          language: `languageConstants/${languageId ?? "1000"}`,
+          geoTargetConstants: (geoTargetIds ?? []).map((id) => `geoTargetConstants/${id}`),
+        };
+        if (keywords?.length && url) body.keywordAndUrlSeed = { keywords, url };
+        else if (keywords?.length) body.keywordSeed = { keywords };
+        else if (url) body.urlSeed = { url };
+        return jsonResult(await generateKeywordIdeas(customerId, body, loginCustomerId));
       } catch (error) {
         return { content: [{ type: "text", text: formatError(error) }], isError: true };
       }
