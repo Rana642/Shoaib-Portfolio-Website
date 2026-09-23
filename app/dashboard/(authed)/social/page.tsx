@@ -2,6 +2,7 @@ import { db } from "@/lib/dashboard/db";
 import { listProjectOptions, listClientsMissingProject } from "@/lib/dashboard/projects";
 import { PageHeader, Card } from "@/components/dashboard/ui";
 import FacebookConnectPanel from "@/components/dashboard/social/FacebookConnectPanel";
+import MetaAdsConnectPanel from "@/components/dashboard/social/MetaAdsConnectPanel";
 import LinkedInConnectPanel from "@/components/dashboard/social/LinkedInConnectPanel";
 import TikTokConnectPanel from "@/components/dashboard/social/TikTokConnectPanel";
 import ManualAccountForm from "@/components/dashboard/social/ManualAccountForm";
@@ -53,6 +54,11 @@ export default async function SocialConnectionsPage() {
             connectedAt={connection?.connected_at ?? null}
             tokenExpiresAt={connection?.fb_token_expires_at ?? null}
           />
+        </Card>
+
+        <Card className="p-6">
+          <h2 className="text-body-lg font-semibold mb-4">Meta Ads connection</h2>
+          <MetaAdsConnectPanel projects={projects} />
         </Card>
 
         <Card className="p-6">
