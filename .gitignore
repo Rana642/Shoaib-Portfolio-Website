@@ -54,3 +54,9 @@ desktop.ini
 
 # Database backups (contain real client data + vault ciphertext — never commit)
 backups/
+
+# Raw source material already ingested into project_knowledge_docs /
+# project_products (see lib/mcp-knowledge-tools.ts) — kept on disk for
+# reference, not tracked (large binaries, redundant with the DB copy).
+Tad pharma literature pdf/
+Finish Product Tad pharma/

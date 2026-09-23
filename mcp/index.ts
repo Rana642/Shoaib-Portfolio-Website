@@ -36,6 +36,7 @@ const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
 const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
 const { registerSocialTools } = await import("./tools/social.js");
 const { registerMarketingTools } = await import("./tools/marketing.js");
+const { registerKnowledgeTools } = await import("./tools/knowledge.js");
 
 const server = new McpServer({
   name: "adsbyshoaib-social-mcp-server",
@@ -44,6 +45,7 @@ const server = new McpServer({
 
 registerSocialTools(server);
 registerMarketingTools(server);
+registerKnowledgeTools(server);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

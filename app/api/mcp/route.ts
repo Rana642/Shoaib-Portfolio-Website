@@ -3,6 +3,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { verifyAccessToken, MCP_METADATA_URL } from "@/lib/mcp-oauth";
 import { registerRemoteSocialTools } from "@/lib/mcp-remote-tools";
 import { registerMarketingTools } from "@/lib/mcp-marketing-tools";
+import { registerKnowledgeTools } from "@/lib/mcp-knowledge-tools";
 
 /**
  * Remote MCP endpoint for Claude web/mobile/desktop custom connectors —
@@ -31,6 +32,7 @@ async function handle(request: Request): Promise<Response> {
   const server = new McpServer({ name: "adsbyshoaib-social-mcp-remote", version: "1.0.0" });
   registerRemoteSocialTools(server);
   registerMarketingTools(server);
+  registerKnowledgeTools(server);
 
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
   await server.connect(transport);

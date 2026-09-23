@@ -807,3 +807,42 @@ create table if not exists mcp_oauth_refresh_tokens (
 
 create index if not exists mcp_oauth_codes_expires_idx on mcp_oauth_codes (expires_at);
 create index if not exists mcp_oauth_refresh_tokens_expires_idx on mcp_oauth_refresh_tokens (expires_at);
+
+-- ── Per-project knowledge base ───────────────────────────────
+-- Grounds Claude (via the MCP tools) in a client's actual business instead
+-- of guessing — deliberately NOT exposed anywhere in the dashboard UI (per
+-- Shoaib: "beshak kahen nazar na aye lakin mcp mai zaror reflect ho"), only
+-- reachable through kb_* MCP tools. Personal/dashboard data, never wired
+-- into the Socially Snap or Graphic Studio SaaS products.
+
+-- Strategic/reference docs: brand positioning, ICP, pain points, graphic
+-- (design) rules. One row per doc_type per project so each can be updated
+-- independently without touching the others.
+create table if not exists project_knowledge_docs (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references client_projects (id) on delete cascade,
+  doc_type text not null check (doc_type in ('brand_position', 'icp', 'pain_points', 'graphic_rules')),
+  title text not null,
+  content text not null,               -- markdown
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (project_id, doc_type)
+);
+alter table project_knowledge_docs enable row level security;
+
+-- Exact per-product data (composition, indications, dosage, packing) taken
+-- verbatim from manufacturer literature — never invented — so a generation
+-- or chat call quotes real facts instead of hallucinating. One row per SKU.
+create table if not exists project_products (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references client_projects (id) on delete cascade,
+  name text not null,
+  slug text not null,
+  category text,                       -- e.g. antibiotic, vitamin, coccidiostat, electrolyte, liver tonic
+  content text not null,               -- markdown: composition/description/indications/dosage/packing
+  image_key text,                      -- storage key (R2) for the finished-product photo
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (project_id, slug)
+);
+alter table project_products enable row level security;
