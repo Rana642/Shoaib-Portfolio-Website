@@ -99,13 +99,13 @@ export async function GET(request: Request) {
       : "<li>No ad accounts found for this login.</li>";
 
     return new NextResponse(
-      `<!doctype html><html><body style="font-family:system-ui;max-width:560px;margin:60px auto">
+      `<!doctype html><html><head><meta charset="utf-8"></head><body style="font-family:system-ui;max-width:560px;margin:60px auto">
         <h1>Connected ✓</h1>
         <p>Project: <strong>${project?.name ?? projectId}</strong></p>
         <p>Ad accounts this login can access:</p>
         <ul>${lines}</ul>
       </body></html>`,
-      { headers: { "Content-Type": "text/html" } }
+      { headers: { "Content-Type": "text/html; charset=utf-8" } }
     );
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Connect failed." }, { status: 502 });
