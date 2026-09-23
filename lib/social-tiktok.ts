@@ -216,7 +216,7 @@ async function pollTikTokPublishStatus(
  *  entirely: it hands the content to the creator's TikTok inbox as a draft
  *  they finish/publish themselves in the app, rather than direct-publishing
  *  via the API — which is also an explicitly legitimate, expected use of
- *  the video.upload scope (see TikTokConnectPanel.tsx's App Review copy),
+ *  the video.upload scope (per the TikTok App Review submission),
  *  not a workaround being smuggled past review. */
 export async function publishTikTokPhotoPost(
   accessToken: string,

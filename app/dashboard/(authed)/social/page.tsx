@@ -1,95 +1,77 @@
 import { db } from "@/lib/dashboard/db";
 import { listProjectOptions, listClientsMissingProject } from "@/lib/dashboard/projects";
-import { PageHeader, Card } from "@/components/dashboard/ui";
-import FacebookConnectPanel from "@/components/dashboard/social/FacebookConnectPanel";
-import MetaAdsConnectPanel from "@/components/dashboard/social/MetaAdsConnectPanel";
-import LinkedInConnectPanel from "@/components/dashboard/social/LinkedInConnectPanel";
-import TikTokConnectPanel from "@/components/dashboard/social/TikTokConnectPanel";
-import ManualAccountForm from "@/components/dashboard/social/ManualAccountForm";
-import AccountsList from "@/components/dashboard/social/AccountsList";
-import { getTikTokAccountSummary, type TikTokAccountSummary } from "@/lib/social-tiktok";
+import { PageHeader } from "@/components/dashboard/ui";
+import ConnectionsHub, { type HubAccount } from "@/components/dashboard/social/connections/ConnectionsHub";
+import { getTikTokAccountSummary } from "@/lib/social-tiktok";
 import type { ClientSocialAccount } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Social connections" };
+export const metadata = { title: "Connections" };
 
-export default async function SocialConnectionsPage() {
-  const [projects, clientsMissingProject, { data: accounts }, { data: connection }, { data: tiktokCredential }] =
-    await Promise.all([
-      listProjectOptions(),
-      listClientsMissingProject(),
-      db.from("client_social_accounts").select("*").order("created_at"),
-      db.from("social_connections").select("connected_at, fb_token_expires_at, li_connected_at").eq("id", 1).maybeSingle(),
-      db.from("api_credentials").select("id").eq("service", "tiktok").maybeSingle(),
-    ]);
+export default async function SocialConnectionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ project?: string; fb?: string }>;
+}) {
+  const params = await searchParams;
+  const [projects, clientsMissingProject, { data: accounts }, { data: connection }] = await Promise.all([
+    listProjectOptions(),
+    listClientsMissingProject(),
+    db.from("client_social_accounts").select("*").order("created_at"),
+    db.from("social_connections").select("connected_at, fb_token_expires_at, li_connected_at").eq("id", 1).maybeSingle(),
+  ]);
 
   const allAccounts = (accounts ?? []) as ClientSocialAccount[];
   const tiktokAccounts = allAccounts.filter((a) => a.platform === "tiktok");
-  const tiktokSummaryEntries = await Promise.all(
-    tiktokAccounts.map(async (a) => [a.id, await getTikTokAccountSummary(a)] as const)
+  const tiktokFollowers = Object.fromEntries(
+    await Promise.all(
+      tiktokAccounts.map(async (a) => {
+        const summary = await getTikTokAccountSummary(a);
+        return [a.id, summary.ok ? summary.follower_count : null] as const;
+      })
+    )
   );
-  const tiktokSummaries: Record<string, TikTokAccountSummary> = Object.fromEntries(tiktokSummaryEntries);
+
+  const fbExpiresAt = connection?.fb_token_expires_at ?? null;
+  // eslint-disable-next-line react-hooks/purity -- server component, rendered per request
+  const fbExpiresSoon = fbExpiresAt ? new Date(fbExpiresAt).getTime() - Date.now() < 14 * 86_400_000 : false;
+
+  // Never ship encrypted tokens to the browser — the hub only needs identity.
+  const hubAccounts: HubAccount[] = allAccounts.map(({ id, project_id, platform, label, external_id }) => ({
+    id,
+    project_id,
+    platform,
+    label,
+    external_id,
+  }));
 
   return (
     <>
       <PageHeader
-        title="Social connections"
-        description="Connect a project's Facebook/Instagram/LinkedIn/TikTok accounts. Bound to projects (client_projects), not clients directly — a client can run more than one business. Upload and schedule posts from the Planner."
+        title="Connections"
+        description="Link each client project to its social and ad platforms. Workspace logins discover accounts once; projects pick what they use."
       />
-
-      {clientsMissingProject.length > 0 && (
-        <Card className="p-4 mb-8 border-citrus/40 bg-citrus/10">
-          <p className="text-small">
-            These clients have no project yet, so they can&apos;t be used here until you add one on their
-            client page: {clientsMissingProject.map((c) => c.name).join(", ")}.
-          </p>
-        </Card>
-      )}
-
-      <div className="space-y-8">
-        <Card className="p-6">
-          <h2 className="text-body-lg font-semibold mb-4">Facebook / Instagram connection</h2>
-          <FacebookConnectPanel
-            projects={projects}
-            connectedAt={connection?.connected_at ?? null}
-            tokenExpiresAt={connection?.fb_token_expires_at ?? null}
-          />
-        </Card>
-
-        <Card className="p-6">
-          <h2 className="text-body-lg font-semibold mb-4">Meta Ads connection</h2>
-          <MetaAdsConnectPanel projects={projects} />
-        </Card>
-
-        <Card className="p-6">
-          <h2 className="text-body-lg font-semibold mb-4">LinkedIn connection</h2>
-          <LinkedInConnectPanel projects={projects} connectedAt={connection?.li_connected_at ?? null} />
-        </Card>
-
-        <Card className="p-6">
-          <h2 className="text-body-lg font-semibold mb-4">TikTok connection</h2>
-          <TikTokConnectPanel
-            projects={projects}
-            accounts={tiktokAccounts}
-            summaries={tiktokSummaries}
-            vaultConfigured={Boolean(tiktokCredential)}
-          />
-        </Card>
-
-        <Card className="p-6">
-          <h2 className="text-body-lg font-semibold mb-4">Add manual account</h2>
-          <p className="text-small text-ink-muted mb-4">
-            For LinkedIn, or an Instagram account not linked to a Facebook Page — paste its access token
-            directly.
-          </p>
-          <ManualAccountForm projects={projects} />
-        </Card>
-
-        <div>
-          <h2 className="text-body-lg font-semibold mb-4">Connected accounts</h2>
-          <AccountsList projects={projects} accounts={allAccounts} />
-        </div>
-      </div>
+      <ConnectionsHub
+        projects={projects}
+        accounts={hubAccounts}
+        tiktokFollowers={tiktokFollowers}
+        facebookLogin={{
+          provider: "facebook",
+          connectedAt: connection?.connected_at ?? null,
+          expiresAt: fbExpiresAt,
+          expiresSoon: fbExpiresSoon,
+        }}
+        linkedinLogin={{
+          provider: "linkedin",
+          connectedAt: connection?.li_connected_at ?? null,
+          expiresAt: null,
+          // Community Management API access is still under LinkedIn review.
+          pendingApproval: !connection?.li_connected_at,
+        }}
+        clientsMissingProject={clientsMissingProject.map((c) => c.name)}
+        initialProjectId={params.project ?? null}
+        autoImportFacebook={params.fb === "connected"}
+      />
     </>
   );
 }
