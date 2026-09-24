@@ -8,7 +8,8 @@ import net from "node:net";
 import sharp from "sharp";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "./dashboard/db";
-import { fetchObject, uploadObject, presignDownload, deleteObject } from "./storage";
+import { fetchObject, uploadObject, deleteObject } from "./storage";
+import { kbFileUrl, kbUploadUrl, registerAsset, signUploadToken, sniff } from "./kb-files";
 
 /**
  * Per-project knowledge base — brand docs (NAP, positioning, ICP, pain points,
@@ -26,6 +27,7 @@ import { fetchObject, uploadObject, presignDownload, deleteObject } from "./stor
 export const KB_SERVER_INSTRUCTIONS = [
   "Knowledge base tools (kb_*): before writing captions, ad copy, creatives or image-generation prompts for a client project, call kb_get_brief with the project name — it returns global rules, the project's brand docs and the product list. For any product claim (composition, dosage, indications) call kb_get_product and quote it verbatim; never approximate.",
   "NAP (name/address/phone/email) always comes from the brand's official website (the project's `nap` doc), never from product PDFs, labels or old posts, and is never part of branding docs.",
+  "Images: every stored file has a permanent public URL (returned by kb_get_product / kb_list_assets / kb_get_asset) you can use in <img> or SVG <image href>; add &w=800&fmt=jpg to get a smaller rendition. You cannot pass the bytes of a chat-attached image to a tool — call kb_create_upload_link and give the user the link, or use kb_add_asset with a public sourceUrl.",
   "The kb_* write tools (kb_upsert_doc, kb_upsert_product, kb_add_asset, kb_add_memory, kb_upsert_global_rule…) let you maintain the knowledge base; deletes need confirm=true.",
 ].join("\n");
 
@@ -87,17 +89,6 @@ async function findProduct(projectId: string, productName: string): Promise<Prod
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "item";
 
 // ── file intake (base64 / public URL / local path on stdio only) ─────────
-
-function sniff(buf: Buffer): { mime: string; ext: string } | null {
-  if (buf.length > 12) {
-    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return { mime: "image/png", ext: "png" };
-    if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return { mime: "image/jpeg", ext: "jpg" };
-    if (buf.toString("ascii", 0, 4) === "RIFF" && buf.toString("ascii", 8, 12) === "WEBP") return { mime: "image/webp", ext: "webp" };
-    if (buf.toString("ascii", 0, 4) === "GIF8") return { mime: "image/gif", ext: "gif" };
-    if (buf.toString("ascii", 0, 4) === "%PDF") return { mime: "application/pdf", ext: "pdf" };
-  }
-  return null;
-}
 
 function isPrivateIp(ip: string): boolean {
   const lower = ip.toLowerCase();
@@ -176,14 +167,15 @@ async function imageBlock(key: string): Promise<Block> {
 type AssetRow = { id: string; project_id: string; product_id: string | null; kind: string; title: string; storage_key: string; content_type: string; notes: string | null; sort: number };
 
 async function assetBlocks(a: AssetRow): Promise<Block[]> {
+  const url = kbFileUrl(a.storage_key, a.title);
   if (a.content_type.startsWith("image/")) {
     try {
-      return [{ type: "text", text: `${a.title} (${a.kind})${a.notes ? ` — ${a.notes}` : ""}` }, await imageBlock(a.storage_key)];
+      return [{ type: "text", text: `${a.title} (${a.kind})${a.notes ? ` — ${a.notes}` : ""}\nURL: ${url}` }, await imageBlock(a.storage_key)];
     } catch {
       return [{ type: "text", text: `${a.title}: image missing from storage.` }];
     }
   }
-  return [{ type: "text", text: `${a.title} (${a.kind}) — download (link valid ~1 hour): ${await presignDownload(a.storage_key, `${slugify(a.title)}.pdf`)}` }];
+  return [{ type: "text", text: `${a.title} (${a.kind}) — PDF/file URL: ${url}` }];
 }
 
 async function safeDelete(key: string | null | undefined) {
@@ -274,7 +266,7 @@ Args: projectName (string, fuzzy).`,
           db.from("kb_global_docs").select("slug, title, content").order("slug"),
           db.from("project_knowledge_docs").select("doc_type, slug, title, content").eq("project_id", project.id),
           db.from("project_products").select("name, slug, category, image_key").eq("project_id", project.id).order("name"),
-          db.from("project_assets").select("id, kind, title, product_id").eq("project_id", project.id).not("kind", "in", "(literature_pdf,literature_page)"),
+          db.from("project_assets").select("id, kind, title, product_id, storage_key").eq("project_id", project.id).not("kind", "in", "(literature_pdf,literature_page)"),
         ]);
         const docRows = orderDocs((docs ?? []) as { doc_type: string; slug: string; title: string; content: string }[]);
         const lines: string[] = [`# Knowledge base — ${project.label}`, ""];
@@ -298,10 +290,10 @@ Args: projectName (string, fuzzy).`,
         lines.push(`## Products (${productRows.length})`);
         for (const p of productRows) lines.push(`- **${p.name}** (\`${p.slug}\`)${p.category ? ` — ${p.category}` : ""}${p.image_key ? " · photo" : ""}`);
         if (productRows.length) lines.push("", "Use kb_get_product for exact composition/dosage + photo + original literature pages.");
-        const assetRows = (assets ?? []) as { id: string; kind: string; title: string; product_id: string | null }[];
+        const assetRows = (assets ?? []) as { id: string; kind: string; title: string; product_id: string | null; storage_key: string }[];
         if (assetRows.length) {
           lines.push("", `## Assets (${assetRows.length}) — view with kb_get_asset`);
-          for (const a of assetRows) lines.push(`- \`${a.id}\` [${a.kind}] ${a.title}`);
+          for (const a of assetRows) lines.push(`- \`${a.id}\` [${a.kind}] ${a.title} — ${kbFileUrl(a.storage_key, a.title)}`);
         }
         return ok(lines.join("\n"));
       } catch (error) {
@@ -384,9 +376,9 @@ Args: projectName (string, fuzzy).`,
         const project = await findProject(projectName);
         const { data } = await db.from("project_products").select("name, slug, category, image_key").eq("project_id", project.id).order("name");
         const rows = (data ?? []) as { name: string; slug: string; category: string | null; image_key: string | null }[];
-        return ok(rows.map((r) => `- **${r.name}** (\`${r.slug}\`)${r.category ? ` — ${r.category}` : ""}${r.image_key ? " · photo" : ""}`).join("\n") || "No products yet.", {
+        return ok(rows.map((r) => `- **${r.name}** (\`${r.slug}\`)${r.category ? ` — ${r.category}` : ""}${r.image_key ? ` · photo: ${kbFileUrl(r.image_key, r.name)}` : ""}`).join("\n") || "No products yet.", {
           count: rows.length,
-          products: rows.map((r) => ({ name: r.name, slug: r.slug, category: r.category, has_photo: Boolean(r.image_key) })),
+          products: rows.map((r) => ({ name: r.name, slug: r.slug, category: r.category, photo_url: r.image_key ? kbFileUrl(r.image_key, r.name) : null })),
         });
       } catch (error) {
         return fail(error);
@@ -410,7 +402,15 @@ Args: projectName (string), productName (string, fuzzy on name/slug), includeLit
         const product = await findProduct(project.id, productName);
         const { data } = await db.from("project_assets").select("id, project_id, product_id, kind, title, storage_key, content_type, notes, sort").eq("product_id", product.id).order("sort");
         const assets = (data ?? []) as AssetRow[];
+        const lit = includeLiterature !== false;
+        const urlLines: string[] = [];
+        if (product.image_key) urlLines.push(`- Primary photo: ${kbFileUrl(product.image_key, product.name)}`);
+        for (const a of assets.filter((x) => x.kind === "product_image")) urlLines.push(`- Photo "${a.title}": ${kbFileUrl(a.storage_key, a.title)}`);
+        if (lit) for (const a of assets.filter((x) => x.kind === "literature_page" || x.kind === "literature_pdf")) urlLines.push(`- ${a.title}: ${kbFileUrl(a.storage_key, a.title)}`);
         const content: Block[] = [{ type: "text", text: product.content }];
+        if (urlLines.length) {
+          content.push({ type: "text", text: `Permanent public URLs (use in <img>/SVG <image href>; add &w=800&fmt=jpg for a smaller rendition):\n${urlLines.join("\n")}` });
+        }
         if (product.image_key) {
           try {
             content.push({ type: "text", text: "Primary product photo:" }, await imageBlock(product.image_key));
@@ -421,7 +421,7 @@ Args: projectName (string), productName (string, fuzzy on name/slug), includeLit
           content.push({ type: "text", text: "No finished product photo on file — see the literature pages below." });
         }
         for (const a of assets.filter((x) => x.kind === "product_image").slice(0, 3)) content.push(...(await assetBlocks(a)));
-        if (includeLiterature !== false) {
+        if (lit) {
           for (const a of assets.filter((x) => x.kind === "literature_page")) content.push(...(await assetBlocks(a)));
           for (const a of assets.filter((x) => x.kind === "literature_pdf")) content.push(...(await assetBlocks(a)));
         }
@@ -436,19 +436,20 @@ Args: projectName (string), productName (string, fuzzy on name/slug), includeLit
     "kb_list_assets",
     {
       title: "List Assets",
-      description: "Lists stored files (product photos, literature, reference images, logos, documents) with ids for kb_get_asset / kb_delete_asset.\n\nArgs: projectName (string), kind (optional), productName (optional).",
-      inputSchema: { projectName: z.string(), kind: z.string().optional(), productName: z.string().optional() },
+      description: "Lists stored files (product photos, literature, reference images, logos, documents) with ids and permanent public URLs. Use recent=true right after the user uploaded via an upload link to see the newest files.\n\nArgs: projectName (string), kind (optional), productName (optional), recent (optional).",
+      inputSchema: { projectName: z.string(), kind: z.string().optional(), productName: z.string().optional(), recent: z.boolean().optional() },
       annotations: READ,
     },
-    async ({ projectName, kind, productName }: { projectName: string; kind?: string; productName?: string }) => {
+    async ({ projectName, kind, productName, recent }: { projectName: string; kind?: string; productName?: string; recent?: boolean }) => {
       try {
         const project = await findProject(projectName);
-        let query = db.from("project_assets").select("id, kind, title, content_type, notes, product_id").eq("project_id", project.id).order("kind").order("sort");
+        let query = db.from("project_assets").select("id, kind, title, content_type, notes, product_id, storage_key").eq("project_id", project.id);
+        query = recent ? query.order("created_at", { ascending: false }).limit(10) : query.order("kind").order("sort");
         if (kind) query = query.eq("kind", kind);
         if (productName) query = query.eq("product_id", (await findProduct(project.id, productName)).id);
         const { data } = await query;
-        const rows = (data ?? []) as { id: string; kind: string; title: string; content_type: string; notes: string | null }[];
-        return ok(rows.map((a) => `- \`${a.id}\` [${a.kind}] ${a.title} (${a.content_type})${a.notes ? ` — ${a.notes}` : ""}`).join("\n") || "No assets.", { count: rows.length, assets: rows });
+        const rows = ((data ?? []) as { id: string; kind: string; title: string; content_type: string; notes: string | null; storage_key: string }[]).map(({ storage_key, ...a }) => ({ ...a, url: kbFileUrl(storage_key, a.title) }));
+        return ok(rows.map((a) => `- \`${a.id}\` [${a.kind}] ${a.title} (${a.content_type})${a.notes ? ` — ${a.notes}` : ""}\n  ${a.url}`).join("\n") || "No assets.", { count: rows.length, assets: rows });
       } catch (error) {
         return fail(error);
       }
@@ -625,23 +626,51 @@ Args: projectName, kind, title, productName (for product_image), notes (optional
         if (args.kind !== "document" && args.kind !== "other" && !file.mime.startsWith("image/")) throw new Error(`kind=${args.kind} must be an image.`);
         const key = `knowledge/${project.id}/assets/${randomUUID()}.${file.ext}`;
         await uploadObject(key, file.buffer, file.mime);
-        const { data, error } = await db
-          .from("project_assets")
-          .insert({ project_id: project.id, product_id: product?.id ?? null, kind: args.kind, title: args.title, storage_key: key, content_type: file.mime, notes: args.notes ?? null })
-          .select("id")
-          .single();
-        if (error) {
-          await safeDelete(key);
-          throw new Error(error.message);
-        }
-        let primary = "";
-        if (args.kind === "product_image" && product && (args.makePrimary || !product.image_key)) {
-          const { error: upErr } = await db.from("project_products").update({ image_key: key, updated_at: new Date().toISOString() }).eq("id", product.id);
-          if (upErr) throw new Error(upErr.message);
-          await safeDelete(product.image_key);
-          primary = " Set as the product's primary photo.";
-        }
-        return ok(`Stored ${args.kind} "${args.title}" (asset \`${data.id}\`, ${Math.round(file.buffer.length / 1024)} KB).${primary}`, { asset_id: data.id });
+        const asset = await registerAsset({
+          projectId: project.id,
+          productId: product?.id ?? null,
+          kind: args.kind,
+          title: args.title,
+          key,
+          contentType: file.mime,
+          notes: args.notes,
+          makePrimary: args.makePrimary,
+        });
+        const primary = asset.primary ? " Set as the product's primary photo." : "";
+        return ok(`Stored ${args.kind} "${args.title}" (asset \`${asset.id}\`, ${Math.round(file.buffer.length / 1024)} KB).${primary}\nURL: ${asset.url}`, { asset_id: asset.id, url: asset.url });
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_create_upload_link",
+    {
+      title: "Create A Browser Upload Link",
+      description: `Use this when the user wants to add an image/file that lives in the chat or on their computer — you cannot pass the bytes of a chat-attached image to a tool. Returns a one-hour link the user opens in a browser to choose file(s); they are stored in the project's knowledge base with a permanent public URL. Afterwards call kb_list_assets with recent=true to get the URLs.
+
+If the file already has a public https URL, use kb_add_asset with sourceUrl instead (no browser step).
+
+Args: projectName, kind (product_image | reference_image | logo | document | other), title, productName (for product_image), notes (optional), makePrimary (optional — first file becomes the product's main photo).`,
+      inputSchema: {
+        projectName: z.string(),
+        kind: z.enum(ASSET_KINDS),
+        title: z.string().min(1).max(200),
+        productName: z.string().optional(),
+        notes: z.string().max(2000).optional(),
+        makePrimary: z.boolean().optional(),
+      },
+      annotations: { ...WRITE, idempotentHint: false },
+    },
+    async (args: { projectName: string; kind: (typeof ASSET_KINDS)[number]; title: string; productName?: string; notes?: string; makePrimary?: boolean }) => {
+      try {
+        const project = await findProject(args.projectName);
+        const product = args.productName ? await findProduct(project.id, args.productName) : null;
+        if (args.kind === "product_image" && !product) throw new Error("kind=product_image needs productName.");
+        const token = signUploadToken({ p: project.id, k: args.kind, pr: product?.id ?? null, t: args.title, n: args.notes ?? null, m: args.makePrimary === true });
+        const url = kbUploadUrl(token);
+        return ok(`Upload link for ${project.label} (${args.kind}: "${args.title}"${product ? `, product ${product.name}` : ""}) — valid for 1 hour:\n${url}\n\nAsk the user to open it and choose the file(s), then call kb_list_assets with recent=true.`, { url });
       } catch (error) {
         return fail(error);
       }
