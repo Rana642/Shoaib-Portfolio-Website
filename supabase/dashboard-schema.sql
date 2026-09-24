@@ -809,26 +809,41 @@ create index if not exists mcp_oauth_codes_expires_idx on mcp_oauth_codes (expir
 create index if not exists mcp_oauth_refresh_tokens_expires_idx on mcp_oauth_refresh_tokens (expires_at);
 
 -- ── Per-project knowledge base ───────────────────────────────
--- Grounds Claude (via the MCP tools) in a client's actual business instead
--- of guessing — deliberately NOT exposed anywhere in the dashboard UI (per
--- Shoaib: "beshak kahen nazar na aye lakin mcp mai zaror reflect ho"), only
--- reachable through kb_* MCP tools. Personal/dashboard data, never wired
--- into the Socially Snap or Graphic Studio SaaS products.
+-- Grounds Claude (via the kb_* MCP tools) in a client's real business
+-- instead of guessing — deliberately NOT exposed anywhere in the dashboard
+-- UI (Shoaib: "beshak kahen nazar na aye lakin mcp mai zaror reflect ho").
+-- Read AND write through MCP (local stdio + remote connector) so it can be
+-- maintained from Claude web too. Personal/dashboard data, never wired into
+-- the Socially Snap or Graphic Studio SaaS products.
 
--- Strategic/reference docs: brand positioning, ICP, pain points, graphic
--- (design) rules. One row per doc_type per project so each can be updated
--- independently without touching the others.
+-- Free-form docs per project. doc_type is an open slug-like string (not a
+-- CHECK list, so new categories don't need a migration); well-known types:
+-- nap, brand_position, icp, pain_points, graphic_rules, system_rules,
+-- marketing_doc (many, one per slug), memory. NAP (name/address/phone) must
+-- come from the brand's OFFICIAL WEBSITE, never product PDFs/labels.
 create table if not exists project_knowledge_docs (
   id uuid primary key default gen_random_uuid(),
   project_id uuid not null references client_projects (id) on delete cascade,
-  doc_type text not null check (doc_type in ('brand_position', 'icp', 'pain_points', 'graphic_rules')),
+  doc_type text not null,
+  slug text not null default 'main',
   title text not null,
   content text not null,               -- markdown
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (project_id, doc_type)
+  unique (project_id, doc_type, slug)
 );
 alter table project_knowledge_docs enable row level security;
+
+-- Cross-brand rules/instructions (how to use the knowledge, how to design
+-- images, where NAP comes from…) — returned first by kb_get_brief.
+create table if not exists kb_global_docs (
+  slug text primary key,
+  title text not null,
+  content text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table kb_global_docs enable row level security;
 
 -- Exact per-product data (composition, indications, dosage, packing) taken
 -- verbatim from manufacturer literature — never invented — so a generation
@@ -840,9 +855,28 @@ create table if not exists project_products (
   slug text not null,
   category text,                       -- e.g. antibiotic, vitamin, coccidiostat, electrolyte, liver tonic
   content text not null,               -- markdown: composition/description/indications/dosage/packing
-  image_key text,                      -- storage key (R2) for the finished-product photo
+  image_key text,                      -- storage key (R2) for the primary finished-product photo
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (project_id, slug)
 );
 alter table project_products enable row level security;
+
+-- Extra files: literature PDFs + rendered literature pages, additional
+-- product photos, reference images, logos, other documents. product_id is
+-- null for project-level assets.
+create table if not exists project_assets (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references client_projects (id) on delete cascade,
+  product_id uuid references project_products (id) on delete cascade,
+  kind text not null,                  -- product_image | literature_pdf | literature_page | reference_image | logo | document | other
+  title text not null,
+  storage_key text not null,
+  content_type text not null,
+  notes text,
+  sort int not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists project_assets_project_idx on project_assets (project_id, kind);
+create index if not exists project_assets_product_idx on project_assets (product_id, sort);
+alter table project_assets enable row level security;

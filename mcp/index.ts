@@ -36,12 +36,12 @@ const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
 const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
 const { registerSocialTools } = await import("./tools/social.js");
 const { registerMarketingTools } = await import("./tools/marketing.js");
-const { registerKnowledgeTools } = await import("./tools/knowledge.js");
+const { registerKnowledgeTools, KB_SERVER_INSTRUCTIONS } = await import("./tools/knowledge.js");
 
-const server = new McpServer({
-  name: "adsbyshoaib-social-mcp-server",
-  version: "1.0.0",
-});
+const server = new McpServer(
+  { name: "adsbyshoaib-social-mcp-server", version: "1.0.0" },
+  { instructions: KB_SERVER_INSTRUCTIONS }
+);
 
 registerSocialTools(server);
 registerMarketingTools(server);

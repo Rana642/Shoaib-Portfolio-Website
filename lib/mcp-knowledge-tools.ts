@@ -1,90 +1,258 @@
 import "server-only";
 import { z } from "zod";
+import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { extname } from "node:path";
+import dns from "node:dns/promises";
+import net from "node:net";
+import sharp from "sharp";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "./dashboard/db";
-import { fetchObject } from "./storage";
+import { fetchObject, uploadObject, presignDownload, deleteObject } from "./storage";
 
 /**
- * Per-project knowledge base (brand positioning, ICP, pain points, graphic
- * rules, exact product literature) — deliberately NOT surfaced anywhere in
+ * Per-project knowledge base — brand docs (NAP, positioning, ICP, pain points,
+ * graphic rules, marketing docs, memory…), exact product literature, product
+ * photos/reference images, plus cross-brand global rules. Deliberately NOT in
  * the dashboard UI (Shoaib: "beshak kahen nazar na aye lakin mcp mai zaror
- * reflect ho"), only reachable through these tools. Grounds Claude in a
- * client's real business/product facts instead of guessing, so
- * caption/creative generation doesn't hallucinate composition, dosage, or
- * positioning claims — critical here since the pilot project (Tad Pharma)
- * is regulated veterinary medicine literature.
+ * reflect ho") but fully READ + WRITE through MCP, so it can be maintained
+ * from Claude web as well. Only Supabase-schema/Vercel work stays in the repo.
  *
- * Shared between the local stdio server (mcp/tools/knowledge.ts re-exports
- * this) and the remote OAuth server (app/api/mcp/route.ts imports it
- * directly), same pattern as lib/mcp-marketing-tools.ts.
+ * Shared by the local stdio server (mcp/tools/knowledge.ts, allowLocalFiles)
+ * and the remote OAuth server (app/api/mcp/route.ts, no local files — the
+ * serverless filesystem must never be readable through a tool argument).
  */
+
+export const KB_SERVER_INSTRUCTIONS = [
+  "Knowledge base tools (kb_*): before writing captions, ad copy, creatives or image-generation prompts for a client project, call kb_get_brief with the project name — it returns global rules, the project's brand docs and the product list. For any product claim (composition, dosage, indications) call kb_get_product and quote it verbatim; never approximate.",
+  "NAP (name/address/phone/email) always comes from the brand's official website (the project's `nap` doc), never from product PDFs, labels or old posts, and is never part of branding docs.",
+  "The kb_* write tools (kb_upsert_doc, kb_upsert_product, kb_add_asset, kb_add_memory, kb_upsert_global_rule…) let you maintain the knowledge base; deletes need confirm=true.",
+].join("\n");
+
+const MAX_DOC_CHARS = 60_000;
+const MAX_BASE64_BYTES = 3_300_000; // Vercel request bodies are ~4.5 MB including base64 overhead
+const MAX_FETCH_BYTES = 12_000_000;
+
+const DOC_ORDER = ["nap", "brand_position", "icp", "pain_points", "graphic_rules", "system_rules"];
+/** Types shown in full inside kb_get_brief; others (marketing_doc…) are listed and fetched on demand. */
+const INLINE_TYPES = new Set([...DOC_ORDER, "memory"]);
+
+const docTypeSchema = z
+  .string()
+  .regex(/^[a-z][a-z0-9_]{1,39}$/, "lowercase letters/digits/underscore, e.g. brand_position, marketing_doc, memory");
+const slugSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,60}$/, "lowercase letters/digits/hyphen");
+const ASSET_KINDS = ["product_image", "reference_image", "logo", "document", "other"] as const;
+const confirmSchema = z.boolean().optional();
 
 function formatError(error: unknown): string {
   return `Error: ${error instanceof Error ? error.message : String(error)}`;
 }
+const fail = (error: unknown) => ({ content: [{ type: "text" as const, text: formatError(error) }], isError: true as const });
+const ok = (text: string, structured?: Record<string, unknown>) => ({
+  content: [{ type: "text" as const, text }],
+  ...(structured ? { structuredContent: structured } : {}),
+});
+const needConfirm = (what: string) =>
+  ok(`Not deleted. This permanently removes ${what}. Call again with confirm=true to proceed.`);
 
 type ProjectRow = { id: string; name: string; client_id: string; clients: { name: string } | { name: string }[] | null };
-
-function projectLabel(p: ProjectRow): string {
-  const clientName = Array.isArray(p.clients) ? p.clients[0]?.name : p.clients?.name;
-  return `${clientName ?? "Unknown"} — ${p.name}`;
-}
+const projectLabel = (p: ProjectRow) =>
+  `${(Array.isArray(p.clients) ? p.clients[0]?.name : p.clients?.name) ?? "Unknown"} — ${p.name}`;
 
 /** Fuzzy-matches a project by its own name or "Client — Project" label —
- *  same convention as the social MCP tools (findProjectByName). */
-async function findProjectByName(name: string): Promise<{ id: string; label: string }> {
+ *  same convention as the social MCP tools. */
+async function findProject(name: string): Promise<{ id: string; label: string }> {
   const { data } = await db.from("client_projects").select("id, name, client_id, clients(name)");
   const rows = (data ?? []) as ProjectRow[];
   const needle = name.toLowerCase();
   const matches = rows.filter((p) => p.name.toLowerCase().includes(needle) || projectLabel(p).toLowerCase().includes(needle));
-  if (matches.length === 0) {
-    throw new Error(`No project matches "${name}".`);
-  }
-  if (matches.length > 1) {
-    throw new Error(`"${name}" matches multiple projects: ${matches.map(projectLabel).join(", ")}. Be more specific.`);
-  }
+  if (matches.length === 0) throw new Error(`No project matches "${name}". Projects are created on the dashboard's Clients page.`);
+  if (matches.length > 1) throw new Error(`"${name}" matches multiple projects: ${matches.map(projectLabel).join(", ")}. Be more specific.`);
   return { id: matches[0].id, label: projectLabel(matches[0]) };
 }
 
-const DOC_TYPE_LABELS: Record<string, string> = {
-  brand_position: "Brand Positioning",
-  icp: "Ideal Customer Profile",
-  pain_points: "Customer Pain Points",
-  graphic_rules: "Graphic / Design Rules",
-};
+type ProductRow = { id: string; name: string; slug: string; category: string | null; content: string; image_key: string | null };
 
-export function registerKnowledgeTools(server: McpServer): void {
+async function findProduct(projectId: string, productName: string): Promise<ProductRow> {
+  const { data } = await db.from("project_products").select("id, name, slug, category, content, image_key").eq("project_id", projectId);
+  const rows = (data ?? []) as ProductRow[];
+  const needle = productName.toLowerCase();
+  const exact = rows.filter((r) => r.slug === needle || r.name.toLowerCase() === needle);
+  const matches = exact.length ? exact : rows.filter((r) => r.name.toLowerCase().includes(needle) || r.slug.includes(needle));
+  if (matches.length === 0) throw new Error(`No product matches "${productName}".`);
+  if (matches.length > 1) throw new Error(`"${productName}" matches multiple products: ${matches.map((r) => r.name).join(", ")}. Be more specific.`);
+  return matches[0];
+}
+
+const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "item";
+
+// ── file intake (base64 / public URL / local path on stdio only) ─────────
+
+function sniff(buf: Buffer): { mime: string; ext: string } | null {
+  if (buf.length > 12) {
+    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return { mime: "image/png", ext: "png" };
+    if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return { mime: "image/jpeg", ext: "jpg" };
+    if (buf.toString("ascii", 0, 4) === "RIFF" && buf.toString("ascii", 8, 12) === "WEBP") return { mime: "image/webp", ext: "webp" };
+    if (buf.toString("ascii", 0, 4) === "GIF8") return { mime: "image/gif", ext: "gif" };
+    if (buf.toString("ascii", 0, 4) === "%PDF") return { mime: "application/pdf", ext: "pdf" };
+  }
+  return null;
+}
+
+function isPrivateIp(ip: string): boolean {
+  const lower = ip.toLowerCase();
+  if (lower.startsWith("::ffff:") && net.isIPv4(lower.slice(7))) return isPrivateIp(lower.slice(7));
+  if (net.isIPv4(ip)) {
+    const [a, b] = ip.split(".").map(Number);
+    return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+  }
+  return lower === "::1" || lower === "::" || lower.startsWith("fc") || lower.startsWith("fd") || lower.startsWith("fe80");
+}
+
+/** https-only fetch that refuses private/loopback hosts (also after redirects). */
+async function fetchPublicUrl(rawUrl: string): Promise<Buffer> {
+  let url = new URL(rawUrl);
+  for (let hop = 0; hop < 4; hop++) {
+    if (url.protocol !== "https:") throw new Error("Only https:// URLs are allowed.");
+    const host = url.hostname.replace(/^\[|\]$/g, "");
+    if (net.isIP(host)) {
+      if (isPrivateIp(host)) throw new Error("That URL points to a private address.");
+    } else {
+      const addrs = await dns.lookup(host, { all: true });
+      if (addrs.length === 0 || addrs.some((a) => isPrivateIp(a.address))) throw new Error("That URL's host is not publicly reachable.");
+    }
+    const res = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(15_000), headers: { "User-Agent": "adsbyshoaib-knowledge-base/1.0" } });
+    const location = res.headers.get("location");
+    if (res.status >= 300 && res.status < 400 && location) {
+      url = new URL(location, url);
+      continue;
+    }
+    if (!res.ok) throw new Error(`Could not download the file: HTTP ${res.status}.`);
+    if (Number(res.headers.get("content-length") ?? 0) > MAX_FETCH_BYTES) throw new Error("File is larger than 12 MB.");
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > MAX_FETCH_BYTES) throw new Error("File is larger than 12 MB.");
+    return buf;
+  }
+  throw new Error("Too many redirects.");
+}
+
+type FileSource = { dataBase64?: string; sourceUrl?: string; filePath?: string };
+
+async function loadFile(src: FileSource, allowLocalFiles: boolean): Promise<{ buffer: Buffer; mime: string; ext: string }> {
+  const provided = [src.dataBase64, src.sourceUrl, src.filePath].filter(Boolean).length;
+  if (provided !== 1) throw new Error(`Provide exactly one of dataBase64, sourceUrl${allowLocalFiles ? ", filePath" : ""}.`);
+  let buffer: Buffer;
+  if (src.dataBase64) {
+    const raw = src.dataBase64.replace(/^data:[^;]+;base64,/, "").replace(/\s+/g, "");
+    if (raw.length > MAX_BASE64_BYTES * 1.4) throw new Error("dataBase64 is too large (~3 MB max) — use sourceUrl for bigger files.");
+    buffer = Buffer.from(raw, "base64");
+  } else if (src.sourceUrl) {
+    buffer = await fetchPublicUrl(src.sourceUrl);
+  } else {
+    if (!allowLocalFiles) throw new Error("filePath is only available on the local MCP server.");
+    buffer = await readFile(src.filePath!);
+    if (buffer.length > MAX_FETCH_BYTES) throw new Error("File is larger than 12 MB.");
+    if (!sniff(buffer) && extname(src.filePath!)) throw new Error(`Unsupported file "${extname(src.filePath!)}" — images (png/jpg/webp/gif) or PDF only.`);
+  }
+  const type = sniff(buffer);
+  if (!type) throw new Error("Unsupported or corrupt file — images (png/jpg/webp/gif) or PDF only.");
+  return { buffer, ...type };
+}
+
+// ── content blocks ────────────────────────────────────────────────
+
+type Block = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
+
+/** Fetches a stored image; oversized ones are downscaled so responses stay light. */
+async function imageBlock(key: string): Promise<Block> {
+  const { buffer, contentType } = await fetchObject(key);
+  if (buffer.length > 600_000) {
+    const jpeg = await sharp(buffer).flatten({ background: "#ffffff" }).resize({ width: 1400, withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+    return { type: "image", data: jpeg.toString("base64"), mimeType: "image/jpeg" };
+  }
+  return { type: "image", data: buffer.toString("base64"), mimeType: contentType };
+}
+
+type AssetRow = { id: string; project_id: string; product_id: string | null; kind: string; title: string; storage_key: string; content_type: string; notes: string | null; sort: number };
+
+async function assetBlocks(a: AssetRow): Promise<Block[]> {
+  if (a.content_type.startsWith("image/")) {
+    try {
+      return [{ type: "text", text: `${a.title} (${a.kind})${a.notes ? ` — ${a.notes}` : ""}` }, await imageBlock(a.storage_key)];
+    } catch {
+      return [{ type: "text", text: `${a.title}: image missing from storage.` }];
+    }
+  }
+  return [{ type: "text", text: `${a.title} (${a.kind}) — download (link valid ~1 hour): ${await presignDownload(a.storage_key, `${slugify(a.title)}.pdf`)}` }];
+}
+
+async function safeDelete(key: string | null | undefined) {
+  if (!key) return;
+  try {
+    await deleteObject(key);
+  } catch {
+    // Best-effort cleanup: an orphaned object costs nothing next to failing the whole call.
+  }
+}
+
+const orderDocs = <T extends { doc_type: string; slug: string }>(docs: T[]) =>
+  [...docs].sort((a, b) => {
+    const ia = DOC_ORDER.indexOf(a.doc_type);
+    const ib = DOC_ORDER.indexOf(b.doc_type);
+    const wa = ia === -1 ? (a.doc_type === "memory" ? 1000 : 500) : ia;
+    const wb = ib === -1 ? (b.doc_type === "memory" ? 1000 : 500) : ib;
+    return wa - wb || a.doc_type.localeCompare(b.doc_type) || a.slug.localeCompare(b.slug);
+  });
+
+function mergeContent(existing: string | undefined, incoming: string, mode: "replace" | "append"): string {
+  const merged = mode === "append" && existing ? `${existing.trimEnd()}\n\n${incoming.trim()}` : incoming;
+  if (merged.length > MAX_DOC_CHARS) throw new Error(`Content is too long (${merged.length} > ${MAX_DOC_CHARS} chars).`);
+  return merged;
+}
+
+export function registerKnowledgeTools(server: McpServer, opts: { allowLocalFiles?: boolean } = {}): void {
+  const allowLocalFiles = opts.allowLocalFiles === true;
+  const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+  const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+  const DELETE = { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false };
+  const fileArgs = {
+    dataBase64: z.string().optional().describe("File bytes, base64 (≤ ~3 MB). Prefer sourceUrl for larger files."),
+    sourceUrl: z.string().url().optional().describe("Public https:// URL the server downloads the file from (≤ 12 MB)."),
+    ...(allowLocalFiles ? { filePath: z.string().optional().describe("Absolute local file path (local MCP server only).") } : {}),
+  };
+
+  // ── read ──────────────────────────────────────────────────────
+
   server.registerTool(
     "kb_list_projects",
     {
-      title: "List Projects With A Knowledge Base",
-      description: `Lists which client_projects have knowledge-base content (strategic docs and/or product literature) — use this to discover what's available before calling kb_get_brief.
+      title: "List Projects And Knowledge Base Coverage",
+      description: `Lists every client project with how much knowledge-base content it has (docs, products, assets). Projects with 0 everywhere have no knowledge base yet — start one with kb_upsert_doc / kb_upsert_product. (Projects themselves are created on the dashboard's Clients page.)
 
-Returns (JSON): { count, projects: [{ project_label, doc_count, product_count }] }`,
+Returns (JSON): { projects: [{ project_label, docs, products, assets }], global_rules }`,
       inputSchema: {},
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      annotations: READ,
     },
     async () => {
       try {
-        const [{ data: docs }, { data: products }, { data: projects }] = await Promise.all([
+        const [{ data: projects }, { data: docs }, { data: products }, { data: assets }, { data: globals }] = await Promise.all([
+          db.from("client_projects").select("id, name, client_id, clients(name)"),
           db.from("project_knowledge_docs").select("project_id"),
           db.from("project_products").select("project_id"),
-          db.from("client_projects").select("id, name, client_id, clients(name)"),
+          db.from("project_assets").select("project_id"),
+          db.from("kb_global_docs").select("slug"),
         ]);
-        const rows = (projects ?? []) as ProjectRow[];
-        const labelById = new Map(rows.map((p) => [p.id, projectLabel(p)]));
-        const projectIds = new Set([...(docs ?? []).map((d: { project_id: string }) => d.project_id), ...(products ?? []).map((p: { project_id: string }) => p.project_id)]);
-        const result = [...projectIds].map((id) => ({
-          project_label: labelById.get(id) ?? "Unknown project",
-          doc_count: (docs ?? []).filter((d: { project_id: string }) => d.project_id === id).length,
-          product_count: (products ?? []).filter((p: { project_id: string }) => p.project_id === id).length,
+        const count = (rows: { project_id: string }[] | null, id: string) => (rows ?? []).filter((r) => r.project_id === id).length;
+        const rows = ((projects ?? []) as ProjectRow[]).map((p) => ({
+          project_label: projectLabel(p),
+          docs: count(docs, p.id),
+          products: count(products, p.id),
+          assets: count(assets, p.id),
         }));
-        return {
-          content: [{ type: "text", text: result.map((r) => `- **${r.project_label}** — ${r.doc_count} doc(s), ${r.product_count} product(s)`).join("\n") || "No knowledge base content yet." }],
-          structuredContent: { count: result.length, projects: result },
-        };
+        const text = rows.map((r) => `- **${r.project_label}** — ${r.docs} doc(s), ${r.products} product(s), ${r.assets} asset(s)`).join("\n");
+        return ok(`${text || "No projects."}\n\nGlobal rules: ${(globals ?? []).length}`, { projects: rows, global_rules: (globals ?? []).length });
       } catch (error) {
-        return { content: [{ type: "text", text: formatError(error) }], isError: true };
+        return fail(error);
       }
     }
   );
@@ -93,46 +261,112 @@ Returns (JSON): { count, projects: [{ project_label, doc_count, product_count }]
     "kb_get_brief",
     {
       title: "Get Project Knowledge Brief",
-      description: `Fetches a project's full strategic knowledge base — brand positioning, ideal customer profile, pain points, and graphic/design rules — plus a list of its products. Read this BEFORE writing any caption, ad copy, or generation prompt for this project, so claims/tone/design stay grounded in real facts instead of being guessed.
+      description: `THE FIRST CALL before writing captions, ad copy, creatives or image-generation prompts for a project. Returns, in order: global rules (cross-brand instructions), then the project's docs in full (nap, brand_position, icp, pain_points, graphic_rules, system_rules, memory), a list of other docs (marketing_doc… — fetch with kb_get_doc), the product list, and non-literature assets. Follow the rules it contains. For any product claim use kb_get_product.
 
-Args:
-  - projectName (string): fuzzy-matched against the project name or "Client — Project" label.
-
-Returns: the combined markdown of every knowledge doc set for this project, plus the product list (use kb_get_product for one product's exact literature).`,
+Args: projectName (string, fuzzy).`,
       inputSchema: { projectName: z.string() },
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      annotations: READ,
     },
     async ({ projectName }: { projectName: string }) => {
       try {
-        const project = await findProjectByName(projectName);
-        const [{ data: docs }, { data: products }] = await Promise.all([
-          db.from("project_knowledge_docs").select("doc_type, title, content").eq("project_id", project.id),
-          db.from("project_products").select("name, slug, category").eq("project_id", project.id).order("name"),
+        const project = await findProject(projectName);
+        const [{ data: globals }, { data: docs }, { data: products }, { data: assets }] = await Promise.all([
+          db.from("kb_global_docs").select("slug, title, content").order("slug"),
+          db.from("project_knowledge_docs").select("doc_type, slug, title, content").eq("project_id", project.id),
+          db.from("project_products").select("name, slug, category, image_key").eq("project_id", project.id).order("name"),
+          db.from("project_assets").select("id, kind, title, product_id").eq("project_id", project.id).not("kind", "in", "(literature_pdf,literature_page)"),
         ]);
-        const docRows = (docs ?? []) as { doc_type: string; title: string; content: string }[];
-        const order = ["brand_position", "icp", "pain_points", "graphic_rules"];
-        docRows.sort((a, b) => order.indexOf(a.doc_type) - order.indexOf(b.doc_type));
-        const lines = [`# Knowledge base — ${project.label}`, ""];
-        if (docRows.length === 0) lines.push("_No strategic docs set for this project yet._", "");
-        for (const d of docRows) {
-          lines.push(d.content, "", "---", "");
+        const docRows = orderDocs((docs ?? []) as { doc_type: string; slug: string; title: string; content: string }[]);
+        const lines: string[] = [`# Knowledge base — ${project.label}`, ""];
+        const globalRows = (globals ?? []) as { slug: string; title: string; content: string }[];
+        if (globalRows.length) {
+          lines.push("# GLOBAL RULES (apply to every brand)", "");
+          for (const g of globalRows) lines.push(`## ${g.title} (\`${g.slug}\`)`, g.content, "");
+          lines.push("---", "");
         }
-        const productRows = (products ?? []) as { name: string; slug: string; category: string | null }[];
-        lines.push(`## Products (${productRows.length})`, "");
-        for (const p of productRows) {
-          lines.push(`- **${p.name}** (\`${p.slug}\`)${p.category ? ` — ${p.category}` : ""}`);
+        if (!docRows.some((d) => d.doc_type === "nap")) {
+          lines.push("> ⚠ No `nap` doc for this project — get name/address/phone from the brand's official website (never from product PDFs) and store it with kb_upsert_doc(docType=\"nap\").", "");
         }
-        if (productRows.length > 0) lines.push("", "Use kb_get_product for one product's exact composition/dosage/indications.");
-        return {
-          content: [{ type: "text", text: lines.join("\n") }],
-          structuredContent: {
-            project: project.label,
-            docs: docRows.map((d) => ({ doc_type: d.doc_type, title: DOC_TYPE_LABELS[d.doc_type] ?? d.title })),
-            products: productRows,
-          },
-        };
+        for (const d of docRows.filter((d) => INLINE_TYPES.has(d.doc_type))) lines.push(d.content, "", "---", "");
+        const others = docRows.filter((d) => !INLINE_TYPES.has(d.doc_type));
+        if (others.length) {
+          lines.push(`## Other docs (${others.length}) — fetch with kb_get_doc`);
+          for (const d of others) lines.push(`- \`${d.doc_type}/${d.slug}\` — ${d.title}`);
+          lines.push("");
+        }
+        const productRows = (products ?? []) as { name: string; slug: string; category: string | null; image_key: string | null }[];
+        lines.push(`## Products (${productRows.length})`);
+        for (const p of productRows) lines.push(`- **${p.name}** (\`${p.slug}\`)${p.category ? ` — ${p.category}` : ""}${p.image_key ? " · photo" : ""}`);
+        if (productRows.length) lines.push("", "Use kb_get_product for exact composition/dosage + photo + original literature pages.");
+        const assetRows = (assets ?? []) as { id: string; kind: string; title: string; product_id: string | null }[];
+        if (assetRows.length) {
+          lines.push("", `## Assets (${assetRows.length}) — view with kb_get_asset`);
+          for (const a of assetRows) lines.push(`- \`${a.id}\` [${a.kind}] ${a.title}`);
+        }
+        return ok(lines.join("\n"));
       } catch (error) {
-        return { content: [{ type: "text", text: formatError(error) }], isError: true };
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_list_docs",
+    {
+      title: "List Project Docs",
+      description: "Lists a project's knowledge docs (type, slug, title, length).\n\nArgs: projectName (string, fuzzy).",
+      inputSchema: { projectName: z.string() },
+      annotations: READ,
+    },
+    async ({ projectName }: { projectName: string }) => {
+      try {
+        const project = await findProject(projectName);
+        const { data } = await db.from("project_knowledge_docs").select("doc_type, slug, title, content, updated_at").eq("project_id", project.id);
+        const rows = orderDocs((data ?? []) as { doc_type: string; slug: string; title: string; content: string; updated_at: string }[]);
+        return ok(rows.map((d) => `- \`${d.doc_type}/${d.slug}\` — ${d.title} (${d.content.length} chars, updated ${d.updated_at.slice(0, 10)})`).join("\n") || "No docs yet.", {
+          docs: rows.map((d) => ({ doc_type: d.doc_type, slug: d.slug, title: d.title, chars: d.content.length })),
+        });
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_get_doc",
+    {
+      title: "Get One Doc",
+      description: "Fetches one knowledge doc in full.\n\nArgs: projectName (string), docType (string, e.g. marketing_doc), slug (string, default 'main').",
+      inputSchema: { projectName: z.string(), docType: docTypeSchema, slug: slugSchema.optional() },
+      annotations: READ,
+    },
+    async ({ projectName, docType, slug }: { projectName: string; docType: string; slug?: string }) => {
+      try {
+        const project = await findProject(projectName);
+        const { data } = await db.from("project_knowledge_docs").select("title, content").eq("project_id", project.id).eq("doc_type", docType).eq("slug", slug ?? "main").maybeSingle();
+        if (!data) throw new Error(`No doc ${docType}/${slug ?? "main"} in ${project.label}. Use kb_list_docs.`);
+        return ok(`# ${data.title}\n\n${data.content}`);
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_get_global_rules",
+    {
+      title: "Get Global Rules",
+      description: "Returns the cross-brand rules/instructions (how to use the knowledge, how to design images, where NAP comes from…). Also included in kb_get_brief.",
+      inputSchema: {},
+      annotations: READ,
+    },
+    async () => {
+      try {
+        const { data } = await db.from("kb_global_docs").select("slug, title, content").order("slug");
+        const rows = (data ?? []) as { slug: string; title: string; content: string }[];
+        return ok(rows.map((g) => `## ${g.title} (\`${g.slug}\`)\n${g.content}`).join("\n\n") || "No global rules yet.", { rules: rows.map((g) => g.slug) });
+      } catch (error) {
+        return fail(error);
       }
     }
   );
@@ -141,26 +375,21 @@ Returns: the combined markdown of every knowledge doc set for this project, plus
     "kb_list_products",
     {
       title: "List Project Products",
-      description: `Lists a project's products from the knowledge base (name, slug, category).
-
-Args:
-  - projectName (string): fuzzy-matched.
-
-Returns (JSON): { count, products: [{ name, slug, category }] }`,
+      description: "Lists a project's products (name, slug, category, whether a photo exists).\n\nArgs: projectName (string, fuzzy).",
       inputSchema: { projectName: z.string() },
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      annotations: READ,
     },
     async ({ projectName }: { projectName: string }) => {
       try {
-        const project = await findProjectByName(projectName);
-        const { data } = await db.from("project_products").select("name, slug, category").eq("project_id", project.id).order("name");
-        const rows = (data ?? []) as { name: string; slug: string; category: string | null }[];
-        return {
-          content: [{ type: "text", text: rows.map((r) => `- **${r.name}** (\`${r.slug}\`)${r.category ? ` — ${r.category}` : ""}`).join("\n") || "No products yet." }],
-          structuredContent: { count: rows.length, products: rows },
-        };
+        const project = await findProject(projectName);
+        const { data } = await db.from("project_products").select("name, slug, category, image_key").eq("project_id", project.id).order("name");
+        const rows = (data ?? []) as { name: string; slug: string; category: string | null; image_key: string | null }[];
+        return ok(rows.map((r) => `- **${r.name}** (\`${r.slug}\`)${r.category ? ` — ${r.category}` : ""}${r.image_key ? " · photo" : ""}`).join("\n") || "No products yet.", {
+          count: rows.length,
+          products: rows.map((r) => ({ name: r.name, slug: r.slug, category: r.category, has_photo: Boolean(r.image_key) })),
+        });
       } catch (error) {
-        return { content: [{ type: "text", text: formatError(error) }], isError: true };
+        return fail(error);
       }
     }
   );
@@ -168,41 +397,357 @@ Returns (JSON): { count, products: [{ name, slug, category }] }`,
   server.registerTool(
     "kb_get_product",
     {
-      title: "Get Product Literature",
-      description: `Fetches one product's EXACT literature (composition, indications, dosage, packing) — the ground truth to quote from, never approximate or invent a number here. Also returns the finished-product photo if one was uploaded, so it can be used as a reference image for generation.
+      title: "Get Product Literature + Photo",
+      description: `One product's EXACT literature (markdown: composition, indications, dosage, packing) — the ground truth to quote, never approximate a number — together with its primary product photo, any extra product photos, and (by default) images of the ORIGINAL literature pages plus a PDF download link, so you can see the real layout/Urdu text next to the extracted data.
 
-Args:
-  - projectName (string): fuzzy-matched against the project.
-  - productName (string): fuzzy-matched against the product name or slug.
-
-Returns: the product's markdown content, plus its photo (view directly) if available.`,
-      inputSchema: { projectName: z.string(), productName: z.string() },
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+Args: projectName (string), productName (string, fuzzy on name/slug), includeLiterature (boolean, default true).`,
+      inputSchema: { projectName: z.string(), productName: z.string(), includeLiterature: z.boolean().optional() },
+      annotations: READ,
     },
-    async ({ projectName, productName }: { projectName: string; productName: string }) => {
+    async ({ projectName, productName, includeLiterature }: { projectName: string; productName: string; includeLiterature?: boolean }) => {
       try {
-        const project = await findProjectByName(projectName);
-        const { data } = await db.from("project_products").select("name, slug, content, image_key").eq("project_id", project.id);
-        const rows = (data ?? []) as { name: string; slug: string; content: string; image_key: string | null }[];
-        const needle = productName.toLowerCase();
-        const matches = rows.filter((r) => r.name.toLowerCase().includes(needle) || r.slug.includes(needle));
-        if (matches.length === 0) throw new Error(`No product matches "${productName}" in ${project.label}.`);
-        if (matches.length > 1) throw new Error(`"${productName}" matches multiple products: ${matches.map((r) => r.name).join(", ")}. Be more specific.`);
-        const product = matches[0];
-        const content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = [
-          { type: "text", text: product.content },
-        ];
+        const project = await findProject(projectName);
+        const product = await findProduct(project.id, productName);
+        const { data } = await db.from("project_assets").select("id, project_id, product_id, kind, title, storage_key, content_type, notes, sort").eq("product_id", product.id).order("sort");
+        const assets = (data ?? []) as AssetRow[];
+        const content: Block[] = [{ type: "text", text: product.content }];
         if (product.image_key) {
           try {
-            const { buffer, contentType } = await fetchObject(product.image_key);
-            content.push({ type: "image", data: buffer.toString("base64"), mimeType: contentType });
+            content.push({ type: "text", text: "Primary product photo:" }, await imageBlock(product.image_key));
           } catch {
-            // Image missing from storage — literature text still returned.
+            content.push({ type: "text", text: "(primary photo missing from storage)" });
           }
+        } else {
+          content.push({ type: "text", text: "No finished product photo on file — see the literature pages below." });
+        }
+        for (const a of assets.filter((x) => x.kind === "product_image").slice(0, 3)) content.push(...(await assetBlocks(a)));
+        if (includeLiterature !== false) {
+          for (const a of assets.filter((x) => x.kind === "literature_page")) content.push(...(await assetBlocks(a)));
+          for (const a of assets.filter((x) => x.kind === "literature_pdf")) content.push(...(await assetBlocks(a)));
         }
         return { content };
       } catch (error) {
-        return { content: [{ type: "text", text: formatError(error) }], isError: true };
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_list_assets",
+    {
+      title: "List Assets",
+      description: "Lists stored files (product photos, literature, reference images, logos, documents) with ids for kb_get_asset / kb_delete_asset.\n\nArgs: projectName (string), kind (optional), productName (optional).",
+      inputSchema: { projectName: z.string(), kind: z.string().optional(), productName: z.string().optional() },
+      annotations: READ,
+    },
+    async ({ projectName, kind, productName }: { projectName: string; kind?: string; productName?: string }) => {
+      try {
+        const project = await findProject(projectName);
+        let query = db.from("project_assets").select("id, kind, title, content_type, notes, product_id").eq("project_id", project.id).order("kind").order("sort");
+        if (kind) query = query.eq("kind", kind);
+        if (productName) query = query.eq("product_id", (await findProduct(project.id, productName)).id);
+        const { data } = await query;
+        const rows = (data ?? []) as { id: string; kind: string; title: string; content_type: string; notes: string | null }[];
+        return ok(rows.map((a) => `- \`${a.id}\` [${a.kind}] ${a.title} (${a.content_type})${a.notes ? ` — ${a.notes}` : ""}`).join("\n") || "No assets.", { count: rows.length, assets: rows });
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_get_asset",
+    {
+      title: "View An Asset",
+      description: "Returns a stored image (view it directly) or, for PDFs, a download link.\n\nArgs: assetId (uuid, from kb_list_assets / kb_get_brief).",
+      inputSchema: { assetId: z.string().uuid() },
+      annotations: READ,
+    },
+    async ({ assetId }: { assetId: string }) => {
+      try {
+        const { data } = await db.from("project_assets").select("id, project_id, product_id, kind, title, storage_key, content_type, notes, sort").eq("id", assetId).maybeSingle();
+        if (!data) throw new Error(`No asset ${assetId}.`);
+        return { content: await assetBlocks(data as AssetRow) };
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  // ── write ─────────────────────────────────────────────────────
+
+  server.registerTool(
+    "kb_upsert_doc",
+    {
+      title: "Create/Update A Doc",
+      description: `Creates or updates a knowledge doc for a project. docType is an open slug: well-known ones are nap, brand_position, icp, pain_points, graphic_rules, system_rules (rules for using this knowledge / designing images for this brand), marketing_doc (many — give each its own slug), memory (running notes). Same docType+slug = update.
+
+RULES: NAP (name/address/phone/email) goes ONLY in the \`nap\` doc and must be taken from the brand's official website, never from product PDFs/labels; never put contact details in branding docs.
+
+Args: projectName, docType, slug (default 'main'), title (required when creating), content (markdown), mode ('replace' default | 'append').`,
+      inputSchema: {
+        projectName: z.string(),
+        docType: docTypeSchema,
+        slug: slugSchema.optional(),
+        title: z.string().min(1).max(200).optional(),
+        content: z.string().min(1),
+        mode: z.enum(["replace", "append"]).optional(),
+      },
+      annotations: WRITE,
+    },
+    async ({ projectName, docType, slug, title, content, mode }: { projectName: string; docType: string; slug?: string; title?: string; content: string; mode?: "replace" | "append" }) => {
+      try {
+        const project = await findProject(projectName);
+        const s = slug ?? "main";
+        const { data: existing } = await db.from("project_knowledge_docs").select("title, content").eq("project_id", project.id).eq("doc_type", docType).eq("slug", s).maybeSingle();
+        const finalTitle = title ?? existing?.title;
+        if (!finalTitle) throw new Error("title is required when creating a new doc.");
+        const merged = mergeContent(existing?.content, content, mode ?? "replace");
+        const { error } = await db.from("project_knowledge_docs").upsert(
+          { project_id: project.id, doc_type: docType, slug: s, title: finalTitle, content: merged, updated_at: new Date().toISOString() },
+          { onConflict: "project_id,doc_type,slug" }
+        );
+        if (error) throw new Error(error.message);
+        return ok(`${existing ? "Updated" : "Created"} ${docType}/${s} for ${project.label} (${merged.length} chars).`);
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_delete_doc",
+    {
+      title: "Delete A Doc",
+      description: "Permanently deletes one knowledge doc. Requires confirm=true.\n\nArgs: projectName, docType, slug (default 'main'), confirm.",
+      inputSchema: { projectName: z.string(), docType: docTypeSchema, slug: slugSchema.optional(), confirm: confirmSchema },
+      annotations: DELETE,
+    },
+    async ({ projectName, docType, slug, confirm }: { projectName: string; docType: string; slug?: string; confirm?: boolean }) => {
+      try {
+        const project = await findProject(projectName);
+        const s = slug ?? "main";
+        if (!confirm) return needConfirm(`the doc ${docType}/${s} of ${project.label}`);
+        const { data, error } = await db.from("project_knowledge_docs").delete().eq("project_id", project.id).eq("doc_type", docType).eq("slug", s).select("id");
+        if (error) throw new Error(error.message);
+        return ok((data ?? []).length ? `Deleted ${docType}/${s}.` : `No doc ${docType}/${s} found.`);
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_upsert_product",
+    {
+      title: "Create/Update A Product",
+      description: `Creates or updates a product's literature entry. Content must be the product's EXACT data from the manufacturer literature (composition, indications, dosage, packing) — never invented. Same slug = update. Add its photo/literature afterwards with kb_add_asset.
+
+Args: projectName, name (required when creating), slug (optional, derived from name), category (optional), content (markdown), mode ('replace' | 'append').`,
+      inputSchema: {
+        projectName: z.string(),
+        name: z.string().min(1).max(120),
+        slug: slugSchema.optional(),
+        category: z.string().max(120).optional(),
+        content: z.string().min(1),
+        mode: z.enum(["replace", "append"]).optional(),
+      },
+      annotations: WRITE,
+    },
+    async ({ projectName, name, slug, category, content, mode }: { projectName: string; name: string; slug?: string; category?: string; content: string; mode?: "replace" | "append" }) => {
+      try {
+        const project = await findProject(projectName);
+        const s = slug ?? slugify(name);
+        const { data: existing } = await db.from("project_products").select("content, category").eq("project_id", project.id).eq("slug", s).maybeSingle();
+        const merged = mergeContent(existing?.content, content, mode ?? "replace");
+        const { error } = await db.from("project_products").upsert(
+          { project_id: project.id, slug: s, name, category: category ?? existing?.category ?? null, content: merged, updated_at: new Date().toISOString() },
+          { onConflict: "project_id,slug" }
+        );
+        if (error) throw new Error(error.message);
+        return ok(`${existing ? "Updated" : "Created"} product ${name} (\`${s}\`) in ${project.label}.`);
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_delete_product",
+    {
+      title: "Delete A Product",
+      description: "Permanently deletes a product and all its stored files. Requires confirm=true.\n\nArgs: projectName, productName, confirm.",
+      inputSchema: { projectName: z.string(), productName: z.string(), confirm: confirmSchema },
+      annotations: DELETE,
+    },
+    async ({ projectName, productName, confirm }: { projectName: string; productName: string; confirm?: boolean }) => {
+      try {
+        const project = await findProject(projectName);
+        const product = await findProduct(project.id, productName);
+        if (!confirm) return needConfirm(`the product ${product.name} of ${project.label} with all its photos/literature`);
+        const { data: assets } = await db.from("project_assets").select("storage_key").eq("product_id", product.id);
+        const { error } = await db.from("project_products").delete().eq("id", product.id);
+        if (error) throw new Error(error.message);
+        await Promise.all([...(assets ?? []).map((a: { storage_key: string }) => safeDelete(a.storage_key)), safeDelete(product.image_key)]);
+        return ok(`Deleted product ${product.name}.`);
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_add_asset",
+    {
+      title: "Add An Image / Document",
+      description: `Stores a file in the project's knowledge base: a product photo, a reference image for design, a logo, or a document (PDF). Provide the file as sourceUrl (public https link — best), dataBase64 (small files), or${allowLocalFiles ? " filePath (local)," : ""} exactly one of them. Images: png/jpg/webp/gif; documents: PDF.
+
+Kinds: product_image (needs productName; makePrimary=true — or if the product has no photo yet — makes it the main photo), reference_image, logo, document, other.
+
+Args: projectName, kind, title, productName (for product_image), notes (optional, e.g. what to imitate), makePrimary (optional), plus the file.`,
+      inputSchema: {
+        projectName: z.string(),
+        kind: z.enum(ASSET_KINDS),
+        title: z.string().min(1).max(200),
+        productName: z.string().optional(),
+        notes: z.string().max(2000).optional(),
+        makePrimary: z.boolean().optional(),
+        ...fileArgs,
+      },
+      annotations: { ...WRITE, idempotentHint: false, openWorldHint: true },
+    },
+    async (args: { projectName: string; kind: (typeof ASSET_KINDS)[number]; title: string; productName?: string; notes?: string; makePrimary?: boolean } & FileSource) => {
+      try {
+        const project = await findProject(args.projectName);
+        const product = args.productName ? await findProduct(project.id, args.productName) : null;
+        if (args.kind === "product_image" && !product) throw new Error("kind=product_image needs productName.");
+        const file = await loadFile(args, allowLocalFiles);
+        if (args.kind !== "document" && args.kind !== "other" && !file.mime.startsWith("image/")) throw new Error(`kind=${args.kind} must be an image.`);
+        const key = `knowledge/${project.id}/assets/${randomUUID()}.${file.ext}`;
+        await uploadObject(key, file.buffer, file.mime);
+        const { data, error } = await db
+          .from("project_assets")
+          .insert({ project_id: project.id, product_id: product?.id ?? null, kind: args.kind, title: args.title, storage_key: key, content_type: file.mime, notes: args.notes ?? null })
+          .select("id")
+          .single();
+        if (error) {
+          await safeDelete(key);
+          throw new Error(error.message);
+        }
+        let primary = "";
+        if (args.kind === "product_image" && product && (args.makePrimary || !product.image_key)) {
+          const { error: upErr } = await db.from("project_products").update({ image_key: key, updated_at: new Date().toISOString() }).eq("id", product.id);
+          if (upErr) throw new Error(upErr.message);
+          await safeDelete(product.image_key);
+          primary = " Set as the product's primary photo.";
+        }
+        return ok(`Stored ${args.kind} "${args.title}" (asset \`${data.id}\`, ${Math.round(file.buffer.length / 1024)} KB).${primary}`, { asset_id: data.id });
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_delete_asset",
+    {
+      title: "Delete An Asset",
+      description: "Permanently deletes a stored file. Requires confirm=true.\n\nArgs: assetId (uuid), confirm.",
+      inputSchema: { assetId: z.string().uuid(), confirm: confirmSchema },
+      annotations: DELETE,
+    },
+    async ({ assetId, confirm }: { assetId: string; confirm?: boolean }) => {
+      try {
+        const { data } = await db.from("project_assets").select("id, title, storage_key").eq("id", assetId).maybeSingle();
+        if (!data) throw new Error(`No asset ${assetId}.`);
+        if (!confirm) return needConfirm(`the file "${data.title}"`);
+        await db.from("project_products").update({ image_key: null }).eq("image_key", data.storage_key);
+        const { error } = await db.from("project_assets").delete().eq("id", assetId);
+        if (error) throw new Error(error.message);
+        await safeDelete(data.storage_key);
+        return ok(`Deleted "${data.title}".`);
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_upsert_global_rule",
+    {
+      title: "Create/Update A Global Rule",
+      description: `Creates or updates a cross-brand rule/instruction that kb_get_brief returns first for EVERY project — e.g. how to use the knowledge, how to design images, tone/compliance rules, where NAP comes from. Same slug = update.
+
+Args: slug, title (required when creating), content (markdown), mode ('replace' | 'append').`,
+      inputSchema: { slug: slugSchema, title: z.string().min(1).max(200).optional(), content: z.string().min(1), mode: z.enum(["replace", "append"]).optional() },
+      annotations: WRITE,
+    },
+    async ({ slug, title, content, mode }: { slug: string; title?: string; content: string; mode?: "replace" | "append" }) => {
+      try {
+        const { data: existing } = await db.from("kb_global_docs").select("title, content").eq("slug", slug).maybeSingle();
+        const finalTitle = title ?? existing?.title;
+        if (!finalTitle) throw new Error("title is required when creating a new rule.");
+        const merged = mergeContent(existing?.content, content, mode ?? "replace");
+        const { error } = await db.from("kb_global_docs").upsert({ slug, title: finalTitle, content: merged, updated_at: new Date().toISOString() }, { onConflict: "slug" });
+        if (error) throw new Error(error.message);
+        return ok(`${existing ? "Updated" : "Created"} global rule \`${slug}\`.`);
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_delete_global_rule",
+    {
+      title: "Delete A Global Rule",
+      description: "Permanently deletes a global rule. Requires confirm=true.\n\nArgs: slug, confirm.",
+      inputSchema: { slug: slugSchema, confirm: confirmSchema },
+      annotations: DELETE,
+    },
+    async ({ slug, confirm }: { slug: string; confirm?: boolean }) => {
+      try {
+        if (!confirm) return needConfirm(`the global rule "${slug}"`);
+        const { data, error } = await db.from("kb_global_docs").delete().eq("slug", slug).select("slug");
+        if (error) throw new Error(error.message);
+        return ok((data ?? []).length ? `Deleted global rule \`${slug}\`.` : `No global rule \`${slug}\`.`);
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_add_memory",
+    {
+      title: "Add A Memory Note",
+      description: `Appends a dated note to the knowledge base's running memory — a decision, preference, correction or fact worth remembering next time (e.g. "client wants Urdu captions", "never show competitor names"). With projectName it goes to that project's \`memory\` doc; without, to the global \`memory\` rule.
+
+Args: note (string), projectName (optional).`,
+      inputSchema: { note: z.string().min(1).max(2000), projectName: z.string().optional() },
+      annotations: { ...WRITE, idempotentHint: false },
+    },
+    async ({ note, projectName }: { note: string; projectName?: string }) => {
+      try {
+        const line = `- ${new Date().toISOString().slice(0, 10)}: ${note.trim()}`;
+        if (projectName) {
+          const project = await findProject(projectName);
+          const { data: existing } = await db.from("project_knowledge_docs").select("content").eq("project_id", project.id).eq("doc_type", "memory").eq("slug", "main").maybeSingle();
+          const merged = mergeContent(existing?.content ?? "# Memory", line, "append");
+          const { error } = await db.from("project_knowledge_docs").upsert(
+            { project_id: project.id, doc_type: "memory", slug: "main", title: "Memory", content: merged, updated_at: new Date().toISOString() },
+            { onConflict: "project_id,doc_type,slug" }
+          );
+          if (error) throw new Error(error.message);
+          return ok(`Remembered for ${project.label}.`);
+        }
+        const { data: existing } = await db.from("kb_global_docs").select("content").eq("slug", "memory").maybeSingle();
+        const merged = mergeContent(existing?.content ?? "# Global memory", line, "append");
+        const { error } = await db.from("kb_global_docs").upsert({ slug: "memory", title: "Global memory", content: merged, updated_at: new Date().toISOString() }, { onConflict: "slug" });
+        if (error) throw new Error(error.message);
+        return ok("Remembered globally.");
+      } catch (error) {
+        return fail(error);
       }
     }
   );

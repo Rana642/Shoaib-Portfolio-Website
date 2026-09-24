@@ -3,7 +3,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { verifyAccessToken, MCP_METADATA_URL } from "@/lib/mcp-oauth";
 import { registerRemoteSocialTools } from "@/lib/mcp-remote-tools";
 import { registerMarketingTools } from "@/lib/mcp-marketing-tools";
-import { registerKnowledgeTools } from "@/lib/mcp-knowledge-tools";
+import { registerKnowledgeTools, KB_SERVER_INSTRUCTIONS } from "@/lib/mcp-knowledge-tools";
 
 /**
  * Remote MCP endpoint for Claude web/mobile/desktop custom connectors —
@@ -29,7 +29,7 @@ async function handle(request: Request): Promise<Response> {
   const verified = token ? verifyAccessToken(token) : null;
   if (!verified) return unauthorized();
 
-  const server = new McpServer({ name: "adsbyshoaib-social-mcp-remote", version: "1.0.0" });
+  const server = new McpServer({ name: "adsbyshoaib-social-mcp-remote", version: "1.0.0" }, { instructions: KB_SERVER_INSTRUCTIONS });
   registerRemoteSocialTools(server);
   registerMarketingTools(server);
   registerKnowledgeTools(server);
