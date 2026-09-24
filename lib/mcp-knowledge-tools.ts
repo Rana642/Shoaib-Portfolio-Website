@@ -295,8 +295,11 @@ Args: projectName (string, fuzzy).`,
         if (productRows.length) lines.push("", "Use kb_get_product for exact composition/dosage + photo + original literature pages.");
         const assetRows = (assets ?? []) as { id: string; kind: string; title: string; product_id: string | null; storage_key: string }[];
         if (assetRows.length) {
-          lines.push("", `## Assets (${assetRows.length}) — view with kb_get_asset`);
-          for (const a of assetRows) lines.push(`- \`${a.id}\` [${a.kind}] ${a.title} — ${kbFileUrl(a.storage_key, a.title)}`);
+          const cdn = await cdnUrlMap(assetRows.map((a) => a.storage_key));
+          lines.push("", `## Assets (${assetRows.length}) — view with kb_get_asset. Only "widget-safe" (jsDelivr) links load inside Claude web widgets/artifacts.`);
+          for (const a of assetRows) {
+            lines.push(`- \`${a.id}\` [${a.kind}] ${a.title}${cdn.has(a.storage_key) ? ` — widget-safe: ${cdn.get(a.storage_key)}` : ` — (not on the CDN yet) ${kbFileUrl(a.storage_key, a.title)}`}`);
+          }
         }
         return ok(lines.join("\n"));
       } catch (error) {
