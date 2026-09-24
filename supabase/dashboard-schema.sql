@@ -880,3 +880,19 @@ create table if not exists project_assets (
 create index if not exists project_assets_project_idx on project_assets (project_id, kind);
 create index if not exists project_assets_product_idx on project_assets (product_id, sort);
 alter table project_assets enable row level security;
+
+-- Public CDN copies (GitHub repo served through cdn.jsdelivr.net) of knowledge-
+-- base images. The claude.ai widget/artifact sandbox blocks every origin except
+-- a few CDNs (cdnjs, esm.sh, jsdelivr, unpkg, Google Fonts), so files Claude web
+-- must embed have to be published here first (kb_publish_to_cdn — explicit,
+-- confirm-gated because the repo is PUBLIC). Keyed by storage key so it covers
+-- primary product photos and project_assets alike. cdn_url pins the commit sha.
+create table if not exists kb_cdn_files (
+  storage_key text primary key,
+  cdn_path text not null,
+  cdn_url text not null,
+  commit_sha text not null,
+  published_at timestamptz not null default now()
+);
+alter table kb_cdn_files enable row level security;
+

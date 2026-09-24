@@ -10,6 +10,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "./dashboard/db";
 import { fetchObject, uploadObject, deleteObject } from "./storage";
 import { kbFileUrl, kbUploadUrl, registerAsset, signUploadToken, sniff } from "./kb-files";
+import { CDN_REPO, cdnUrlMap, publishToCdn, slugifyName } from "./kb-cdn";
 
 /**
  * Per-project knowledge base — brand docs (NAP, positioning, ICP, pain points,
@@ -27,6 +28,7 @@ import { kbFileUrl, kbUploadUrl, registerAsset, signUploadToken, sniff } from ".
 export const KB_SERVER_INSTRUCTIONS = [
   "Knowledge base tools (kb_*): before writing captions, ad copy, creatives or image-generation prompts for a client project, call kb_get_brief with the project name — it returns global rules, the project's brand docs and the product list. For any product claim (composition, dosage, indications) call kb_get_product and quote it verbatim; never approximate.",
   "NAP (name/address/phone/email) always comes from the brand's official website (the project's `nap` doc), never from product PDFs, labels or old posts, and is never part of branding docs.",
+  "CLAUDE WEB WIDGETS/ARTIFACTS: the sandbox blocks every image origin except a few CDNs — only the `Widget-safe (jsDelivr)` / cdn_url links load there; adsbyshoaib.com URLs show as broken images. If a file has no widget-safe URL yet, ask the user before calling kb_publish_to_cdn (it publishes to a PUBLIC repo).",
   "Images: every stored file has a permanent public URL (returned by kb_get_product / kb_list_assets / kb_get_asset) you can use in <img> or SVG <image href>; add &w=800&fmt=jpg to get a smaller rendition. You cannot pass the bytes of a chat-attached image to a tool — call kb_create_upload_link and give the user the link, or use kb_add_asset with a public sourceUrl.",
   "The kb_* write tools (kb_upsert_doc, kb_upsert_product, kb_add_asset, kb_add_memory, kb_upsert_global_rule…) let you maintain the knowledge base; deletes need confirm=true.",
 ].join("\n");
@@ -63,14 +65,14 @@ const projectLabel = (p: ProjectRow) =>
 
 /** Fuzzy-matches a project by its own name or "Client — Project" label —
  *  same convention as the social MCP tools. */
-async function findProject(name: string): Promise<{ id: string; label: string }> {
+async function findProject(name: string): Promise<{ id: string; label: string; name: string }> {
   const { data } = await db.from("client_projects").select("id, name, client_id, clients(name)");
   const rows = (data ?? []) as ProjectRow[];
   const needle = name.toLowerCase();
   const matches = rows.filter((p) => p.name.toLowerCase().includes(needle) || projectLabel(p).toLowerCase().includes(needle));
   if (matches.length === 0) throw new Error(`No project matches "${name}". Projects are created on the dashboard's Clients page.`);
   if (matches.length > 1) throw new Error(`"${name}" matches multiple projects: ${matches.map(projectLabel).join(", ")}. Be more specific.`);
-  return { id: matches[0].id, label: projectLabel(matches[0]) };
+  return { id: matches[0].id, label: projectLabel(matches[0]), name: matches[0].name };
 }
 
 type ProductRow = { id: string; name: string; slug: string; category: string | null; content: string; image_key: string | null };
@@ -166,16 +168,17 @@ async function imageBlock(key: string): Promise<Block> {
 
 type AssetRow = { id: string; project_id: string; product_id: string | null; kind: string; title: string; storage_key: string; content_type: string; notes: string | null; sort: number };
 
-async function assetBlocks(a: AssetRow): Promise<Block[]> {
+async function assetBlocks(a: AssetRow, cdn?: Map<string, string>): Promise<Block[]> {
   const url = kbFileUrl(a.storage_key, a.title);
+  const widget = cdn?.get(a.storage_key) ? `\nWidget-safe (jsDelivr): ${cdn.get(a.storage_key)}` : "";
   if (a.content_type.startsWith("image/")) {
     try {
-      return [{ type: "text", text: `${a.title} (${a.kind})${a.notes ? ` — ${a.notes}` : ""}\nURL: ${url}` }, await imageBlock(a.storage_key)];
+      return [{ type: "text", text: `${a.title} (${a.kind})${a.notes ? ` — ${a.notes}` : ""}\nURL: ${url}${widget}` }, await imageBlock(a.storage_key)];
     } catch {
       return [{ type: "text", text: `${a.title}: image missing from storage.` }];
     }
   }
-  return [{ type: "text", text: `${a.title} (${a.kind}) — PDF/file URL: ${url}` }];
+  return [{ type: "text", text: `${a.title} (${a.kind}) — PDF/file URL: ${url}${widget}` }];
 }
 
 async function safeDelete(key: string | null | undefined) {
@@ -376,9 +379,10 @@ Args: projectName (string, fuzzy).`,
         const project = await findProject(projectName);
         const { data } = await db.from("project_products").select("name, slug, category, image_key").eq("project_id", project.id).order("name");
         const rows = (data ?? []) as { name: string; slug: string; category: string | null; image_key: string | null }[];
-        return ok(rows.map((r) => `- **${r.name}** (\`${r.slug}\`)${r.category ? ` — ${r.category}` : ""}${r.image_key ? ` · photo: ${kbFileUrl(r.image_key, r.name)}` : ""}`).join("\n") || "No products yet.", {
+        const cdn = await cdnUrlMap(rows.map((r) => r.image_key ?? ""));
+        return ok(rows.map((r) => `- **${r.name}** (\`${r.slug}\`)${r.category ? ` — ${r.category}` : ""}${r.image_key ? ` · photo: ${kbFileUrl(r.image_key, r.name)}${cdn.has(r.image_key) ? ` · widget-safe: ${cdn.get(r.image_key)}` : ""}` : ""}`).join("\n") || "No products yet.", {
           count: rows.length,
-          products: rows.map((r) => ({ name: r.name, slug: r.slug, category: r.category, photo_url: r.image_key ? kbFileUrl(r.image_key, r.name) : null })),
+          products: rows.map((r) => ({ name: r.name, slug: r.slug, category: r.category, photo_url: r.image_key ? kbFileUrl(r.image_key, r.name) : null, photo_cdn_url: r.image_key ? cdn.get(r.image_key) ?? null : null })),
         });
       } catch (error) {
         return fail(error);
@@ -403,13 +407,20 @@ Args: projectName (string), productName (string, fuzzy on name/slug), includeLit
         const { data } = await db.from("project_assets").select("id, project_id, product_id, kind, title, storage_key, content_type, notes, sort").eq("product_id", product.id).order("sort");
         const assets = (data ?? []) as AssetRow[];
         const lit = includeLiterature !== false;
+        const cdn = await cdnUrlMap([product.image_key ?? "", ...assets.map((x) => x.storage_key)]);
+        const fileLine = (label: string, key: string, title: string) =>
+          `- ${label}: ${kbFileUrl(key, title)}${cdn.has(key) ? `\n  Widget-safe (jsDelivr): ${cdn.get(key)}` : ""}`;
         const urlLines: string[] = [];
-        if (product.image_key) urlLines.push(`- Primary photo: ${kbFileUrl(product.image_key, product.name)}`);
-        for (const a of assets.filter((x) => x.kind === "product_image")) urlLines.push(`- Photo "${a.title}": ${kbFileUrl(a.storage_key, a.title)}`);
-        if (lit) for (const a of assets.filter((x) => x.kind === "literature_page" || x.kind === "literature_pdf")) urlLines.push(`- ${a.title}: ${kbFileUrl(a.storage_key, a.title)}`);
+        if (product.image_key) urlLines.push(fileLine("Primary photo", product.image_key, product.name));
+        for (const x of assets.filter((y) => y.kind === "product_image")) urlLines.push(fileLine(`Photo "${x.title}"`, x.storage_key, x.title));
+        if (lit) for (const x of assets.filter((y) => y.kind === "literature_page" || y.kind === "literature_pdf")) urlLines.push(fileLine(x.title, x.storage_key, x.title));
         const content: Block[] = [{ type: "text", text: product.content }];
         if (urlLines.length) {
-          content.push({ type: "text", text: `Permanent public URLs (use in <img>/SVG <image href>; add &w=800&fmt=jpg for a smaller rendition):\n${urlLines.join("\n")}` });
+          const missing = urlLines.length > 0 && [...urlLines].some((l) => !l.includes("Widget-safe"));
+          content.push({
+            type: "text",
+            text: `Permanent public URLs (for <img>/SVG outside Claude web; add &w=800&fmt=jpg for a smaller rendition):\n${urlLines.join("\n")}${missing ? "\n\nFiles without a Widget-safe (jsDelivr) URL will NOT render inside Claude web widgets/artifacts — ask the user, then use kb_publish_to_cdn." : ""}`,
+          });
         }
         if (product.image_key) {
           try {
@@ -420,10 +431,10 @@ Args: projectName (string), productName (string, fuzzy on name/slug), includeLit
         } else {
           content.push({ type: "text", text: "No finished product photo on file — see the literature pages below." });
         }
-        for (const a of assets.filter((x) => x.kind === "product_image").slice(0, 3)) content.push(...(await assetBlocks(a)));
+        for (const a of assets.filter((x) => x.kind === "product_image").slice(0, 3)) content.push(...(await assetBlocks(a, cdn)));
         if (lit) {
-          for (const a of assets.filter((x) => x.kind === "literature_page")) content.push(...(await assetBlocks(a)));
-          for (const a of assets.filter((x) => x.kind === "literature_pdf")) content.push(...(await assetBlocks(a)));
+          for (const a of assets.filter((x) => x.kind === "literature_page")) content.push(...(await assetBlocks(a, cdn)));
+          for (const a of assets.filter((x) => x.kind === "literature_pdf")) content.push(...(await assetBlocks(a, cdn)));
         }
         return { content };
       } catch (error) {
@@ -448,8 +459,10 @@ Args: projectName (string), productName (string, fuzzy on name/slug), includeLit
         if (kind) query = query.eq("kind", kind);
         if (productName) query = query.eq("product_id", (await findProduct(project.id, productName)).id);
         const { data } = await query;
-        const rows = ((data ?? []) as { id: string; kind: string; title: string; content_type: string; notes: string | null; storage_key: string }[]).map(({ storage_key, ...a }) => ({ ...a, url: kbFileUrl(storage_key, a.title) }));
-        return ok(rows.map((a) => `- \`${a.id}\` [${a.kind}] ${a.title} (${a.content_type})${a.notes ? ` — ${a.notes}` : ""}\n  ${a.url}`).join("\n") || "No assets.", { count: rows.length, assets: rows });
+        const raw = (data ?? []) as { id: string; kind: string; title: string; content_type: string; notes: string | null; storage_key: string }[];
+        const cdn = await cdnUrlMap(raw.map((a) => a.storage_key));
+        const rows = raw.map(({ storage_key, ...a }) => ({ ...a, url: kbFileUrl(storage_key, a.title), cdn_url: cdn.get(storage_key) ?? null }));
+        return ok(rows.map((a) => `- \`${a.id}\` [${a.kind}] ${a.title} (${a.content_type})${a.notes ? ` — ${a.notes}` : ""}\n  ${a.url}${a.cdn_url ? `\n  widget-safe: ${a.cdn_url}` : ""}`).join("\n") || "No assets.", { count: rows.length, assets: rows });
       } catch (error) {
         return fail(error);
       }
@@ -468,7 +481,7 @@ Args: projectName (string), productName (string, fuzzy on name/slug), includeLit
       try {
         const { data } = await db.from("project_assets").select("id, project_id, product_id, kind, title, storage_key, content_type, notes, sort").eq("id", assetId).maybeSingle();
         if (!data) throw new Error(`No asset ${assetId}.`);
-        return { content: await assetBlocks(data as AssetRow) };
+        return { content: await assetBlocks(data as AssetRow, await cdnUrlMap([data.storage_key])) };
       } catch (error) {
         return fail(error);
       }
@@ -638,6 +651,84 @@ Args: projectName, kind, title, productName (for product_image), notes (optional
         });
         const primary = asset.primary ? " Set as the product's primary photo." : "";
         return ok(`Stored ${args.kind} "${args.title}" (asset \`${asset.id}\`, ${Math.round(file.buffer.length / 1024)} KB).${primary}\nURL: ${asset.url}`, { asset_id: asset.id, url: asset.url });
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_publish_to_cdn",
+    {
+      title: "Publish Images To The Public CDN (for Claude web)",
+      description: `Copies knowledge-base IMAGES into the shared PUBLIC GitHub repo (${CDN_REPO}) served by cdn.jsdelivr.net and gives each a widget-safe URL. Needed because Claude web's widget/artifact sandbox blocks every image origin except a few CDNs (jsDelivr is one) — adsbyshoaib.com URLs show as broken images there. Works for every project (files go under <project-slug>/…).
+
+PUBLIC and effectively permanent (CDN-cached): only publish material that may be public — product photos, brochure pages — never client-private files. Show the user what will be published and get a yes; then call with confirm=true (without it you only get a preview).
+
+Targets: 'product' (that product's photo + extra photos + literature pages), 'all_products' (every product of the project), 'asset' (one image asset by id, e.g. a reference image the user explicitly wants public). includeLiterature (default true) applies to product targets. Idempotent (already-published files are reused). At most 8 files per call — if 'remaining' > 0 call again.
+
+Args: projectName, target, productName (target=product), assetId (target=asset), includeLiterature, confirm.`,
+      inputSchema: {
+        projectName: z.string(),
+        target: z.enum(["product", "all_products", "asset"]),
+        productName: z.string().optional(),
+        assetId: z.string().uuid().optional(),
+        includeLiterature: z.boolean().optional(),
+        confirm: confirmSchema,
+      },
+      annotations: { ...WRITE, openWorldHint: true },
+    },
+    async (args: { projectName: string; target: "product" | "all_products" | "asset"; productName?: string; assetId?: string; includeLiterature?: boolean; confirm?: boolean }) => {
+      try {
+        const project = await findProject(args.projectName);
+        const pslug = slugifyName(project.name);
+        const withLit = args.includeLiterature !== false;
+        type Item = { storageKey: string; folder: string; name: string; label: string };
+        const items: Item[] = [];
+
+        const addProduct = async (p: ProductRow) => {
+          if (p.image_key) items.push({ storageKey: p.image_key, folder: `${pslug}/products`, name: p.slug, label: `${p.name} — photo` });
+          const { data } = await db.from("project_assets").select("kind, title, storage_key, content_type, sort").eq("product_id", p.id).order("sort");
+          for (const a of (data ?? []) as { kind: string; title: string; storage_key: string; content_type: string; sort: number }[]) {
+            if (!a.content_type.startsWith("image/")) continue;
+            if (a.kind === "product_image") items.push({ storageKey: a.storage_key, folder: `${pslug}/products`, name: `${p.slug}-${a.title}`, label: a.title });
+            else if (a.kind === "literature_page" && withLit) items.push({ storageKey: a.storage_key, folder: `${pslug}/literature`, name: `${p.slug}-p${a.sort}`, label: a.title });
+          }
+        };
+
+        if (args.target === "product") {
+          if (!args.productName) throw new Error("target=product needs productName.");
+          await addProduct(await findProduct(project.id, args.productName));
+        } else if (args.target === "all_products") {
+          const { data } = await db.from("project_products").select("id, name, slug, category, content, image_key").eq("project_id", project.id).order("name");
+          for (const p of (data ?? []) as ProductRow[]) await addProduct(p);
+        } else {
+          if (!args.assetId) throw new Error("target=asset needs assetId.");
+          const { data } = await db.from("project_assets").select("title, storage_key, content_type, project_id").eq("id", args.assetId).maybeSingle();
+          if (!data || data.project_id !== project.id) throw new Error("No such asset in this project.");
+          if (!data.content_type.startsWith("image/")) throw new Error("Only images can be published.");
+          items.push({ storageKey: data.storage_key, folder: `${pslug}/assets`, name: data.title, label: data.title });
+        }
+        if (items.length === 0) return ok("Nothing to publish (no images found for that target).");
+
+        const already = await cdnUrlMap(items.map((i) => i.storageKey));
+        const todo = items.filter((i) => !already.has(i.storageKey));
+        if (!args.confirm) {
+          return ok(`Would publish ${todo.length} image(s) (${items.length - todo.length} already public) of ${project.label} to the PUBLIC repo ${CDN_REPO}:\n${todo.slice(0, 20).map((i) => `- ${i.label} → ${i.folder}/`).join("\n")}${todo.length > 20 ? `\n…and ${todo.length - 20} more` : ""}\n\nThis is public and effectively permanent. Get the user's OK, then call again with confirm=true.`);
+        }
+
+        const batch = todo.slice(0, 8);
+        const lines: string[] = [];
+        for (const i of batch) {
+          try {
+            const r = await publishToCdn(i);
+            lines.push(`✓ ${i.label}: ${r.cdn_url}`);
+          } catch (e) {
+            lines.push(`✗ ${i.label}: ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }
+        const remaining = todo.length - batch.length;
+        return ok(`${lines.join("\n")}\n\nRemaining: ${remaining}${remaining ? " — call kb_publish_to_cdn again (same arguments)." : ""}`, { published: batch.length, remaining });
       } catch (error) {
         return fail(error);
       }
