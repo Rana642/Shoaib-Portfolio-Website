@@ -45,7 +45,7 @@ const docTypeSchema = z
   .string()
   .regex(/^[a-z][a-z0-9_]{1,39}$/, "lowercase letters/digits/underscore, e.g. brand_position, marketing_doc, memory");
 const slugSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,60}$/, "lowercase letters/digits/hyphen");
-const ASSET_KINDS = ["product_image", "reference_image", "logo", "document", "other"] as const;
+const ASSET_KINDS = ["product_image", "reference_image", "logo", "document", "presentation_page", "other"] as const;
 const confirmSchema = z.boolean().optional();
 
 function formatError(error: unknown): string {
@@ -269,7 +269,7 @@ Args: projectName (string, fuzzy).`,
           db.from("kb_global_docs").select("slug, title, content").order("slug"),
           db.from("project_knowledge_docs").select("doc_type, slug, title, content").eq("project_id", project.id),
           db.from("project_products").select("name, slug, category, image_key").eq("project_id", project.id).order("name"),
-          db.from("project_assets").select("id, kind, title, product_id, storage_key").eq("project_id", project.id).not("kind", "in", "(literature_pdf,literature_page)"),
+          db.from("project_assets").select("id, kind, title, product_id, storage_key").eq("project_id", project.id).not("kind", "in", "(literature_pdf,literature_page,presentation_page)"),
         ]);
         const docRows = orderDocs((docs ?? []) as { doc_type: string; slug: string; title: string; content: string }[]);
         const lines: string[] = [`# Knowledge base — ${project.label}`, ""];
@@ -416,6 +416,8 @@ Args: projectName (string), productName (string, fuzzy on name/slug), includeLit
         const urlLines: string[] = [];
         if (product.image_key) urlLines.push(fileLine("Primary photo", product.image_key, product.name));
         for (const x of assets.filter((y) => y.kind === "product_image")) urlLines.push(fileLine(`Photo "${x.title}"`, x.storage_key, x.title));
+        const presentation = assets.filter((y) => y.kind === "presentation_page");
+        for (const x of presentation) urlLines.push(fileLine(`Presentation page "${x.title}"`, x.storage_key, x.title));
         if (lit) for (const x of assets.filter((y) => y.kind === "literature_page" || y.kind === "literature_pdf")) urlLines.push(fileLine(x.title, x.storage_key, x.title));
         const content: Block[] = [{ type: "text", text: product.content }];
         if (urlLines.length) {
@@ -435,6 +437,10 @@ Args: projectName (string), productName (string, fuzzy on name/slug), includeLit
           content.push({ type: "text", text: "No finished product photo on file — see the literature pages below." });
         }
         for (const a of assets.filter((x) => x.kind === "product_image").slice(0, 3)) content.push(...(await assetBlocks(a, cdn)));
+        if (presentation.length) {
+          content.push({ type: "text", text: "Designed A4 presentation pages for this product (1 = cover, 2 = English data sheet, 3 = Urdu). Check each page's note for its approval status before treating it as final:" });
+          for (const a of presentation) content.push(...(await assetBlocks(a, cdn)));
+        }
         if (lit) {
           for (const a of assets.filter((x) => x.kind === "literature_page")) content.push(...(await assetBlocks(a, cdn)));
           for (const a of assets.filter((x) => x.kind === "literature_pdf")) content.push(...(await assetBlocks(a, cdn)));
@@ -695,6 +701,7 @@ Args: projectName, target, productName (target=product), assetId (target=asset),
           for (const a of (data ?? []) as { kind: string; title: string; storage_key: string; content_type: string; sort: number }[]) {
             if (!a.content_type.startsWith("image/")) continue;
             if (a.kind === "product_image") items.push({ storageKey: a.storage_key, folder: `${pslug}/products`, name: `${p.slug}-${a.title}`, label: a.title });
+            else if (a.kind === "presentation_page") items.push({ storageKey: a.storage_key, folder: `${pslug}/presentations`, name: `${p.slug}-${a.sort}-${a.title}`, label: a.title });
             else if (a.kind === "literature_page" && withLit) items.push({ storageKey: a.storage_key, folder: `${pslug}/literature`, name: `${p.slug}-p${a.sort}`, label: a.title });
           }
         };
@@ -746,7 +753,7 @@ Args: projectName, target, productName (target=product), assetId (target=asset),
 
 If the file already has a public https URL, use kb_add_asset with sourceUrl instead (no browser step).
 
-Args: projectName, kind (product_image | reference_image | logo | document | other), title, productName (for product_image), notes (optional), makePrimary (optional — first file becomes the product's main photo).`,
+Args: projectName, kind (product_image | reference_image | logo | document | presentation_page | other), title, productName (for product_image), notes (optional), makePrimary (optional — first file becomes the product's main photo).`,
       inputSchema: {
         projectName: z.string(),
         kind: z.enum(ASSET_KINDS),
