@@ -18,6 +18,7 @@ import {
   KeyRound,
   Plug,
   Share2,
+  ScrollText,
   Settings as SettingsIcon,
   PenSquare,
   LogOut,
@@ -56,6 +57,7 @@ const nav: NavItem[] = [
   },
   { href: "/dashboard/quotations", label: "Quotations", icon: FileText },
   { href: "/dashboard/invoices", label: "Invoices", icon: Receipt },
+  { href: "/dashboard/letterhead", label: "Letterhead", icon: ScrollText },
   { href: "/dashboard/vault", label: "Password Vault", icon: KeyRound },
   { href: "/dashboard/api-vault", label: "API Vault", icon: Plug },
   {
