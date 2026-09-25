@@ -896,3 +896,23 @@ create table if not exists kb_cdn_files (
 );
 alter table kb_cdn_files enable row level security;
 
+
+-- ── Letters (letterhead drafts) ──────────────────────────────
+-- Letters written on the A4 letterhead (/dashboard/letterhead): saved so
+-- they can be reopened, reused (duplicated) and reprinted. body is the
+-- editor's HTML, restricted client-side to a small whitelist (bold/italic/
+-- underline, lists, alignment — lib/dashboard/letter-html.ts). ref_no comes
+-- from next_document_number ('letter'), e.g. LTR-2026-001. title is only
+-- for the list — it never prints.
+create table if not exists letters (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  ref_no text not null unique,
+  title text not null default '',
+  letter_date date not null default current_date,
+  show_meta boolean not null default true,   -- print "Ref" + "Date" above the body
+  body text not null default ''
+);
+create index if not exists letters_updated_idx on letters (updated_at desc);
+alter table letters enable row level security;

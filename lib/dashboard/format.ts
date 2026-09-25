@@ -37,6 +37,18 @@ export function formatDate(date: string | null): string {
   });
 }
 
+/** "25 September 2026" — the date as printed on a letter. Parsed as plain
+ *  Y/M/D so no timezone can shift it by a day. */
+export function formatLetterDate(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  if (!y || !m || !d) return date;
+  return new Date(y, m - 1, d).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
 export type Discount = { enabled: boolean; type: "percentage" | "fixed"; value: number };
 export type ToolsTax = { enabled: boolean; rate: number };
 

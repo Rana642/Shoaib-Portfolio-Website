@@ -373,6 +373,20 @@ export type ApiCredential = {
   is_active: boolean;
 };
 
+/** A letter written on the A4 letterhead. `body` is the editor's HTML,
+ *  limited to a small formatting whitelist (lib/dashboard/letter-html.ts);
+ *  `title` only labels it in the list and never prints. */
+export type Letter = {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  ref_no: string;
+  title: string;
+  letter_date: string;
+  show_meta: boolean;
+  body: string;
+};
+
 /** A known service preset — just suggests field names when adding a new
  *  credential; any service can still be entered freely as "custom". */
 export type ApiServicePreset = {

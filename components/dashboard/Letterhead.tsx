@@ -1,19 +1,15 @@
-"use client";
-
-import { useRef, useState } from "react";
-import { Printer, TriangleAlert } from "lucide-react";
-import { buttonStyles } from "@/components/dashboard/ui";
 import { letterheadFont } from "@/components/dashboard/letterhead-font";
 
 /*
  * Shoaib's A4 letterhead, rebuilt as vector artwork from his Canva export.
  * The PDF only carries a ~127 DPI raster, which prints soft — so every
- * element here was measured off that export and redrawn: positions, sizes,
- * colours and text widths all match the original. The one deliberate
- * difference is the logo: the Canva design carried an older version of the
- * mark with its own typeset wordmark, so (Shoaib's call) the header uses
- * the designer's official lockup from public/brand instead, keeping the
- * design's "PERFORMANCE MARKETING" line beneath it.
+ * element here was measured off that export and redrawn: positions, sizes
+ * and text widths all match the original. Two deliberate differences, both
+ * Shoaib's call: the header uses the designer's official lockup from
+ * public/brand (the Canva design carried an older version of the mark),
+ * keeping the design's "PERFORMANCE MARKETING" line beneath it; and every
+ * colour is the brand palette from app/globals.css rather than the export's
+ * slightly-off values.
  *
  * Coordinates are tenths of a millimetre on a 2100 × 2970 A4 page (tenths
  * rather than mm keep SVG font sizes well above one user unit). Text uses
@@ -23,15 +19,18 @@ import { letterheadFont } from "@/components/dashboard/letterhead-font";
 
 const m = (mm: number) => Math.round(mm * 100) / 10;
 
+// Brand tokens (app/globals.css) — hex literals because SVG presentation
+// attributes can't read CSS variables in every print engine.
 const COLOR = {
-  wordmark: "#080808",
-  text: "#191919",
-  tagLine: "#047AFF",
+  ink: "#0F0F14",
   separator: "#8C8C8C",
-  stripeBlue: "#007EFF",
-  stripeYellow: "#FEC40A",
-  stripeGreen: "#1B9650",
+  cobalt: "#2196F3",
+  citrus: "#FEC107",
+  forest: "#3FA343",
 };
+
+/** Body text colour for anything written on the sheet. */
+export const LETTER_INK = COLOR.ink;
 
 // Inter's cap height is 0.727 em; sizes are derived from measured cap heights.
 const fs = (capMm: number) => m(capMm / 0.727);
@@ -81,7 +80,7 @@ function FooterText({
       y={m(baseline)}
       fontSize={fs(2.2)}
       fontWeight={400}
-      fill={COLOR.text}
+      fill={COLOR.ink}
       textLength={m(width)}
       lengthAdjust="spacing"
     >
@@ -102,21 +101,21 @@ function LetterheadArtwork() {
           the design's 21.59 mm tall, with the design's "PERFORMANCE
           MARKETING" line set under the wordmark, spanning its width. */}
       <image href="/brand/logo-horizontal.svg" x={m(13.33)} y={m(10.44)} width={m(68.04)} height={m(22.39)} />
-      <text x={m(36.37)} y={m(35.09)} fontSize={fs(1.86)} fontWeight={500} fill={COLOR.wordmark} textLength={m(44.64)} lengthAdjust="spacing">
+      <text x={m(36.37)} y={m(35.09)} fontSize={fs(1.86)} fontWeight={500} fill={COLOR.ink} textLength={m(44.64)} lengthAdjust="spacing">
         PERFORMANCE MARKETING
       </text>
 
-      <rect x={m(136.48)} y={m(21.25)} width={m(13.38)} height={m(0.59)} fill={COLOR.tagLine} />
-      <text x={m(156.63)} y={m(20.12)} fontSize={fs(1.95)} fontWeight={500} fill={COLOR.text} textLength={m(34.62)} lengthAdjust="spacing">
+      <rect x={m(136.48)} y={m(21.25)} width={m(13.38)} height={m(0.59)} fill={COLOR.cobalt} />
+      <text x={m(156.63)} y={m(20.12)} fontSize={fs(1.95)} fontWeight={500} fill={COLOR.ink} textLength={m(34.62)} lengthAdjust="spacing">
         STRATEGY TODAY
       </text>
-      <text x={m(156.46)} y={m(24.21)} fontSize={fs(1.95)} fontWeight={500} fill={COLOR.text} textLength={m(40.21)} lengthAdjust="spacing">
+      <text x={m(156.46)} y={m(24.21)} fontSize={fs(1.95)} fontWeight={500} fill={COLOR.ink} textLength={m(40.21)} lengthAdjust="spacing">
         GROWTH TOMORROW
       </text>
 
       {/* ── Footer contact row ── */}
       <Glyph box={{ x: 11.18, y: 275.76, w: 5.0, h: 5.16 }} viewBox="0 0 5 5">
-        <g fill="none" stroke={COLOR.text} strokeWidth={0.4}>
+        <g fill="none" stroke={COLOR.ink} strokeWidth={0.4}>
           <circle cx={2.5} cy={2.5} r={2.3} />
           {GLOBE_PATHS.map((d) => (
             <path key={d} d={d} />
@@ -129,17 +128,17 @@ function LetterheadArtwork() {
       </FooterText>
 
       <Glyph box={{ x: 60.37, y: 275.93, w: 4.4, h: 4.82 }} viewBox="3 3 18 18">
-        <path d={PHONE_PATH} fill={COLOR.text} />
+        <path d={PHONE_PATH} fill={COLOR.ink} />
       </Glyph>
       <FooterText x={67.82} width={26.67}>+92 301 7461642</FooterText>
 
       <Glyph box={{ x: 108.8, y: 276.52, w: 4.74, h: 3.56 }} viewBox="2 4 20 16">
-        <path d={MAIL_PATH} fill={COLOR.text} />
+        <path d={MAIL_PATH} fill={COLOR.ink} />
       </Glyph>
       <FooterText x={117.18} width={35.64}>info@adsbyshoaib.com</FooterText>
 
       <Glyph box={{ x: 166.65, y: 275.76, w: 3.9, h: 5.16 }} viewBox="5 2 14 20">
-        <path d={PIN_PATH} fill={COLOR.text} />
+        <path d={PIN_PATH} fill={COLOR.ink} />
       </Glyph>
       <FooterText x={173.91} width={25.4}>Multan, Pakistan</FooterText>
 
@@ -148,18 +147,20 @@ function LetterheadArtwork() {
       ))}
 
       {/* ── Tri-colour base stripe ── */}
-      <rect x={0} y={m(289.73)} width={m(76.62)} height={m(7.27)} fill={COLOR.stripeBlue} />
-      <rect x={m(76.62)} y={m(289.73)} width={m(57.75)} height={m(7.27)} fill={COLOR.stripeYellow} />
-      <rect x={m(134.37)} y={m(289.73)} width={m(75.63)} height={m(7.27)} fill={COLOR.stripeGreen} />
+      <rect x={0} y={m(289.73)} width={m(76.62)} height={m(7.27)} fill={COLOR.cobalt} />
+      <rect x={m(76.62)} y={m(289.73)} width={m(57.75)} height={m(7.27)} fill={COLOR.citrus} />
+      <rect x={m(134.37)} y={m(289.73)} width={m(75.63)} height={m(7.27)} fill={COLOR.forest} />
     </svg>
   );
 }
 
+
 // Print exactly one A4 sheet, edge to edge: zero page margin, and every
 // element that isn't the sheet (or one of its ancestors) removed from layout
-// so the dashboard chrome can't add a second page. Scoped to this route —
-// the <style> only exists while the letterhead is mounted.
-const PRINT_CSS = `
+// so the dashboard chrome can't add a second page. Scoped to the letterhead
+// routes — the <style> only exists while a sheet is mounted. The list rules
+// undo Tailwind's preflight reset so bullets and numbers show on the page.
+const SHEET_CSS = `
 @media print {
   @page { size: A4; margin: 0; }
   body :not(:has(.letterhead-sheet)):not(.letterhead-sheet):not(.letterhead-sheet *) { display: none !important; }
@@ -171,71 +172,23 @@ const PRINT_CSS = `
   .letterhead-body:empty::before { content: none !important; }
 }
 .letterhead-body:empty::before { content: attr(data-placeholder); color: #a1a1aa; pointer-events: none; }
+.letterhead-body ul { list-style: disc; padding-left: 1.4em; }
+.letterhead-body ol { list-style: decimal; padding-left: 1.4em; }
 `;
 
-export default function Letterhead() {
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const [overflowing, setOverflowing] = useState(false);
-
-  const checkOverflow = () => {
-    const el = bodyRef.current;
-    if (el) setOverflowing(el.scrollHeight > el.clientHeight + 1);
-  };
-
-  // Paste as plain text so text copied from Word/WhatsApp can't drag its own
-  // fonts and colours onto the letterhead.
-  const onPaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    document.execCommand("insertText", false, e.clipboardData.getData("text/plain"));
-  };
-
+/** The A4 sheet with its artwork; children are laid over it (the writable
+ *  body, positioned in mm). Scrolls sideways on screens narrower than A4. */
+export function LetterheadSheet({ children }: { children?: React.ReactNode }) {
   return (
-    <>
-      <style>{PRINT_CSS}</style>
-
-      <div className="print:hidden flex flex-wrap items-center gap-3 mb-6">
-        <button type="button" onClick={() => window.print()} className={buttonStyles.primary}>
-          <Printer className="size-4" aria-hidden />
-          Print
-        </button>
-        <p className="text-small text-ink-muted">
-          Click inside the page to type. In the print dialog, keep the paper size on A4.
-        </p>
-        {overflowing && (
-          <p className="flex items-center gap-2 text-small text-amber-800 bg-amber-500/10 border border-amber-600/20 rounded-lg px-3 py-1.5">
-            <TriangleAlert className="size-4" aria-hidden />
-            Text is longer than one page — the extra lines won&apos;t print.
-          </p>
-        )}
+    <div className="letterhead-scroll overflow-x-auto pb-4">
+      <style>{SHEET_CSS}</style>
+      <div
+        className={`letterhead-sheet ${letterheadFont.className} relative mx-auto bg-white shadow-[0_2px_24px_-6px_rgba(15,15,20,0.25)]`}
+        style={{ width: "210mm", height: "297mm" }}
+      >
+        <LetterheadArtwork />
+        {children}
       </div>
-
-      <div className="letterhead-scroll overflow-x-auto pb-4">
-        <div
-          className={`letterhead-sheet ${letterheadFont.className} relative mx-auto bg-white shadow-[0_2px_24px_-6px_rgba(15,15,20,0.25)]`}
-          style={{ width: "210mm", height: "297mm" }}
-        >
-          <LetterheadArtwork />
-          <div
-            ref={bodyRef}
-            contentEditable
-            suppressContentEditableWarning
-            spellCheck
-            onInput={checkOverflow}
-            onPaste={onPaste}
-            data-placeholder="Type or paste your letter here…"
-            className="letterhead-body absolute overflow-hidden whitespace-pre-wrap break-words rounded-sm outline-1 outline-dashed outline-transparent hover:outline-ink/15 focus:outline-ink/25"
-            style={{
-              left: "20mm",
-              right: "20mm",
-              top: "48mm",
-              bottom: "29mm",
-              fontSize: "10.5pt",
-              lineHeight: 1.6,
-              color: COLOR.text,
-            }}
-          />
-        </div>
-      </div>
-    </>
+    </div>
   );
 }
