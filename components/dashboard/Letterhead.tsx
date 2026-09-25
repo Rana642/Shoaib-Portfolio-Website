@@ -3,14 +3,17 @@
 import { useRef, useState } from "react";
 import { Printer, TriangleAlert } from "lucide-react";
 import { buttonStyles } from "@/components/dashboard/ui";
-import LetterheadLogoMark from "@/components/dashboard/LetterheadLogoMark";
 import { letterheadFont } from "@/components/dashboard/letterhead-font";
 
 /*
  * Shoaib's A4 letterhead, rebuilt as vector artwork from his Canva export.
  * The PDF only carries a ~127 DPI raster, which prints soft — so every
  * element here was measured off that export and redrawn: positions, sizes,
- * colours and text widths all match the original.
+ * colours and text widths all match the original. The one deliberate
+ * difference is the logo: the Canva design carried an older version of the
+ * mark with its own typeset wordmark, so (Shoaib's call) the header uses
+ * the designer's official lockup from public/brand instead, keeping the
+ * design's "PERFORMANCE MARKETING" line beneath it.
  *
  * Coordinates are tenths of a millimetre on a 2100 × 2970 A4 page (tenths
  * rather than mm keep SVG font sizes well above one user unit). Text uses
@@ -91,19 +94,15 @@ function FooterText({
 function LetterheadArtwork() {
   return (
     <svg className="absolute inset-0 h-full w-full" viewBox="0 0 2100 2970" aria-hidden>
-      {/* Watermark: the header mark blown up 6.35× at 3% opacity, exactly as
-          the Canva design does it. */}
-      <LetterheadLogoMark x={m(38.88)} y={m(80.8)} width={m(136.46)} height={m(136.59)} opacity={0.03} />
+      {/* Watermark: the official mark at 6.35× the header mark's height and
+          3% opacity, centred where the design places it. */}
+      <image href="/brand/mark.svg" x={m(43.51)} y={m(80.02)} width={m(127.2)} height={m(137.1)} opacity={0.03} />
 
-      {/* ── Header ── */}
-      <LetterheadLogoMark x={m(13.45)} y={m(10.87)} width={m(21.49)} height={m(21.51)} />
-      <text x={m(38.44)} y={m(17.44)} fontSize={fs(5.33)} fontWeight={272} fill={COLOR.wordmark} textLength={m(25.99)} lengthAdjust="spacing">
-        ADS BY
-      </text>
-      <text x={m(37.76)} y={m(28.79)} fontSize={fs(9.31)} fontWeight={720} fill={COLOR.wordmark} textLength={m(47.58)} lengthAdjust="spacing">
-        SHOAIB
-      </text>
-      <text x={m(38.44)} y={m(34.04)} fontSize={fs(1.86)} fontWeight={500} fill={COLOR.wordmark} textLength={m(46.39)} lengthAdjust="spacing">
+      {/* ── Header ── the official horizontal lockup, sized so its mark is
+          the design's 21.59 mm tall, with the design's "PERFORMANCE
+          MARKETING" line set under the wordmark, spanning its width. */}
+      <image href="/brand/logo-horizontal.svg" x={m(13.33)} y={m(10.44)} width={m(68.04)} height={m(22.39)} />
+      <text x={m(36.37)} y={m(35.09)} fontSize={fs(1.86)} fontWeight={500} fill={COLOR.wordmark} textLength={m(44.64)} lengthAdjust="spacing">
         PERFORMANCE MARKETING
       </text>
 
