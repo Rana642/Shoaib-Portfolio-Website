@@ -87,12 +87,9 @@ export default function AccountCard({
   };
   const idp = `acc-${draft.id}`;
 
-  const pick = (platform: PlatformId) => {
-    // Field values carry over where the new platform has the same field.
-    onChange({
-      secret: { ...secret, platform, master: platform === "google_account" && secret.master },
-      chosen: true,
-    });
+  // Field values carry over where the new platform has the same field.
+  const pick = (platform: PlatformId, master = false) => {
+    onChange({ secret: { ...secret, platform, master }, chosen: true });
     setChangingPlatform(false);
   };
 
@@ -114,6 +111,21 @@ export default function AccountCard({
           )}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {/* The client's main Google account gets its own tile, first —
+              it's a Gmail entry with the master flag already ticked. */}
+          <button
+            type="button"
+            onClick={() => pick("google_account", true)}
+            className={cn(
+              "flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-small transition-colors cursor-pointer",
+              draft.chosen && secret.master
+                ? "border-ink bg-citrus/25"
+                : "border-citrus/60 bg-citrus/10 hover:bg-citrus/20"
+            )}
+          >
+            <Crown className="size-4 shrink-0" aria-hidden />
+            <span className="leading-tight font-medium">Master Gmail</span>
+          </button>
           {PLATFORMS.map((p) => (
             <button
               key={p.id}
@@ -121,7 +133,7 @@ export default function AccountCard({
               onClick={() => pick(p.id)}
               className={cn(
                 "flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-small transition-colors cursor-pointer",
-                draft.chosen && secret.platform === p.id
+                draft.chosen && secret.platform === p.id && !secret.master
                   ? "border-ink bg-ink/5"
                   : "border-ink/15 hover:border-ink/40 hover:bg-ink/[0.03]"
               )}
