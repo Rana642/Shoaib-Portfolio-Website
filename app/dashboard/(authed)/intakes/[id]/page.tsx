@@ -13,29 +13,57 @@ import type { ClientIntake } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
 
-const fields: { key: keyof ClientIntake; label: string }[] = [
-  { key: "contact_name", label: "Full name" },
-  { key: "contact_role", label: "Designation" },
-  { key: "registered_name", label: "Business / brand name" },
-  { key: "contact_emails", label: "Business email" },
-  { key: "contact_phone", label: "Business phone" },
-  { key: "whatsapp", label: "Business WhatsApp" },
-  { key: "website", label: "Website" },
-  { key: "address", label: "Business address" },
-  { key: "operating_days", label: "Operating days" },
-  { key: "hours_open", label: "Opening time" },
-  { key: "hours_close", label: "Closing time" },
-  { key: "service_areas", label: "Service areas" },
-  { key: "landmark", label: "Landmark / directions" },
-  { key: "target_audience", label: "Ideal customer" },
-  { key: "brand_notes", label: "Brand notes" },
-  { key: "competitors", label: "Competitor / reference sites" },
-  { key: "platforms", label: "Preferred platforms" },
-  { key: "social_handles", label: "Desired handles" },
-  { key: "master_email", label: "Master Gmail" },
-  { key: "account_access_notes", label: "Account access" },
-  { key: "brand_asset_links", label: "Asset links" },
-  { key: "additional_notes", label: "Notes" },
+// Grouped the way the client's one-page form asks for them; the last group
+// only shows on intakes answered with the older multi-step form.
+const sections: { title: string; fields: { key: keyof ClientIntake; label: string }[] }[] = [
+  {
+    title: "Client information",
+    fields: [
+      { key: "registered_name", label: "Business / company name" },
+      { key: "contact_phone", label: "Business phone / WhatsApp" },
+      { key: "contact_emails", label: "Business email" },
+      { key: "address", label: "Business address" },
+      { key: "website", label: "Website" },
+    ],
+  },
+  {
+    title: "Brand information",
+    fields: [
+      { key: "business_overview", label: "Business overview" },
+      { key: "target_audience", label: "Target audience" },
+      { key: "usp", label: "Unique selling proposition" },
+    ],
+  },
+  {
+    title: "Branding assets",
+    fields: [{ key: "brand_asset_links", label: "Drive / WeTransfer links" }],
+  },
+  {
+    title: "Competitors & references",
+    fields: [
+      { key: "competitors", label: "Competitors" },
+      { key: "design_references", label: "Pages / design styles they like" },
+    ],
+  },
+  {
+    title: "From the earlier form",
+    fields: [
+      { key: "contact_name", label: "Contact name" },
+      { key: "contact_role", label: "Designation" },
+      { key: "whatsapp", label: "WhatsApp" },
+      { key: "operating_days", label: "Operating days" },
+      { key: "hours_open", label: "Opening time" },
+      { key: "hours_close", label: "Closing time" },
+      { key: "service_areas", label: "Service areas" },
+      { key: "landmark", label: "Landmark / directions" },
+      { key: "brand_notes", label: "Brand notes" },
+      { key: "platforms", label: "Preferred platforms" },
+      { key: "social_handles", label: "Desired handles" },
+      { key: "master_email", label: "Master Gmail" },
+      { key: "account_access_notes", label: "Account access" },
+      { key: "additional_notes", label: "Notes" },
+    ],
+  },
 ];
 
 function humanSize(bytes: number) {
@@ -104,7 +132,10 @@ export default async function IntakeDetailPage({ params }: PageProps<"/dashboard
     await setIntakeLocked(id, !intake.locked);
   }
 
-  const filled = fields.filter((f) => (intake[f.key] as string | null)?.trim());
+  const answered = (key: keyof ClientIntake) => Boolean((intake[key] as string | null)?.trim());
+  const filledSections = sections
+    .map((s) => ({ ...s, fields: s.fields.filter((f) => answered(f.key)) }))
+    .filter((s) => s.fields.length > 0);
 
   return (
     <>
@@ -180,18 +211,21 @@ export default async function IntakeDetailPage({ params }: PageProps<"/dashboard
             <p className="text-small text-ink-muted mb-6">{formatDate(intake.submitted_at)}</p>
           )}
 
-          <dl className="space-y-6">
-            {filled.map((f) => (
-              <div key={f.key}>
-                <dt className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
-                  {f.label}
-                </dt>
-                <dd className="text-body text-ink mt-1.5 whitespace-pre-line">
-                  {intake[f.key] as string}
-                </dd>
-              </div>
+          <div className="space-y-8">
+            {filledSections.map((section) => (
+              <section key={section.title}>
+                <h2 className="text-body-lg font-semibold mb-4">{section.title}</h2>
+                <dl className="space-y-5">
+                  {section.fields.map((f) => (
+                    <div key={f.key}>
+                      <dt className="font-mono uppercase text-tag tracking-widest text-ink-subtle">{f.label}</dt>
+                      <dd className="text-body text-ink mt-1.5 whitespace-pre-line">{intake[f.key] as string}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
             ))}
-          </dl>
+          </div>
 
           {intake.brand_colors?.trim() && (
             <div className="mt-6">
@@ -216,7 +250,7 @@ export default async function IntakeDetailPage({ params }: PageProps<"/dashboard
           <AssetGroup title="Media & product photos" items={assetLinks.filter((a) => a.kind === "media")} />
           <AssetGroup title="Other files" items={assetLinks.filter((a) => a.kind !== "logo" && a.kind !== "media")} />
 
-          {filled.length === 0 && assetLinks.length === 0 && (
+          {filledSections.length === 0 && assetLinks.length === 0 && (
             <p className="text-small text-ink-muted">The client submitted the form with no details filled in.</p>
           )}
         </Card>

@@ -75,31 +75,37 @@ const assetSchema = z.object({
   kind: z.enum(["logo", "media"]).optional(),
 });
 
+// The one-page setup form (2026-09-26). Only these columns are written, so
+// answers an intake already has from the older multi-step form (hours,
+// service areas, colours, platforms…) are never wiped by an edit.
+const text = (max: number) => z.string().trim().max(max).nullable();
 const submitSchema = z.object({
-  contact_name: z.string().max(200).optional().nullable(),
-  contact_role: z.string().max(200).optional().nullable(),
-  contact_emails: z.string().max(1000).optional().nullable(),
-  contact_phone: z.string().max(200).optional().nullable(),
-  whatsapp: z.string().max(200).optional().nullable(),
-  registered_name: z.string().max(300).optional().nullable(),
-  address: z.string().max(1000).optional().nullable(),
-  website: z.string().max(500).optional().nullable(),
-  operating_days: z.string().max(200).optional().nullable(),
-  hours_open: z.string().max(50).optional().nullable(),
-  hours_close: z.string().max(50).optional().nullable(),
-  service_areas: z.string().max(2000).optional().nullable(),
-  landmark: z.string().max(2000).optional().nullable(),
-  brand_colors: z.string().max(500).optional().nullable(),
-  target_audience: z.string().max(3000).optional().nullable(),
-  brand_notes: z.string().max(3000).optional().nullable(),
-  social_handles: z.string().max(2000).optional().nullable(),
-  competitors: z.string().max(3000).optional().nullable(),
-  platforms: z.string().max(500).optional().nullable(),
-  master_email: z.string().max(320).optional().nullable(),
-  brand_asset_links: z.string().max(2000).optional().nullable(),
-  additional_notes: z.string().max(5000).optional().nullable(),
+  registered_name: text(300),
+  contact_phone: text(200),
+  contact_emails: text(1000),
+  address: text(1000),
+  website: text(500),
+  business_overview: text(5000),
+  target_audience: text(3000),
+  usp: text(3000),
+  brand_asset_links: text(2000),
+  competitors: text(3000),
+  design_references: text(3000),
   assets: z.array(assetSchema).max(50),
 });
+const TEXT_FIELDS = [
+  "registered_name",
+  "contact_phone",
+  "contact_emails",
+  "address",
+  "website",
+  "business_overview",
+  "target_audience",
+  "usp",
+  "brand_asset_links",
+  "competitors",
+  "design_references",
+] as const;
 
 /** Public — the client submitting their own intake. `assets` arrives as a
  *  JSON string of files already uploaded to storage via presigned URLs. */
@@ -123,38 +129,20 @@ export async function submitIntake(token: string, formData: FormData) {
     return { error: "Couldn't read the uploaded files. Please try again." };
   }
 
-  const parsed = submitSchema.safeParse({
-    contact_name: formData.get("contact_name") || null,
-    contact_role: formData.get("contact_role") || null,
-    contact_emails: formData.get("contact_emails") || null,
-    contact_phone: formData.get("contact_phone") || null,
-    whatsapp: formData.get("whatsapp") || null,
-    registered_name: formData.get("registered_name") || null,
-    address: formData.get("address") || null,
-    website: formData.get("website") || null,
-    operating_days: formData.get("operating_days") || null,
-    hours_open: formData.get("hours_open") || null,
-    hours_close: formData.get("hours_close") || null,
-    service_areas: formData.get("service_areas") || null,
-    landmark: formData.get("landmark") || null,
-    brand_colors: formData.get("brand_colors") || null,
-    target_audience: formData.get("target_audience") || null,
-    brand_notes: formData.get("brand_notes") || null,
-    social_handles: formData.get("social_handles") || null,
-    competitors: formData.get("competitors") || null,
-    platforms: formData.get("platforms") || null,
-    master_email: formData.get("master_email") || null,
-    brand_asset_links: formData.get("brand_asset_links") || null,
-    additional_notes: formData.get("additional_notes") || null,
-    assets,
-  });
-  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const fields = Object.fromEntries(
+    TEXT_FIELDS.map((key) => [key, String(formData.get(key) ?? "").trim() || null])
+  );
+  const parsed = submitSchema.safeParse({ ...fields, assets });
+  if (!parsed.success) return { error: "One of the answers is too long — please shorten it and try again." };
 
   const { error } = await db
     .from("client_intakes")
     .update({ ...parsed.data, status: "submitted", submitted_at: new Date().toISOString() })
     .eq("id", intake.id);
-  if (error) return { error: error.message };
+  if (error) {
+    console.error("[intake] submit failed:", error);
+    return { error: "Couldn't save your answers just now — please try again in a few minutes." };
+  }
 
   return { ok: true };
 }

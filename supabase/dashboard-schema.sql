@@ -986,3 +986,10 @@ create table if not exists vault_requests (
 );
 create index if not exists vault_requests_client_idx on vault_requests (client_id);
 alter table vault_requests enable row level security;
+
+-- One-page social media setup intake (2026-09-26): the form now asks for a
+-- business overview, a USP and design references. The older multi-step
+-- form's columns stay (and keep their data) — the dashboard still shows them.
+alter table client_intakes add column if not exists business_overview text;
+alter table client_intakes add column if not exists usp text;
+alter table client_intakes add column if not exists design_references text;

@@ -285,6 +285,10 @@ export type ClientIntake = {
   brand_asset_links: string | null;
   assets: IntakeAsset[];
   additional_notes: string | null;
+  /** Added 2026-09-26 with the one-page setup form. */
+  business_overview: string | null;
+  usp: string | null;
+  design_references: string | null;
   submitted_at: string | null;
 };
 

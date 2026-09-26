@@ -23,11 +23,11 @@ export default async function PublicIntakePage({
       <div className="max-w-2xl mx-auto">
         <Image src="/brand/logo-horizontal.svg" alt="Ads by Shoaib" width={168} height={55} className="h-8 w-auto mb-2" />
         <h1 className="font-serif italic text-h2 mt-6">
-          {intake.business_name} — account setup
+          {intake.business_name} — social media setup
         </h1>
         <p className="text-body text-ink-muted mt-2 mb-8">
-          A few details so I can set your social accounts up properly. Fill in what you can —
-          nothing here is mandatory, and you can share files or links for your brand assets.
+          A few details so I can set up your social media properly. Fill in what you can — nothing
+          here is mandatory, and you can come back to edit your answers.
         </p>
 
         {intake.locked ? (
