@@ -916,3 +916,13 @@ create table if not exists letters (
 );
 create index if not exists letters_updated_idx on letters (updated_at desc);
 alter table letters enable row level security;
+
+-- ── Password vault v2 (2026-09-26) ───────────────────────────
+-- Entries are now filed client → project, and everything describing an
+-- entry (title, platform, every field) lives inside the encrypted payload.
+-- Only the client/project links stay plaintext, so the list can be grouped
+-- and a deleted project just unfiles its entries. The old title/service
+-- columns are kept (written as ''/null) so nothing breaks for old rows.
+alter table vault_entries add column if not exists project_id uuid references client_projects (id) on delete set null;
+alter table vault_entries alter column title set default '';
+create index if not exists vault_entries_project_idx on vault_entries (project_id);

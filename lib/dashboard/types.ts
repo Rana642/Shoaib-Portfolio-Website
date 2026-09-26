@@ -11,30 +11,20 @@ export type VaultMeta = {
   wrapped_dk_recovery_iv: string;
 };
 
-/** A vault entry as stored — the sensitive payload lives encrypted in
- *  `ciphertext`; only the title/service/client link are plaintext. */
+/** A vault entry as stored. Everything describing the account — title,
+ *  platform, every field — is inside `ciphertext` (shape: VaultSecret in
+ *  lib/vault-platforms.ts); only the client/project links are plaintext.
+ *  `title`/`service` are legacy columns, written as ''/null. */
 export type VaultEntry = {
   id: string;
   created_at: string;
   updated_at: string;
   client_id: string | null;
+  project_id: string | null;
   title: string;
   service: string | null;
   ciphertext: string;
   iv: string;
-};
-
-/** The decrypted shape inside a vault entry's ciphertext (browser only). */
-export type VaultSecret = {
-  username?: string;
-  password?: string;
-  totp?: string;
-  backupCodes?: string;
-  recoveryEmail?: string;
-  recoveryPhone?: string;
-  securityQa?: string;
-  url?: string;
-  notes?: string;
 };
 
 export type Client = {

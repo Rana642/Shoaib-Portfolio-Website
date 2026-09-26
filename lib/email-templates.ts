@@ -119,6 +119,28 @@ export function onboardingInviteEmail(data: { name: string; url: string }) {
   `);
 }
 
+/** Tells a client which of their accounts had a password changed for
+ *  security. Deliberately never includes a password — only which accounts. */
+export function passwordChangeNoticeEmail(data: { name: string; accounts: string[] }) {
+  const list = data.accounts.map((a) => `<li style="margin: 0 0 6px;">${escapeHtml(a)}</li>`).join("");
+  return wrapper(`
+    <h2 style="font-size: 18px; margin: 0 0 16px;">A security update on your accounts</h2>
+    <p style="font-size: 14px; line-height: 1.6;">
+      Hi ${escapeHtml(data.name)},<br /><br />
+      To keep the accounts I manage for you secure, I've changed the password on:
+    </p>
+    <ul style="font-size: 14px; line-height: 1.6; padding-left: 20px; margin: 12px 0 16px;">${list}</ul>
+    <p style="font-size: 14px; line-height: 1.6;">
+      The new passwords are kept in my encrypted vault, and for your safety they're never
+      sent by email. If you need one, reply here or message me on WhatsApp and I'll share it
+      with you directly.
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; color: #666;">
+      — Shoaib
+    </p>
+  `);
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")

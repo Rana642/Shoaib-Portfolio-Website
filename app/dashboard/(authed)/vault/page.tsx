@@ -1,26 +1,32 @@
 import { db } from "@/lib/dashboard/db";
-import { getVaultMeta, listVaultEntries } from "@/lib/dashboard/actions/vault";
+import { getVaultMeta } from "@/lib/dashboard/actions/vault";
 import { PageHeader } from "@/components/dashboard/ui";
 import VaultApp from "@/components/dashboard/VaultApp";
-import type { Client } from "@/lib/dashboard/types";
+import type { Client, ClientProject } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Vault" };
+export const metadata = { title: "Password Vault" };
 
 export default async function VaultPage() {
-  const [meta, entries, { data: clients }] = await Promise.all([
+  const [meta, { data: clients }, { data: projects }] = await Promise.all([
     getVaultMeta(),
-    listVaultEntries(),
-    db.from("clients").select("*").eq("is_active", true).order("name"),
+    // Inactive clients too, so their saved accounts still show a name; the
+    // entry form only offers active ones.
+    db.from("clients").select("id, name, email, is_active").order("name"),
+    db.from("client_projects").select("id, client_id, name, sort_order").order("sort_order"),
   ]);
 
   return (
     <>
       <PageHeader
-        title="Vault"
-        description="Client credentials, encrypted in your browser with your master password — the server only ever stores unreadable ciphertext."
+        title="Password Vault"
+        description="Client and personal account logins, encrypted in your browser with your master password — the server only ever stores unreadable ciphertext."
       />
-      <VaultApp meta={meta} entries={entries} clients={(clients ?? []) as Client[]} />
+      <VaultApp
+        meta={meta}
+        clients={(clients ?? []) as Pick<Client, "id" | "name" | "email" | "is_active">[]}
+        projects={(projects ?? []) as Pick<ClientProject, "id" | "client_id" | "name" | "sort_order">[]}
+      />
     </>
   );
 }
