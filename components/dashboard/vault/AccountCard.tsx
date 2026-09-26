@@ -2,32 +2,43 @@
 
 import { useRef, useState } from "react";
 import {
+  Check,
   ChevronDown,
   Crown,
   ExternalLink,
   Eye,
   EyeOff,
   History,
+  Info,
+  KeyRound,
   Link2,
   Lock,
   Plus,
   ShieldCheck,
   Trash2,
   Unlink,
+  UserCheck,
   X,
 } from "lucide-react";
 import { Card, Field, inputClasses, labelClasses } from "@/components/dashboard/ui";
 import {
+  ACCESS_STATUS_LABELS,
   ISSUE_LABELS,
   PLATFORMS,
   TWO_STEP_METHODS,
   getPlatform,
   securityIssues,
+  switchPlatform,
+  withIdentity,
+  type AccessGrant,
+  type AccessStatus,
   type FieldDef,
+  type PlatformDef,
   type PlatformId,
   type TwoStep,
   type VaultSecret,
 } from "@/lib/vault-platforms";
+import { identityLabel, type AccessIdentities } from "@/lib/access-identities";
 import { formatDate } from "@/lib/dashboard/format";
 import { cn } from "@/lib/utils";
 import PasswordInput from "./PasswordInput";
@@ -63,13 +74,17 @@ export default function AccountCard({
   usedBy,
   onChange,
   onRemove,
-  hideTitle = false,
+  identities,
+  portal = false,
 }: {
   draft: CardDraft;
   /** What the title field shows — the auto title until it's been edited. */
   title: string;
-  /** The client portal names entries automatically — no title field there. */
-  hideTitle?: boolean;
+  /** Shoaib's own accounts (Settings) that access is granted to. */
+  identities: AccessIdentities;
+  /** The client's view: no title (named automatically), no security
+   *  badges, and access shown as step-by-step instructions. */
+  portal?: boolean;
   /** Gmails of the same client/own vault that sign-in fields can link to. */
   gmails: GmailOption[];
   /** For a Gmail: titles of the accounts that sign in with it. */
@@ -82,6 +97,8 @@ export default function AccountCard({
   const setSecret = (patch: Partial<VaultSecret>) => onChange({ secret: { ...secret, ...patch } });
   const setField = (id: string, value: string) => setSecret({ fields: { ...secret.fields, [id]: value } });
   const setTwoStep = (patch: Partial<TwoStep>) => setSecret({ twoStep: { ...secret.twoStep, ...patch } });
+  const setAccess = (patch: Partial<AccessGrant>) =>
+    onChange({ secret: withIdentity({ ...secret, access: { ...secret.access, ...patch } }, identities) });
   const setLink = (fieldId: string, gmail: GmailOption | null) => {
     const links = { ...secret.links };
     if (gmail) links[fieldId] = gmail.id;
@@ -90,9 +107,10 @@ export default function AccountCard({
   };
   const idp = `acc-${draft.id}`;
 
-  // Field values carry over where the new platform has the same field.
+  // Field values carry over where the new platform has the same field;
+  // login/access start from that platform's usual way of sharing.
   const pick = (platform: PlatformId, master = false) => {
-    onChange({ secret: { ...secret, platform, master }, chosen: true });
+    onChange({ secret: withIdentity(switchPlatform(secret, platform, master), identities), chosen: true });
     setChangingPlatform(false);
   };
 
@@ -151,7 +169,9 @@ export default function AccountCard({
   }
 
   const platform = getPlatform(secret.platform);
-  const issues = securityIssues(secret).filter((i) => i !== "client_not_told");
+  const issues = portal ? [] : securityIssues(secret).filter((i) => i !== "client_not_told");
+  const canLogin = platform.login !== "none";
+  const canAccess = Boolean(platform.access?.length);
 
   return (
     <Card variant="solid" className="p-4 md:p-5">
@@ -170,7 +190,7 @@ export default function AccountCard({
             Change platform
           </button>
         </div>
-        {issues.length === 0 ? (
+        {portal ? null : issues.length === 0 ? (
           <span className="inline-flex items-center gap-1 text-xs text-forest">
             <ShieldCheck className="size-3.5" aria-hidden />
             Secure
@@ -191,7 +211,31 @@ export default function AccountCard({
         )}
       </div>
 
-      {platform.note && <p className="text-small text-ink-muted mb-4">{platform.note}</p>}
+      {canLogin && canAccess && (
+        <div className="flex flex-wrap items-center gap-2 mb-4" role="group" aria-label="What's shared">
+          <span className="text-small text-ink-muted mr-1">{portal ? "How are you sharing it?" : "What I have:"}</span>
+          <HoldToggle
+            on={secret.loginHeld}
+            icon={KeyRound}
+            label={portal ? "Share the login" : "Login"}
+            onClick={() => setSecret({ loginHeld: !secret.loginHeld })}
+          />
+          <HoldToggle
+            on={secret.access.enabled}
+            icon={UserCheck}
+            label={portal ? "Give access" : "Access"}
+            onClick={() => setAccess({ enabled: !secret.access.enabled })}
+          />
+        </div>
+      )}
+
+      {/* Written for me, not the client — the portal shows the steps instead. */}
+      {platform.guidance && !portal && (
+        <p className="flex gap-2 text-small text-ink-muted bg-ink/[0.03] border border-ink/5 rounded-lg px-3 py-2 mb-4">
+          <Info className="size-4 shrink-0 mt-0.5" aria-hidden />
+          {platform.guidance}
+        </p>
+      )}
 
       {platform.id === "google_account" && (
         <div className="mb-4 rounded-lg border border-citrus/50 bg-citrus/10 px-3.5 py-3">
@@ -229,7 +273,7 @@ export default function AccountCard({
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {!hideTitle && (
+        {!portal && (
           <div className="sm:col-span-2">
             <Field label="Title" htmlFor={`${idp}-title`}>
               <input
@@ -243,7 +287,7 @@ export default function AccountCard({
           </div>
         )}
 
-        {platform.fields.map((field) => {
+        {platform.fields.filter((f) => !f.login || secret.loginHeld).map((field) => {
           const linked = field.linkable ? gmails.find((g) => g.id === secret.links[field.id]) : undefined;
           return field.linkable && (gmails.length > 0 || linked) ? (
             <LinkableInput
@@ -270,7 +314,18 @@ export default function AccountCard({
 
       <CustomFields idp={idp} secret={secret} setSecret={setSecret} />
 
-      {platform.signIn && (
+      {secret.access.enabled && canAccess && (
+        <AccessSection
+          idp={idp}
+          platform={platform}
+          access={secret.access}
+          identities={identities}
+          portal={portal}
+          onChange={setAccess}
+        />
+      )}
+
+      {platform.signIn && secret.loginHeld && (
         <section className="mt-5 pt-4 border-t border-ink/10">
           <p className="font-medium mb-3">2-step verification and recovery</p>
           <label className="inline-flex items-center gap-2.5 text-small cursor-pointer mb-4">
@@ -596,6 +651,178 @@ function GmailMenu({
         </button>
       ))}
     </div>
+  );
+}
+
+function HoldToggle({
+  on,
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  on: boolean;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-small transition-colors cursor-pointer",
+        on ? "border-ink bg-ink text-cloud" : "border-ink/20 text-ink-muted hover:text-ink hover:border-ink/40"
+      )}
+    >
+      {on ? <Check className="size-3.5" aria-hidden /> : <Icon className="size-3.5" aria-hidden />}
+      {label}
+    </button>
+  );
+}
+
+const STATUSES: AccessStatus[] = ["requested", "client_added", "verified"];
+
+/**
+ * The access grant: in the vault, who it was given to, the role and
+ * whether I've checked it; in the portal, the client's step-by-step
+ * instructions with my identity filled in.
+ */
+function AccessSection({
+  idp,
+  platform,
+  access,
+  identities,
+  portal,
+  onChange,
+}: {
+  idp: string;
+  platform: PlatformDef;
+  access: AccessGrant;
+  identities: AccessIdentities;
+  portal: boolean;
+  onChange: (patch: Partial<AccessGrant>) => void;
+}) {
+  const routes = platform.access ?? [];
+  const route = routes.find((r) => r.via === access.via) ?? routes[0];
+  if (!route) return null;
+  const identity = route.via === "custom" ? "" : (identities[route.via] ?? "");
+  const choose = (via: AccessGrant["via"]) => {
+    const next = routes.find((r) => r.via === via) ?? routes[0];
+    onChange({ via: next.via, role: next.roles[0], grantedTo: next.via === "custom" ? "" : (identities[next.via] ?? "") });
+  };
+
+  if (portal) {
+    const shown = identity || "(ask me for it)";
+    return (
+      <section className="mt-5 pt-4 border-t border-ink/10">
+        <p className="font-medium mb-3">Give me access</p>
+        {routes.length > 1 && (
+          <div className="flex flex-wrap gap-2 mb-3" role="group" aria-label="Way to give access">
+            {routes.map((r) => (
+              <HoldToggle key={r.via} on={r.via === route.via} icon={UserCheck} label={r.label} onClick={() => choose(r.via)} />
+            ))}
+          </div>
+        )}
+        <ol className="list-decimal pl-5 space-y-1.5 text-small">
+          {route.steps.map((step, i) => {
+            const [before, after] = step.split("{value}");
+            return (
+              <li key={i}>
+                {before}
+                {after !== undefined && (
+                  <>
+                    <strong className="font-semibold">{shown}</strong>
+                    {after}
+                  </>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+        <label className="flex items-center gap-2.5 mt-4 text-small cursor-pointer">
+          <input
+            type="checkbox"
+            checked={access.status !== "requested"}
+            onChange={(e) => onChange({ status: e.target.checked ? "client_added" : "requested" })}
+            className="size-4 accent-citrus cursor-pointer"
+          />
+          I&apos;ve done this
+        </label>
+      </section>
+    );
+  }
+
+  return (
+    <section className="mt-5 pt-4 border-t border-ink/10">
+      <p className="font-medium mb-3">Access</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="Given to" htmlFor={`${idp}-via`}>
+          <select id={`${idp}-via`} value={route.via} onChange={(e) => choose(e.target.value as AccessGrant["via"])} className={inputClasses}>
+            {routes.map((r) => (
+              <option key={r.via} value={r.via}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Role" htmlFor={`${idp}-role`}>
+          <select id={`${idp}-role`} value={access.role} onChange={(e) => onChange({ role: e.target.value })} className={inputClasses}>
+            {!route.roles.includes(access.role) && access.role && <option value={access.role}>{access.role}</option>}
+            {route.roles.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <div className="sm:col-span-2">
+          <Field
+            label={route.via === "custom" ? "Given to (email / account)" : identityLabel(route.via)}
+            htmlFor={`${idp}-granted`}
+            hint={
+              !identity && route.via !== "custom"
+                ? `Add your ${identityLabel(route.via).toLowerCase()} in Settings → My access accounts to fill this in automatically.`
+                : undefined
+            }
+          >
+            <input
+              id={`${idp}-granted`}
+              value={access.grantedTo}
+              placeholder={identity || "you@gmail.com"}
+              onChange={(e) => onChange({ grantedTo: e.target.value })}
+              className={inputClasses}
+            />
+          </Field>
+        </div>
+      </div>
+      <div className="mt-4">
+        <p className={labelClasses}>Status</p>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Access status">
+          {STATUSES.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => onChange({ status: s, verifiedAt: s === "verified" ? new Date().toISOString() : null })}
+              aria-pressed={access.status === s}
+              className={cn(
+                "rounded-full border px-3 py-1.5 text-small transition-colors cursor-pointer",
+                access.status === s
+                  ? s === "verified"
+                    ? "border-forest bg-forest/15 text-ink"
+                    : "border-ink bg-ink text-cloud"
+                  : "border-ink/20 text-ink-muted hover:text-ink"
+              )}
+            >
+              {ACCESS_STATUS_LABELS[s]}
+            </button>
+          ))}
+        </div>
+        {access.status === "verified" && access.verifiedAt && (
+          <p className="text-xs text-ink-subtle mt-2">Verified {formatDate(access.verifiedAt)}</p>
+        )}
+      </div>
+    </section>
   );
 }
 

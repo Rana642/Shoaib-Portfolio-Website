@@ -10,6 +10,7 @@ import { defaultTitle, emptySecret, platformLabel, trackPasswordChanges, type Va
 import { cn } from "@/lib/utils";
 import AccountCard, { type CardDraft } from "./AccountCard";
 import type { GmailOption, Item, VaultClient, VaultProject } from "./shared";
+import type { AccessIdentities } from "@/lib/access-identities";
 
 /** "own" = Shoaib's own accounts; otherwise a client id; "" = not chosen. */
 type Owner = "" | "own" | string;
@@ -37,6 +38,7 @@ export default function EntryEditor({
   initialProject = null,
   initialCards,
   heading,
+  identities,
   clients,
   projects,
   dataKey,
@@ -52,6 +54,8 @@ export default function EntryEditor({
   /** Pre-filled new accounts — e.g. what a client sent from the portal. */
   initialCards?: VaultSecret[];
   heading?: string;
+  /** Shoaib's own accounts that access gets granted to (Settings). */
+  identities: AccessIdentities;
   clients: VaultClient[];
   projects: VaultProject[];
   dataKey: CryptoKey;
@@ -246,6 +250,7 @@ export default function EntryEditor({
             key={c.id}
             draft={c}
             title={titleOf(c)}
+            identities={identities}
             gmails={gmails.filter((g) => g.id !== c.id)}
             usedBy={usedByOf(c.id)}
             onChange={(patch) => updateCard(c.id, patch)}

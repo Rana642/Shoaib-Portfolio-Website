@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { BellRing, ChevronDown, Crown, Link2, Plus, Send, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Card } from "@/components/dashboard/ui";
-import { ISSUE_LABELS, accountLabel, getPlatform, platformLabel, securityIssues } from "@/lib/vault-platforms";
+import { ISSUE_LABELS, accountLabel, getPlatform, holdingLabel, platformLabel, securityIssues } from "@/lib/vault-platforms";
 import type { VaultRequest } from "@/lib/dashboard/types";
 import { cn } from "@/lib/utils";
 import { PlatformIcon, iconButton, type Item, type VaultClient, type VaultProject } from "./shared";
@@ -269,6 +269,7 @@ function Row({
         </span>
         <span className="block text-small text-ink-muted truncate">
           {platformLabel(item.secret)}
+          {` · ${holdingLabel(item.secret)}`}
           {account && ` · ${account}`}
           {usedBy > 0 && ` · ${usedBy} account${usedBy === 1 ? " signs" : "s sign"} in with it`}
           {viaMaster && (

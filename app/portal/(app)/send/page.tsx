@@ -6,6 +6,7 @@ import { requirePortalUser } from "@/lib/portal/auth";
 import { isRequestKey } from "@/lib/vault-platforms";
 import { Card } from "@/components/dashboard/ui";
 import SendAccountsForm from "@/components/portal/SendAccountsForm";
+import { getAccessIdentities } from "@/lib/dashboard/settings";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Send accounts" };
@@ -29,9 +30,10 @@ export default async function SendAccountsPage({ searchParams }: { searchParams:
   }
 
   const requestsQuery = db.from("vault_requests").select("platform").eq("client_id", clientId).is("fulfilled_at", null);
-  const [{ data: meta }, { data: requests }] = await Promise.all([
+  const [{ data: meta }, { data: requests }, identities] = await Promise.all([
     db.from("vault_meta").select("public_key").eq("id", 1).maybeSingle(),
     projectId ? requestsQuery.eq("project_id", projectId) : requestsQuery.is("project_id", null),
+    getAccessIdentities(),
   ]);
   const requested = [...new Set((requests ?? []).map((r) => r.platform as string))].filter(isRequestKey);
 
@@ -51,7 +53,7 @@ export default async function SendAccountsPage({ searchParams }: { searchParams:
       </p>
 
       {meta?.public_key ? (
-        <SendAccountsForm projectId={projectId} where={where} publicKey={meta.public_key} requested={requested} />
+        <SendAccountsForm projectId={projectId} where={where} publicKey={meta.public_key} requested={requested} identities={identities} />
       ) : (
         <Card variant="solid" className="p-6 mt-8 flex gap-3">
           <Lock className="size-5 shrink-0 text-ink-muted" aria-hidden />

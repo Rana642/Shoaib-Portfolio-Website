@@ -1,5 +1,6 @@
 import { db } from "./db";
 import type { Settings } from "./types";
+import { normalizeIdentities, type AccessIdentities } from "../access-identities";
 
 const fallback: Settings = {
   id: 1,
@@ -25,4 +26,12 @@ const fallback: Settings = {
 export async function getSettings(): Promise<Settings> {
   const { data } = await db.from("settings").select("*").eq("id", 1).single();
   return (data as Settings) ?? fallback;
+}
+
+/** Shoaib's own accounts that clients grant access to (Settings → My
+ *  access accounts). Empty until set, or before its column exists. */
+export async function getAccessIdentities(): Promise<AccessIdentities> {
+  const { data, error } = await db.from("settings").select("access_identities").eq("id", 1).maybeSingle();
+  if (error || !data) return {};
+  return normalizeIdentities(data.access_identities);
 }

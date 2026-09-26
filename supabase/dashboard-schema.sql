@@ -993,3 +993,9 @@ alter table vault_requests enable row level security;
 alter table client_intakes add column if not exists business_overview text;
 alter table client_intakes add column if not exists usp text;
 alter table client_intakes add column if not exists design_references text;
+
+-- Shoaib's own accounts that clients grant access TO (Google account, Ads
+-- MCC ID, Meta Business portfolio ID…) — Settings → My access accounts.
+-- Prefills vault access grants and writes the portal's "give me access"
+-- steps. Not secret: it's exactly what a client types in to add him.
+alter table settings add column if not exists access_identities jsonb not null default '{}'::jsonb;

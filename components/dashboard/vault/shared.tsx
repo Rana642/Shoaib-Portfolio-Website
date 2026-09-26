@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   Briefcase,
+  Building2,
   ChartLine,
   Check,
   Copy,
@@ -13,7 +14,9 @@ import {
   MapPin,
   Megaphone,
   MessageCircle,
+  SearchCheck,
   Server,
+  Tags,
 } from "lucide-react";
 import { FacebookIcon, InstagramIcon, LinkedinIcon, TikTokIcon, YoutubeIcon } from "@/components/ui/SocialIcons";
 import type { PlatformId, VaultSecret } from "@/lib/vault-platforms";
@@ -116,10 +119,13 @@ const ICONS: Record<PlatformId, React.ComponentType<{ className?: string }>> = {
   google_account: Mail,
   google_ads: Megaphone,
   google_analytics: ChartLine,
+  google_tag_manager: Tags,
+  search_console: SearchCheck,
   google_business: MapPin,
   tiktok: TikTokIcon,
   youtube: YoutubeIcon,
   linkedin: LinkedinIcon,
+  linkedin_page: Building2,
   whatsapp_business: MessageCircle,
   website_hosting: Server,
   domain: Globe,

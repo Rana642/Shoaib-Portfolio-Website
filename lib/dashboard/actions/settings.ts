@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "../db";
 import { getAdminUser } from "../auth";
+import { IDENTITY_KEYS } from "../../access-identities";
 
 const settingsSchema = z.object({
   business_name: z.string().min(1).max(200),
@@ -55,6 +56,33 @@ export async function updateSettings(formData: FormData) {
 
   if (error) return { error: error.message };
 
+  revalidatePath("/dashboard/settings");
+  return { ok: true };
+}
+
+/** Saves Settings → My access accounts. */
+export async function updateAccessIdentities(values: Record<string, string>) {
+  const user = await getAdminUser();
+  if (!user) redirect("/dashboard/login");
+
+  const cleaned: Record<string, string> = {};
+  for (const key of IDENTITY_KEYS) {
+    const v = String(values[key] ?? "").trim();
+    if (v.length > 300) return { error: "One of the values is too long." };
+    if (v) cleaned[key] = v;
+  }
+  const { error } = await db
+    .from("settings")
+    .update({ access_identities: cleaned, updated_at: new Date().toISOString() })
+    .eq("id", 1);
+  if (error) {
+    return {
+      error:
+        error.code === "PGRST204"
+          ? "One-time setup: run the “access_identities” line from supabase/dashboard-schema.sql in the Supabase SQL Editor."
+          : error.message,
+    };
+  }
   revalidatePath("/dashboard/settings");
   return { ok: true };
 }

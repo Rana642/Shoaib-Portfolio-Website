@@ -13,9 +13,11 @@ import {
   emptySecret,
   requestKeyOf,
   secretForRequestKey,
+  withIdentity,
   type RequestKey,
   type VaultSecret,
 } from "@/lib/vault-platforms";
+import type { AccessIdentities } from "@/lib/access-identities";
 import { cn } from "@/lib/utils";
 
 // Card ids are local to this form (the vault gives entries real ids on
@@ -40,6 +42,7 @@ export default function SendAccountsForm({
   where,
   publicKey,
   requested,
+  identities,
 }: {
   projectId: string | null;
   /** Project (or client) name, used to title the entries. */
@@ -47,11 +50,13 @@ export default function SendAccountsForm({
   publicKey: string;
   /** What I've asked for here — pre-added as cards. */
   requested: RequestKey[];
+  /** Shoaib's accounts, for the "give me access" steps. */
+  identities: AccessIdentities;
 }) {
   const router = useRouter();
   const [cards, setCards] = useState<CardDraft[]>(() =>
     requested.length
-      ? requested.map((key, i) => draftFor(`requested-${i}`, secretForRequestKey(key), true))
+      ? requested.map((key, i) => draftFor(`requested-${i}`, withIdentity(secretForRequestKey(key), identities), true))
       : [draftFor("first", emptySecret("other"), false)]
   );
   const [dirty, setDirty] = useState(false);
@@ -133,7 +138,8 @@ export default function SendAccountsForm({
             key={c.id}
             draft={c}
             title=""
-            hideTitle
+            portal
+            identities={identities}
             gmails={[]}
             usedBy={[]}
             onChange={(patch) => update(c.id, patch)}

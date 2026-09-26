@@ -37,6 +37,7 @@ import VaultList from "./vault/VaultList";
 import NotifyClientModal from "./vault/NotifyClientModal";
 import RequestModal from "./vault/RequestModal";
 import type { Item, VaultClient, VaultProject } from "./vault/shared";
+import type { AccessIdentities } from "@/lib/access-identities";
 
 const AUTO_LOCK_MS = 10 * 60 * 1000; // 10 minutes idle
 
@@ -74,10 +75,12 @@ export default function VaultApp({
   meta,
   clients,
   projects,
+  identities,
 }: {
   meta: VaultMeta | null;
   clients: VaultClient[];
   projects: VaultProject[];
+  identities: AccessIdentities;
 }) {
   const [dataKey, setDataKey] = useState<CryptoKey | null>(null);
   const dkRawRef = useRef<Uint8Array | null>(null);
@@ -285,6 +288,7 @@ export default function VaultApp({
         initialOwner={view.kind === "add" ? view.owner : (submission?.client_id ?? undefined)}
         initialProject={submission?.project_id ?? null}
         initialCards={submission?.accounts}
+        identities={identities}
         heading={submission ? `From ${from ?? "a client"} — review and save` : undefined}
         clients={clients}
         projects={projects}
