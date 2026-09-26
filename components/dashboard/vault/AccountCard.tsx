@@ -63,10 +63,13 @@ export default function AccountCard({
   usedBy,
   onChange,
   onRemove,
+  hideTitle = false,
 }: {
   draft: CardDraft;
   /** What the title field shows — the auto title until it's been edited. */
   title: string;
+  /** The client portal names entries automatically — no title field there. */
+  hideTitle?: boolean;
   /** Gmails of the same client/own vault that sign-in fields can link to. */
   gmails: GmailOption[];
   /** For a Gmail: titles of the accounts that sign in with it. */
@@ -226,17 +229,19 @@ export default function AccountCard({
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="sm:col-span-2">
-          <Field label="Title" htmlFor={`${idp}-title`}>
-            <input
-              id={`${idp}-title`}
-              value={title}
-              maxLength={200}
-              onChange={(e) => onChange({ secret: { ...secret, title: e.target.value }, titleTouched: true })}
-              className={inputClasses}
-            />
-          </Field>
-        </div>
+        {!hideTitle && (
+          <div className="sm:col-span-2">
+            <Field label="Title" htmlFor={`${idp}-title`}>
+              <input
+                id={`${idp}-title`}
+                value={title}
+                maxLength={200}
+                onChange={(e) => onChange({ secret: { ...secret, title: e.target.value }, titleTouched: true })}
+                className={inputClasses}
+              />
+            </Field>
+          </div>
+        )}
 
         {platform.fields.map((field) => {
           const linked = field.linkable ? gmails.find((g) => g.id === secret.links[field.id]) : undefined;

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { BellRing, ChevronDown, Crown, Link2, Plus, ShieldCheck, TriangleAlert } from "lucide-react";
+import { BellRing, ChevronDown, Crown, Link2, Plus, Send, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Card } from "@/components/dashboard/ui";
 import { ISSUE_LABELS, accountLabel, getPlatform, platformLabel, securityIssues } from "@/lib/vault-platforms";
+import type { VaultRequest } from "@/lib/dashboard/types";
 import { cn } from "@/lib/utils";
 import { PlatformIcon, iconButton, type Item, type VaultClient, type VaultProject } from "./shared";
 
@@ -72,6 +73,8 @@ export default function VaultList({
   onOpen,
   onAdd,
   onTellClient,
+  requests = [],
+  onRequest,
 }: {
   items: Item[];
   clients: VaultClient[];
@@ -81,6 +84,10 @@ export default function VaultList({
   onOpen: (item: Item) => void;
   onAdd: (owner: "own" | string) => void;
   onTellClient: (clientId: string, items: Item[]) => void;
+  /** Open portal requests, shown as a count on each client's group. */
+  requests?: VaultRequest[];
+  /** Ask this client for accounts (only once the portal is set up). */
+  onRequest?: (clientId: string) => void;
 }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
@@ -170,6 +177,20 @@ export default function VaultList({
                 >
                   <BellRing className="size-3.5" aria-hidden />
                   Tell client about {g.untold.length} password change{g.untold.length === 1 ? "" : "s"}
+                </button>
+              )}
+              {g.owner && g.owner !== "own" && onRequest && (
+                <button
+                  type="button"
+                  onClick={() => onRequest(g.owner!)}
+                  title="Ask for accounts through their portal"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-ink/15 px-2.5 py-1 text-xs text-ink-muted hover:text-ink cursor-pointer"
+                >
+                  <Send className="size-3.5" aria-hidden />
+                  {(() => {
+                    const open = requests.filter((r) => r.client_id === g.owner).length;
+                    return open ? `${open} requested` : "Request";
+                  })()}
                 </button>
               )}
               {g.owner && (

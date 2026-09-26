@@ -35,6 +35,8 @@ export default function EntryEditor({
   items,
   initialOwner = "",
   initialProject = null,
+  initialCards,
+  heading,
   clients,
   projects,
   dataKey,
@@ -47,6 +49,9 @@ export default function EntryEditor({
   items: Item[];
   initialOwner?: Owner;
   initialProject?: string | null;
+  /** Pre-filled new accounts — e.g. what a client sent from the portal. */
+  initialCards?: VaultSecret[];
+  heading?: string;
   clients: VaultClient[];
   projects: VaultProject[];
   dataKey: CryptoKey;
@@ -59,7 +64,16 @@ export default function EntryEditor({
   const [cards, setCards] = useState<CardDraft[]>(() =>
     item
       ? [{ id: item.id, isNew: false, secret: item.secret, original: item.secret, chosen: true, titleTouched: true }]
-      : [newCard()]
+      : initialCards?.length
+        ? initialCards.map((secret) => ({
+            id: crypto.randomUUID(),
+            isNew: true,
+            secret,
+            original: null,
+            chosen: true,
+            titleTouched: Boolean(secret.title),
+          }))
+        : [newCard()]
   );
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -172,7 +186,7 @@ export default function EntryEditor({
         <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-1" aria-hidden />
         Back to vault
       </button>
-      <h2 className="font-serif italic text-h3 mb-5">{editing ? "Edit account" : "Add accounts"}</h2>
+      <h2 className="font-serif italic text-h3 mb-5">{heading ?? (editing ? "Edit account" : "Add accounts")}</h2>
 
       <Card className="p-4 md:p-5 mb-4">
         <label htmlFor="vault-owner" className={labelClasses}>

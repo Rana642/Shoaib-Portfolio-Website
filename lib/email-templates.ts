@@ -119,6 +119,46 @@ export function onboardingInviteEmail(data: { name: string; url: string }) {
   `);
 }
 
+const button = (url: string, label: string) => `
+    <p style="margin: 24px 0;">
+      <a href="${url}" style="display: inline-block; background: #FEC107; color: #0F0F14; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
+        ${label}
+      </a>
+    </p>`;
+
+/** Invites someone at a client into the client portal. */
+export function portalInviteEmail(data: { name: string; clientName: string; url: string }) {
+  return wrapper(`
+    <h2 style="font-size: 18px; margin: 0 0 16px;">Your client portal is ready</h2>
+    <p style="font-size: 14px; line-height: 1.6;">
+      Hi ${escapeHtml(data.name)},<br /><br />
+      I've set up a private portal for ${escapeHtml(data.clientName)}. It's where you'll send me
+      your account logins securely — they're encrypted on your device before they leave it —
+      and, soon, see your content planner and reports.
+    </p>
+    ${button(data.url, "Set your password")}
+    <p style="font-size: 13px; line-height: 1.6; color: #666;">
+      The link works once. If it has expired, reply to this email and I'll send a fresh one.<br /><br />
+      — Shoaib
+    </p>
+  `);
+}
+
+/** Password reset for a client-portal user. */
+export function portalResetEmail(data: { url: string }) {
+  return wrapper(`
+    <h2 style="font-size: 18px; margin: 0 0 16px;">Reset your portal password</h2>
+    <p style="font-size: 14px; line-height: 1.6;">
+      Someone asked to reset the password for your Ads by Shoaib client portal. If that was you,
+      choose a new one here:
+    </p>
+    ${button(data.url, "Choose a new password")}
+    <p style="font-size: 13px; line-height: 1.6; color: #666;">
+      If you didn't ask for this, you can ignore this email — your password stays the same.
+    </p>
+  `);
+}
+
 /** Tells a client which of their accounts had a password changed for
  *  security. Deliberately never includes a password — only which accounts. */
 export function passwordChangeNoticeEmail(data: { name: string; accounts: string[] }) {

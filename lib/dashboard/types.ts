@@ -9,6 +9,37 @@ export type VaultMeta = {
   wrapped_dk_iv: string;
   wrapped_dk_recovery: string;
   wrapped_dk_recovery_iv: string;
+  /** Keypair for client-portal submissions (null until first unlock after
+   *  the portal shipped): public key plaintext, private key wrapped by DK. */
+  public_key: string | null;
+  wrapped_private_key: string | null;
+  wrapped_private_key_iv: string | null;
+};
+
+/** Logins a client sent from the portal, sealed to the vault's public key.
+ *  `platforms` is plaintext only to drive the client's status list. */
+export type VaultSubmission = {
+  id: string;
+  created_at: string;
+  client_id: string;
+  project_id: string | null;
+  platforms: string[];
+  wrapped_key: string;
+  ciphertext: string;
+  iv: string;
+  status: "received" | "imported";
+  imported_at: string | null;
+};
+
+/** An account Shoaib has asked a client for, via the portal. */
+export type VaultRequest = {
+  id: string;
+  created_at: string;
+  client_id: string;
+  project_id: string | null;
+  platform: string;
+  note: string | null;
+  fulfilled_at: string | null;
 };
 
 /** A vault entry as stored. Everything describing the account — title,

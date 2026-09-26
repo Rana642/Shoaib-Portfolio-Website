@@ -360,9 +360,50 @@ export function normalizeSecret(raw: unknown): VaultSecret {
   };
 }
 
+/** An account a client sent through the portal, made safe to import: only
+ *  what they typed survives — never links into the vault, password
+ *  history, notification state or "own account" flags. */
+export function sanitizeSubmitted(raw: unknown): VaultSecret {
+  const secret = normalizeSecret(raw);
+  return {
+    ...secret,
+    own: false,
+    links: {},
+    passwordHistory: [],
+    passwordChangedAt: null,
+    clientNotifiedAt: null,
+  };
+}
+
 /** "Gmail / Google" — or "Master Gmail" for a client's main Google account. */
 export function platformLabel(secret: Pick<VaultSecret, "platform" | "master">): string {
   return secret.master ? "Master Gmail" : getPlatform(secret.platform).label;
+}
+
+/**
+ * What an account is "for" in portal requests and the client's status list:
+ * a platform id, or "master_gmail" for a master Gmail (a Gmail entry with
+ * the master flag). Stored in plaintext on requests/submissions, so it
+ * never includes anything about the account itself.
+ */
+export type RequestKey = PlatformId | "master_gmail";
+
+export function requestKeyOf(secret: Pick<VaultSecret, "platform" | "master">): RequestKey {
+  return secret.master ? "master_gmail" : secret.platform;
+}
+
+export function requestKeyLabel(key: string): string {
+  if (key === "master_gmail") return "Master Gmail";
+  return BY_ID.get(key as PlatformId)?.label ?? "Other";
+}
+
+export function isRequestKey(key: string): key is RequestKey {
+  return key === "master_gmail" || BY_ID.has(key as PlatformId);
+}
+
+/** A blank account card for a request key (master Gmail = Gmail + flag). */
+export function secretForRequestKey(key: RequestKey): VaultSecret {
+  return key === "master_gmail" ? { ...emptySecret("google_account"), master: true } : emptySecret(key);
 }
 
 /** "Toni and Guy — Instagram" — the title an entry gets until it's edited. */

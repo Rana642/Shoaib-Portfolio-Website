@@ -1,14 +1,16 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { isAdmin } from "@/lib/dashboard/roles";
+import type { User } from "@supabase/supabase-js";
+import { isAdmin, portalClientId } from "@/lib/dashboard/roles";
 
 /**
  * Two jobs on every request:
  *  1. Security headers (CSP, HSTS, etc.) on all HTML routes — defence in
  *     depth for the whole site, and especially the browser-side vault.
- *  2. Auth for /dashboard: refreshes the Supabase session cookie and
- *     redirects to login when there's no valid session (a middleware-level
- *     guard; the dashboard layout re-checks too, so a bypass fails closed —
+ *  2. Auth for /dashboard (admin) and /portal (clients): refreshes the
+ *     Supabase session cookie and redirects to that area's login when the
+ *     session lacks its role (a middleware-level guard; both layouts
+ *     re-check too, so a bypass fails closed —
  *     see CVE-2025-29927: middleware alone is never the only boundary).
  *
  * Named `proxy` in `proxy.ts` — Next 16 renamed this from `middleware`.
@@ -97,15 +99,44 @@ function applySecurityHeaders(res: NextResponse, applyCsp: boolean, pathname: st
   );
 }
 
+type AuthArea = {
+  home: string;
+  login: string;
+  /** Reachable without the area's role (login, password setup…). */
+  publicPaths: string[];
+  allows: (user: User | null) => boolean;
+};
+
+const AUTH_AREAS: Record<"dashboard" | "portal", AuthArea> = {
+  dashboard: {
+    home: "/dashboard",
+    login: "/dashboard/login",
+    publicPaths: ["/dashboard/login"],
+    allows: isAdmin,
+  },
+  portal: {
+    home: "/portal",
+    login: "/portal/login",
+    publicPaths: ["/portal/login", "/portal/forgot", "/portal/welcome"],
+    allows: (user) => portalClientId(user) !== null,
+  },
+};
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const applyCsp = !pathname.startsWith("/studio");
 
   let response = NextResponse.next({ request });
 
-  // ── Auth: only /dashboard needs a session; skip the Supabase round-trip
-  //    everywhere else so marketing/API stay fast. ──
-  if (pathname.startsWith("/dashboard")) {
+  // ── Auth: only /dashboard (admin) and /portal (clients) need a session;
+  //    skip the Supabase round-trip everywhere else so marketing/API stay
+  //    fast. ──
+  const area = pathname.startsWith("/dashboard")
+    ? AUTH_AREAS.dashboard
+    : pathname === "/portal" || pathname.startsWith("/portal/")
+      ? AUTH_AREAS.portal
+      : null;
+  if (area) {
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL || "",
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
@@ -127,25 +158,25 @@ export async function proxy(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    const isLoginPage = pathname === "/dashboard/login";
-    // Signed in isn't enough — only the admin role gets past the login page
-    // (lib/dashboard/roles.ts). Anyone else is treated as signed out here,
-    // which also keeps a non-admin session from ping-ponging between
-    // /dashboard and the login page.
-    const admin = isAdmin(user);
+    // Signed in isn't enough — each area needs its own role
+    // (lib/dashboard/roles.ts): admin for the dashboard, client for the
+    // portal. Anyone else is treated as signed out here, which also keeps a
+    // wrong-role session from ping-ponging between an area and its login.
+    const allowed = area.allows(user);
 
-    if (!admin && !isLoginPage) {
+    if (!allowed && !area.publicPaths.includes(pathname)) {
       const loginUrl = request.nextUrl.clone();
-      loginUrl.pathname = "/dashboard/login";
+      loginUrl.pathname = area.login;
+      loginUrl.search = "";
       loginUrl.searchParams.set("next", pathname);
       return NextResponse.redirect(loginUrl);
     }
 
-    if (admin && isLoginPage) {
-      const dashboardUrl = request.nextUrl.clone();
-      dashboardUrl.pathname = "/dashboard";
-      dashboardUrl.search = "";
-      return NextResponse.redirect(dashboardUrl);
+    if (allowed && pathname === area.login) {
+      const homeUrl = request.nextUrl.clone();
+      homeUrl.pathname = area.home;
+      homeUrl.search = "";
+      return NextResponse.redirect(homeUrl);
     }
   }
 

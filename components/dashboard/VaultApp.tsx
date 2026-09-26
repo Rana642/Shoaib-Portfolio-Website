@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { KeyRound, Lock, Plus, RefreshCw, Search } from "lucide-react";
+import { Inbox, KeyRound, Lock, Plus, RefreshCw, Search, Send } from "lucide-react";
 import {
   setupVault,
   unlockWithPassword,
@@ -10,6 +10,9 @@ import {
   rewrapRecovery,
   encryptSecret,
   decryptSecret,
+  generateVaultKeypair,
+  unwrapVaultPrivateKey,
+  openVaultSeal,
 } from "@/lib/vault-crypto";
 import {
   getVaultMeta,
@@ -18,20 +21,41 @@ import {
   updateVaultRecovery,
   listVaultEntries,
   updateVaultEntry,
+  setVaultKeypair,
+  listVaultSubmissions,
+  listVaultRequests,
+  markSubmissionImported,
 } from "@/lib/dashboard/actions/vault";
-import { normalizeSecret, securityIssues } from "@/lib/vault-platforms";
-import { buttonStyles, inputClasses } from "@/components/dashboard/ui";
-import type { VaultEntry, VaultMeta } from "@/lib/dashboard/types";
+import { normalizeSecret, platformLabel, sanitizeSubmitted, securityIssues, type VaultSecret } from "@/lib/vault-platforms";
+import { Card, buttonStyles, inputClasses } from "@/components/dashboard/ui";
+import type { VaultEntry, VaultMeta, VaultRequest } from "@/lib/dashboard/types";
+import { formatDate } from "@/lib/dashboard/format";
 import { cn } from "@/lib/utils";
 import { ChangeMasterModal, RecoveryKeyModal, SetupScreen, UnlockScreen } from "./vault/LockScreens";
 import EntryEditor from "./vault/EntryEditor";
 import VaultList from "./vault/VaultList";
 import NotifyClientModal from "./vault/NotifyClientModal";
+import RequestModal from "./vault/RequestModal";
 import type { Item, VaultClient, VaultProject } from "./vault/shared";
 
 const AUTO_LOCK_MS = 10 * 60 * 1000; // 10 minutes idle
 
-type View = { kind: "list" } | { kind: "add"; owner: string } | { kind: "edit"; item: Item };
+/** What a client sent from the portal, opened in the unlocked browser. */
+type InboxItem = {
+  id: string;
+  client_id: string;
+  project_id: string | null;
+  created_at: string;
+  accounts: VaultSecret[];
+  /** Couldn't be opened — can only be discarded. */
+  broken: boolean;
+};
+
+type View =
+  | { kind: "list" }
+  | { kind: "add"; owner: string }
+  | { kind: "edit"; item: Item }
+  | { kind: "import"; submission: InboxItem };
 
 async function decryptAll(key: CryptoKey, rows: VaultEntry[]): Promise<Item[]> {
   return Promise.all(
@@ -67,6 +91,13 @@ export default function VaultApp({
   const [newRecoveryKey, setNewRecoveryKey] = useState<string | null>(null);
   const [changingMaster, setChangingMaster] = useState(false);
   const [notify, setNotify] = useState<{ clientId: string; items: Item[] } | null>(null);
+  // Client-portal side: the vault's private key (only while unlocked), what
+  // clients have sent, and the accounts I've asked them for.
+  const privateKeyRef = useRef<CryptoKey | null>(null);
+  const [inbox, setInbox] = useState<InboxItem[]>([]);
+  const [requests, setRequests] = useState<VaultRequest[]>([]);
+  const [requesting, setRequesting] = useState<string | null>(null);
+  const [portalReady, setPortalReady] = useState(false);
 
   // Always read entries fresh, so another tab's (or device's) changes show.
   const reload = useCallback(async (key: CryptoKey) => {
@@ -81,7 +112,66 @@ export default function VaultApp({
     setNewRecoveryKey(null);
     setChangingMaster(false);
     setNotify(null);
+    privateKeyRef.current = null;
+    setInbox([]);
+    setRequests([]);
+    setRequesting(null);
+    setPortalReady(false);
   }, []);
+
+  const loadPortal = useCallback(async () => {
+    const privateKey = privateKeyRef.current;
+    if (!privateKey) return;
+    const [submissions, openRequests] = await Promise.all([listVaultSubmissions(), listVaultRequests()]);
+    setRequests(openRequests);
+    setInbox(
+      await Promise.all(
+        submissions.map(async (s) => {
+          const base = { id: s.id, client_id: s.client_id, project_id: s.project_id, created_at: s.created_at };
+          try {
+            const payload = await openVaultSeal<{ accounts?: unknown[] }>(privateKey, s);
+            const accounts = Array.isArray(payload.accounts) ? payload.accounts.slice(0, 30).map(sanitizeSubmitted) : [];
+            return { ...base, accounts, broken: false };
+          } catch {
+            return { ...base, accounts: [], broken: true };
+          }
+        })
+      )
+    );
+  }, []);
+
+  // The portal keypair: minted once, on the first unlock after the portal
+  // shipped; after that just unwrapped. If the database isn't ready for it
+  // yet, the portal features simply stay hidden.
+  const preparePortal = useCallback(
+    async (key: CryptoKey, current: VaultMeta) => {
+      try {
+        let wrapped = current.wrapped_private_key;
+        let iv = current.wrapped_private_key_iv;
+        if (!current.public_key) {
+          const keypair = await generateVaultKeypair(key);
+          const res = await setVaultKeypair(keypair);
+          if ("error" in res && res.error) return;
+          if ("stored" in res && res.stored) {
+            wrapped = keypair.wrapped_private_key;
+            iv = keypair.wrapped_private_key_iv;
+          } else {
+            // Another tab got there first — use the key it stored.
+            const fresh = await getVaultMeta();
+            wrapped = fresh?.wrapped_private_key ?? null;
+            iv = fresh?.wrapped_private_key_iv ?? null;
+          }
+        }
+        if (!wrapped || !iv) return;
+        privateKeyRef.current = await unwrapVaultPrivateKey(key, wrapped, iv);
+        setPortalReady(true);
+        await loadPortal();
+      } catch {
+        /* portal features stay hidden this session */
+      }
+    },
+    [loadPortal]
+  );
 
   // Auto-lock after idle — unsaved edits are dropped with the key.
   useEffect(() => {
@@ -100,7 +190,7 @@ export default function VaultApp({
   }, [dataKey, lock]);
 
   // Opens the vault with a data key: load and decrypt every entry first.
-  const open = async (key: CryptoKey, dkRaw: Uint8Array) => {
+  const open = async (key: CryptoKey, dkRaw: Uint8Array, current: VaultMeta) => {
     try {
       await reload(key);
     } catch {
@@ -109,6 +199,7 @@ export default function VaultApp({
     }
     dkRawRef.current = dkRaw;
     setDataKey(key);
+    void preparePortal(key, current);
   };
 
   // ── Locked / setup screens ───────────────────────────────────
@@ -131,7 +222,7 @@ export default function VaultApp({
               setError("Wrong master password.");
               return;
             }
-            await open(unlocked.dataKey, unlocked.dkRaw);
+            await open(unlocked.dataKey, unlocked.dkRaw, current);
           } finally {
             setBusy(false);
           }
@@ -153,7 +244,7 @@ export default function VaultApp({
               setError(`The key worked, but the new password couldn't be saved: ${res.error}`);
               return;
             }
-            await open(unlocked.dataKey, unlocked.dkRaw);
+            await open(unlocked.dataKey, unlocked.dkRaw, current);
           } finally {
             setBusy(false);
           }
@@ -182,20 +273,32 @@ export default function VaultApp({
     );
   }
 
-  // ── Add / edit ───────────────────────────────────────────────
+  // ── Add / edit / import ──────────────────────────────────────
   if (view.kind !== "list") {
+    const submission = view.kind === "import" ? view.submission : null;
+    const from = submission ? clients.find((c) => c.id === submission.client_id)?.name : null;
     return (
       <EntryEditor
-        key={view.kind === "edit" ? view.item.id : "add"}
+        key={view.kind === "edit" ? view.item.id : (submission?.id ?? "add")}
         item={view.kind === "edit" ? view.item : undefined}
         items={items}
-        initialOwner={view.kind === "add" ? view.owner : undefined}
+        initialOwner={view.kind === "add" ? view.owner : (submission?.client_id ?? undefined)}
+        initialProject={submission?.project_id ?? null}
+        initialCards={submission?.accounts}
+        heading={submission ? `From ${from ?? "a client"} — review and save` : undefined}
         clients={clients}
         projects={projects}
         dataKey={dataKey}
         onClose={async (saved) => {
           setView({ kind: "list" });
-          if (saved) await reload(dataKey).catch(() => setError("Saved — but the list couldn't refresh. Reload the page."));
+          if (!saved) return;
+          // Once it's in the vault, the portal copy is wiped (status stays).
+          if (submission) {
+            const res = await markSubmissionImported(submission.id);
+            if ("error" in res && res.error) setError(`Saved to the vault, but the submission couldn't be cleared: ${res.error}`);
+            await loadPortal().catch(() => {});
+          }
+          await reload(dataKey).catch(() => setError("Saved — but the list couldn't refresh. Reload the page."));
         }}
       />
     );
@@ -263,6 +366,12 @@ export default function VaultApp({
           <Plus className="size-4" aria-hidden />
           Add accounts
         </button>
+        {portalReady && (
+          <button onClick={() => setRequesting("")} className={buttonStyles.secondary} title="Ask a client for accounts through their portal">
+            <Send className="size-4" aria-hidden />
+            Request accounts
+          </button>
+        )}
         <button onClick={() => setChangingMaster(true)} className={buttonStyles.secondary} title="Change your master password">
           <KeyRound className="size-4" aria-hidden />
           Master password
@@ -301,6 +410,55 @@ export default function VaultApp({
         <p className="text-small text-red-700 bg-red-500/10 border border-red-600/20 rounded-lg px-4 py-3 mb-4">{error}</p>
       )}
 
+      {inbox.length > 0 && (
+        <Card className="p-4 md:p-5 mb-5 border-citrus/60">
+          <p className="flex items-center gap-2 font-medium">
+            <Inbox className="size-4" aria-hidden />
+            From the client portal ({inbox.length})
+          </p>
+          <ul className="mt-3 divide-y divide-ink/5">
+            {inbox.map((s) => {
+              const client = clients.find((c) => c.id === s.client_id)?.name ?? "A client";
+              const project = projects.find((p) => p.id === s.project_id)?.name;
+              return (
+                <li key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-3">
+                  <span className="min-w-0">
+                    <span className="block font-medium">
+                      {client}
+                      {project && <span className="font-normal text-ink-muted"> · {project}</span>}
+                    </span>
+                    <span className="block text-small text-ink-muted">
+                      {s.broken
+                        ? "This one couldn't be opened."
+                        : `${s.accounts.length} account${s.accounts.length === 1 ? "" : "s"}: ${s.accounts.map(platformLabel).join(", ")}`}{" "}
+                      · sent {formatDate(s.created_at)}
+                    </span>
+                  </span>
+                  <span className="ml-auto flex gap-2">
+                    {!s.broken && (
+                      <button type="button" onClick={() => setView({ kind: "import", submission: s })} className={buttonStyles.primary}>
+                        Review and save
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!window.confirm("Discard this submission without saving it? The client will see it as secured.")) return;
+                        await markSubmissionImported(s.id);
+                        await loadPortal();
+                      }}
+                      className={buttonStyles.secondary}
+                    >
+                      Discard
+                    </button>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      )}
+
       <VaultList
         items={items}
         clients={clients}
@@ -310,7 +468,20 @@ export default function VaultApp({
         onOpen={(item) => setView({ kind: "edit", item })}
         onAdd={(owner) => setView({ kind: "add", owner })}
         onTellClient={(clientId, pending) => setNotify({ clientId, items: pending })}
+        requests={requests}
+        onRequest={portalReady ? (clientId) => setRequesting(clientId) : undefined}
       />
+
+      {requesting !== null && (
+        <RequestModal
+          clients={clients}
+          projects={projects}
+          requests={requests}
+          initialClientId={requesting}
+          onClose={() => setRequesting(null)}
+          onChanged={loadPortal}
+        />
+      )}
 
       {newRecoveryKey && <RecoveryKeyModal recoveryKey={newRecoveryKey} onClose={() => setNewRecoveryKey(null)} />}
       {changingMaster && <ChangeMasterModal onChange={changeMaster} onClose={() => setChangingMaster(false)} />}

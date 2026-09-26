@@ -926,3 +926,63 @@ alter table letters enable row level security;
 alter table vault_entries add column if not exists project_id uuid references client_projects (id) on delete set null;
 alter table vault_entries alter column title set default '';
 create index if not exists vault_entries_project_idx on vault_entries (project_id);
+
+-- ── Client portal (2026-09-26) ───────────────────────────────
+-- /portal: clients sign in to see their projects and send Shoaib their
+-- account logins. A portal user is a Supabase auth user whose app_metadata
+-- is { role: 'client', client_id } — written only by the dashboard invite
+-- (service role), never by the user. This table lists who has access, for
+-- the "Portal access" card on a client's page.
+create table if not exists client_portal_users (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  client_id uuid not null references clients (id) on delete cascade,
+  user_id uuid not null unique,          -- auth.users.id
+  email text not null,
+  last_invited_at timestamptz not null default now()
+);
+create index if not exists client_portal_users_client_idx on client_portal_users (client_id);
+alter table client_portal_users enable row level security;
+
+-- Vault keypair, so a client can encrypt logins TO the vault without being
+-- able to read anything back: the public key is plaintext (RSA-OAEP, SPKI),
+-- the private key is encrypted with the vault's data key in Shoaib's
+-- browser — the server can never decrypt a submission.
+alter table vault_meta add column if not exists public_key text;
+alter table vault_meta add column if not exists wrapped_private_key text;
+alter table vault_meta add column if not exists wrapped_private_key_iv text;
+
+-- Logins a client sent from the portal. Hybrid encryption: a one-off AES
+-- key encrypts the payload, and is itself RSA-encrypted to the vault public
+-- key. `platforms` (plaintext ids like 'instagram') only drives the status
+-- list the client sees. Once Shoaib imports a submission into the vault its
+-- ciphertext is wiped and only the status remains.
+create table if not exists vault_submissions (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  client_id uuid not null references clients (id) on delete cascade,
+  project_id uuid references client_projects (id) on delete set null,
+  submitted_by uuid,                     -- auth.users.id of the portal user
+  platforms text[] not null default '{}',
+  wrapped_key text not null default '',
+  ciphertext text not null default '',
+  iv text not null default '',
+  status text not null default 'received' check (status in ('received', 'imported')),
+  imported_at timestamptz
+);
+create index if not exists vault_submissions_client_idx on vault_submissions (client_id, created_at desc);
+alter table vault_submissions enable row level security;
+
+-- Accounts Shoaib has asked a client for — shown in the portal as
+-- "requested" until the client sends that platform for that project.
+create table if not exists vault_requests (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  client_id uuid not null references clients (id) on delete cascade,
+  project_id uuid references client_projects (id) on delete cascade,
+  platform text not null,
+  note text,
+  fulfilled_at timestamptz
+);
+create index if not exists vault_requests_client_idx on vault_requests (client_id);
+alter table vault_requests enable row level security;

@@ -8,6 +8,8 @@ import { PageHeader, Card, StatusBadge } from "@/components/dashboard/ui";
 import ClientForm from "@/components/dashboard/ClientForm";
 import ClientProjectsManager from "@/components/dashboard/ClientProjectsManager";
 import DeleteButton from "@/components/dashboard/DeleteButton";
+import PortalAccess from "@/components/dashboard/PortalAccess";
+import { listPortalMembers } from "@/lib/dashboard/portal-users";
 import type { Client, ClientProject, Invoice, Quotation } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
@@ -15,12 +17,13 @@ export const dynamic = "force-dynamic";
 export default async function EditClientPage({ params }: PageProps<"/dashboard/clients/[id]">) {
   const { id } = await params;
 
-  const [{ data: client }, { data: quotations }, { data: invoices }, { data: projectsData }] =
+  const [{ data: client }, { data: quotations }, { data: invoices }, { data: projectsData }, portal] =
     await Promise.all([
       db.from("clients").select("*").eq("id", id).single(),
       db.from("quotations").select("*").eq("client_id", id).order("created_at", { ascending: false }),
       db.from("invoices").select("*").eq("client_id", id).order("created_at", { ascending: false }),
       db.from("client_projects").select("*").eq("client_id", id).order("sort_order"),
+      listPortalMembers(id),
     ]);
 
   if (!client) notFound();
@@ -50,6 +53,14 @@ export default async function EditClientPage({ params }: PageProps<"/dashboard/c
       <ClientForm client={typedClient} />
 
       <ClientProjectsManager clientId={id} projects={projects} />
+
+      <PortalAccess
+        clientId={id}
+        clientName={typedClient.name}
+        suggestedEmail={typedClient.email}
+        members={portal.members}
+        needsSetup={portal.needsSetup}
+      />
 
       {(quotes.length > 0 || bills.length > 0) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-10 max-w-4xl">

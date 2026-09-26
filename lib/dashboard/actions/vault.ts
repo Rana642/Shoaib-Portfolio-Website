@@ -7,7 +7,9 @@ import { db } from "../db";
 import { getAdminUser } from "../auth";
 import { resend, isResendConfigured, fromEmail } from "../../resend";
 import { passwordChangeNoticeEmail } from "../../email-templates";
-import type { VaultEntry, VaultMeta } from "../types";
+import { PORTAL_SETUP_MESSAGE } from "../portal-users";
+import { isRequestKey } from "../../vault-platforms";
+import type { VaultEntry, VaultMeta, VaultRequest, VaultSubmission } from "../types";
 
 async function assertAuthed() {
   const user = await getAdminUser();
@@ -183,4 +185,92 @@ export async function sendPasswordChangeNotice(clientId: string, accounts: strin
     return { error: "Couldn't send the email. Check the Resend configuration." };
   }
   return { ok: true, sentTo: client.email as string };
+}
+
+// ── Client portal: keypair, submissions, requests ───────────────
+
+const keypairSchema = z.object({
+  public_key: z.string().min(100).max(2000),
+  wrapped_private_key: z.string().min(100).max(8000),
+  wrapped_private_key_iv: z.string().min(1).max(64),
+});
+
+/** Stores the vault keypair the unlocked browser just minted — only if the
+ *  vault has none yet, so an existing key (and every submission sealed to
+ *  it) can never be silently replaced. */
+export async function setVaultKeypair(input: z.infer<typeof keypairSchema>) {
+  await assertAuthed();
+  const parsed = keypairSchema.safeParse(input);
+  if (!parsed.success) return { error: "Invalid keypair." };
+  const { data, error } = await db
+    .from("vault_meta")
+    .update(parsed.data)
+    .eq("id", 1)
+    .is("public_key", null)
+    .select("id");
+  if (error) return { error: error.message };
+  return { ok: true, stored: (data ?? []).length > 0 };
+}
+
+/** Sealed submissions waiting to be reviewed. Opaque to the server. */
+export async function listVaultSubmissions(): Promise<VaultSubmission[]> {
+  await assertAuthed();
+  const { data, error } = await db
+    .from("vault_submissions")
+    .select("*")
+    .eq("status", "received")
+    .order("created_at");
+  if (error) return []; // table not created yet — nothing to show
+  return (data ?? []) as VaultSubmission[];
+}
+
+/** After import: keep only the status the client sees, wipe the sealed data. */
+export async function markSubmissionImported(id: string) {
+  await assertAuthed();
+  if (!z.string().uuid().safeParse(id).success) return { error: "Not found." };
+  const { error } = await db
+    .from("vault_submissions")
+    .update({ status: "imported", imported_at: new Date().toISOString(), wrapped_key: "", ciphertext: "", iv: "" })
+    .eq("id", id);
+  if (error) return { error: error.message };
+  return { ok: true };
+}
+
+const requestSchema = z.object({
+  clientId: z.string().uuid(),
+  projectId: z.string().uuid().nullable(),
+  platforms: z.array(z.string().refine(isRequestKey)).min(1).max(20),
+  note: z.string().trim().max(500).optional(),
+});
+
+/** Asks a client (via the portal) for specific accounts. */
+export async function createVaultRequests(input: z.infer<typeof requestSchema>) {
+  await assertAuthed();
+  const parsed = requestSchema.safeParse(input);
+  if (!parsed.success) return { error: "Pick at least one account to request." };
+  const { clientId, projectId, platforms, note } = parsed.data;
+  if (projectId) {
+    const { data: project } = await db.from("client_projects").select("client_id").eq("id", projectId).maybeSingle();
+    if (project?.client_id !== clientId) return { error: "That project isn't this client's." };
+  }
+  const { error } = await db
+    .from("vault_requests")
+    .insert(platforms.map((platform) => ({ client_id: clientId, project_id: projectId, platform, note: note || null })));
+  if (error) return { error: error.code === "PGRST205" ? PORTAL_SETUP_MESSAGE : error.message };
+  return { ok: true };
+}
+
+export async function listVaultRequests(): Promise<VaultRequest[]> {
+  await assertAuthed();
+  const { data, error } = await db.from("vault_requests").select("*").is("fulfilled_at", null).order("created_at");
+  if (error) return [];
+  return (data ?? []) as VaultRequest[];
+}
+
+export async function deleteVaultRequest(id: string) {
+  await assertAuthed();
+  if (!z.string().uuid().safeParse(id).success) return { error: "Not found." };
+  const { error } = await db.from("vault_requests").delete().eq("id", id);
+  if (error) return { error: error.message };
+  return { ok: true };
 }

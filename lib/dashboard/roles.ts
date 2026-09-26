@@ -17,3 +17,14 @@ import type { User } from "@supabase/supabase-js";
 export function isAdmin(user: Pick<User, "app_metadata"> | null | undefined): boolean {
   return user?.app_metadata?.role === "admin";
 }
+
+/**
+ * The client a client-portal user belongs to, or null for anyone else.
+ * Both the role and the client id are written into app_metadata by the
+ * dashboard's portal invite (lib/dashboard/actions/portal.ts) — the portal
+ * scopes every query to this id, server-side.
+ */
+export function portalClientId(user: Pick<User, "app_metadata"> | null | undefined): string | null {
+  const meta = user?.app_metadata;
+  return meta?.role === "client" && typeof meta.client_id === "string" ? meta.client_id : null;
+}

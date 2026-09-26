@@ -169,6 +169,61 @@ export async function rewrapRecovery(dkRaw: Uint8Array): Promise<{
   };
 }
 
+// ── Sealed submissions (client portal → vault) ─────────────────
+// A client must be able to encrypt logins TO the vault without being able
+// to read anything in it. So the vault also has an RSA-OAEP keypair: the
+// public key is stored in plaintext and handed to the portal; the private
+// key is encrypted with the data key, so it only ever exists unencrypted
+// in Shoaib's unlocked browser. A submission is sealed with a one-off
+// AES-256-GCM key, and that key is RSA-encrypted to the vault public key.
+
+const RSA = { name: "RSA-OAEP", hash: "SHA-256" } as const;
+
+export type VaultKeypairPayload = {
+  public_key: string;
+  wrapped_private_key: string;
+  wrapped_private_key_iv: string;
+};
+
+/** Mints the vault's keypair (once), wrapping the private key under the
+ *  data key. Run in the unlocked vault. */
+export async function generateVaultKeypair(dataKey: CryptoKey): Promise<VaultKeypairPayload> {
+  const pair = await crypto.subtle.generateKey(
+    { ...RSA, modulusLength: 3072, publicExponent: new Uint8Array([1, 0, 1]) },
+    true,
+    ["encrypt", "decrypt"]
+  );
+  const spki = await crypto.subtle.exportKey("spki", pair.publicKey);
+  const pkcs8 = await crypto.subtle.exportKey("pkcs8", pair.privateKey);
+  const wrapped = await aesEncrypt(dataKey, new Uint8Array(pkcs8));
+  return { public_key: b64encode(spki), wrapped_private_key: wrapped.ct, wrapped_private_key_iv: wrapped.iv };
+}
+
+/** The vault's private key, unwrapped with the data key (non-extractable). */
+export async function unwrapVaultPrivateKey(dataKey: CryptoKey, wrapped: string, iv: string): Promise<CryptoKey> {
+  const pkcs8 = await aesDecrypt(dataKey, wrapped, iv);
+  return crypto.subtle.importKey("pkcs8", pkcs8 as BufferSource, RSA, false, ["decrypt"]);
+}
+
+export type SealedPayload = { wrapped_key: string; ciphertext: string; iv: string };
+
+/** Encrypts a payload so only the vault can open it (runs in the portal). */
+export async function sealForVault(publicKeyB64: string, payload: unknown): Promise<SealedPayload> {
+  const publicKey = await crypto.subtle.importKey("spki", b64decode(publicKeyB64) as BufferSource, RSA, false, ["encrypt"]);
+  const oneOff = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt"]);
+  const raw = await crypto.subtle.exportKey("raw", oneOff);
+  const wrappedKey = await crypto.subtle.encrypt(RSA, publicKey, raw);
+  const { ct, iv } = await aesEncrypt(oneOff, te.encode(JSON.stringify(payload)));
+  return { wrapped_key: b64encode(wrappedKey), ciphertext: ct, iv };
+}
+
+/** Opens a sealed submission with the vault's private key. */
+export async function openVaultSeal<T>(privateKey: CryptoKey, sealed: SealedPayload): Promise<T> {
+  const raw = await crypto.subtle.decrypt(RSA, privateKey, b64decode(sealed.wrapped_key) as BufferSource);
+  const oneOff = await importRawKey(new Uint8Array(raw));
+  return JSON.parse(td.decode(await aesDecrypt(oneOff, sealed.ciphertext, sealed.iv))) as T;
+}
+
 /** Encrypt an entry's secret payload with the data key. */
 export async function encryptSecret(dataKey: CryptoKey, secret: unknown): Promise<{ ciphertext: string; iv: string }> {
   const { ct, iv } = await aesEncrypt(dataKey, te.encode(JSON.stringify(secret)));
