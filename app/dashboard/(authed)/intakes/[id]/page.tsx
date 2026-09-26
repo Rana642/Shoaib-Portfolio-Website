@@ -17,9 +17,9 @@ export const dynamic = "force-dynamic";
 // only shows on intakes answered with the older multi-step form.
 const sections: { title: string; fields: { key: keyof ClientIntake; label: string }[] }[] = [
   {
-    title: "Client information",
+    title: "Business details",
     fields: [
-      { key: "registered_name", label: "Business / company name" },
+      { key: "registered_name", label: "Business / brand name" },
       { key: "contact_phone", label: "Business phone / WhatsApp" },
       { key: "contact_emails", label: "Business email" },
       { key: "address", label: "Business address" },

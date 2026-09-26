@@ -138,11 +138,19 @@ export default function IntakeForm({
       }}
       className="space-y-6"
     >
-      {/* 1 — Client information */}
+      {/* 1 — The business / project the pages are for. Deliberately not
+          "client information": that reads as "your personal contacts", but
+          these are the details that go on the public profiles. */}
       <Card variant="solid" className="p-6 space-y-5">
-        <h2 className={heading}>Client information</h2>
+        <div>
+          <h2 className={heading}>{initial?.business_name ? `About ${initial.business_name}` : "Business details"}</h2>
+          <p className="text-small text-ink-muted mt-1">
+            The business these social pages are for — these details appear on the public profiles, so please use the
+            business&apos;s own, not your personal contacts.
+          </p>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <Field label="Business / company name" htmlFor="registered_name">
+          <Field label="Business / brand name" htmlFor="registered_name" hint="As it should appear on the pages.">
             <input
               id="registered_name"
               name="registered_name"
@@ -150,7 +158,7 @@ export default function IntakeForm({
               className={inputClasses}
             />
           </Field>
-          <Field label="Business phone / WhatsApp" htmlFor="contact_phone">
+          <Field label="Business phone / WhatsApp" htmlFor="contact_phone" hint="The number customers should call.">
             <input
               id="contact_phone"
               name="contact_phone"
@@ -159,14 +167,14 @@ export default function IntakeForm({
               className={inputClasses}
             />
           </Field>
-          <Field label="Business email" htmlFor="contact_emails">
+          <Field label="Business email" htmlFor="contact_emails" hint="The one customers should write to.">
             <input id="contact_emails" name="contact_emails" type="email" defaultValue={initial?.contact_emails ?? ""} className={inputClasses} />
           </Field>
-          <Field label="Website (if available)" htmlFor="website">
+          <Field label="Business website (if any)" htmlFor="website">
             <input id="website" name="website" placeholder="https://" defaultValue={initial?.website ?? ""} className={inputClasses} />
           </Field>
         </div>
-        <Field label="Business address" htmlFor="address">
+        <Field label="Business address" htmlFor="address" hint="The location shown on the pages and on maps.">
           <textarea id="address" name="address" rows={2} defaultValue={initial?.address ?? ""} className={inputClasses} />
         </Field>
       </Card>
