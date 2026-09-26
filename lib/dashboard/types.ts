@@ -113,6 +113,9 @@ export type ScheduledPost = {
   /** null = every active connected account for the project; otherwise
    *  restricts publishing to just these platforms. */
   target_platforms: string[] | null;
+  /** Set when a client (or their team) uploaded it from the portal. */
+  uploaded_by_email?: string | null;
+  client_note?: string | null;
 };
 
 export type ClientProject = {

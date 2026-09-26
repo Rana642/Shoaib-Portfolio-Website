@@ -1010,3 +1010,10 @@ alter table client_portal_users add column if not exists role text not null defa
 alter table client_portal_users add column if not exists permissions text[] not null default '{}';
 alter table client_portal_users add column if not exists project_ids uuid[];      -- null = every project
 alter table client_portal_users add column if not exists invited_by uuid;         -- the Owner who invited them; null = Shoaib
+
+-- Client portal uploads (2026-09-26): clients/their team upload final,
+-- approved graphics from /portal/planner; each becomes a normal
+-- 'pending_caption' post on the chosen date. These record who sent it and
+-- their note, shown on the dashboard Planner.
+alter table scheduled_posts add column if not exists uploaded_by_email text;   -- null = uploaded by Shoaib
+alter table scheduled_posts add column if not exists client_note text;

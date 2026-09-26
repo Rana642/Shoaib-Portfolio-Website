@@ -12,9 +12,8 @@
 
 export const PORTAL_FEATURES = [
   { key: "intakes", label: "Fill intake forms", hint: "Set-up forms I send for their projects." },
-  { key: "planner", label: "See the content planner", hint: "Upcoming posts (coming soon)." },
-  { key: "uploads", label: "Upload graphics / media", hint: "For posts and campaigns (coming soon)." },
-  { key: "approvals", label: "Approve posts", hint: "Approve or comment on planned posts (coming soon)." },
+  { key: "planner", label: "See the content planner", hint: "Their scheduled and posted content." },
+  { key: "uploads", label: "Upload graphics", hint: "Final, approved images straight onto the planner." },
   { key: "credentials", label: "Send accounts / logins", hint: "Send me logins or confirm access, encrypted." },
   { key: "reports", label: "See reports", hint: "Ads and page performance (coming soon)." },
   { key: "team", label: "Add team members", hint: "The Owner can invite people and give them some of these." },

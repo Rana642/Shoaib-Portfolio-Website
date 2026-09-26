@@ -47,15 +47,16 @@ function buildCsp(pathname: string): string {
   // No blanket https: — that would let an XSS payload beacon a stolen
   // vault secret out as an <img> request to any host. Only our own images,
   // inline data/blob, and Sanity's CDN — plus, on the social Planner and
-  // Insights pages only, the hosts their images actually live on: our R2
-  // bucket (uploaded posts) and Meta's CDNs (post thumbnails from the Graph
-  // API). The vault and the public site keep the original tight list.
+  // Insights pages (and the client portal's Planner) only, the hosts their
+  // images actually live on: our R2 bucket (uploaded posts) and, in the
+  // dashboard, Meta's CDNs (post thumbnails from the Graph API). The vault
+  // and the public site keep the original tight list.
   const imgSrc = ["'self'", "data:", "blob:", "https://cdn.sanity.io"];
-  if (pathname.startsWith("/dashboard/social")) {
+  if (pathname.startsWith("/dashboard/social") || pathname === "/portal/planner") {
     const r2 = r2Origin();
     if (r2) imgSrc.push(r2);
-    imgSrc.push("https://*.fbcdn.net", "https://*.cdninstagram.com");
   }
+  if (pathname.startsWith("/dashboard/social")) imgSrc.push("https://*.fbcdn.net", "https://*.cdninstagram.com");
   return [
     "default-src 'self'",
     `script-src 'self' 'unsafe-inline' https:${devEval}`,

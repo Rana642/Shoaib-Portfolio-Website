@@ -23,6 +23,8 @@ export async function createScheduledPost(input: {
   caption?: string;
   /** null/omitted = every active connected account for the project. */
   target_platforms?: string[] | null;
+  /** A client-portal upload: who sent it, and their note. */
+  fromClient?: { email: string; note: string | null };
 }): Promise<string> {
   const { data, error } = await db
     .from("scheduled_posts")
@@ -34,6 +36,9 @@ export async function createScheduledPost(input: {
       caption: input.caption ?? null,
       status: input.caption ? "scheduled" : "pending_caption",
       target_platforms: input.target_platforms ?? null,
+      // Only sent for portal uploads, so dashboard uploads keep working
+      // even before these columns exist.
+      ...(input.fromClient ? { uploaded_by_email: input.fromClient.email, client_note: input.fromClient.note } : {}),
     })
     .select("id")
     .single();

@@ -388,6 +388,12 @@ function WeekPostCard({ post }: { post: PostWithUrl }) {
       {post.caption && (
         <p className="text-tag text-ink-muted px-2 pb-1.5 line-clamp-2">{post.caption}</p>
       )}
+      {post.uploaded_by_email && (
+        <p className="text-tag px-2 pb-1.5 line-clamp-3" title={post.client_note ?? undefined}>
+          <span className="inline-block rounded-full bg-citrus/25 px-1.5 py-0.5 font-medium">From client</span>
+          {post.client_note && <span className="block text-ink-muted mt-0.5">“{post.client_note}”</span>}
+        </p>
+      )}
       <button
         type="button"
         aria-label="Remove post"
@@ -408,7 +414,12 @@ function DayPostThumb({ post }: { post: PostWithUrl }) {
   return (
     <div
       className="relative group cursor-grab active:cursor-grabbing"
-      title={post.caption ?? post.original_filename}
+      title={[
+        post.caption ?? post.original_filename,
+        post.uploaded_by_email && `From client (${post.uploaded_by_email})${post.client_note ? `: ${post.client_note}` : ""}`,
+      ]
+        .filter(Boolean)
+        .join("\n")}
       draggable
       onDragStart={(e) => e.dataTransfer.setData(DRAG_MIME, post.id)}
     >

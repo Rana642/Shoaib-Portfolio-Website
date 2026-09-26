@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CalendarDays, ChartLine, CheckCheck, Clock, FileText, ImageUp, Lock, Send, ShieldCheck } from "lucide-react";
+import { ArrowRight, CalendarDays, ChartLine, Clock, FileText, Lock, Send, ShieldCheck } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
 import { can, requirePortalUser } from "@/lib/portal/auth";
 import { portalAccountSections, type AccountStatus } from "@/lib/portal/status";
@@ -19,9 +19,6 @@ const STATUS: Record<AccountStatus, { label: string; className: string; icon: ty
 
 // Switched-on features whose screens are still being built.
 const COMING: { feature: PortalFeature; icon: typeof Clock; title: string; body: string }[] = [
-  { feature: "planner", icon: CalendarDays, title: "Content planner", body: "See your upcoming posts." },
-  { feature: "uploads", icon: ImageUp, title: "Graphics & media", body: "Upload graphics and videos for your posts." },
-  { feature: "approvals", icon: CheckCheck, title: "Approvals", body: "Approve or comment on planned posts." },
   { feature: "reports", icon: ChartLine, title: "Reports", body: "How your ads and pages are performing." },
 ];
 
@@ -48,6 +45,22 @@ export default async function PortalHomePage() {
       <p className="text-body text-ink-muted mt-2 max-w-2xl">
         This is your private space with me{showAccounts ? " — send me your account logins here; they're encrypted on your device before they leave it, and only I can open them" : ""}.
       </p>
+
+      {(can(ctx, "planner") || can(ctx, "uploads")) && (
+        <Link
+          href="/portal/planner"
+          className="mt-8 flex items-center gap-3 rounded-xl border border-ink/10 bg-white px-5 py-4 hover:border-ink/25 transition-colors"
+        >
+          <CalendarDays className="size-5 text-ink-muted shrink-0" aria-hidden />
+          <span className="flex-1">
+            <span className="block font-medium">Content planner</span>
+            <span className="block text-small text-ink-muted">
+              {can(ctx, "uploads") ? "Upload your graphics and see what's scheduled" : "See what's scheduled and posted"}
+            </span>
+          </span>
+          <ArrowRight className="size-4 text-ink-subtle" aria-hidden />
+        </Link>
+      )}
 
       {can(ctx, "intakes") && (
         <Link
@@ -119,7 +132,7 @@ export default async function PortalHomePage() {
         </div>
       )}
 
-      {!showAccounts && !can(ctx, "intakes") && coming.length === 0 && (
+      {!showAccounts && !can(ctx, "intakes") && !can(ctx, "planner") && !can(ctx, "uploads") && coming.length === 0 && (
         <Card variant="solid" className="p-6 mt-8">
           <p className="text-small text-ink-muted">Nothing is switched on for you here yet — I&apos;ll let you know when there is.</p>
         </Card>

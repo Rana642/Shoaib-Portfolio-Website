@@ -17,6 +17,7 @@ export default async function PortalAppLayout({ children }: { children: React.Re
 
   const links = [
     { href: "/portal", label: "Home" },
+    ...(can(ctx, "planner") || can(ctx, "uploads") ? [{ href: "/portal/planner", label: "Planner" }] : []),
     ...(can(ctx, "intakes") ? [{ href: "/portal/intakes", label: "Intake forms" }] : []),
     ...(ctx.role === "owner" && can(ctx, "team") ? [{ href: "/portal/team", label: "Team" }] : []),
   ];
