@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "../db";
-import { getUser } from "../auth";
+import { getAdminUser } from "../auth";
 
 const clientSchema = z.object({
   name: z.string().min(1, "Name is required").max(200),
@@ -46,7 +46,7 @@ function parseProjects(formData: FormData): { name: string; notes: string | null
 /** Every action re-checks auth: server actions are public endpoints, so
  *  middleware alone is not a sufficient guard. */
 async function assertAuthed() {
-  const user = await getUser();
+  const user = await getAdminUser();
   if (!user) redirect("/dashboard/login");
 }
 

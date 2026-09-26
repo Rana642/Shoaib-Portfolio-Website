@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isAdmin } from "@/lib/dashboard/roles";
 
 /**
  * Two jobs on every request:
@@ -127,15 +128,20 @@ export async function proxy(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     const isLoginPage = pathname === "/dashboard/login";
+    // Signed in isn't enough — only the admin role gets past the login page
+    // (lib/dashboard/roles.ts). Anyone else is treated as signed out here,
+    // which also keeps a non-admin session from ping-ponging between
+    // /dashboard and the login page.
+    const admin = isAdmin(user);
 
-    if (!user && !isLoginPage) {
+    if (!admin && !isLoginPage) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/dashboard/login";
       loginUrl.searchParams.set("next", pathname);
       return NextResponse.redirect(loginUrl);
     }
 
-    if (user && isLoginPage) {
+    if (admin && isLoginPage) {
       const dashboardUrl = request.nextUrl.clone();
       dashboardUrl.pathname = "/dashboard";
       dashboardUrl.search = "";

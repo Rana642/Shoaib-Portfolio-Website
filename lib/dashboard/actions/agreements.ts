@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "../db";
-import { getUser } from "../auth";
+import { getAdminUser } from "../auth";
 import { resend, isResendConfigured, fromEmail } from "../../resend";
 import { agreementReadyEmail } from "../../email-templates";
 import { siteUrl } from "../../seo";
@@ -12,7 +12,7 @@ import { performAgreementSigning } from "../agreement-signing";
 import type { Agreement, AgreementClause, Proposal } from "../types";
 
 async function assertAuthed() {
-  const user = await getUser();
+  const user = await getAdminUser();
   if (!user) redirect("/dashboard/login");
 }
 

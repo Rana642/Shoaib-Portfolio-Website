@@ -4,11 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "../db";
-import { getUser } from "../auth";
+import { getAdminUser } from "../auth";
 import type { ClientIntake, IntakeAsset } from "../types";
 
 async function assertAuthed() {
-  const user = await getUser();
+  const user = await getAdminUser();
   if (!user) redirect("/dashboard/login");
 }
 

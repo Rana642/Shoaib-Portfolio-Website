@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "../db";
-import { getUser } from "../auth";
+import { getAdminUser } from "../auth";
 
 const settingsSchema = z.object({
   business_name: z.string().min(1).max(200),
@@ -24,7 +24,7 @@ const settingsSchema = z.object({
 });
 
 export async function updateSettings(formData: FormData) {
-  const user = await getUser();
+  const user = await getAdminUser();
   if (!user) redirect("/dashboard/login");
 
   const parsed = settingsSchema.safeParse({

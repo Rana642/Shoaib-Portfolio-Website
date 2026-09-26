@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUser } from "@/lib/dashboard/auth";
+import { getAdminUser } from "@/lib/dashboard/auth";
 import { isApiVaultCryptoConfigured } from "@/lib/api-vault-crypto";
 import { exchangeTikTokCode, queryTikTokUserInfo, tiktokCredentialModeForDebug } from "@/lib/social-tiktok";
 import { saveTikTokAccount } from "@/lib/social-accounts";
@@ -18,7 +18,7 @@ import { saveTikTokAccount } from "@/lib/social-accounts";
  * unauthenticated route.
  */
 export async function GET(request: Request) {
-  const user = await getUser();
+  const user = await getAdminUser();
   if (!user) {
     return NextResponse.json(
       { error: "Unauthorized — log into /dashboard first, then retry the TikTok authorize link." },

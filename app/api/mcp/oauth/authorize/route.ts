@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUser } from "@/lib/dashboard/auth";
+import { getAdminUser } from "@/lib/dashboard/auth";
 import { getClient, createAuthorizationCode } from "@/lib/mcp-oauth";
 
 /**
@@ -69,7 +69,7 @@ export async function GET(request: Request) {
   const result = await validate(params);
   if ("error" in result) return NextResponse.json({ error: "invalid_request", error_description: result.error }, { status: 400 });
 
-  const user = await getUser();
+  const user = await getAdminUser();
   if (!user) {
     const next = `${url.pathname}${url.search}`;
     return NextResponse.redirect(new URL(`/dashboard/login?next=${encodeURIComponent(next)}`, url.origin));
@@ -79,7 +79,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = await getUser();
+  const user = await getAdminUser();
   if (!user) return NextResponse.json({ error: "access_denied", error_description: "Not logged in." }, { status: 401 });
 
   const form = await request.formData();

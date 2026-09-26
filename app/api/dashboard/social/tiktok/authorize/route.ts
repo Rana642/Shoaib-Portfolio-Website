@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUser } from "@/lib/dashboard/auth";
+import { getAdminUser } from "@/lib/dashboard/auth";
 import { getTikTokAppCredentials } from "@/lib/social-tiktok";
 
 /** Matches the scopes already added to the TikTok app's Login Kit + Content
@@ -13,7 +13,7 @@ const SCOPES = "user.info.basic,user.info.stats,video.list,video.publish,video.u
  *  /api/tiktok/oauth-callback knows which project to attach the account to
  *  once TikTok redirects back. */
 export async function GET(request: Request) {
-  const user = await getUser();
+  const user = await getAdminUser();
   if (!user) return NextResponse.redirect(new URL("/dashboard/login", request.url));
 
   const url = new URL(request.url);

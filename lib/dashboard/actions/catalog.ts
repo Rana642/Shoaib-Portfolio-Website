@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "../db";
-import { getUser } from "../auth";
+import { getAdminUser } from "../auth";
 
 const catalogSchema = z.object({
   name: z.string().min(1, "Name is required").max(200),
@@ -22,7 +22,7 @@ const catalogSchema = z.object({
 });
 
 async function assertAuthed() {
-  const user = await getUser();
+  const user = await getAdminUser();
   if (!user) redirect("/dashboard/login");
 }
 

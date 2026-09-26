@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUser } from "@/lib/dashboard/auth";
+import { getAdminUser } from "@/lib/dashboard/auth";
 import { isStorageConfigured, presignUpload } from "@/lib/storage";
 
 /**
@@ -7,7 +7,7 @@ import { isStorageConfigured, presignUpload } from "@/lib/storage";
  * token-gated like the public intake upload), namespaced per client.
  */
 export async function POST(request: Request) {
-  const user = await getUser();
+  const user = await getAdminUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   if (!isStorageConfigured) {

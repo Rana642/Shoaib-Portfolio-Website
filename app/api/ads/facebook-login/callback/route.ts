@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUser } from "@/lib/dashboard/auth";
+import { getAdminUser } from "@/lib/dashboard/auth";
 import { getVaultCredential } from "@/lib/marketing-vault";
 import { GRAPH_BASE } from "@/lib/social-fb";
 import { db } from "@/lib/dashboard/db";
@@ -18,7 +18,7 @@ import { db } from "@/lib/dashboard/db";
  * to self-connect rather than him doing this himself as their agency.
  */
 export async function GET(request: Request) {
-  const user = await getUser();
+  const user = await getAdminUser();
   if (!user) {
     return NextResponse.json(
       { error: "Unauthorized — log into /dashboard first, then retry the connect link." },

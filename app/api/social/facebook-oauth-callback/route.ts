@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUser } from "@/lib/dashboard/auth";
+import { getAdminUser } from "@/lib/dashboard/auth";
 import { GRAPH_BASE } from "@/lib/social-fb";
 import { connectFacebookAccount } from "@/lib/social-accounts";
 
@@ -12,7 +12,7 @@ import { connectFacebookAccount } from "@/lib/social-accounts";
  *  not a page); go to /dashboard/social and use the existing "Refresh
  *  pages" action to see them and map to projects. */
 export async function GET(request: Request) {
-  const user = await getUser();
+  const user = await getAdminUser();
   if (!user) {
     return NextResponse.json(
       { error: "Unauthorized — log into /dashboard first, then retry the connect link." },

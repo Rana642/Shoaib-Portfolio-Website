@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { isAdmin } from "./roles";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -30,11 +31,15 @@ export async function createAuthClient() {
   });
 }
 
-/** Returns the signed-in user, or null. */
-export async function getUser() {
+/**
+ * The signed-in dashboard ADMIN, or null — for anyone signed out, or signed
+ * in without the admin role (see roles.ts), the dashboard doesn't exist.
+ * Every dashboard page, server action and API route gates on this.
+ */
+export async function getAdminUser() {
   const supabase = await createAuthClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  return user;
+  return isAdmin(user) ? user : null;
 }

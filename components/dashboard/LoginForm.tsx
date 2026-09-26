@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { LoaderCircle } from "lucide-react";
+import { isAdmin } from "@/lib/dashboard/roles";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -23,13 +24,23 @@ export default function LoginForm() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (signInError) {
       setError(signInError.message);
+      setLoading(false);
+      return;
+    }
+
+    // A valid account without the admin role (lib/dashboard/roles.ts) gets
+    // no dashboard — sign it straight back out rather than leave a session
+    // that every dashboard route would reject anyway.
+    if (!isAdmin(data.user)) {
+      await supabase.auth.signOut();
+      setError("This account doesn't have access to the dashboard.");
       setLoading(false);
       return;
     }

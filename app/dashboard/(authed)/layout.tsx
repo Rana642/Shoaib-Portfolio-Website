@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { redirect } from "next/navigation";
 import DashboardShell from "@/components/dashboard/DashboardShell";
-import { getUser } from "@/lib/dashboard/auth";
+import { getAdminUser } from "@/lib/dashboard/auth";
 
 export const metadata: Metadata = {
   title: { default: "Dashboard", template: "%s — Dashboard" },
@@ -29,7 +29,7 @@ export const viewport: Viewport = {
  * redirect fire on the login page itself and loop forever.
  */
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
-  const user = await getUser();
+  const user = await getAdminUser();
 
   // Middleware already guards these routes; this is a second check so a
   // middleware misconfiguration fails closed rather than leaking data.

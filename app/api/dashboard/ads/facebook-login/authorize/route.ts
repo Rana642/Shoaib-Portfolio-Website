@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUser } from "@/lib/dashboard/auth";
+import { getAdminUser } from "@/lib/dashboard/auth";
 import { getVaultCredential } from "@/lib/marketing-vault";
 import { GRAPH_BASE } from "@/lib/social-fb";
 
@@ -12,7 +12,7 @@ import { GRAPH_BASE } from "@/lib/social-fb";
  *  MCP tools already run against — vault service `meta_marketing`), not the
  *  "Ads by Shoaib" posting app. */
 export async function GET(request: Request) {
-  const user = await getUser();
+  const user = await getAdminUser();
   if (!user) return NextResponse.redirect(new URL("/dashboard/login", request.url));
 
   const url = new URL(request.url);

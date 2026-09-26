@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { getUser } from "../auth";
+import { getAdminUser } from "../auth";
 import {
   connectFacebookAccount,
   rediscoverFacebookPages,
@@ -27,7 +27,7 @@ import type { DiscoveredPage } from "../../social-fb";
 import type { DiscoveredOrganization } from "../../social-linkedin";
 
 async function assertAuthed() {
-  const user = await getUser();
+  const user = await getAdminUser();
   if (!user) redirect("/dashboard/login");
 }
 

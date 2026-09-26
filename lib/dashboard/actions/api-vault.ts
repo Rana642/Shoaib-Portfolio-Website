@@ -4,14 +4,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "../db";
-import { getUser } from "../auth";
+import { getAdminUser } from "../auth";
 import { encryptField, decryptField, isApiVaultCryptoConfigured } from "../../api-vault-crypto";
 import type { ApiCredential } from "../types";
 
 /** Every action re-checks auth: server actions are public endpoints, so
  *  middleware alone is not a sufficient guard. */
 async function assertAuthed() {
-  const user = await getUser();
+  const user = await getAdminUser();
   if (!user) redirect("/dashboard/login");
 }
 

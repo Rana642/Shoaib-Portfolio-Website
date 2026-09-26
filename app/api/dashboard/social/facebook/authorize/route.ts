@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUser } from "@/lib/dashboard/auth";
+import { getAdminUser } from "@/lib/dashboard/auth";
 import { GRAPH_BASE } from "@/lib/social-fb";
 
 /** Step 1 of the redirect-based Facebook connect flow for the social
@@ -10,7 +10,7 @@ import { GRAPH_BASE } from "@/lib/social-fb";
  *  Instagram Business account) at once — same model connectFacebookAccount
  *  already assumes (see lib/social-accounts.ts). */
 export async function GET(request: Request) {
-  const user = await getUser();
+  const user = await getAdminUser();
   if (!user) return NextResponse.redirect(new URL("/dashboard/login", request.url));
 
   const appId = process.env.META_APP_ID || "";
