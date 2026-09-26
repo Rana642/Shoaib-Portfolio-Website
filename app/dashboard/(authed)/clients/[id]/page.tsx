@@ -9,7 +9,7 @@ import ClientForm from "@/components/dashboard/ClientForm";
 import ClientProjectsManager from "@/components/dashboard/ClientProjectsManager";
 import DeleteButton from "@/components/dashboard/DeleteButton";
 import PortalAccess from "@/components/dashboard/PortalAccess";
-import { listPortalMembers } from "@/lib/dashboard/portal-users";
+import { getClientFeatures, listPortalMembers } from "@/lib/dashboard/portal-users";
 import type { Client, ClientProject, Invoice, Quotation } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
@@ -17,13 +17,14 @@ export const dynamic = "force-dynamic";
 export default async function EditClientPage({ params }: PageProps<"/dashboard/clients/[id]">) {
   const { id } = await params;
 
-  const [{ data: client }, { data: quotations }, { data: invoices }, { data: projectsData }, portal] =
+  const [{ data: client }, { data: quotations }, { data: invoices }, { data: projectsData }, portal, portalFeatures] =
     await Promise.all([
       db.from("clients").select("*").eq("id", id).single(),
       db.from("quotations").select("*").eq("client_id", id).order("created_at", { ascending: false }),
       db.from("invoices").select("*").eq("client_id", id).order("created_at", { ascending: false }),
       db.from("client_projects").select("*").eq("client_id", id).order("sort_order"),
       listPortalMembers(id),
+      getClientFeatures(id),
     ]);
 
   if (!client) notFound();
@@ -59,7 +60,10 @@ export default async function EditClientPage({ params }: PageProps<"/dashboard/c
         clientName={typedClient.name}
         suggestedEmail={typedClient.email}
         members={portal.members}
+        features={portalFeatures}
+        projects={projects.map((p) => ({ id: p.id, name: p.name }))}
         needsSetup={portal.needsSetup}
+        rolesReady={portal.rolesReady}
       />
 
       {(quotes.length > 0 || bills.length > 0) && (

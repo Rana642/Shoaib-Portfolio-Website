@@ -999,3 +999,14 @@ alter table client_intakes add column if not exists design_references text;
 -- Prefills vault access grants and writes the portal's "give me access"
 -- steps. Not secret: it's exactly what a client types in to add him.
 alter table settings add column if not exists access_identities jsonb not null default '{}'::jsonb;
+
+-- ── Client portal roles (2026-09-26) ─────────────────────────
+-- Access flows down: Shoaib switches features on per client (what its
+-- Owner(s) get); an Owner with 'team' adds team members and gives each a
+-- subset, optionally limited to some projects. Effective access is always
+-- re-checked against the client's current features (lib/portal/features.ts).
+alter table clients add column if not exists portal_features text[] not null default '{intakes,credentials}';
+alter table client_portal_users add column if not exists role text not null default 'owner' check (role in ('owner', 'member'));
+alter table client_portal_users add column if not exists permissions text[] not null default '{}';
+alter table client_portal_users add column if not exists project_ids uuid[];      -- null = every project
+alter table client_portal_users add column if not exists invited_by uuid;         -- the Owner who invited them; null = Shoaib

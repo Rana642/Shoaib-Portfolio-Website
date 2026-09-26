@@ -26,7 +26,11 @@ const ORDER: Record<AccountStatus, number> = { requested: 0, received: 1, secure
  * sent, and what I've secured — platform names and dates only. Everything
  * is scoped to `clientId`, which callers take from the signed-in session.
  */
-export async function portalAccountSections(clientId: string): Promise<AccountSection[]> {
+export async function portalAccountSections(
+  clientId: string,
+  /** null = every project (Owners); otherwise only these, and no "General". */
+  projectIds: string[] | null = null
+): Promise<AccountSection[]> {
   const [{ data: projects }, { data: submissions }, { data: requests }] = await Promise.all([
     db.from("client_projects").select("id, name").eq("client_id", clientId).order("sort_order"),
     db
@@ -69,5 +73,6 @@ export async function portalAccountSections(clientId: string): Promise<AccountSe
   }
   // Projects always show (so there's somewhere to send from); "General"
   // only when it has something, or when there are no projects at all.
-  return sections.filter((s) => s.projectId !== null || s.rows.length > 0 || sections.length === 1);
+  const visible = sections.filter((s) => s.projectId !== null || s.rows.length > 0 || sections.length === 1);
+  return projectIds === null ? visible : visible.filter((s) => s.projectId !== null && projectIds.includes(s.projectId));
 }

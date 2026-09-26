@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { db } from "@/lib/dashboard/db";
-import { getPortalUser } from "@/lib/portal/auth";
+import { can, canSeeProject, getPortalUser } from "@/lib/portal/auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { resend, isResendConfigured, fromEmail, toEmail } from "@/lib/resend";
 import { isRequestKey, requestKeyLabel } from "@/lib/vault-platforms";
@@ -25,10 +25,12 @@ export async function submitAccounts(input: z.infer<typeof submissionSchema>) {
   const portalUser = await getPortalUser();
   if (!portalUser) return { error: "Your session has ended — sign in again." };
   const { user, clientId } = portalUser;
+  if (!can(portalUser, "credentials")) return { error: "Sending accounts isn't switched on for you." };
 
   const parsed = submissionSchema.safeParse(input);
   if (!parsed.success) return { error: "Those details couldn't be sent — nothing was saved." };
   const { projectId, platforms, wrapped_key, ciphertext, iv } = parsed.data;
+  if (!canSeeProject(portalUser, projectId)) return { error: "That project isn't one of yours." };
 
   if (!(await rateLimit(`portal-submit:${user.id}`, 20, 3600))) {
     return { error: "That's a lot of submissions in an hour — try again a little later." };

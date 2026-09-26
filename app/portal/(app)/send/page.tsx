@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Lock } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
-import { requirePortalUser } from "@/lib/portal/auth";
+import { canSeeProject, requirePortalFeature } from "@/lib/portal/auth";
 import { isRequestKey } from "@/lib/vault-platforms";
 import { Card } from "@/components/dashboard/ui";
 import SendAccountsForm from "@/components/portal/SendAccountsForm";
@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Send accounts" };
 
 export default async function SendAccountsPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
-  const { clientId } = await requirePortalUser();
+  const ctx = await requirePortalFeature("credentials");
+  const { clientId } = ctx;
   const { project } = await searchParams;
 
   // The project must be this client's — checked here and again on submit.
@@ -23,9 +24,11 @@ export default async function SendAccountsPage({ searchParams }: { searchParams:
     if (!/^[0-9a-f-]{36}$/i.test(project)) notFound();
     const { data } = await db.from("client_projects").select("id, name").eq("id", project).eq("client_id", clientId).maybeSingle();
     if (!data) notFound();
+    if (!canSeeProject(ctx, data.id)) notFound();
     projectId = data.id;
     where = data.name;
   } else {
+    if (!canSeeProject(ctx, null)) notFound();
     where = client?.name ?? "Your accounts";
   }
 

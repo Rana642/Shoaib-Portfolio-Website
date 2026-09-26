@@ -127,14 +127,18 @@ const button = (url: string, label: string) => `
     </p>`;
 
 /** Invites someone at a client into the client portal. */
-export function portalInviteEmail(data: { name: string; clientName: string; url: string }) {
+export function portalInviteEmail(data: { name: string; clientName: string; url: string; invitedBy?: string }) {
+  const intro = data.invitedBy
+    ? `${escapeHtml(data.invitedBy)} has added you to the ${escapeHtml(data.clientName)} client portal — the private
+      space where we work together on their marketing.`
+    : `I've set up a private portal for ${escapeHtml(data.clientName)}. It's where you'll send me
+      your account logins securely — they're encrypted on your device before they leave it —
+      and, soon, see your content planner and reports.`;
   return wrapper(`
     <h2 style="font-size: 18px; margin: 0 0 16px;">Your client portal is ready</h2>
     <p style="font-size: 14px; line-height: 1.6;">
       Hi ${escapeHtml(data.name)},<br /><br />
-      I've set up a private portal for ${escapeHtml(data.clientName)}. It's where you'll send me
-      your account logins securely — they're encrypted on your device before they leave it —
-      and, soon, see your content planner and reports.
+      ${intro}
     </p>
     ${button(data.url, "Set your password")}
     <p style="font-size: 13px; line-height: 1.6; color: #666;">
