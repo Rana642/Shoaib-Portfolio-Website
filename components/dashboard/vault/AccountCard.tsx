@@ -1,7 +1,21 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, ExternalLink, Eye, EyeOff, History, Lock, Plus, ShieldCheck, Trash2, X } from "lucide-react";
+import { useRef, useState } from "react";
+import {
+  ChevronDown,
+  Crown,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  History,
+  Link2,
+  Lock,
+  Plus,
+  ShieldCheck,
+  Trash2,
+  Unlink,
+  X,
+} from "lucide-react";
 import { Card, Field, inputClasses, labelClasses } from "@/components/dashboard/ui";
 import {
   ISSUE_LABELS,
@@ -17,14 +31,25 @@ import {
 import { formatDate } from "@/lib/dashboard/format";
 import { cn } from "@/lib/utils";
 import PasswordInput from "./PasswordInput";
-import { CopyButton, InputActions, PlatformIcon, actionPad, iconButton, safeHref } from "./shared";
+import {
+  CopyButton,
+  InputActions,
+  PlatformIcon,
+  actionPad,
+  iconButton,
+  safeHref,
+  useDismiss,
+  type GmailOption,
+} from "./shared";
 
-/** One account being added or edited. `chosen` is false until a platform
- *  is picked; `original` is the saved version (null for a new account), used
- *  to spot password changes on save. */
+/** One account being added or edited. `id` is the entry's id — generated
+ *  in the browser for a new one (`isNew`), so accounts added together can
+ *  link to each other before anything is saved. `chosen` is false until a
+ *  platform is picked; `original` is the saved version, used to spot
+ *  password changes on save. */
 export type CardDraft = {
-  key: string;
-  id: string | null;
+  id: string;
+  isNew: boolean;
   secret: VaultSecret;
   original: VaultSecret | null;
   chosen: boolean;
@@ -34,12 +59,18 @@ export type CardDraft = {
 export default function AccountCard({
   draft,
   title,
+  gmails,
+  usedBy,
   onChange,
   onRemove,
 }: {
   draft: CardDraft;
   /** What the title field shows — the auto title until it's been edited. */
   title: string;
+  /** Gmails of the same client/own vault that sign-in fields can link to. */
+  gmails: GmailOption[];
+  /** For a Gmail: titles of the accounts that sign in with it. */
+  usedBy: string[];
   onChange: (patch: Partial<CardDraft>) => void;
   onRemove?: () => void;
 }) {
@@ -48,11 +79,20 @@ export default function AccountCard({
   const setSecret = (patch: Partial<VaultSecret>) => onChange({ secret: { ...secret, ...patch } });
   const setField = (id: string, value: string) => setSecret({ fields: { ...secret.fields, [id]: value } });
   const setTwoStep = (patch: Partial<TwoStep>) => setSecret({ twoStep: { ...secret.twoStep, ...patch } });
-  const idp = `acc-${draft.key}`;
+  const setLink = (fieldId: string, gmail: GmailOption | null) => {
+    const links = { ...secret.links };
+    if (gmail) links[fieldId] = gmail.id;
+    else delete links[fieldId];
+    setSecret({ links, fields: { ...secret.fields, [fieldId]: gmail?.email ?? secret.fields[fieldId] ?? "" } });
+  };
+  const idp = `acc-${draft.id}`;
 
   const pick = (platform: PlatformId) => {
     // Field values carry over where the new platform has the same field.
-    onChange({ secret: { ...secret, platform }, chosen: true });
+    onChange({
+      secret: { ...secret, platform, master: platform === "google_account" && secret.master },
+      chosen: true,
+    });
     setChangingPlatform(false);
   };
 
@@ -102,11 +142,11 @@ export default function AccountCard({
     <Card variant="solid" className="p-4 md:p-5">
       {/* Header */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-4">
-        <span className="flex items-center justify-center size-9 rounded-lg bg-ink/[0.06]">
-          <PlatformIcon platform={platform.id} />
+        <span className={cn("flex items-center justify-center size-9 rounded-lg", secret.master ? "bg-citrus/25" : "bg-ink/[0.06]")}>
+          {secret.master ? <Crown className="size-4" aria-hidden /> : <PlatformIcon platform={platform.id} />}
         </span>
         <div className="mr-auto">
-          <p className="font-medium leading-tight">{platform.label}</p>
+          <p className="font-medium leading-tight">{secret.master ? "Master Gmail" : platform.label}</p>
           <button
             type="button"
             onClick={() => setChangingPlatform(true)}
@@ -138,6 +178,41 @@ export default function AccountCard({
 
       {platform.note && <p className="text-small text-ink-muted mb-4">{platform.note}</p>}
 
+      {platform.id === "google_account" && (
+        <div className="mb-4 rounded-lg border border-citrus/50 bg-citrus/10 px-3.5 py-3">
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={secret.master}
+              onChange={(e) => setSecret({ master: e.target.checked })}
+              className="size-4 mt-0.5 accent-citrus cursor-pointer"
+            />
+            <span>
+              <span className="text-small font-medium">Master Gmail</span>
+              <span className="block text-small text-ink-muted">
+                The main Google account this business runs on — other accounts sign in with it. Needs 2-step, backup codes and
+                both recovery email and phone.
+              </span>
+            </span>
+          </label>
+          {usedBy.length > 0 && (
+            <div className="mt-3 pl-6.5">
+              <p className="text-xs text-ink-muted mb-1.5">
+                {usedBy.length} account{usedBy.length === 1 ? " signs" : "s sign"} in with this Gmail:
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {usedBy.map((t, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 text-xs rounded-full border border-ink/15 bg-white px-2 py-0.5">
+                    <Link2 className="size-3" aria-hidden />
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="sm:col-span-2">
           <Field label="Title" htmlFor={`${idp}-title`}>
@@ -151,15 +226,29 @@ export default function AccountCard({
           </Field>
         </div>
 
-        {platform.fields.map((field) => (
-          <FieldInput
-            key={field.id}
-            id={`${idp}-${field.id}`}
-            field={field}
-            value={secret.fields[field.id] ?? ""}
-            onChange={(v) => setField(field.id, v)}
-          />
-        ))}
+        {platform.fields.map((field) => {
+          const linked = field.linkable ? gmails.find((g) => g.id === secret.links[field.id]) : undefined;
+          return field.linkable && (gmails.length > 0 || linked) ? (
+            <LinkableInput
+              key={field.id}
+              id={`${idp}-${field.id}`}
+              field={field}
+              value={secret.fields[field.id] ?? ""}
+              linked={linked}
+              gmails={gmails}
+              onChange={(v) => setField(field.id, v)}
+              onLink={(g) => setLink(field.id, g)}
+            />
+          ) : (
+            <FieldInput
+              key={field.id}
+              id={`${idp}-${field.id}`}
+              field={field}
+              value={secret.fields[field.id] ?? ""}
+              onChange={(v) => setField(field.id, v)}
+            />
+          );
+        })}
       </div>
 
       <CustomFields idp={idp} secret={secret} setSecret={setSecret} />
@@ -364,6 +453,132 @@ function PlainInput({
         )}
       </div>
     </Field>
+  );
+}
+
+/**
+ * A sign-in email that can be linked to a Gmail saved in the vault. Linked,
+ * it shows that Gmail's current address (read-only) — so renaming the Gmail
+ * entry updates every account that signs in with it. Unlinked, it's a plain
+ * field with a picker for the client's Gmails, master ones first.
+ */
+function LinkableInput({
+  id,
+  field,
+  value,
+  linked,
+  gmails,
+  onChange,
+  onLink,
+}: {
+  id: string;
+  field: FieldDef;
+  value: string;
+  linked: GmailOption | undefined;
+  gmails: GmailOption[];
+  onChange: (value: string) => void;
+  onLink: (gmail: GmailOption | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const close = () => setOpen(false);
+
+  return (
+    <Field label={field.label} htmlFor={id}>
+      <div className="relative" ref={menuRef}>
+        {linked ? (
+          <>
+            <span className="absolute left-3 inset-y-0 flex items-center pointer-events-none">
+              {linked.master ? <Crown className="size-4 text-amber-700" aria-hidden /> : <Link2 className="size-4 text-ink-subtle" aria-hidden />}
+            </span>
+            <input id={id} value={linked.email} readOnly className={cn(inputClasses, "pl-9 bg-ink/[0.03]", actionPad(2))} />
+            <InputActions>
+              <CopyButton value={linked.email} label={field.label} />
+              <button type="button" onClick={() => onLink(null)} title="Unlink — type a different login" aria-label="Unlink this Gmail" className={iconButton}>
+                <Unlink className="size-4" aria-hidden />
+              </button>
+            </InputActions>
+          </>
+        ) : (
+          <>
+            <input
+              id={id}
+              value={value}
+              placeholder={field.placeholder}
+              inputMode={field.kind === "email" ? "email" : undefined}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => onChange(e.target.value)}
+              className={cn(inputClasses, actionPad(2))}
+            />
+            <InputActions>
+              <button
+                type="button"
+                onClick={() => setOpen((o) => !o)}
+                title="Pick a saved Gmail"
+                aria-label="Pick a saved Gmail"
+                aria-expanded={open}
+                className={cn(iconButton, open && "bg-ink/5 text-ink")}
+              >
+                <Crown className="size-4" aria-hidden />
+              </button>
+              <CopyButton value={value} label={field.label} />
+            </InputActions>
+          </>
+        )}
+        {open && !linked && (
+          <GmailMenu
+            gmails={gmails}
+            anchor={menuRef}
+            onPick={(g) => {
+              onLink(g);
+              close();
+            }}
+            onClose={close}
+          />
+        )}
+      </div>
+      {linked && (
+        <p className="text-xs text-ink-subtle mt-1.5">
+          Signs in with the {linked.master ? "master Gmail" : "Gmail"} of {linked.where}
+        </p>
+      )}
+    </Field>
+  );
+}
+
+function GmailMenu({
+  gmails,
+  anchor,
+  onPick,
+  onClose,
+}: {
+  gmails: GmailOption[];
+  anchor: React.RefObject<HTMLDivElement | null>;
+  onPick: (gmail: GmailOption) => void;
+  onClose: () => void;
+}) {
+  useDismiss(anchor, onClose);
+  return (
+    <div className="absolute left-0 right-0 top-full mt-1.5 z-30 rounded-xl border border-ink/10 bg-white p-1.5 shadow-[0_12px_32px_-12px_rgba(15,15,20,0.3)]">
+      <p className="px-2.5 pt-1.5 pb-1 text-xs text-ink-subtle">Sign in with a saved Gmail</p>
+      {gmails.map((g) => (
+        <button
+          key={g.id}
+          type="button"
+          onClick={() => onPick(g)}
+          className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-ink/5 cursor-pointer"
+        >
+          {g.master ? <Crown className="size-4 shrink-0 text-amber-700" aria-hidden /> : <Link2 className="size-4 shrink-0 text-ink-subtle" aria-hidden />}
+          <span className="min-w-0">
+            <span className="block text-small truncate">{g.email}</span>
+            <span className="block text-xs text-ink-subtle truncate">
+              {g.master ? "Master Gmail" : "Gmail"} · {g.where}
+            </span>
+          </span>
+        </button>
+      ))}
+    </div>
   );
 }
 

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { BellRing, ChevronDown, Plus, ShieldCheck, TriangleAlert } from "lucide-react";
+import { BellRing, ChevronDown, Crown, Link2, Plus, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Card } from "@/components/dashboard/ui";
-import { ISSUE_LABELS, accountLabel, getPlatform, securityIssues } from "@/lib/vault-platforms";
+import { ISSUE_LABELS, accountLabel, getPlatform, platformLabel, securityIssues } from "@/lib/vault-platforms";
 import { cn } from "@/lib/utils";
 import { PlatformIcon, iconButton, type Item, type VaultClient, type VaultProject } from "./shared";
 
@@ -33,7 +33,9 @@ function buildGroups(items: Item[], clients: VaultClient[], projects: VaultProje
       untold: all.filter((i) => !i.broken && securityIssues(i.secret).includes("client_not_told")),
     };
   };
-  const byTitle = (a: Item, b: Item) => a.secret.title.localeCompare(b.secret.title);
+  // Master Gmails first — everything else in the group signs in through them.
+  const byTitle = (a: Item, b: Item) =>
+    Number(b.secret.master) - Number(a.secret.master) || a.secret.title.localeCompare(b.secret.title);
   const groups: Group[] = [];
 
   const own = items.filter((i) => i.secret.own).sort(byTitle);
@@ -92,6 +94,7 @@ export default function VaultList({
     const haystack = [
       i.secret.title,
       platform.label,
+      platformLabel(i.secret),
       clientName(i.client_id),
       projectName(i.project_id),
       i.secret.notes,
@@ -103,6 +106,12 @@ export default function VaultList({
   };
 
   const groups = buildGroups(items.filter(matches), clients, projects);
+
+  // Link counts come from the whole vault, not just what the filter shows.
+  const usedCount = new Map<string, number>();
+  for (const i of items) for (const target of new Set(Object.values(i.secret.links))) usedCount.set(target, (usedCount.get(target) ?? 0) + 1);
+  const masterIds = new Set(items.filter((i) => i.secret.master).map((i) => i.id));
+  const viaMaster = (i: Item) => Object.values(i.secret.links).some((target) => masterIds.has(target));
   const filtering = Boolean(q) || attentionOnly;
 
   if (groups.length === 0) {
@@ -179,7 +188,7 @@ export default function VaultList({
                   <ul className="divide-y divide-ink/5">
                     {s.items.map((i) => (
                       <li key={i.id}>
-                        <Row item={i} onOpen={onOpen} />
+                        <Row item={i} usedBy={usedCount.get(i.id) ?? 0} viaMaster={viaMaster(i)} onOpen={onOpen} />
                       </li>
                     ))}
                   </ul>
@@ -192,7 +201,19 @@ export default function VaultList({
   );
 }
 
-function Row({ item, onOpen }: { item: Item; onOpen: (item: Item) => void }) {
+function Row({
+  item,
+  usedBy,
+  viaMaster,
+  onOpen,
+}: {
+  item: Item;
+  /** How many accounts sign in with this entry (a Gmail). */
+  usedBy: number;
+  /** Signs in through a master Gmail. */
+  viaMaster: boolean;
+  onOpen: (item: Item) => void;
+}) {
   if (item.broken) {
     return (
       <div className="flex items-center gap-4 px-4 md:px-5 py-3.5 text-small text-red-700">
@@ -210,14 +231,31 @@ function Row({ item, onOpen }: { item: Item; onOpen: (item: Item) => void }) {
       onClick={() => onOpen(item)}
       className="w-full flex items-center gap-4 px-4 md:px-5 py-3.5 text-left hover:bg-ink/[0.02] transition-colors cursor-pointer"
     >
-      <span className="flex items-center justify-center size-9 rounded-lg bg-ink/[0.06] shrink-0">
-        <PlatformIcon platform={platform.id} className="text-ink-muted" />
+      <span
+        className={cn(
+          "flex items-center justify-center size-9 rounded-lg shrink-0",
+          item.secret.master ? "bg-citrus/25" : "bg-ink/[0.06]"
+        )}
+      >
+        {item.secret.master ? <Crown className="size-4" aria-hidden /> : <PlatformIcon platform={platform.id} className="text-ink-muted" />}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block font-medium truncate">{item.secret.title}</span>
+        <span className="flex items-center gap-2 min-w-0">
+          <span className="font-medium truncate">{item.secret.title}</span>
+          {item.secret.master && (
+            <span className="shrink-0 text-xs rounded-full px-2 py-0.5 bg-citrus/25 border border-citrus/60">Master</span>
+          )}
+        </span>
         <span className="block text-small text-ink-muted truncate">
-          {platform.label}
+          {platformLabel(item.secret)}
           {account && ` · ${account}`}
+          {usedBy > 0 && ` · ${usedBy} account${usedBy === 1 ? " signs" : "s sign"} in with it`}
+          {viaMaster && (
+            <span className="inline-flex items-center gap-1 ml-2 text-xs text-ink-subtle align-middle">
+              <Link2 className="size-3" aria-hidden />
+              via master Gmail
+            </span>
+          )}
         </span>
       </span>
       {issues.length === 0 ? (

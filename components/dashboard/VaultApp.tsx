@@ -188,6 +188,7 @@ export default function VaultApp({
       <EntryEditor
         key={view.kind === "edit" ? view.item.id : "add"}
         item={view.kind === "edit" ? view.item : undefined}
+        items={items}
         initialOwner={view.kind === "add" ? view.owner : undefined}
         clients={clients}
         projects={projects}

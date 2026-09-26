@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check, LoaderCircle, Mail, X } from "lucide-react";
 import { Card, buttonStyles } from "@/components/dashboard/ui";
 import { sendPasswordChangeNotice } from "@/lib/dashboard/actions/vault";
-import { accountLabel, getPlatform } from "@/lib/vault-platforms";
+import { accountLabel, platformLabel } from "@/lib/vault-platforms";
 import { iconButton, type Item, type VaultClient, type VaultProject } from "./shared";
 
 /**
@@ -33,7 +33,7 @@ export default function NotifyClientModal({
   const lines = items.map((i) => {
     const project = projects.find((p) => p.id === i.project_id)?.name;
     const account = accountLabel(i.secret);
-    return `${getPlatform(i.secret.platform).label}${account ? ` — ${account}` : ""}${project ? ` (${project})` : ""}`;
+    return `${platformLabel(i.secret)}${account ? ` — ${account}` : ""}${project ? ` (${project})` : ""}`;
   });
 
   const run = async (kind: "send" | "mark") => {

@@ -99,17 +99,23 @@ async function resolveLinks(input: EntryInput): Promise<EntryInput | { error: st
   return { ...input, client_id: data.client_id };
 }
 
+// New entries come with a browser-generated id, so accounts added together
+// can already link to one another (e.g. Google Ads → the master Gmail being
+// added in the same form). A clash with an existing id just fails the
+// insert — it can never overwrite a row.
+const newEntrySchema = entrySchema.extend({ id: z.string().uuid() });
+
 /** Saves one or more new entries at once (the "add accounts" form). */
-export async function createVaultEntries(inputs: EntryInput[]) {
+export async function createVaultEntries(inputs: z.infer<typeof newEntrySchema>[]) {
   await assertAuthed();
-  const parsed = z.array(entrySchema).min(1).max(50).safeParse(inputs);
+  const parsed = z.array(newEntrySchema).min(1).max(50).safeParse(inputs);
   if (!parsed.success) return { error: "Those entries couldn't be read — nothing was saved." };
 
   const rows = [];
-  for (const input of parsed.data) {
+  for (const { id, ...input } of parsed.data) {
     const resolved = await resolveLinks(input);
     if ("error" in resolved) return resolved;
-    rows.push({ ...resolved, title: "", service: null });
+    rows.push({ id, ...resolved, title: "", service: null });
   }
   const { error } = await db.from("vault_entries").insert(rows);
   if (error) return { error: friendlyError(error) };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Eye, EyeOff, RefreshCw, WandSparkles } from "lucide-react";
 import { buttonStyles, inputClasses } from "@/components/dashboard/ui";
 import {
@@ -11,7 +11,7 @@ import {
   type Strength,
 } from "@/lib/password-generator";
 import { cn } from "@/lib/utils";
-import { CopyButton, InputActions, actionPad, iconButton } from "./shared";
+import { CopyButton, InputActions, actionPad, iconButton, useDismiss } from "./shared";
 
 /** A secret field: masked by default, with show / generate / copy, and a
  *  strength meter under it. autoComplete="new-password" stops the browser
@@ -110,27 +110,13 @@ function Generator({ onUse, onClose }: { onUse: (pw: string) => void; onClose: (
   const [options, setOptions] = useState<GeneratorOptions>(DEFAULT_GENERATOR);
   const [pw, setPw] = useState(() => generatePassword(DEFAULT_GENERATOR));
   const panelRef = useRef<HTMLDivElement>(null);
+  useDismiss(panelRef, onClose);
 
   const update = (patch: Partial<GeneratorOptions>) => {
     const next = { ...options, ...patch };
     setOptions(next);
     setPw(generatePassword(next));
   };
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    const onDown = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    // Deferred a tick so the click that opened the panel doesn't close it.
-    const t = setTimeout(() => document.addEventListener("mousedown", onDown));
-    return () => {
-      clearTimeout(t);
-      window.removeEventListener("keydown", onKey);
-      document.removeEventListener("mousedown", onDown);
-    };
-  }, [onClose]);
 
   const toggles: { key: keyof GeneratorOptions; label: string }[] = [
     { key: "upper", label: "A–Z" },

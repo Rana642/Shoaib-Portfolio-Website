@@ -11,7 +11,14 @@ import { passwordStrength } from "./password-generator";
 
 export type FieldKind = "text" | "email" | "phone" | "url" | "secret" | "multiline" | "date";
 
-export type FieldDef = { id: string; label: string; kind: FieldKind; placeholder?: string };
+export type FieldDef = {
+  id: string;
+  label: string;
+  kind: FieldKind;
+  placeholder?: string;
+  /** Takes a sign-in email — can be linked to a Gmail saved in the vault. */
+  linkable?: boolean;
+};
 
 export type PlatformId =
   | "facebook_profile"
@@ -43,7 +50,7 @@ export type PlatformDef = {
   note?: string;
 };
 
-const login: FieldDef = { id: "login", label: "Login email or phone", kind: "text", placeholder: "name@gmail.com" };
+const login: FieldDef = { id: "login", label: "Login email or phone", kind: "text", placeholder: "name@gmail.com", linkable: true };
 const password: FieldDef = { id: "password", label: "Password", kind: "secret" };
 
 export const PLATFORMS: PlatformDef[] = [
@@ -110,7 +117,7 @@ export const PLATFORMS: PlatformDef[] = [
     note: "Signs in with a Google account — save that one under Gmail / Google.",
     fields: [
       { id: "customer_id", label: "Customer ID", kind: "text", placeholder: "123-456-7890" },
-      { id: "login_email", label: "Sign-in Google account", kind: "email" },
+      { id: "login_email", label: "Sign-in Google account", kind: "email", linkable: true },
       { id: "manager_id", label: "Manager (MCC) ID", kind: "text" },
     ],
   },
@@ -124,7 +131,7 @@ export const PLATFORMS: PlatformDef[] = [
       { id: "ga4_property", label: "GA4 property ID", kind: "text" },
       { id: "gtm_container", label: "GTM container ID", kind: "text", placeholder: "GTM-XXXXXXX" },
       { id: "search_console", label: "Search Console property", kind: "url" },
-      { id: "access_email", label: "Access given to", kind: "email" },
+      { id: "access_email", label: "Access given to", kind: "email", linkable: true },
     ],
   },
   {
@@ -135,7 +142,7 @@ export const PLATFORMS: PlatformDef[] = [
     note: "Signs in with a Google account — save that one under Gmail / Google.",
     fields: [
       { id: "profile_link", label: "Business Profile link", kind: "url" },
-      { id: "owner_email", label: "Owner email", kind: "email" },
+      { id: "owner_email", label: "Owner email", kind: "email", linkable: true },
       { id: "managers", label: "Managers", kind: "multiline" },
     ],
   },
@@ -161,7 +168,7 @@ export const PLATFORMS: PlatformDef[] = [
     fields: [
       { id: "channel_link", label: "Channel link", kind: "url" },
       { id: "channel_id", label: "Channel ID", kind: "text" },
-      { id: "owner_email", label: "Owner Google account", kind: "email" },
+      { id: "owner_email", label: "Owner Google account", kind: "email", linkable: true },
     ],
   },
   {
@@ -179,7 +186,7 @@ export const PLATFORMS: PlatformDef[] = [
     fields: [
       { id: "number", label: "WhatsApp number", kind: "phone", placeholder: "+92 3xx xxxxxxx" },
       { id: "pin", label: "Two-step PIN", kind: "secret" },
-      { id: "pin_email", label: "PIN recovery email", kind: "email" },
+      { id: "pin_email", label: "PIN recovery email", kind: "email", linkable: true },
       { id: "linked_business", label: "Linked Meta business", kind: "text" },
     ],
   },
@@ -191,7 +198,7 @@ export const PLATFORMS: PlatformDef[] = [
     fields: [
       { id: "provider", label: "Hosting provider", kind: "text", placeholder: "Hostinger" },
       { id: "panel_link", label: "Panel login link", kind: "url" },
-      { id: "username", label: "Panel username / email", kind: "text" },
+      { id: "username", label: "Panel username / email", kind: "text", linkable: true },
       { id: "password", label: "Panel password", kind: "secret" },
       { id: "wp_link", label: "WordPress admin link", kind: "url" },
       { id: "wp_username", label: "WordPress username", kind: "text" },
@@ -206,7 +213,7 @@ export const PLATFORMS: PlatformDef[] = [
     fields: [
       { id: "domain", label: "Domain", kind: "text", placeholder: "example.com" },
       { id: "registrar", label: "Registrar", kind: "text" },
-      { id: "login", label: "Registrar login", kind: "text" },
+      { id: "login", label: "Registrar login", kind: "text", linkable: true },
       password,
       { id: "renewal_date", label: "Renews on", kind: "date" },
     ],
@@ -219,7 +226,7 @@ export const PLATFORMS: PlatformDef[] = [
     fields: [
       { id: "service_name", label: "Service name", kind: "text" },
       { id: "link", label: "Login link", kind: "url" },
-      { id: "login", label: "Username / email", kind: "text" },
+      { id: "login", label: "Username / email", kind: "text", linkable: true },
       password,
     ],
   },
@@ -260,9 +267,15 @@ export type VaultSecret = {
   v: 2;
   /** Shoaib's own account rather than a client's. */
   own: boolean;
+  /** A Gmail that's the main Google account a client/project runs on —
+   *  pinned first, linked from other accounts, held to a stricter check. */
+  master: boolean;
   title: string;
   platform: PlatformId;
   fields: Record<string, string>;
+  /** Linkable field id → the vault entry (a Gmail) it signs in with. The
+   *  field itself keeps a copy of that Gmail's address as of the last save. */
+  links: Record<string, string>;
   custom: CustomField[];
   twoStep: TwoStep;
   notes: string;
@@ -289,9 +302,11 @@ export function emptySecret(platform: PlatformId, own = false): VaultSecret {
   return {
     v: 2,
     own,
+    master: false,
     title: "",
     platform,
     fields: {},
+    links: {},
     custom: [],
     twoStep: { ...emptyTwoStep },
     notes: "",
@@ -311,11 +326,17 @@ export function normalizeSecret(raw: unknown): VaultSecret {
   if (r.fields && typeof r.fields === "object") {
     for (const [k, v] of Object.entries(r.fields as Record<string, unknown>)) fields[k] = str(v);
   }
+  const links: Record<string, string> = {};
+  if (r.links && typeof r.links === "object") {
+    for (const [k, v] of Object.entries(r.links as Record<string, unknown>)) if (str(v)) links[k] = str(v);
+  }
   const t = (r.twoStep && typeof r.twoStep === "object" ? r.twoStep : {}) as Record<string, unknown>;
   return {
     ...base,
+    master: base.platform === "google_account" && r.master === true,
     title: str(r.title),
     fields,
+    links,
     custom: Array.isArray(r.custom)
       ? r.custom.map((c) => ({ label: str(c?.label), value: str(c?.value), secret: c?.secret === true }))
       : [],
@@ -339,9 +360,14 @@ export function normalizeSecret(raw: unknown): VaultSecret {
   };
 }
 
+/** "Gmail / Google" — or "Master Gmail" for a client's main Google account. */
+export function platformLabel(secret: Pick<VaultSecret, "platform" | "master">): string {
+  return secret.master ? "Master Gmail" : getPlatform(secret.platform).label;
+}
+
 /** "Toni and Guy — Instagram" — the title an entry gets until it's edited. */
-export function defaultTitle(owner: string | null, platform: PlatformId): string {
-  const label = getPlatform(platform).label;
+export function defaultTitle(owner: string | null, secret: Pick<VaultSecret, "platform" | "master">): string {
+  const label = platformLabel(secret);
   return owner ? `${owner} — ${label}` : label;
 }
 
@@ -364,12 +390,21 @@ export function secretFieldIds(platform: PlatformId): string[] {
     .map((f) => f.id);
 }
 
-export type SecurityIssue = "two_step_off" | "no_backup_codes" | "no_recovery" | "weak_password" | "client_not_told";
+export type SecurityIssue =
+  | "two_step_off"
+  | "no_backup_codes"
+  | "no_recovery"
+  | "no_recovery_email"
+  | "no_recovery_phone"
+  | "weak_password"
+  | "client_not_told";
 
 export const ISSUE_LABELS: Record<SecurityIssue, string> = {
   two_step_off: "2-step off",
   no_backup_codes: "No backup codes",
   no_recovery: "No recovery info",
+  no_recovery_email: "No recovery email",
+  no_recovery_phone: "No recovery phone",
   weak_password: "Weak password",
   client_not_told: "Client not told",
 };
@@ -382,7 +417,14 @@ export function securityIssues(secret: VaultSecret): SecurityIssue[] {
     const t = secret.twoStep;
     if (!t.enabled) issues.push("two_step_off");
     else if (!t.backupCodes.trim()) issues.push("no_backup_codes");
-    if (!t.recoveryEmail.trim() && !t.recoveryPhone.trim()) issues.push("no_recovery");
+    if (secret.master) {
+      // Other accounts sign in through a master Gmail, so it needs every
+      // way back in — both recovery routes, not just one of them.
+      if (!t.recoveryEmail.trim()) issues.push("no_recovery_email");
+      if (!t.recoveryPhone.trim()) issues.push("no_recovery_phone");
+    } else if (!t.recoveryEmail.trim() && !t.recoveryPhone.trim()) {
+      issues.push("no_recovery");
+    }
   }
   const weak = platform.fields.some(
     (f) => f.kind === "secret" && f.id !== "pin" && secret.fields[f.id] && passwordStrength(secret.fields[f.id]).score < 3

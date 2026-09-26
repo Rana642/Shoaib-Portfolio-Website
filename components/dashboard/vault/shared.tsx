@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Briefcase,
   ChartLine,
@@ -33,6 +33,33 @@ export type Item = {
    *  can't overwrite the real (unreadable) data with a blank form. */
   broken: boolean;
 };
+
+/** A saved (or being-added) Gmail another account can sign in with. */
+export type GmailOption = {
+  id: string;
+  email: string;
+  master: boolean;
+  /** Where it's filed — "Toni and Guy", "Client level"… */
+  where: string;
+};
+
+/** Calls onClose on Escape or a click outside `ref` (deferred a tick so the
+ *  click that opened the popover doesn't immediately close it). */
+export function useDismiss(ref: React.RefObject<HTMLElement | null>, onClose: () => void) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    const t = setTimeout(() => document.addEventListener("mousedown", onDown));
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+    };
+  }, [ref, onClose]);
+}
 
 const CLEAR_CLIPBOARD_MS = 30_000;
 let clearTimer: ReturnType<typeof setTimeout> | undefined;

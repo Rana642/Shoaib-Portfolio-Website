@@ -6,20 +6,19 @@ import { Card, buttonStyles, inputClasses, labelClasses } from "@/components/das
 import DeleteButton from "@/components/dashboard/DeleteButton";
 import { encryptSecret } from "@/lib/vault-crypto";
 import { createVaultEntries, deleteVaultEntry, updateVaultEntry } from "@/lib/dashboard/actions/vault";
-import { defaultTitle, emptySecret, getPlatform, trackPasswordChanges } from "@/lib/vault-platforms";
+import { defaultTitle, emptySecret, platformLabel, trackPasswordChanges, type VaultSecret } from "@/lib/vault-platforms";
 import { cn } from "@/lib/utils";
 import AccountCard, { type CardDraft } from "./AccountCard";
-import type { Item, VaultClient, VaultProject } from "./shared";
+import type { GmailOption, Item, VaultClient, VaultProject } from "./shared";
 
 /** "own" = Shoaib's own accounts; otherwise a client id; "" = not chosen. */
 type Owner = "" | "own" | string;
 
 const OWN_LABEL = "Ads by Shoaib";
 
-let keySeq = 0;
 const newCard = (): CardDraft => ({
-  key: `n${++keySeq}`,
-  id: null,
+  id: crypto.randomUUID(),
+  isNew: true,
   secret: emptySecret("other"),
   original: null,
   chosen: false,
@@ -33,6 +32,7 @@ const newCard = (): CardDraft => ({
  */
 export default function EntryEditor({
   item,
+  items,
   initialOwner = "",
   initialProject = null,
   clients,
@@ -42,6 +42,9 @@ export default function EntryEditor({
 }: {
   /** Set when editing a saved entry; absent when adding new ones. */
   item?: Item;
+  /** Every decrypted entry — for the Gmails a login can link to, and for
+   *  which accounts sign in with a Gmail being edited. */
+  items: Item[];
   initialOwner?: Owner;
   initialProject?: string | null;
   clients: VaultClient[];
@@ -55,7 +58,7 @@ export default function EntryEditor({
   const [projectId, setProjectId] = useState<string | null>(item ? item.project_id : initialProject);
   const [cards, setCards] = useState<CardDraft[]>(() =>
     item
-      ? [{ key: item.id, id: item.id, secret: item.secret, original: item.secret, chosen: true, titleTouched: true }]
+      ? [{ id: item.id, isNew: false, secret: item.secret, original: item.secret, chosen: true, titleTouched: true }]
       : [newCard()]
   );
   const [dirty, setDirty] = useState(false);
@@ -68,13 +71,39 @@ export default function EntryEditor({
       ? OWN_LABEL
       : (projects.find((p) => p.id === projectId)?.name ?? clients.find((c) => c.id === owner)?.name ?? null);
   const titleOf = (c: CardDraft) =>
-    c.titleTouched ? c.secret.title : c.chosen ? defaultTitle(ownerName, c.secret.platform) : "";
+    c.titleTouched ? c.secret.title : c.chosen ? defaultTitle(ownerName, c.secret) : "";
+
+  // ── Gmail links ──
+  // Saved entries, minus the ones open here (their live card versions win).
+  const openIds = new Set(cards.map((c) => c.id));
+  const saved = items.filter((i) => !i.broken && !openIds.has(i.id));
+  const sameOwner = (i: Item) => (owner === "own" ? i.secret.own : Boolean(owner) && !i.secret.own && i.client_id === owner);
+  const whereOf = (project: string | null) =>
+    owner === "own" ? "your own accounts" : project ? (projects.find((p) => p.id === project)?.name ?? "a project") : "client level";
+  const toGmail = (id: string, secret: VaultSecret, project: string | null): GmailOption | null => {
+    const email = secret.fields.email?.trim();
+    return secret.platform === "google_account" && email ? { id, email, master: secret.master, where: whereOf(project) } : null;
+  };
+  const gmails = [
+    ...saved.filter(sameOwner).map((i) => toGmail(i.id, i.secret, i.project_id)),
+    ...cards.filter((c) => c.chosen).map((c) => toGmail(c.id, c.secret, projectId)),
+  ]
+    .filter((g): g is GmailOption => g !== null)
+    .sort((a, b) => Number(b.master) - Number(a.master) || a.email.localeCompare(b.email));
+  const gmailById = new Map(gmails.map((g) => [g.id, g]));
+
+  // Everything that could be signing in with a given Gmail.
+  const linkers = [
+    ...saved.map((i) => ({ id: i.id, links: i.secret.links, title: i.secret.title || platformLabel(i.secret) })),
+    ...cards.filter((c) => c.chosen).map((c) => ({ id: c.id, links: c.secret.links, title: titleOf(c) || platformLabel(c.secret) })),
+  ];
+  const usedByOf = (id: string) => linkers.filter((l) => l.id !== id && Object.values(l.links).includes(id)).map((l) => l.title);
 
   // Inactive clients aren't offered — unless this entry is already filed there.
   const clientOptions = clients.filter((c) => c.is_active || c.id === owner);
 
-  const updateCard = (key: string, patch: Partial<CardDraft>) => {
-    setCards((prev) => prev.map((c) => (c.key === key ? { ...c, ...patch } : c)));
+  const updateCard = (id: string, patch: Partial<CardDraft>) => {
+    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
     setDirty(true);
   };
 
@@ -103,14 +132,26 @@ export default function EntryEditor({
       const now = new Date().toISOString();
       const payloads = await Promise.all(
         ready.map(async (c) => {
-          const title = titleOf(c).trim() || getPlatform(c.secret.platform).label;
-          const secret = trackPasswordChanges(c.original, { ...c.secret, own, title }, now);
+          const title = titleOf(c).trim() || platformLabel(c.secret);
+          // Keep only links to Gmails this owner still has, and store each
+          // linked field with that Gmail's current address.
+          const fields = { ...c.secret.fields };
+          const kept: Record<string, string> = {};
+          for (const [fieldId, target] of Object.entries(c.secret.links)) {
+            const gmail = gmailById.get(target);
+            if (gmail && gmail.id !== c.id) {
+              kept[fieldId] = target;
+              fields[fieldId] = gmail.email;
+            }
+          }
+          const master = c.secret.platform === "google_account" && c.secret.master;
+          const secret = trackPasswordChanges(c.original, { ...c.secret, own, title, master, fields, links: kept }, now);
           return { id: c.id, input: { ...links, ...(await encryptSecret(dataKey, secret)) } };
         })
       );
       const res = editing
-        ? await updateVaultEntry(payloads[0].id!, payloads[0].input)
-        : await createVaultEntries(payloads.map((p) => p.input));
+        ? await updateVaultEntry(payloads[0].id, payloads[0].input)
+        : await createVaultEntries(payloads.map((p) => ({ id: p.id, ...p.input })));
       if ("error" in res && res.error) throw new Error(res.error);
       onClose(true);
     } catch (e) {
@@ -188,14 +229,16 @@ export default function EntryEditor({
       <div className="space-y-4">
         {cards.map((c) => (
           <AccountCard
-            key={c.key}
+            key={c.id}
             draft={c}
             title={titleOf(c)}
-            onChange={(patch) => updateCard(c.key, patch)}
+            gmails={gmails.filter((g) => g.id !== c.id)}
+            usedBy={usedByOf(c.id)}
+            onChange={(patch) => updateCard(c.id, patch)}
             onRemove={
               !editing && cards.length > 1
                 ? () => {
-                    setCards((prev) => prev.filter((x) => x.key !== c.key));
+                    setCards((prev) => prev.filter((x) => x.id !== c.id));
                     setDirty(true);
                   }
                 : undefined
@@ -219,6 +262,11 @@ export default function EntryEditor({
           {editing && item && (
             <DeleteButton
               label="Delete account"
+              confirmLabel={
+                usedByOf(item.id).length > 0
+                  ? `Click again — ${usedByOf(item.id).length} account(s) sign in with it`
+                  : "Click again to confirm"
+              }
               action={async () => {
                 const res = await deleteVaultEntry(item.id);
                 if (res.error) return res;
