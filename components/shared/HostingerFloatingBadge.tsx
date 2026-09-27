@@ -29,8 +29,11 @@ export default function HostingerFloatingBadge() {
     } catch {
       /* storage blocked — default to collapsed */
     }
+    // Starts as the small badge; the offer card opens only when the visitor
+    // asks for it, so it never shows a second primary-looking button next to
+    // the page's own CTA. A visitor who opened it before keeps it open.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCollapsed(saved === "1");
+    setCollapsed(saved !== "0");
     // Wait until the visitor is half-way down the page, so the widget never
     // competes with a page's hero or covers its headline and CTA on mobile.
     // Short pages (nothing to scroll) fall back to the old delay.
@@ -110,7 +113,7 @@ export default function HostingerFloatingBadge() {
             </p>
             <Link
               href="/hostinger-coupon"
-              className="group mt-3 inline-flex items-center gap-1.5 rounded-lg bg-ink px-4 py-2.5 text-small font-medium text-cloud transition-colors hover:bg-ink/90"
+              className="group mt-3 inline-flex items-center gap-1.5 rounded-lg border border-ink/15 px-4 py-2.5 text-small font-medium text-ink transition-colors hover:border-ink/30 hover:bg-ink/5"
             >
               Get the deal
               <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
