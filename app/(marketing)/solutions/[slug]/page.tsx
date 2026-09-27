@@ -56,12 +56,12 @@ export default async function SolutionPage({ params }: PageProps<"/solutions/[sl
       />
 
       {/* Hook */}
-      <section className="py-14 md:py-20">
+      <section className="pt-8 pb-14 md:pt-12 md:pb-20">
         <div className="container-narrow">
           <Reveal>
             <Link
               href="/solutions"
-              className="group inline-flex items-center gap-2 text-small text-ink-subtle hover:text-ink transition-colors mb-10"
+              className="group inline-flex items-center gap-2 text-small text-ink-subtle hover:text-ink transition-colors mb-6"
             >
               <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-1" aria-hidden />
               All solutions
@@ -69,9 +69,9 @@ export default async function SolutionPage({ params }: PageProps<"/solutions/[sl
             <div>
               <Tag>{solution.eyebrow}</Tag>
             </div>
-            <h1 className="font-serif italic text-hero mt-8">{solution.h1}</h1>
-            <p className="text-body-lg text-ink-muted mt-6 max-w-xl">{solution.intro}</p>
-            <div className="flex flex-wrap gap-4 mt-10">
+            <h1 className="font-serif italic text-hero mt-5">{solution.h1}</h1>
+            <p className="text-body-lg text-ink-muted mt-4 max-w-2xl">{solution.intro}</p>
+            <div className="flex flex-wrap gap-4 mt-7">
               <Button href="/contact" withArrow>
                 Get a free audit
               </Button>

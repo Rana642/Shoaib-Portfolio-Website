@@ -113,9 +113,6 @@ export default function Hero() {
 
         {/* Image — 40% */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.4 }}
           style={{ y: imageY }}
           className="lg:col-span-5"
         >

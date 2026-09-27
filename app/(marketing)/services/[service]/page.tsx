@@ -53,12 +53,12 @@ export default async function ServiceDetailPage({
           { name: service.title, path: `/services/${service.slug}` },
         ])}
       />
-      <section className="py-14 md:py-20">
+      <section className="pt-8 pb-14 md:pt-12 md:pb-20">
         <div className="container-narrow">
           <Reveal>
             <Link
               href="/services"
-              className="group inline-flex items-center gap-2 text-small text-ink-subtle hover:text-ink transition-colors mb-10"
+              className="group inline-flex items-center gap-2 text-small text-ink-subtle hover:text-ink transition-colors mb-6"
             >
               <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-1" aria-hidden />
               All services
@@ -66,7 +66,7 @@ export default async function ServiceDetailPage({
             <div>
               <Tag>{seo?.eyebrow ?? "Service"}</Tag>
             </div>
-            <h1 className="font-serif italic text-hero mt-8">
+            <h1 className="font-serif italic text-hero mt-5">
               {seo?.h1 ?? service.title}
               <span className="text-citrus">.</span>
             </h1>

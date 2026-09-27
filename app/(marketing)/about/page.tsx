@@ -107,7 +107,7 @@ export default function AboutPage() {
               </div>
             </Reveal>
           </div>
-          <Reveal delay={0.15} className="lg:col-span-2">
+          <div className="lg:col-span-2">
             <div className="relative aspect-[4/5] max-w-sm mx-auto lg:max-w-none">
               <div aria-hidden className="absolute inset-x-[4%] bottom-0 top-[14%] rounded-2xl bg-citrus/25" />
               <Image
@@ -119,7 +119,7 @@ export default function AboutPage() {
                 className="object-contain object-bottom drop-shadow-[0_18px_28px_rgba(15,15,20,0.2)]"
               />
             </div>
-          </Reveal>
+          </div>
         </div>
       </section>
 
