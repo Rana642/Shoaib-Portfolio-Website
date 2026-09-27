@@ -1,5 +1,3 @@
-import HostingerPartnerBadge from "@/components/shared/HostingerPartnerBadge";
-
 /*
  * PLACEHOLDER — swap for real certification badges when provided.
  */
@@ -24,8 +22,6 @@ export default function TrustSignals() {
             {signal}
           </span>
         ))}
-        <span className="hidden sm:inline-block h-6 w-px bg-ink/10" aria-hidden />
-        <HostingerPartnerBadge width={150} />
       </div>
     </section>
   );

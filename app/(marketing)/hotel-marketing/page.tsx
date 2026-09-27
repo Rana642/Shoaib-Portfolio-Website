@@ -1,7 +1,7 @@
 /*
  * Hotel digital marketing — the first industry landing page. Hook (OTA
- * dependence) → leap (what gets fixed) → hold (the hotel case studies and a
- * hospitality testimonial, pulled live from Sanity) → CTA.
+ * dependence) → leap (what gets fixed) → hold (the hotel case studies,
+ * pulled live from Sanity) → CTA.
  */
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -14,7 +14,6 @@ import Process from "@/components/sections/Process";
 import FinalCTA from "@/components/sections/FinalCTA";
 import JsonLd from "@/components/shared/JsonLd";
 import { getAllCaseStudies } from "@/lib/case-studies";
-import { getTestimonials } from "@/lib/testimonials";
 import { pageMetadata } from "@/lib/seo";
 import { breadcrumbSchema } from "@/lib/schema";
 
@@ -59,11 +58,10 @@ const fixes = [
 const HOTEL_SLUGS = ["boutique-hotel-multan", "hotel-silver-sand", "hotel-avalon-suites"];
 
 export default async function HotelMarketingPage() {
-  const [allCaseStudies, testimonials] = await Promise.all([getAllCaseStudies(), getTestimonials()]);
+  const allCaseStudies = await getAllCaseStudies();
   const hotelCases = HOTEL_SLUGS.map((slug) => allCaseStudies.find((cs) => cs.slug === slug)).filter(
     (cs): cs is NonNullable<typeof cs> => Boolean(cs)
   );
-  const hotelQuote = testimonials.find((t) => /hospitality|hotel/i.test(`${t.context ?? ""} ${t.author}`));
 
   return (
     <PageWrapper>
@@ -169,22 +167,6 @@ export default async function HotelMarketingPage() {
             ))}
           </div>
 
-          {hotelQuote && (
-            <Reveal className="mt-12 max-w-2xl">
-              <blockquote className="border-l-2 border-citrus pl-6">
-                <p className="text-body-lg font-semibold">{hotelQuote.headline}</p>
-                <p className="text-body-lg text-ink-muted mt-3">{hotelQuote.quote}</p>
-                <footer className="text-small mt-4">
-                  {hotelQuote.author}
-                  {hotelQuote.context && (
-                    <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle ml-2">
-                      {hotelQuote.context}
-                    </span>
-                  )}
-                </footer>
-              </blockquote>
-            </Reveal>
-          )}
         </div>
       </section>
 

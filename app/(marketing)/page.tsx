@@ -5,7 +5,6 @@ import PainPoints from "@/components/sections/PainPoints";
 import ServicesOverview from "@/components/sections/ServicesOverview";
 import AboutMini from "@/components/sections/AboutMini";
 import CaseStudiesPreview from "@/components/sections/CaseStudiesPreview";
-import Testimonials from "@/components/sections/Testimonials";
 import FAQ from "@/components/sections/FAQ";
 import FinalCTA from "@/components/sections/FinalCTA";
 import TrustSignals from "@/components/sections/TrustSignals";
@@ -15,7 +14,6 @@ import { pageMetadata } from "@/lib/seo";
 import { faqPageSchema } from "@/lib/schema";
 import { getFaqs } from "@/lib/faq";
 import { getServices } from "@/lib/services";
-import { getTestimonials } from "@/lib/testimonials";
 
 export const metadata: Metadata = pageMetadata({
   title: "Performance Marketing Consultant for Meta & Google Ads | Shoaib Nabi Noor",
@@ -26,11 +24,7 @@ export const metadata: Metadata = pageMetadata({
 });
 
 export default async function Home() {
-  const [faqs, services, testimonials] = await Promise.all([
-    getFaqs(),
-    getServices(),
-    getTestimonials(),
-  ]);
+  const [faqs, services] = await Promise.all([getFaqs(), getServices()]);
 
   return (
     <PageWrapper>
@@ -40,7 +34,6 @@ export default async function Home() {
       <PainPoints />
       <CaseStudiesPreview />
       <ServicesOverview services={services} />
-      <Testimonials testimonials={testimonials} />
       <Process />
       <AboutMini />
       <FAQ faqs={faqs} />
