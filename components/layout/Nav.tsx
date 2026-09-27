@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 const links = [
   { href: "/solutions", label: "Solutions" },
   { href: "/services", label: "Services" },
+  { href: "/setups", label: "Setups" },
   { href: "/case-studies", label: "Case Studies" },
   { href: "/about", label: "About" },
   { href: "/blog", label: "Blog" },
@@ -42,8 +43,9 @@ export default function Nav() {
           <Image src="/brand/logo-horizontal.svg" alt="Ads by Shoaib" width={168} height={55} priority className="h-9 md:h-10 w-auto" />
         </Link>
 
-        <ul className="hidden md:flex items-center gap-8">
-          {links.map((link) => (
+        <ul className="hidden lg:flex items-center gap-5 xl:gap-8">
+          {/* Contact is the CTA button on desktop, so it isn't repeated as a link. */}
+          {links.filter((link) => link.href !== "/contact").map((link) => (
             <li key={link.href}>
               <Link
                 href={link.href}
@@ -59,14 +61,14 @@ export default function Nav() {
           ))}
         </ul>
 
-        <div className="hidden md:block">
+        <div className="hidden lg:block">
           <Button href="/contact" withArrow>
             Get a free audit
           </Button>
         </div>
 
         <button
-          className="md:hidden flex items-center justify-center size-11 rounded-lg text-ink"
+          className="lg:hidden flex items-center justify-center size-11 rounded-lg text-ink"
           onClick={() => setOpen(!open)}
           aria-expanded={open}
           aria-label={open ? "Close menu" : "Open menu"}
@@ -82,7 +84,7 @@ export default function Nav() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
-            className="md:hidden fixed inset-x-0 top-16 bottom-0 bg-cloud z-40 overflow-y-auto"
+            className="lg:hidden fixed inset-x-0 top-16 md:top-20 bottom-0 bg-cloud z-40 overflow-y-auto"
           >
             <ul className="container-wide py-8 flex flex-col gap-2">
               {links.map((link, i) => (

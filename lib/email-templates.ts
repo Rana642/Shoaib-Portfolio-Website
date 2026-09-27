@@ -35,9 +35,10 @@ export function contactNotificationEmail(data: {
   `);
 }
 
-export function contactAutoReplyEmail(name: string) {
+export function contactAutoReplyEmail(name: string, setup?: string) {
+  const heading = setup ? `Got your order: ${escapeHtml(setup)}.` : "Got it — audit incoming.";
   return wrapper(`
-    <h2 style="font-size: 18px; margin: 0 0 16px;">Got it — audit incoming.</h2>
+    <h2 style="font-size: 18px; margin: 0 0 16px;">${heading}</h2>
     <p style="font-size: 14px; line-height: 1.6;">
       Hi ${escapeHtml(name)},<br /><br />
       Thanks for reaching out. I read every message myself and reply within

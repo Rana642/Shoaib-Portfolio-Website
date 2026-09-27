@@ -4,6 +4,7 @@ import { getServices } from "@/lib/services";
 import { getAllCaseStudies } from "@/lib/case-studies";
 import { getAllPosts, categories, categorySlug } from "@/lib/posts";
 import { solutions } from "@/lib/solutions";
+import { setups } from "@/lib/setups";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticPaths = [
@@ -13,6 +14,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/google-business-profile-management",
     "/solutions",
     ...solutions.map((s) => `/solutions/${s.slug}`),
+    "/setups",
+    ...setups.map((s) => `/setups/${s.slug}`),
     "/about",
     "/case-studies",
     "/blog",

@@ -12,6 +12,8 @@ const schema = z.object({
   business: z.string().min(2).max(200),
   budget: z.string().min(1).max(100),
   message: z.string().max(5000).optional().default(""),
+  /** Set by the setup order form (/setups/[slug]). */
+  setup: z.string().max(120).optional(),
 });
 
 export async function POST(request: Request) {
@@ -33,7 +35,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Validation failed" }, { status: 422 });
   }
 
-  const { name, email, business, budget, message } = parsed.data;
+  const { name, email, business, budget, message, setup } = parsed.data;
 
   // Each integration is independent: a downstream hiccup (Supabase network
   // blip, a misconfigured key) must never make a real lead's message vanish
@@ -41,7 +43,7 @@ export async function POST(request: Request) {
   if (isSupabaseConfigured) {
     const { error } = await supabaseAdmin
       .from("contacts")
-      .insert({ name, email, business, budget, message });
+      .insert({ name, email, business, budget: setup ? `Setup order: ${setup}` : budget, message });
     if (error) console.error("[contact] Supabase insert failed:", error.message);
   }
 
@@ -51,14 +53,14 @@ export async function POST(request: Request) {
         from: fromEmail,
         to: toEmail,
         replyTo: email,
-        subject: `New audit request — ${business}`,
-        html: contactNotificationEmail({ name, email, business, budget, message }),
+        subject: setup ? `New setup order: ${setup} — ${business}` : `New audit request — ${business}`,
+        html: contactNotificationEmail({ name, email, business, budget: setup ? `Setup order: ${setup}` : budget, message }),
       });
       await resend.emails.send({
         from: fromEmail,
         to: email,
-        subject: "Got it — audit incoming",
-        html: contactAutoReplyEmail(name),
+        subject: setup ? "Got your setup order" : "Got it — audit incoming",
+        html: contactAutoReplyEmail(name, setup),
       });
     } catch (error) {
       console.error("[contact] Resend send failed:", error);

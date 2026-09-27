@@ -8,6 +8,7 @@ import HostingerPartnerBadge from "@/components/shared/HostingerPartnerBadge";
 const explore = [
   { href: "/solutions", label: "Solutions" },
   { href: "/services", label: "Services" },
+  { href: "/setups", label: "Setups" },
   { href: "/case-studies", label: "Case Studies" },
   { href: "/about", label: "About" },
   { href: "/blog", label: "Blog" },
