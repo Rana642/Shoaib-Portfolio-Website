@@ -2,16 +2,14 @@ import type { Metadata } from "next";
 import PageWrapper from "@/components/layout/PageWrapper";
 import Hero from "@/components/sections/Hero";
 import PainPoints from "@/components/sections/PainPoints";
-import Turn from "@/components/sections/Turn";
 import ServicesOverview from "@/components/sections/ServicesOverview";
-import WhyChooseUs from "@/components/sections/WhyChooseUs";
 import AboutMini from "@/components/sections/AboutMini";
 import CaseStudiesPreview from "@/components/sections/CaseStudiesPreview";
-import Philosophy from "@/components/sections/Philosophy";
 import Testimonials from "@/components/sections/Testimonials";
 import FAQ from "@/components/sections/FAQ";
 import FinalCTA from "@/components/sections/FinalCTA";
 import TrustSignals from "@/components/sections/TrustSignals";
+import Process from "@/components/sections/Process";
 import JsonLd from "@/components/shared/JsonLd";
 import { pageMetadata } from "@/lib/seo";
 import { faqPageSchema } from "@/lib/schema";
@@ -20,9 +18,9 @@ import { getServices } from "@/lib/services";
 import { getTestimonials } from "@/lib/testimonials";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Ads by Shoaib — Performance Marketing by Shoaib Nabi Noor",
+  title: "Performance Marketing Consultant for Meta & Google Ads | Shoaib Nabi Noor",
   description:
-    "Independent performance marketing practice led by Shoaib Nabi Noor — turning strategy, targeting, and creative into leads, bookings, and sales across Meta, Google, YouTube, and TikTok.",
+    "I fix ad accounts that spend but don't sell. Meta and Google Ads, tracking, and funnels, managed by one accountable consultant. Get a free audit.",
   path: "/",
   titleAbsolute: true,
 });
@@ -38,17 +36,15 @@ export default async function Home() {
     <PageWrapper>
       <JsonLd data={faqPageSchema(faqs.map((f) => ({ question: f.q, answer: f.a })))} />
       <Hero />
+      <TrustSignals />
       <PainPoints />
-      <Turn />
-      <ServicesOverview services={services} />
-      <WhyChooseUs />
-      <AboutMini />
       <CaseStudiesPreview />
-      <Philosophy />
+      <ServicesOverview services={services} />
       <Testimonials testimonials={testimonials} />
+      <Process />
+      <AboutMini />
       <FAQ faqs={faqs} />
       <FinalCTA />
-      <TrustSignals />
     </PageWrapper>
   );
 }

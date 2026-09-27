@@ -53,11 +53,14 @@ export default function ServicesOverview({ services }: { services: Service[] }) 
       <div className="container-wide">
         <Reveal>
           <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
-            What I do
+            How I fix it
           </span>
           <h2 className="font-serif italic text-h2 mt-6 max-w-2xl">
-            Four pillars. One connected engine.
+            One consultant. The full funnel.
           </h2>
+          <p className="text-body-lg text-ink-muted mt-4 max-w-xl">
+            I don't just run ads. I fix the whole path from first click to paying customer.
+          </p>
         </Reveal>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-14">

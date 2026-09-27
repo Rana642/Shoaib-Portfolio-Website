@@ -31,9 +31,20 @@ export default function HostingerFloatingBadge() {
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCollapsed(saved === "1");
+    if (pathname === "/") {
+      const onScroll = () => {
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        if (max > 0 && window.scrollY / max > 0.5) {
+          setMounted(true);
+          window.removeEventListener("scroll", onScroll);
+        }
+      };
+      window.addEventListener("scroll", onScroll, { passive: true });
+      return () => window.removeEventListener("scroll", onScroll);
+    }
     const t = setTimeout(() => setMounted(true), 900);
     return () => clearTimeout(t);
-  }, []);
+  }, [pathname]);
 
   const setCollapsedPersisted = (next: boolean) => {
     setCollapsed(next);

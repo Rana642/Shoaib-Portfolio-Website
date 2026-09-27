@@ -10,13 +10,14 @@ export default function AboutMini() {
     <section className="py-24 md:py-32">
       <div className="container-narrow grid grid-cols-1 md:grid-cols-5 gap-12 items-center">
         <Reveal className="md:col-span-2">
-          <div className="relative aspect-square rounded-2xl overflow-hidden shadow-xl shadow-citrus/20 max-w-xs mx-auto md:max-w-none">
+          <div className="relative aspect-square max-w-xs mx-auto md:max-w-none">
+            <div aria-hidden className="absolute inset-x-[6%] bottom-0 top-[12%] rounded-2xl bg-citrus/25" />
             <Image
-              src="/images/shoaib.png"
+              src="/images/shoaib-cutout.png"
               alt="Shoaib Nabi Noor"
               fill
               sizes="(max-width: 768px) 320px, 33vw"
-              className="object-cover object-top"
+              className="object-contain object-bottom drop-shadow-[0_14px_22px_rgba(15,15,20,0.2)]"
             />
           </div>
         </Reveal>
@@ -32,15 +33,12 @@ export default function AboutMini() {
           </Reveal>
           <Reveal delay={0.1}>
             <p className="text-body-lg text-ink-muted mt-6">
-              I've spent the last six years inside ad accounts — planning, launching, and
-              managing paid campaigns across Meta, Google, YouTube, and TikTok for brands
-              in eight industries.
+              I've spent 6+ years inside ad accounts for brands in 8 industries. Every account
+              gets the same rule: numbers first, opinions second.
             </p>
-            <p className="text-body text-ink-muted mt-4">
-              Every account gets the same treatment: numbers first, opinions second —
-              backed by a specialist network for design, video, and development when a
-              build needs more hands.
-            </p>
+            <blockquote className="font-serif italic text-h3 mt-8 border-l-2 border-citrus pl-5">
+              I don't sell services. I sell outcomes I'd stake my name on.
+            </blockquote>
           </Reveal>
           <Reveal delay={0.2}>
             <div className="mt-8">

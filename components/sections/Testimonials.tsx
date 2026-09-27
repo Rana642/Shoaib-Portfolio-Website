@@ -24,7 +24,7 @@ export default function Testimonials({ testimonials }: { testimonials: Testimoni
               Client words
             </span>
             <h2 className="font-serif italic text-h2 mt-6">
-              What working together feels like<span className="text-citrus">.</span>
+              What clients say after the first quarter<span className="text-citrus">.</span>
             </h2>
           </div>
           <div className="flex gap-3">

@@ -35,7 +35,10 @@ export default function Hero() {
         {/* Text — 60% */}
         <div className="lg:col-span-3">
           <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={0}>
-            <Tag>Ads by Shoaib · Performance Marketing</Tag>
+            <Tag>
+              Performance marketing consultant
+              <span className="hidden sm:inline"> · Meta &amp; Google Ads</span>
+            </Tag>
           </motion.div>
 
           <motion.h1
@@ -45,13 +48,13 @@ export default function Hero() {
             custom={1}
             className="font-serif italic text-hero mt-8"
           >
-            The marketing engine,{" "}
+            Performance marketing that brings{" "}
             <span className="relative whitespace-nowrap">
               {/* Citrus marker-highlight keeps text ink for contrast */}
               <span className="absolute inset-x-0 bottom-1 h-[38%] bg-citrus/60 -z-10 -rotate-1 rounded-sm" />
-              fully assembled
+              customers
             </span>
-            <span className="text-cobalt">.</span>
+            , not just clicks<span className="text-cobalt">.</span>
           </motion.h1>
 
           <motion.p
@@ -61,9 +64,7 @@ export default function Hero() {
             custom={2}
             className="text-body-lg text-ink-muted mt-6 max-w-xl"
           >
-            Independent performance marketing practice led by{" "}
-            <strong className="text-ink font-semibold">Shoaib Nabi Noor</strong> — turning
-            strategy, targeting, and creative into leads, bookings, and sales across{" "}
+            I find where your ad spend leaks, fix it, and scale what works across{" "}
             <strong className="text-ink font-semibold">Meta, Google, YouTube, and TikTok</strong>.
           </motion.p>
 
@@ -74,13 +75,22 @@ export default function Hero() {
             custom={3}
             className="flex flex-wrap gap-4 mt-10"
           >
-            <Button href="/case-studies" withArrow>
-              See the results
-            </Button>
-            <Button href="/contact" variant="secondary" withArrow>
+            <Button href="/contact" withArrow>
               Get a free audit
             </Button>
+            <Button href="/case-studies" variant="secondary" withArrow>
+              See the results
+            </Button>
           </motion.div>
+          <motion.p
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            custom={3}
+            className="text-small text-ink-muted mt-4"
+          >
+            30-minute call. No pitch. You leave with a fix list.
+          </motion.p>
 
           <motion.dl
             variants={fadeUp}
@@ -92,8 +102,8 @@ export default function Hero() {
             {stats.map((stat) => (
               <div key={stat.label}>
                 <dt className="sr-only">{stat.label}</dt>
-                <dd className="font-serif italic text-h3 leading-none">{stat.value}</dd>
-                <dd className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-2">
+                <dd className="font-serif italic text-h2 leading-none">{stat.value}</dd>
+                <dd className="font-mono uppercase text-tag tracking-widest text-ink-muted mt-3">
                   {stat.label}
                 </dd>
               </div>
@@ -107,16 +117,18 @@ export default function Hero() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.4 }}
           style={{ y: imageY }}
-          className="lg:col-span-2 order-first lg:order-none"
+          className="lg:col-span-2"
         >
-          <div className="hero-tilt relative aspect-[4/5] max-w-sm mx-auto lg:max-w-none rounded-2xl overflow-hidden shadow-2xl shadow-citrus/25">
+          <div className="hero-tilt relative aspect-[4/5] max-w-[16rem] sm:max-w-sm mx-auto lg:max-w-none">
+            <div aria-hidden className="absolute left-1/2 bottom-[6%] -translate-x-1/2 w-[92%] aspect-square rounded-full bg-citrus/30" />
+            <div aria-hidden className="absolute left-1/2 bottom-[6%] -translate-x-1/2 w-[92%] aspect-square rounded-full border border-cobalt/30 translate-y-3 scale-[1.04]" />
             <Image
-              src="/images/shoaib.png"
+              src="/images/shoaib-cutout.png"
               alt="Shoaib Nabi Noor — performance marketing specialist"
               fill
               priority
               sizes="(max-width: 1024px) 384px, 40vw"
-              className="object-cover"
+              className="object-contain object-bottom [mask-image:linear-gradient(to_bottom,black_80%,transparent)]"
             />
           </div>
         </motion.div>

@@ -12,7 +12,7 @@ export default async function CaseStudiesPreview() {
   const caseStudies = (await getAllCaseStudies()).slice(0, 3);
 
   return (
-    <section className="py-24 md:py-32 bg-white/40">
+    <section className="py-24 md:py-32 bg-citrus/10 border-y border-citrus/20">
       <div className="container-wide">
         <Reveal className="flex flex-wrap items-end justify-between gap-6">
           <div>
@@ -54,6 +54,13 @@ export default async function CaseStudiesPreview() {
             </Reveal>
           ))}
         </div>
+
+        <Reveal className="mt-14 flex flex-wrap items-center gap-x-6 gap-y-4">
+          <p className="text-body-lg font-medium">Want this for your business?</p>
+          <Button href="/contact" withArrow>
+            Get a free audit
+          </Button>
+        </Reveal>
       </div>
     </section>
   );

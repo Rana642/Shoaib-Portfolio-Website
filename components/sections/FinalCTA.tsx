@@ -21,13 +21,12 @@ export default function FinalCTA() {
             Your move
           </span>
           <h2 className="font-serif italic text-hero mt-8">
-            Let's assemble yours<span className="text-citrus">.</span>
+            Let's find your leak<span className="text-citrus">.</span>
           </h2>
         </Reveal>
         <Reveal delay={0.1}>
           <p className="text-body-lg text-cloud/70 mt-6 max-w-xl mx-auto">
-            One call. I'll look at what you're running, tell you what I'd fix first, and
-            you'll leave with clarity either way — whether we work together or not.
+            One call. I'll show you what I'd fix first, whether we work together or not.
           </p>
         </Reveal>
         <Reveal delay={0.2}>

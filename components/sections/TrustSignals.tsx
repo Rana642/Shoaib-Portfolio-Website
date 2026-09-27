@@ -13,7 +13,7 @@ const signals = [
 
 export default function TrustSignals() {
   return (
-    <section className="border-t border-ink/10 bg-cloud">
+    <section className="border-y border-ink/10 bg-cloud">
       <div className="container-wide py-8 flex flex-wrap items-center justify-center gap-x-10 gap-y-5">
         {signals.map((signal) => (
           <span
