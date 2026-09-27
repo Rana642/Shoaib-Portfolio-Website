@@ -6,6 +6,7 @@ import NewsletterForm from "@/components/forms/NewsletterForm";
 import HostingerPartnerBadge from "@/components/shared/HostingerPartnerBadge";
 
 const explore = [
+  { href: "/solutions", label: "Solutions" },
   { href: "/services", label: "Services" },
   { href: "/case-studies", label: "Case Studies" },
   { href: "/about", label: "About" },

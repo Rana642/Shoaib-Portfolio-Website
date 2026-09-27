@@ -3,12 +3,15 @@ import { siteUrl } from "@/lib/seo";
 import { getServices } from "@/lib/services";
 import { getAllCaseStudies } from "@/lib/case-studies";
 import { getAllPosts, categories, categorySlug } from "@/lib/posts";
+import { solutions } from "@/lib/solutions";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticPaths = [
     "",
     "/services",
     "/hotel-marketing",
+    "/solutions",
+    ...solutions.map((s) => `/solutions/${s.slug}`),
     "/about",
     "/case-studies",
     "/blog",

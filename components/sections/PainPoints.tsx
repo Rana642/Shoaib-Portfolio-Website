@@ -8,9 +8,9 @@ import AnimatedText from "@/components/ui/AnimatedText";
 import Reveal from "@/components/shared/Reveal";
 
 const pains = [
-  { text: "Ads run. Leads don't come.", href: "/services/meta-ads" },
-  { text: "Leads come. None of them buy.", href: "/services/funnels-web" },
-  { text: "You can't tell which ad actually works.", href: "/services/tracking-analytics" },
+  { text: "Ads run. Leads don't come.", href: "/solutions/facebook-ads-not-working" },
+  { text: "Leads come. None of them buy.", href: "/solutions/low-quality-leads" },
+  { text: "You can't tell which ad actually works.", href: "/solutions/conversion-tracking-not-working" },
   {
     text: "Bookings go to OTAs, and you pay commission on every one.",
     href: "/hotel-marketing",
