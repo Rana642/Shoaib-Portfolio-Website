@@ -57,25 +57,22 @@ export default function ContactPage() {
           { name: "Contact", path: "/contact" },
         ])}
       />
-      <section className="py-20 md:py-28">
-        <div className="container-narrow">
-          <Reveal>
-            <Tag>Contact</Tag>
-            <h1 className="font-serif italic text-hero mt-8 max-w-3xl">
-              Start with the free audit<span className="text-citrus">.</span>
-            </h1>
-            <p className="text-body-lg text-ink-muted mt-6 max-w-2xl">
-              Tell me what you're running — I'll look at it and tell you what I'd fix
-              first. You'll leave with clarity either way, whether we work together or not.
-            </p>
-          </Reveal>
-        </div>
-      </section>
 
-      <section className="pb-24 md:pb-32">
-        <div className="container-wide grid grid-cols-1 lg:grid-cols-5 gap-10">
-          {/* Channels + practical info */}
+      <section className="pt-12 pb-16 md:pt-16 md:pb-24">
+        <div className="container-wide grid grid-cols-1 lg:grid-cols-5 gap-10 lg:gap-14 items-start">
+          {/* Headline, channels + practical info */}
           <div className="lg:col-span-2 space-y-5">
+            <Reveal>
+              <Tag>Contact</Tag>
+              <h1 className="font-serif italic text-hero mt-6 max-w-3xl">
+                Start with the free audit<span className="text-citrus">.</span>
+              </h1>
+              <p className="text-body-lg text-ink-muted mt-6 max-w-2xl">
+                Tell me what you're running — I'll look at it and tell you what I'd fix
+                first. You'll leave with clarity either way, whether we work together or not.
+              </p>
+            </Reveal>
+            <div className="pt-4" />
             {channels.map((ch, i) => {
               const Inner = (
                 <>
@@ -131,7 +128,7 @@ export default function ContactPage() {
           <Reveal delay={0.1} className="lg:col-span-3">
             <div className="bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-8 md:p-10">
               <h2 className="font-serif italic text-h3">
-                Or use the form<span className="text-citrus">.</span>
+                Request your free audit<span className="text-citrus">.</span>
               </h2>
               <p className="text-small text-ink-muted mt-2 mb-8">
                 The more you tell me, the sharper the audit.

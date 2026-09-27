@@ -78,7 +78,7 @@ export default async function BlogPostPage({ params }: PageProps<"/blog/[slug]">
           { name: post.title, path: `/blog/${post.slug}` },
         ])}
       />
-      <article className="py-20 md:py-28">
+      <article className="py-14 md:py-20">
         <div className="container-narrow">
           <Reveal>
             <Link
@@ -146,7 +146,7 @@ export default async function BlogPostPage({ params }: PageProps<"/blog/[slug]">
 
       {/* Read more */}
       {morePosts.length > 0 && (
-        <section className="pb-24 md:pb-32">
+        <section className="pb-16 md:pb-24">
           <div className="container-narrow">
             <Reveal>
               <h2 className="font-serif italic text-h3">

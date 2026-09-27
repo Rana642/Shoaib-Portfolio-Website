@@ -53,7 +53,7 @@ export default async function ServiceDetailPage({
           { name: service.title, path: `/services/${service.slug}` },
         ])}
       />
-      <section className="py-20 md:py-28">
+      <section className="py-14 md:py-20">
         <div className="container-narrow">
           <Reveal>
             <Link
@@ -75,6 +75,11 @@ export default async function ServiceDetailPage({
                 {service.tagline}
               </span>
             </p>
+            <div className="flex flex-wrap gap-4 mt-8">
+              <Button href="/contact" withArrow>
+                Get a free audit
+              </Button>
+            </div>
           </Reveal>
           <Reveal delay={0.1}>
             <div className="mt-10 max-w-2xl space-y-5">
@@ -88,7 +93,7 @@ export default async function ServiceDetailPage({
         </div>
       </section>
 
-      <section className="py-20 md:py-28 bg-white/40">
+      <section className="py-14 md:py-20 bg-white/40">
         <div className="container-narrow grid grid-cols-1 md:grid-cols-2 gap-10">
           <Reveal>
             <div className="bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-8 h-full">

@@ -28,7 +28,7 @@ export default async function BlogPage() {
           { name: "Blog", path: "/blog" },
         ])}
       />
-      <section className="py-20 md:py-28">
+      <section className="py-14 md:py-20">
         <div className="container-narrow">
           <Reveal>
             <Tag>Blog</Tag>
@@ -43,7 +43,7 @@ export default async function BlogPage() {
         </div>
       </section>
 
-      <section className="pb-24 md:pb-32">
+      <section className="pb-16 md:pb-24">
         <div className="container-wide">
           {/* Category filter */}
           <Reveal className="flex flex-wrap gap-3">

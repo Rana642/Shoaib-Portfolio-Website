@@ -15,7 +15,7 @@ const borderColors = ["border-citrus", "border-cobalt", "border-forest"];
 
 export default function Process() {
   return (
-    <section className="py-24 md:py-32">
+    <section className="py-16 md:py-24">
       <div className="container-wide">
         <Reveal>
           <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">

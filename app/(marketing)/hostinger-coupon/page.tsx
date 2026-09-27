@@ -110,7 +110,7 @@ export default function HostingerCouponPage() {
       <JsonLd data={faqPageSchema(faqs)} />
 
       {/* Hero + coupon */}
-      <section className="py-20 md:py-28">
+      <section className="py-14 md:py-20">
         <div className="container-narrow">
           <Reveal>
             <Tag>Verified Partner Deal</Tag>

@@ -11,7 +11,7 @@ const schema = z.object({
   email: z.string().email().max(320),
   business: z.string().min(2).max(200),
   budget: z.string().min(1).max(100),
-  message: z.string().min(10).max(5000),
+  message: z.string().max(5000).optional().default(""),
 });
 
 export async function POST(request: Request) {

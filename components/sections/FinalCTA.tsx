@@ -6,7 +6,7 @@ import Reveal from "@/components/shared/Reveal";
 
 export default function FinalCTA() {
   return (
-    <section className="min-h-[70vh] flex items-center py-24 md:py-32 bg-ink text-cloud relative overflow-hidden">
+    <section className="flex items-center py-20 md:py-28 bg-ink text-cloud relative overflow-hidden">
       <div
         aria-hidden
         className="absolute -top-32 right-0 size-[30rem] rounded-full bg-citrus/10 blur-3xl"
@@ -39,11 +39,13 @@ export default function FinalCTA() {
               Get a free audit
             </Button>
             <Button
-              href="/case-studies"
+              href="https://wa.me/923017461642"
+              external
+              rel="noopener noreferrer"
               withArrow
               className="bg-transparent text-cloud border border-cloud/25 hover:border-citrus hover:bg-citrus hover:text-ink"
             >
-              See the results first
+              Message on WhatsApp
             </Button>
           </div>
         </Reveal>

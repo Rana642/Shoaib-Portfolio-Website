@@ -37,13 +37,13 @@ export default function AnimatedText({
       gsap.from(targets, {
         yPercent: 60,
         opacity: 0,
-        duration: 0.7,
+        duration: 0.5,
         ease: "power3.out",
         delay,
-        stagger: split === "chars" ? 0.018 : 0.05,
+        stagger: split === "chars" ? 0.012 : 0.03,
         scrollTrigger: {
           trigger: el,
-          start: "top 85%",
+          start: "top 92%",
           once: true,
         },
       });

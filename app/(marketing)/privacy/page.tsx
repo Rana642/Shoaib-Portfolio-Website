@@ -184,7 +184,7 @@ const sections: Section[] = [
 export default function PrivacyPage() {
   return (
     <PageWrapper>
-      <section className="py-20 md:py-28">
+      <section className="py-14 md:py-20">
         <div className="container-narrow">
           <Reveal>
             <Tag>Legal</Tag>

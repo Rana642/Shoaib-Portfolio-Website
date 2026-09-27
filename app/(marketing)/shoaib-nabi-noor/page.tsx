@@ -58,7 +58,7 @@ export default async function ResumePage() {
         ])}
       />
       {/* Header */}
-      <section className="py-20 md:py-28">
+      <section className="py-14 md:py-20">
         <div className="container-narrow">
           <div className="flex flex-col md:flex-row gap-10 md:items-end justify-between">
             <Reveal>

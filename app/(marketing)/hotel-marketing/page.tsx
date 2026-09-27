@@ -73,7 +73,7 @@ export default async function HotelMarketingPage() {
       />
 
       {/* Hook */}
-      <section className="py-20 md:py-28">
+      <section className="py-14 md:py-20">
         <div className="container-narrow">
           <Reveal>
             <Tag>Hotel digital marketing</Tag>
@@ -105,7 +105,7 @@ export default async function HotelMarketingPage() {
       </section>
 
       {/* Problems */}
-      <section className="py-20 md:py-28 border-t border-ink/10">
+      <section className="py-14 md:py-20 border-t border-ink/10">
         <div className="container-narrow">
           <Reveal>
             <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
@@ -131,7 +131,7 @@ export default async function HotelMarketingPage() {
       </section>
 
       {/* Hold: proof */}
-      <section id="hotel-results" className="py-20 md:py-28 bg-citrus/10 border-y border-citrus/20 scroll-mt-24">
+      <section id="hotel-results" className="py-14 md:py-20 bg-citrus/10 border-y border-citrus/20 scroll-mt-24">
         <div className="container-wide">
           <Reveal>
             <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
@@ -171,7 +171,7 @@ export default async function HotelMarketingPage() {
       </section>
 
       {/* Leap: what gets fixed */}
-      <section className="py-20 md:py-28">
+      <section className="py-14 md:py-20">
         <div className="container-wide">
           <Reveal>
             <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">

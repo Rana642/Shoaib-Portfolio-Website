@@ -7,7 +7,7 @@ import Reveal from "@/components/shared/Reveal";
 
 export default function AboutMini() {
   return (
-    <section className="py-24 md:py-32">
+    <section className="py-16 md:py-24">
       <div className="container-narrow grid grid-cols-1 md:grid-cols-5 gap-12 items-center">
         <Reveal className="md:col-span-2">
           <div className="relative aspect-square max-w-xs mx-auto md:max-w-none">

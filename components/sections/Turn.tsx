@@ -5,7 +5,7 @@ import Reveal from "@/components/shared/Reveal";
 
 export default function Turn() {
   return (
-    <section className="py-24 md:py-32 bg-ink text-cloud relative overflow-hidden">
+    <section className="py-16 md:py-24 bg-ink text-cloud relative overflow-hidden">
       {/* Vignette */}
       <div
         aria-hidden

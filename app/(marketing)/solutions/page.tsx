@@ -36,7 +36,7 @@ export default function SolutionsPage() {
           { name: "Solutions", path: "/solutions" },
         ])}
       />
-      <section className="py-20 md:py-28">
+      <section className="py-14 md:py-20">
         <div className="container-wide">
           <Reveal>
             <Tag>Solutions</Tag>

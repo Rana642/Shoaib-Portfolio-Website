@@ -4,6 +4,7 @@ import { ArrowUpRight } from "lucide-react";
 import PageWrapper from "@/components/layout/PageWrapper";
 import Reveal from "@/components/shared/Reveal";
 import Tag from "@/components/ui/Tag";
+import Button from "@/components/ui/Button";
 import FinalCTA from "@/components/sections/FinalCTA";
 import JsonLd from "@/components/shared/JsonLd";
 import { getAllCaseStudies } from "@/lib/case-studies";
@@ -28,7 +29,7 @@ export default async function CaseStudiesPage() {
           { name: "Case Studies", path: "/case-studies" },
         ])}
       />
-      <section className="py-20 md:py-28">
+      <section className="py-14 md:py-20">
         <div className="container-narrow">
           <Reveal>
             <Tag>Case Studies</Tag>
@@ -39,11 +40,16 @@ export default async function CaseStudiesPage() {
               Every engagement below started with the same question — where is the money
               actually leaking? Here's what happened after we answered it.
             </p>
+            <div className="flex flex-wrap gap-4 mt-8">
+              <Button href="/contact" withArrow>
+                Get a free audit
+              </Button>
+            </div>
           </Reveal>
         </div>
       </section>
 
-      <section className="pb-24 md:pb-32">
+      <section className="pb-16 md:pb-24">
         <div className="container-wide grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {caseStudies.map((cs, i) => (
             <Reveal key={cs.slug} delay={(i % 3) * 0.08}>

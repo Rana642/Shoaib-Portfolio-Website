@@ -56,7 +56,7 @@ export default async function SolutionPage({ params }: PageProps<"/solutions/[sl
       />
 
       {/* Hook */}
-      <section className="py-20 md:py-28">
+      <section className="py-14 md:py-20">
         <div className="container-narrow">
           <Reveal>
             <Link
@@ -84,7 +84,7 @@ export default async function SolutionPage({ params }: PageProps<"/solutions/[sl
       </section>
 
       {/* Why it happens */}
-      <section className="py-20 md:py-28 border-t border-ink/10">
+      <section className="py-14 md:py-20 border-t border-ink/10">
         <div className="container-narrow">
           <Reveal>
             <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
@@ -113,7 +113,7 @@ export default async function SolutionPage({ params }: PageProps<"/solutions/[sl
       </section>
 
       {/* How I fix it */}
-      <section className="py-20 md:py-28 bg-citrus/10 border-y border-citrus/20">
+      <section className="py-14 md:py-20 bg-citrus/10 border-y border-citrus/20">
         <div className="container-wide">
           <Reveal>
             <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
@@ -152,7 +152,7 @@ export default async function SolutionPage({ params }: PageProps<"/solutions/[sl
 
       {/* Proof — only when a real case study fits */}
       {proof.length > 0 && (
-        <section className="py-20 md:py-28">
+        <section className="py-14 md:py-20">
           <div className="container-wide">
             <Reveal className="flex flex-wrap items-end justify-between gap-6">
               <div>
@@ -197,7 +197,7 @@ export default async function SolutionPage({ params }: PageProps<"/solutions/[sl
       <Process />
 
       {/* Other problems */}
-      <section className="pb-20 md:pb-28">
+      <section className="pb-14 md:pb-20">
         <div className="container-wide">
           <Reveal>
             <h2 className="font-mono uppercase text-tag tracking-widest text-ink-subtle">

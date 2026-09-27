@@ -87,7 +87,7 @@ export default function AboutPage() {
         ])}
       />
       {/* 1 — Intro */}
-      <section className="py-20 md:py-28">
+      <section className="py-14 md:py-20">
         <div className="container-wide grid grid-cols-1 lg:grid-cols-5 gap-12 items-center">
           <div className="lg:col-span-3">
             <Reveal>
@@ -100,6 +100,11 @@ export default function AboutPage() {
                 six years in paid media, eight industries, and one operating rule: spend
                 behaves like an investment or it doesn't get spent.
               </p>
+              <div className="flex flex-wrap gap-4 mt-8">
+                <Button href="/contact" withArrow>
+                  Get a free audit
+                </Button>
+              </div>
             </Reveal>
           </div>
           <Reveal delay={0.15} className="lg:col-span-2">
@@ -118,7 +123,7 @@ export default function AboutPage() {
       </section>
 
       {/* 2 — The story */}
-      <section className="py-20 md:py-28 bg-white/40">
+      <section className="py-14 md:py-20 bg-white/40">
         <div className="container-narrow">
           <Reveal>
             <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
@@ -156,7 +161,7 @@ export default function AboutPage() {
       <Philosophy />
 
       {/* 4 — Opinions */}
-      <section className="py-20 md:py-28 bg-ink text-cloud">
+      <section className="py-14 md:py-20 bg-ink text-cloud">
         <div className="container-narrow">
           <Reveal>
             <span className="font-mono uppercase text-tag tracking-widest text-cloud/40">
@@ -180,7 +185,7 @@ export default function AboutPage() {
       </section>
 
       {/* 5 — Industries */}
-      <section className="py-20 md:py-28">
+      <section className="py-14 md:py-20">
         <div className="container-narrow">
           <Reveal>
             <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
@@ -210,7 +215,7 @@ export default function AboutPage() {
       </section>
 
       {/* 6 — Practical bits */}
-      <section className="py-20 md:py-28 bg-white/40">
+      <section className="py-14 md:py-20 bg-white/40">
         <div className="container-narrow">
           <Reveal>
             <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">

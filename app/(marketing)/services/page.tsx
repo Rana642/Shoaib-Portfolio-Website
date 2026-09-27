@@ -78,7 +78,7 @@ export default async function ServicesPage() {
         ])}
       />
       {/* Intro */}
-      <section className="py-20 md:py-28">
+      <section className="py-14 md:py-20">
         <div className="container-narrow">
           <Reveal>
             <Tag>Services</Tag>
@@ -89,6 +89,11 @@ export default async function ServicesPage() {
               Ads, intent, measurement, and conversion — each one works alone, but the
               results you actually want come from running them as one connected system.
             </p>
+            <div className="flex flex-wrap gap-4 mt-8">
+              <Button href="/contact" withArrow>
+                Get a free audit
+              </Button>
+            </div>
           </Reveal>
         </div>
       </section>
@@ -97,7 +102,7 @@ export default async function ServicesPage() {
       {services.map((service, i) => (
         <section
           key={service.slug}
-          className={i % 2 === 1 ? "py-20 md:py-28 bg-white/40" : "py-20 md:py-28"}
+          className={i % 2 === 1 ? "py-14 md:py-20 bg-white/40" : "py-14 md:py-20"}
         >
           <div className="container-wide grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
             <Reveal>
@@ -141,7 +146,7 @@ export default async function ServicesPage() {
       ))}
 
       {/* What I don't do */}
-      <section className="py-20 md:py-28 bg-ink text-cloud">
+      <section className="py-14 md:py-20 bg-ink text-cloud">
         <div className="container-narrow">
           <Reveal>
             <span className="font-mono uppercase text-tag tracking-widest text-cloud/40">
@@ -173,7 +178,7 @@ export default async function ServicesPage() {
       </section>
 
       {/* Process */}
-      <section className="py-20 md:py-28">
+      <section className="py-14 md:py-20">
         <div className="container-narrow">
           <Reveal>
             <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">

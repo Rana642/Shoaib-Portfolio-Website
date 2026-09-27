@@ -31,10 +31,10 @@ export default function Hero() {
 
   return (
     <section ref={sectionRef} className="relative overflow-hidden">
-      <div className="container-wide grid grid-cols-1 lg:grid-cols-5 gap-12 lg:gap-16 items-center py-20 md:py-28 lg:py-32">
+      <div className="container-wide grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center pt-8 pb-12 md:pt-12 md:pb-14 lg:pt-10 lg:pb-16">
         {/* Text — 60% */}
-        <div className="lg:col-span-3">
-          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={0}>
+        <div className="lg:col-span-7">
+          <motion.div variants={fadeUp} initial={false} animate="visible" custom={0}>
             <Tag>
               Performance marketing consultant
               <span className="hidden sm:inline"> · Meta &amp; Google Ads</span>
@@ -43,10 +43,10 @@ export default function Hero() {
 
           <motion.h1
             variants={fadeUp}
-            initial="hidden"
+            initial={false}
             animate="visible"
             custom={1}
-            className="font-serif italic text-hero mt-8"
+            className="font-serif italic text-[clamp(2.5rem,4.2vw,3.75rem)] leading-[1.05] tracking-[-0.02em] mt-6"
           >
             Performance marketing that brings{" "}
             <span className="relative whitespace-nowrap">
@@ -59,10 +59,10 @@ export default function Hero() {
 
           <motion.p
             variants={fadeUp}
-            initial="hidden"
+            initial={false}
             animate="visible"
             custom={2}
-            className="text-body-lg text-ink-muted mt-6 max-w-xl"
+            className="text-body-lg text-ink-muted mt-5 max-w-xl"
           >
             I find where your ad spend leaks, fix it, and scale what works across{" "}
             <strong className="text-ink font-semibold">Meta, Google, YouTube, and TikTok</strong>.
@@ -70,10 +70,10 @@ export default function Hero() {
 
           <motion.div
             variants={fadeUp}
-            initial="hidden"
+            initial={false}
             animate="visible"
             custom={3}
-            className="flex flex-wrap gap-4 mt-10"
+            className="flex flex-wrap gap-4 mt-8"
           >
             <Button href="/contact" withArrow>
               Get a free audit
@@ -84,7 +84,7 @@ export default function Hero() {
           </motion.div>
           <motion.p
             variants={fadeUp}
-            initial="hidden"
+            initial={false}
             animate="visible"
             custom={3}
             className="text-small text-ink-muted mt-4"
@@ -94,10 +94,10 @@ export default function Hero() {
 
           <motion.dl
             variants={fadeUp}
-            initial="hidden"
+            initial={false}
             animate="visible"
             custom={4}
-            className="flex flex-wrap gap-x-12 gap-y-6 mt-14 pt-8 border-t border-ink/10"
+            className="flex flex-wrap gap-x-12 gap-y-6 mt-10 pt-6 border-t border-ink/10"
           >
             {stats.map((stat) => (
               <div key={stat.label}>
@@ -117,7 +117,7 @@ export default function Hero() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.4 }}
           style={{ y: imageY }}
-          className="lg:col-span-2"
+          className="lg:col-span-5"
         >
           <div className="hero-tilt relative aspect-[4/5] max-w-[16rem] sm:max-w-sm mx-auto lg:max-w-none">
             <div aria-hidden className="absolute left-1/2 bottom-[6%] -translate-x-1/2 w-[92%] aspect-square rounded-full bg-citrus/30" />

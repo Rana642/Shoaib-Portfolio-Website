@@ -49,7 +49,7 @@ function TiltCard({ children }: { children: React.ReactNode }) {
 
 export default function ServicesOverview({ services }: { services: Service[] }) {
   return (
-    <section className="py-24 md:py-32">
+    <section className="py-16 md:py-24">
       <div className="container-wide">
         <Reveal>
           <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">

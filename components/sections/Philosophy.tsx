@@ -29,7 +29,7 @@ export default function Philosophy() {
   }, []);
 
   return (
-    <section className="min-h-[80vh] flex items-center py-24 md:py-32">
+    <section className="min-h-[80vh] flex items-center py-16 md:py-24">
       <div className="container-narrow text-center">
         <AnimatedText
           as="h2"

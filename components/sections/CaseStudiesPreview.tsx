@@ -12,7 +12,7 @@ export default async function CaseStudiesPreview() {
   const caseStudies = (await getAllCaseStudies()).slice(0, 3);
 
   return (
-    <section className="py-24 md:py-32 bg-citrus/10 border-y border-citrus/20">
+    <section className="py-16 md:py-24 bg-citrus/10 border-y border-citrus/20">
       <div className="container-wide">
         <Reveal className="flex flex-wrap items-end justify-between gap-6">
           <div>

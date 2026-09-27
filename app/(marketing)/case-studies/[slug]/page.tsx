@@ -70,7 +70,7 @@ export default async function CaseStudyPage({
           { name: cs.title, path: `/case-studies/${cs.slug}` },
         ])}
       />
-      <article className="py-20 md:py-28">
+      <article className="py-14 md:py-20">
         <div className="container-narrow">
           <Reveal>
             <Link

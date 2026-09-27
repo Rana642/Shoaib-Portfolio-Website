@@ -45,7 +45,7 @@ export default async function BlogCategoryPage({
           { name, path: `/blog/category/${category}` },
         ])}
       />
-      <section className="py-20 md:py-28">
+      <section className="py-14 md:py-20">
         <div className="container-narrow">
           <Reveal>
             <Link
@@ -64,7 +64,7 @@ export default async function BlogCategoryPage({
         </div>
       </section>
 
-      <section className="pb-24 md:pb-32">
+      <section className="pb-16 md:pb-24">
         <div className="container-wide">
           {filtered.length === 0 ? (
             <Reveal>

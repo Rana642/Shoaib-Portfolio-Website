@@ -16,7 +16,7 @@ export default function Testimonials({ testimonials }: { testimonials: Testimoni
   const next = () => setIndex((i) => (i + 1) % testimonials.length);
 
   return (
-    <section className="py-24 md:py-32 bg-white/40 overflow-hidden">
+    <section className="py-16 md:py-24 bg-white/40 overflow-hidden">
       <div className="container-wide">
         <Reveal className="flex flex-wrap items-end justify-between gap-6">
           <div>

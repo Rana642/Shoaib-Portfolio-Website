@@ -19,7 +19,7 @@ const pains = [
 
 export default function PainPoints() {
   return (
-    <section className="py-24 md:py-32">
+    <section className="py-16 md:py-24">
       <div className="container-narrow">
         <Reveal>
           <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">

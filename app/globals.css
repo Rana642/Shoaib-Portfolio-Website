@@ -28,7 +28,7 @@
   --font-sans: var(--font-geist), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), monospace;
 
-  --text-hero: clamp(2.5rem, 6vw, 4.5rem);
+  --text-hero: clamp(2.5rem, 5vw, 4rem);
   --text-hero--line-height: 1.05;
   --text-hero--letter-spacing: -0.02em;
 

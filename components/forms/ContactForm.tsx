@@ -12,7 +12,7 @@ const schema = z.object({
   email: z.string().email("That email doesn't look right"),
   business: z.string().min(2, "What's the business called?"),
   budget: z.string().min(1, "Pick the closest range"),
-  message: z.string().min(10, "A sentence or two helps me prepare"),
+  message: z.string().max(5000).optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -141,7 +141,8 @@ export default function ContactForm() {
 
       <div>
         <label htmlFor="message" className="block text-small font-medium mb-2">
-          What's going on with your marketing?
+          What's going on with your marketing?{" "}
+          <span className="text-ink-subtle font-normal">(optional)</span>
         </label>
         <textarea
           id="message"
