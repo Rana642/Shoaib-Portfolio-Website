@@ -86,8 +86,9 @@ export default async function HotelMarketingPage() {
               <span className="text-cobalt">.</span>
             </h1>
             <p className="text-body-lg text-ink-muted mt-6 max-w-xl">
-              I run digital marketing for independent hotels: ads, WhatsApp booking campaigns,
-              and websites that take bookings directly.
+              I run hotel digital marketing for independent hotels: ads, WhatsApp booking
+              campaigns, and websites that take bookings directly. Hotel online marketing
+              from one accountable specialist, instead of a hotel marketing agency.
             </p>
             <div className="flex flex-wrap gap-4 mt-10">
               <Button href="/contact" withArrow>

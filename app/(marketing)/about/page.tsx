@@ -17,9 +17,9 @@ import { pageMetadata } from "@/lib/seo";
 import { personSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = pageMetadata({
-  title: "About",
+  title: "About Shoaib Nabi Noor, Digital Marketing Expert in Pakistan",
   description:
-    "Shoaib Nabi Noor runs an independent performance marketing practice — six years in paid media across Meta, Google, YouTube, and TikTok, eight industries deep.",
+    "Shoaib Nabi Noor is a digital marketing expert and performance marketing consultant in Multan, Pakistan: six years in paid media across Meta, Google, YouTube, and TikTok, for clients worldwide.",
   path: "/about",
 });
 
@@ -91,13 +91,13 @@ export default function AboutPage() {
         <div className="container-wide grid grid-cols-1 lg:grid-cols-5 gap-12 items-center">
           <div className="lg:col-span-3">
             <Reveal>
-              <Tag>About</Tag>
+              <Tag>Digital marketing expert · Multan, Pakistan</Tag>
               <h1 className="font-serif italic text-hero mt-8">
                 The person behind the practice<span className="text-citrus">.</span>
               </h1>
               <p className="text-body-lg text-ink-muted mt-6 max-w-xl">
-                I'm <strong className="text-ink font-semibold">Shoaib Nabi Noor</strong> —
-                six years in paid media, eight industries, and one operating rule: spend
+                I'm <strong className="text-ink font-semibold">Shoaib Nabi Noor</strong>, a
+                performance marketing expert and lead generation consultant — six years in paid media, eight industries, and one operating rule: spend
                 behaves like an investment or it doesn't get spent.
               </p>
               <div className="flex flex-wrap gap-4 mt-8">
@@ -108,14 +108,15 @@ export default function AboutPage() {
             </Reveal>
           </div>
           <Reveal delay={0.15} className="lg:col-span-2">
-            <div className="relative aspect-[4/5] max-w-sm mx-auto lg:max-w-none rounded-2xl overflow-hidden shadow-2xl shadow-citrus/25">
+            <div className="relative aspect-[4/5] max-w-sm mx-auto lg:max-w-none">
+              <div aria-hidden className="absolute inset-x-[4%] bottom-0 top-[14%] rounded-2xl bg-citrus/25" />
               <Image
-                src="/images/shoaib.png"
+                src="/images/shoaib-cutout.png"
                 alt="Shoaib Nabi Noor"
                 fill
                 priority
                 sizes="(max-width: 1024px) 384px, 40vw"
-                className="object-cover"
+                className="object-contain object-bottom drop-shadow-[0_18px_28px_rgba(15,15,20,0.2)]"
               />
             </div>
           </Reveal>

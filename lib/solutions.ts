@@ -33,7 +33,7 @@ export const solutions: Solution[] = [
     eyebrow: "Facebook ads not working",
     h1: "Facebook ads running, but no leads or sales?",
     intro:
-      "The ads are live and the budget is gone, but the phone stays quiet. It's almost never the platform. It's how the account is set up.",
+      "When Facebook ads are not working, the ads are live, the budget is gone, and the phone stays quiet. Meta ads not working or Facebook ads not converting is almost never the platform. It's how the account is set up.",
     problem: "Ads run. Leads don't come.",
     causes: [
       {
@@ -73,7 +73,7 @@ export const solutions: Solution[] = [
     eyebrow: "Google Ads no conversions",
     h1: "Google Ads getting clicks, but no conversions?",
     intro:
-      "Search traffic is the warmest traffic you can buy. When it doesn't convert, the leak is usually in a few predictable places.",
+      "Google Ads with no conversions usually isn't a traffic problem. Search traffic is the warmest traffic you can buy; when it doesn't convert, the leak is in a few predictable places.",
     problem: "Clicks come. Conversions don't.",
     causes: [
       {
@@ -114,7 +114,7 @@ export const solutions: Solution[] = [
     eyebrow: "Low quality leads",
     h1: "Leads come in. None of them buy?",
     intro:
-      "Cheap leads look good in a report and cost you time on the phone. The fix is to ask the ad platform for better people, not more of them.",
+      "Low quality leads look cheap in a report and cost you hours on the phone. Leads not converting into customers? The fix is to ask the ad platform for better people, not more of them.",
     problem: "Leads come. None of them buy.",
     causes: [
       {
@@ -155,7 +155,7 @@ export const solutions: Solution[] = [
     eyebrow: "Conversion tracking not working",
     h1: "Can't tell which ad actually made the sale?",
     intro:
-      "Without tracking you can trust, every budget decision is a guess. Fixing it is usually the fastest way to stop wasting spend.",
+      "When conversion tracking is not working (the Facebook pixel misses sales, or Google Ads is not showing conversions), every budget decision is a guess. Fixing it is usually the fastest way to stop wasting spend.",
     problem: "You can't tell which ad actually works.",
     causes: [
       {

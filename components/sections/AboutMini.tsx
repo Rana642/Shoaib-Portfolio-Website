@@ -33,8 +33,9 @@ export default function AboutMini() {
           </Reveal>
           <Reveal delay={0.1}>
             <p className="text-body-lg text-ink-muted mt-6">
-              I've spent 6+ years inside ad accounts for brands in 8 industries. Every account
-              gets the same rule: numbers first, opinions second.
+              I'm a performance marketing specialist with 6+ years inside ad accounts for
+              brands in 8 industries. Every account gets the same rule: numbers first,
+              opinions second.
             </p>
             <blockquote className="font-serif italic text-h3 mt-8 border-l-2 border-citrus pl-5">
               I don't sell services. I sell outcomes I'd stake my name on.

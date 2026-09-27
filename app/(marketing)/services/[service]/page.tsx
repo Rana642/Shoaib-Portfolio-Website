@@ -83,6 +83,7 @@ export default async function ServiceDetailPage({
           </Reveal>
           <Reveal delay={0.1}>
             <div className="mt-10 max-w-2xl space-y-5">
+              {seo?.lead && <p className="text-body-lg text-ink">{seo.lead}</p>}
               {service.description.map((para, i) => (
                 <p key={i} className="text-body-lg text-ink-muted">
                   {para}
