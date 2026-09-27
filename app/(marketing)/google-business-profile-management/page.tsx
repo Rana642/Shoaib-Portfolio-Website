@@ -102,7 +102,7 @@ export default function GoogleBusinessProfilePage() {
       <section className="py-14 md:py-20 border-t border-ink/10">
         <div className="container-narrow">
           <Reveal>
-            <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+            <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
               Sound familiar?
             </span>
             <h2 className="font-serif italic text-h2 mt-6 max-w-2xl">
@@ -128,7 +128,7 @@ export default function GoogleBusinessProfilePage() {
       <section className="py-14 md:py-20 bg-citrus/10 border-y border-citrus/20">
         <div className="container-wide">
           <Reveal>
-            <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+            <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
               What I manage
             </span>
             <h2 className="font-serif italic text-h2 mt-6 max-w-2xl">
@@ -143,7 +143,7 @@ export default function GoogleBusinessProfilePage() {
               <Reveal key={item.title} delay={i * 0.06}>
                 <div className="h-full bg-white/60 border border-ink/5 rounded-2xl p-7">
                   <item.icon className="size-7 text-cobalt" aria-hidden />
-                  <h3 className="font-serif italic text-h3 mt-5">{item.title}</h3>
+                  <h3 className="font-sans font-semibold text-xl md:text-2xl leading-snug tracking-tight mt-5">{item.title}</h3>
                   <p className="text-body text-ink-muted mt-2">{item.description}</p>
                 </div>
               </Reveal>

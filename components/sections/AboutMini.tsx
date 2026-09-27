@@ -24,7 +24,7 @@ export default function AboutMini() {
 
         <div className="md:col-span-3">
           <Reveal>
-            <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+            <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
               About
             </span>
             <h2 className="font-serif italic text-h2 mt-6">

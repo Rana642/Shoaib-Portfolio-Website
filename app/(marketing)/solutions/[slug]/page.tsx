@@ -87,7 +87,7 @@ export default async function SolutionPage({ params }: PageProps<"/solutions/[sl
       <section className="py-14 md:py-20 border-t border-ink/10">
         <div className="container-narrow">
           <Reveal>
-            <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+            <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
               Why it happens
             </span>
             <h2 className="font-serif italic text-h2 mt-6 max-w-2xl">
@@ -116,7 +116,7 @@ export default async function SolutionPage({ params }: PageProps<"/solutions/[sl
       <section className="py-14 md:py-20 bg-citrus/10 border-y border-citrus/20">
         <div className="container-wide">
           <Reveal>
-            <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+            <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
               How I fix it
             </span>
             <h2 className="font-serif italic text-h2 mt-6 max-w-2xl">
@@ -156,7 +156,7 @@ export default async function SolutionPage({ params }: PageProps<"/solutions/[sl
           <div className="container-wide">
             <Reveal className="flex flex-wrap items-end justify-between gap-6">
               <div>
-                <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
                   Proof
                 </span>
                 <h2 className="font-serif italic text-h2 mt-6">
@@ -175,12 +175,12 @@ export default async function SolutionPage({ params }: PageProps<"/solutions/[sl
                     className="group block h-full bg-white/50 border border-ink/5 rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:shadow-ink/5 hover:-translate-y-1 hover:border-citrus/40"
                   >
                     <div className="flex items-start justify-between">
-                      <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                      <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
                         {cs.industry}
                       </span>
                       <ArrowUpRight className="size-5 text-ink-subtle group-hover:text-ink" aria-hidden />
                     </div>
-                    <h3 className="font-serif italic text-h3 mt-8">{cs.client}</h3>
+                    <h3 className="font-sans font-semibold text-xl md:text-2xl leading-snug tracking-tight mt-8">{cs.client}</h3>
                     <p className="text-body font-medium mt-3">
                       <span className="bg-citrus/40 rounded-sm px-1 -mx-1 box-decoration-clone">
                         {cs.outcome}
@@ -200,7 +200,7 @@ export default async function SolutionPage({ params }: PageProps<"/solutions/[sl
       <section className="pb-14 md:pb-20">
         <div className="container-wide">
           <Reveal>
-            <h2 className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+            <h2 className="font-mono uppercase text-tag tracking-widest text-ink-muted">
               Other problems I fix
             </h2>
           </Reveal>

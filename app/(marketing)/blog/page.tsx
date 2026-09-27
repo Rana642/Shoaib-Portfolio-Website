@@ -72,7 +72,7 @@ export default async function BlogPage() {
                 className="group grid grid-cols-1 lg:grid-cols-2 gap-8 mt-12 bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-8 md:p-12 transition-all duration-300 hover:shadow-xl hover:shadow-ink/5 hover:border-citrus/40"
               >
                 <div>
-                  <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                  <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
                     Featured · {featured.category}
                   </span>
                   <h2 className="font-serif italic text-h2 mt-6 group-hover:underline decoration-citrus decoration-2 underline-offset-8">
@@ -82,7 +82,7 @@ export default async function BlogPage() {
                 <div className="flex flex-col justify-between">
                   <p className="text-body-lg text-ink-muted">{featured.excerpt}</p>
                   <div className="flex items-center justify-between mt-8">
-                    <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                    <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
                       {estimateReadingTime(featured.body)}
                     </span>
                     <ArrowUpRight
@@ -103,12 +103,12 @@ export default async function BlogPage() {
                   href={`/blog/${post.slug}`}
                   className="group flex flex-col h-full bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:shadow-ink/5 hover:-translate-y-1 hover:border-citrus/40"
                 >
-                  <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                  <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
                     {post.category}
                   </span>
                   <h2 className="font-serif italic text-h3 mt-5 flex-1">{post.title}</h2>
                   <p className="text-small text-ink-muted mt-3">{post.excerpt}</p>
-                  <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-6">
+                  <span className="font-mono uppercase text-tag tracking-widest text-ink-muted mt-6">
                     {estimateReadingTime(post.body)}
                   </span>
                 </Link>

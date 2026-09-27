@@ -57,12 +57,12 @@ export default function SolutionsPage() {
                   className="group block h-full bg-white/50 border border-ink/5 rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:shadow-ink/5 hover:-translate-y-1 hover:border-citrus/40"
                 >
                   <div className="flex items-start justify-between gap-4">
-                    <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                    <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
                       {card.tag}
                     </span>
                     <ArrowUpRight className="size-5 text-ink-subtle group-hover:text-ink" aria-hidden />
                   </div>
-                  <h2 className="font-serif italic text-h3 mt-8">{card.problem}</h2>
+                  <h2 className="font-sans font-semibold text-xl md:text-2xl leading-snug tracking-tight mt-8">{card.problem}</h2>
                   <p className="text-small font-medium mt-4 underline-offset-4 decoration-citrus decoration-2 group-hover:underline">
                     How I fix this
                   </p>

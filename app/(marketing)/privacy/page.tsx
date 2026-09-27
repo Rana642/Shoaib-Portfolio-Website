@@ -203,7 +203,7 @@ export default function PrivacyPage() {
 
           <Reveal className="mt-10 max-w-3xl">
             <div className="border border-ink/10 rounded-2xl p-6 bg-white/50">
-              <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-4">
+              <p className="font-mono uppercase text-tag tracking-widest text-ink-muted mb-4">
                 On this page
               </p>
               <nav className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
@@ -243,7 +243,7 @@ export default function PrivacyPage() {
                   <div className="space-y-6">
                     {section.subsections.map((sub) => (
                       <div key={sub.heading}>
-                        <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-2">
+                        <p className="font-mono uppercase text-tag tracking-widest text-ink-muted mb-2">
                           {sub.heading}
                         </p>
                         <div className="space-y-3">
@@ -266,7 +266,7 @@ export default function PrivacyPage() {
                           {section.table.headers.map((h) => (
                             <th
                               key={h}
-                              className="font-mono uppercase text-tag tracking-widest text-ink-subtle px-4 py-3 border-b border-ink/10"
+                              className="font-mono uppercase text-tag tracking-widest text-ink-muted px-4 py-3 border-b border-ink/10"
                             >
                               {h}
                             </th>

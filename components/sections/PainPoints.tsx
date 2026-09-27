@@ -22,7 +22,7 @@ export default function PainPoints() {
     <section className="py-16 md:py-24">
       <div className="container-narrow">
         <Reveal>
-          <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+          <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
             Sound familiar?
           </span>
         </Reveal>

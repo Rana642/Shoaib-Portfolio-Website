@@ -16,7 +16,7 @@ export default async function CaseStudiesPreview() {
       <div className="container-wide">
         <Reveal className="flex flex-wrap items-end justify-between gap-6">
           <div>
-            <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+            <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
               Proof
             </span>
             <h2 className="font-serif italic text-h2 mt-6">
@@ -36,7 +36,7 @@ export default async function CaseStudiesPreview() {
                 className="group block h-full bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:shadow-ink/5 hover:-translate-y-1 hover:border-citrus/40"
               >
                 <div className="flex items-start justify-between">
-                  <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                  <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
                     {cs.industry}
                   </span>
                   <ArrowUpRight
@@ -44,7 +44,7 @@ export default async function CaseStudiesPreview() {
                     aria-hidden
                   />
                 </div>
-                <h3 className="font-serif italic text-h3 mt-10">{cs.client}</h3>
+                <h3 className="font-sans font-semibold text-xl md:text-2xl leading-snug tracking-tight mt-10">{cs.client}</h3>
                 <p className="text-body font-medium mt-3">
                   <span className="bg-citrus/40 rounded-sm px-1 -mx-1 box-decoration-clone">
                     {cs.outcome}

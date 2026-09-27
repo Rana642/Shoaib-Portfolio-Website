@@ -102,7 +102,7 @@ export default async function BlogPostPage({ params }: PageProps<"/blog/[slug]">
               </div>
               <div>
                 <p className="text-small font-medium">Shoaib Nabi Noor</p>
-                <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-1">
+                <p className="font-mono uppercase text-tag tracking-widest text-ink-muted mt-1">
                   {date} · {estimateReadingTime(post.body)}
                 </p>
               </div>
@@ -161,7 +161,7 @@ export default async function BlogPostPage({ params }: PageProps<"/blog/[slug]">
                     className="group flex flex-col h-full bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:shadow-ink/5 hover:-translate-y-1 hover:border-citrus/40"
                   >
                     <div className="flex items-start justify-between gap-4">
-                      <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                      <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
                         {p.category}
                       </span>
                       <ArrowUpRight className="size-5 text-ink-subtle group-hover:text-ink transition-colors" aria-hidden />

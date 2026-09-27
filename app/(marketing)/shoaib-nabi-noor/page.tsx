@@ -126,7 +126,7 @@ export default async function ResumePage() {
             {keyMetrics.map((metric, i) => (
               <Reveal key={metric.label} delay={i * 0.05}>
                 <p className="font-serif italic text-h2 leading-none">{metric.value}</p>
-                <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-3">
+                <p className="font-mono uppercase text-tag tracking-widest text-ink-muted mt-3">
                   {metric.label}
                 </p>
               </Reveal>
@@ -164,7 +164,7 @@ export default async function ResumePage() {
             {technicalSkillGroups.map((group, i) => (
               <Reveal key={group.category} delay={(i % 2) * 0.08}>
                 <div className="h-full bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-7">
-                  <h3 className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                  <h3 className="font-mono uppercase text-tag tracking-widest text-ink-muted">
                     {group.category}
                   </h3>
                   <div className="flex flex-wrap gap-2.5 mt-5">
@@ -237,7 +237,7 @@ export default async function ResumePage() {
                 <li key={edu.degree}>
                   <p className="text-body font-medium">{edu.degree}</p>
                   <p className="text-small text-ink mt-0.5">{edu.institution}</p>
-                  <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-1.5">
+                  <p className="font-mono uppercase text-tag tracking-widest text-ink-muted mt-1.5">
                     {edu.period}
                   </p>
                 </li>
@@ -261,7 +261,7 @@ export default async function ResumePage() {
                 <div className="bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-7 max-w-2xl">
                   <p className="text-body-lg font-semibold">{cert.title}</p>
                   <p className="text-small text-ink-muted mt-2">{cert.issuer}</p>
-                  <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-3">
+                  <p className="font-mono uppercase text-tag tracking-widest text-ink-muted mt-3">
                     {cert.detail}
                   </p>
                   <p className="text-small text-ink-subtle mt-3">{cert.note}</p>
@@ -288,7 +288,7 @@ export default async function ResumePage() {
       <section className="py-16 md:py-20">
         <div className="container-narrow flex flex-col md:flex-row md:items-center justify-between gap-8">
           <Reveal>
-            <h2 className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-4">
+            <h2 className="font-mono uppercase text-tag tracking-widest text-ink-muted mb-4">
               Find me elsewhere
             </h2>
             <div className="flex flex-wrap gap-3">

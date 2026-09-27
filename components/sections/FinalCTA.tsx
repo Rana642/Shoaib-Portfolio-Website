@@ -17,7 +17,7 @@ export default function FinalCTA() {
       />
       <div className="container-narrow text-center relative">
         <Reveal>
-          <span className="font-mono uppercase text-tag tracking-widest text-cloud/40">
+          <span className="font-mono uppercase text-tag tracking-widest text-cloud/60">
             Your move
           </span>
           <h2 className="font-serif italic text-hero mt-8">

@@ -130,7 +130,7 @@ export default function HostingerCouponPage() {
               <div className="flex flex-col md:flex-row md:items-center gap-8 md:justify-between">
                 <div>
                   <HostingerPartnerBadge width={176} />
-                  <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-5 mb-3">
+                  <p className="font-mono uppercase text-tag tracking-widest text-ink-muted mt-5 mb-3">
                     Your coupon code
                   </p>
                   <CouponCode />
@@ -159,7 +159,7 @@ export default function HostingerCouponPage() {
       <section className="py-16 md:py-20 bg-white/40">
         <div className="container-narrow">
           <Reveal>
-            <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+            <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
               What&apos;s included
             </span>
             <h2 className="font-serif italic text-h2 mt-6">
@@ -187,7 +187,7 @@ export default function HostingerCouponPage() {
       <section className="py-16 md:py-20">
         <div className="container-narrow">
           <Reveal>
-            <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+            <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
               Which plan
             </span>
             <h2 className="font-serif italic text-h2 mt-6">
@@ -216,7 +216,7 @@ export default function HostingerCouponPage() {
       <section className="py-16 md:py-20 bg-white/40">
         <div className="container-narrow">
           <Reveal>
-            <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+            <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
               How to use it
             </span>
             <h2 className="font-serif italic text-h2 mt-6">
@@ -252,7 +252,7 @@ export default function HostingerCouponPage() {
       <section className="py-16 md:py-20">
         <div className="container-narrow">
           <Reveal>
-            <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+            <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
               Questions
             </span>
             <h2 className="font-serif italic text-h2 mt-6">

@@ -20,7 +20,7 @@ export default function Testimonials({ testimonials }: { testimonials: Testimoni
       <div className="container-wide">
         <Reveal className="flex flex-wrap items-end justify-between gap-6">
           <div>
-            <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+            <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
               Client words
             </span>
             <h2 className="font-serif italic text-h2 mt-6">
@@ -80,7 +80,7 @@ function TestimonialCard({ t }: { t: Testimonial }) {
       <blockquote className="text-body text-ink-muted mt-3 flex-1">"{t.quote}"</blockquote>
       <figcaption className="mt-6 pt-5 border-t border-ink/10">
         <p className="text-small font-medium">{t.author}</p>
-        <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-1.5">
+        <p className="font-mono uppercase text-tag tracking-widest text-ink-muted mt-1.5">
           {t.context}
         </p>
       </figcaption>

@@ -52,7 +52,7 @@ export default function ServicesOverview({ services }: { services: Service[] }) 
     <section className="py-16 md:py-24">
       <div className="container-wide">
         <Reveal>
-          <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+          <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
             How I fix it
           </span>
           <h2 className="font-serif italic text-h2 mt-6 max-w-2xl">
@@ -70,7 +70,7 @@ export default function ServicesOverview({ services }: { services: Service[] }) 
               <Reveal key={service.slug} delay={i * 0.08}>
                 <TiltCard>
                   <Icon className="size-8 text-cobalt" aria-hidden />
-                  <h3 className="font-serif italic text-h3 mt-6">{service.title}</h3>
+                  <h3 className="font-sans font-semibold text-xl md:text-2xl leading-snug tracking-tight mt-6">{service.title}</h3>
                   <p className="text-body text-ink-muted mt-3 max-w-md">{service.summary}</p>
                   <Link
                     href={`/services/${service.slug}`}

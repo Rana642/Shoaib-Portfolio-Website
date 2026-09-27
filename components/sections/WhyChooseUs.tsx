@@ -40,7 +40,7 @@ export default function WhyChooseUs() {
     <section className="py-16 md:py-24 bg-white/40">
       <div className="container-wide">
         <Reveal>
-          <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+          <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
             Why this practice
           </span>
           <h2 className="font-serif italic text-h2 mt-6 max-w-2xl">

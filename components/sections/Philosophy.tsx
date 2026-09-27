@@ -43,7 +43,7 @@ export default function Philosophy() {
           aria-hidden
           className="h-0.5 w-40 bg-citrus mx-auto mt-10 origin-left"
         />
-        <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-8">
+        <p className="font-mono uppercase text-tag tracking-widest text-ink-muted mt-8">
           — Shoaib Nabi Noor
         </p>
       </div>

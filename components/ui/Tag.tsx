@@ -16,7 +16,7 @@ export default function Tag({ variant = "pill", className, children }: TagProps)
         "font-mono uppercase text-tag tracking-widest",
         variant === "pill" &&
           "inline-flex items-center gap-2 rounded-full bg-citrus/15 border border-citrus/40 px-3.5 py-2 text-ink",
-        variant === "plain" && "text-ink-subtle",
+        variant === "plain" && "text-ink-muted",
         className
       )}
     >

@@ -128,7 +128,7 @@ export default async function ServicesPage() {
             </Reveal>
             <Reveal delay={0.1}>
               <div className="bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-8 h-full">
-                <h3 className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                <h3 className="font-mono uppercase text-tag tracking-widest text-ink-muted">
                   What you get
                 </h3>
                 <ul className="mt-6 space-y-4">
@@ -149,7 +149,7 @@ export default async function ServicesPage() {
       <section className="py-12 md:py-16 border-t border-ink/10">
         <div className="container-wide">
           <Reveal>
-            <h2 className="font-mono uppercase text-tag tracking-widest text-ink-subtle">Also</h2>
+            <h2 className="font-mono uppercase text-tag tracking-widest text-ink-muted">Also</h2>
             <ul className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
               {[
                 {
@@ -169,7 +169,7 @@ export default async function ServicesPage() {
                     className="group flex h-full items-start justify-between gap-6 bg-white/50 border border-ink/5 rounded-2xl p-7 transition-all duration-300 hover:shadow-xl hover:shadow-ink/5 hover:-translate-y-1 hover:border-citrus/40"
                   >
                     <div>
-                      <h3 className="font-serif italic text-h3">{item.title}</h3>
+                      <h3 className="font-sans font-semibold text-xl md:text-2xl leading-snug tracking-tight">{item.title}</h3>
                       <p className="text-body text-ink-muted mt-2">{item.note}</p>
                     </div>
                     <ArrowRight className="size-5 shrink-0 mt-2 transition-transform group-hover:translate-x-1" aria-hidden />
@@ -185,7 +185,7 @@ export default async function ServicesPage() {
       <section className="py-14 md:py-20 bg-ink text-cloud">
         <div className="container-narrow">
           <Reveal>
-            <span className="font-mono uppercase text-tag tracking-widest text-cloud/40">
+            <span className="font-mono uppercase text-tag tracking-widest text-cloud/60">
               Honest scope
             </span>
             <h2 className="font-serif italic text-h2 mt-6">
@@ -217,7 +217,7 @@ export default async function ServicesPage() {
       <section className="py-14 md:py-20">
         <div className="container-narrow">
           <Reveal>
-            <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+            <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
               How it works
             </span>
             <h2 className="font-serif italic text-h2 mt-6">

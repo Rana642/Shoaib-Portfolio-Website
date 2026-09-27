@@ -80,7 +80,7 @@ function PrimaryRoleCard({ role, index }: { role: PrimaryRole; index: number }) 
               {role.stints.map((stint) => (
                 <span
                   key={stint.period + (stint.note ?? "")}
-                  className="font-mono uppercase text-tag tracking-widest text-ink-subtle border border-ink/10 rounded-full px-3 py-1.5"
+                  className="font-mono uppercase text-tag tracking-widest text-ink-muted border border-ink/10 rounded-full px-3 py-1.5"
                 >
                   {stint.period}
                   {stint.note ? ` · ${stint.note}` : ""}
@@ -103,7 +103,7 @@ function PrimaryRoleCard({ role, index }: { role: PrimaryRole; index: number }) 
               <div className="pt-5 max-w-2xl">
                 <p className="text-body text-ink-muted">{role.overview}</p>
 
-                <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-6">
+                <p className="font-mono uppercase text-tag tracking-widest text-ink-muted mt-6">
                   {role.managedLabel}
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-3">
@@ -112,7 +112,7 @@ function PrimaryRoleCard({ role, index }: { role: PrimaryRole; index: number }) 
                   ))}
                 </div>
 
-                <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-6">
+                <p className="font-mono uppercase text-tag tracking-widest text-ink-muted mt-6">
                   Key contributions
                 </p>
                 <ul className="mt-3 space-y-2.5">
@@ -161,7 +161,7 @@ function RemoteProjectCard({ project, index }: { project: RemoteProject; index: 
             </h3>
             <p className="text-small text-ink font-medium mt-1">{project.role}</p>
             {project.period && (
-              <span className="inline-block font-mono uppercase text-tag tracking-widest text-ink-subtle border border-ink/10 rounded-full px-3 py-1.5 mt-3">
+              <span className="inline-block font-mono uppercase text-tag tracking-widest text-ink-muted border border-ink/10 rounded-full px-3 py-1.5 mt-3">
                 {project.period}
               </span>
             )}
@@ -212,7 +212,7 @@ export default function ExperienceAccordion({
   return (
     <div className="mt-10">
       <Reveal>
-        <h3 className="font-mono uppercase text-tag tracking-widest text-ink-subtle flex items-center gap-2">
+        <h3 className="font-mono uppercase text-tag tracking-widest text-ink-muted flex items-center gap-2">
           <MapPin className="size-3.5" aria-hidden />
           Primary roles
         </h3>
@@ -224,7 +224,7 @@ export default function ExperienceAccordion({
       </div>
 
       <Reveal className="mt-6">
-        <h3 className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+        <h3 className="font-mono uppercase text-tag tracking-widest text-ink-muted">
           Remote & client projects
         </h3>
       </Reveal>

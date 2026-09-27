@@ -84,13 +84,13 @@ export default async function CaseStudyPage({
             <h1 className="font-serif italic text-h2 mt-8 max-w-3xl">{cs.title}</h1>
             <div className="flex flex-wrap gap-x-12 gap-y-4 mt-8 pt-8 border-t border-ink/10">
               <div>
-                <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                <p className="font-mono uppercase text-tag tracking-widest text-ink-muted">
                   Client
                 </p>
                 <p className="text-body font-medium mt-2">{cs.client}</p>
               </div>
               <div>
-                <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                <p className="font-mono uppercase text-tag tracking-widest text-ink-muted">
                   Outcome
                 </p>
                 <p className="text-body font-medium mt-2">

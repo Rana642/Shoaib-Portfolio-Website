@@ -58,7 +58,7 @@ export default async function CaseStudiesPage() {
                 className="group flex flex-col h-full bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:shadow-ink/5 hover:-translate-y-1 hover:border-citrus/40"
               >
                 <div className="flex items-start justify-between">
-                  <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                  <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
                     {cs.industry}
                   </span>
                   <ArrowUpRight
@@ -66,7 +66,7 @@ export default async function CaseStudiesPage() {
                     aria-hidden
                   />
                 </div>
-                <h2 className="font-serif italic text-h3 mt-8">{cs.client}</h2>
+                <h2 className="font-sans font-semibold text-xl md:text-2xl leading-snug tracking-tight mt-8">{cs.client}</h2>
                 <p className="text-small text-ink-muted mt-3 flex-1">{cs.excerpt}</p>
                 <p className="text-body font-medium mt-6 self-start">
                   <span className="bg-citrus/40 rounded-sm px-1 -mx-1 box-decoration-clone">

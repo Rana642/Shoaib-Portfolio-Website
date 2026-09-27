@@ -16,7 +16,7 @@ export default function TrustSignals() {
         {signals.map((signal) => (
           <span
             key={signal}
-            className="font-mono uppercase text-tag tracking-widest text-ink-subtle flex items-center gap-2"
+            className="font-mono uppercase text-tag tracking-widest text-ink-muted flex items-center gap-2"
           >
             <span className="size-1.5 rounded-full bg-citrus inline-block" aria-hidden />
             {signal}

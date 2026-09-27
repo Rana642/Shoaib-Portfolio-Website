@@ -98,7 +98,7 @@ export default async function ServiceDetailPage({
         <div className="container-narrow grid grid-cols-1 md:grid-cols-2 gap-10">
           <Reveal>
             <div className="bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-8 h-full">
-              <h2 className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+              <h2 className="font-mono uppercase text-tag tracking-widest text-ink-muted">
                 What you get
               </h2>
               <ul className="mt-6 space-y-4">
@@ -113,7 +113,7 @@ export default async function ServiceDetailPage({
           </Reveal>
           <Reveal delay={0.1}>
             <div className="bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-8 h-full">
-              <h2 className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+              <h2 className="font-mono uppercase text-tag tracking-widest text-ink-muted">
                 Best for
               </h2>
               <ul className="mt-6 space-y-4">

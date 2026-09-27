@@ -89,14 +89,14 @@ export default async function BlogCategoryPage({
                     className="group flex flex-col h-full bg-white/50 backdrop-blur-sm border border-ink/5 rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:shadow-ink/5 hover:-translate-y-1 hover:border-citrus/40"
                   >
                     <div className="flex items-start justify-between gap-4">
-                      <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                      <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
                         {post.category}
                       </span>
                       <ArrowUpRight className="size-5 text-ink-subtle group-hover:text-ink transition-colors" aria-hidden />
                     </div>
                     <h2 className="font-serif italic text-h3 mt-5 flex-1">{post.title}</h2>
                     <p className="text-small text-ink-muted mt-3">{post.excerpt}</p>
-                    <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle mt-6">
+                    <span className="font-mono uppercase text-tag tracking-widest text-ink-muted mt-6">
                       {estimateReadingTime(post.body)}
                     </span>
                   </Link>

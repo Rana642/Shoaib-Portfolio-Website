@@ -55,7 +55,7 @@ export default function Footer() {
           </div>
           <div className="mt-8">
             <HostingerPartnerBadge width={150} />
-            <p className="text-tag text-cloud/40 mt-2 max-w-[200px] leading-relaxed">
+            <p className="text-tag text-cloud/60 mt-2 max-w-[200px] leading-relaxed">
               Verified Hostinger Partner. Clients get {" "}
               <span className="text-cloud/70 font-medium">20% off</span> with code NAWAL20.
             </p>
@@ -64,7 +64,7 @@ export default function Footer() {
 
         {/* Explore */}
         <div>
-          <h3 className="font-mono uppercase text-tag tracking-widest text-cloud/40 mb-5">
+          <h3 className="font-mono uppercase text-tag tracking-widest text-cloud/60 mb-5">
             Explore
           </h3>
           <ul className="space-y-3">
@@ -83,7 +83,7 @@ export default function Footer() {
 
         {/* Services */}
         <div>
-          <h3 className="font-mono uppercase text-tag tracking-widest text-cloud/40 mb-5">
+          <h3 className="font-mono uppercase text-tag tracking-widest text-cloud/60 mb-5">
             Services
           </h3>
           <ul className="space-y-3">
@@ -102,7 +102,7 @@ export default function Footer() {
 
         {/* Newsletter */}
         <div>
-          <h3 className="font-mono uppercase text-tag tracking-widest text-cloud/40 mb-5">
+          <h3 className="font-mono uppercase text-tag tracking-widest text-cloud/60 mb-5">
             Newsletter
           </h3>
           <p className="text-small text-cloud/60 mb-4">
@@ -113,7 +113,7 @@ export default function Footer() {
       </div>
 
       <div className="border-t border-cloud/10">
-        <div className="container-wide py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-small text-cloud/40">
+        <div className="container-wide py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-small text-cloud/60">
           <p>
             © {new Date().getFullYear()} Ads by Shoaib (formerly Socially Snap). All rights reserved.
           </p>

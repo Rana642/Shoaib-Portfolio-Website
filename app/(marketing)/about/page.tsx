@@ -127,7 +127,7 @@ export default function AboutPage() {
       <section className="py-14 md:py-20 bg-white/40">
         <div className="container-narrow">
           <Reveal>
-            <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+            <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
               The story
             </span>
             <h2 className="font-serif italic text-h2 mt-6 max-w-2xl">
@@ -165,7 +165,7 @@ export default function AboutPage() {
       <section className="py-14 md:py-20 bg-ink text-cloud">
         <div className="container-narrow">
           <Reveal>
-            <span className="font-mono uppercase text-tag tracking-widest text-cloud/40">
+            <span className="font-mono uppercase text-tag tracking-widest text-cloud/60">
               Strong opinions, held accountable
             </span>
             <h2 className="font-serif italic text-h2 mt-6">
@@ -189,7 +189,7 @@ export default function AboutPage() {
       <section className="py-14 md:py-20">
         <div className="container-narrow">
           <Reveal>
-            <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+            <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
               Where I've spent
             </span>
             <h2 className="font-serif italic text-h2 mt-6">
@@ -204,7 +204,7 @@ export default function AboutPage() {
             {industries.map((industry, i) => (
               <Reveal key={industry} delay={i * 0.04}>
                 <div className="border border-ink/10 rounded-2xl p-6 h-full hover:border-citrus/50 hover:bg-citrus/5 transition-all duration-300">
-                  <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                  <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
                     0{i + 1}
                   </span>
                   <p className="text-body font-medium mt-3">{industry}</p>
@@ -219,7 +219,7 @@ export default function AboutPage() {
       <section className="py-14 md:py-20 bg-white/40">
         <div className="container-narrow">
           <Reveal>
-            <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+            <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
               The practical bits
             </span>
             <h2 className="font-serif italic text-h2 mt-6">
@@ -230,7 +230,7 @@ export default function AboutPage() {
             {practicalBits.map((bit, i) => (
               <Reveal key={bit.label} delay={i * 0.06}>
                 <div className="border-t-2 border-citrus pt-6 h-full">
-                  <h3 className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                  <h3 className="font-mono uppercase text-tag tracking-widest text-ink-muted">
                     {bit.label}
                   </h3>
                   <p className="text-body text-ink-muted mt-3">{bit.detail}</p>
