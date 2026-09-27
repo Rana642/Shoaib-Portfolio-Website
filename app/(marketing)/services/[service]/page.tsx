@@ -13,6 +13,7 @@ import FinalCTA from "@/components/sections/FinalCTA";
 import JsonLd from "@/components/shared/JsonLd";
 import { getServices, getService } from "@/lib/services";
 import { pageMetadata } from "@/lib/seo";
+import { serviceSeo } from "@/lib/service-seo";
 import { serviceSchema, breadcrumbSchema } from "@/lib/schema";
 
 export async function generateStaticParams() {
@@ -26,9 +27,10 @@ export async function generateMetadata({
   const { service: slug } = await params;
   const service = await getService(slug);
   if (!service) return {};
+  const seo = serviceSeo[service.slug];
   return pageMetadata({
-    title: service.title,
-    description: service.summary,
+    title: seo?.title ?? service.title,
+    description: seo?.description ?? service.summary,
     path: `/services/${service.slug}`,
   });
 }
@@ -39,6 +41,7 @@ export default async function ServiceDetailPage({
   const { service: slug } = await params;
   const service = await getService(slug);
   if (!service) notFound();
+  const seo = serviceSeo[service.slug];
 
   return (
     <PageWrapper>
@@ -60,9 +63,11 @@ export default async function ServiceDetailPage({
               <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-1" aria-hidden />
               All services
             </Link>
-            <Tag>Service</Tag>
+            <div>
+              <Tag>{seo?.eyebrow ?? "Service"}</Tag>
+            </div>
             <h1 className="font-serif italic text-hero mt-8">
-              {service.title}
+              {seo?.h1 ?? service.title}
               <span className="text-citrus">.</span>
             </h1>
             <p className="text-body-lg font-medium mt-5">

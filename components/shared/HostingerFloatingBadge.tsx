@@ -14,8 +14,8 @@ const STORAGE_KEY = "hostinger-badge-collapsed";
  * public site. Expanded, it surfaces the partner discount; collapsed, it's
  * just the badge tucked in the corner. The badge art is Hostinger's
  * official lockup, unmodified on its own clean background. Hidden on the
- * dedicated coupon page (where it would be redundant) and only mounts after
- * a short delay so it never competes with a page's first paint.
+ * dedicated coupon page (where it would be redundant); on scrollable pages it
+ * only appears once the visitor is half-way down, so it never competes with a hero.
  */
 export default function HostingerFloatingBadge() {
   const pathname = usePathname();
@@ -31,7 +31,10 @@ export default function HostingerFloatingBadge() {
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCollapsed(saved === "1");
-    if (pathname === "/") {
+    // Wait until the visitor is half-way down the page, so the widget never
+    // competes with a page's hero or covers its headline and CTA on mobile.
+    // Short pages (nothing to scroll) fall back to the old delay.
+    if (document.documentElement.scrollHeight > window.innerHeight * 1.5) {
       const onScroll = () => {
         const max = document.documentElement.scrollHeight - window.innerHeight;
         if (max > 0 && window.scrollY / max > 0.5) {

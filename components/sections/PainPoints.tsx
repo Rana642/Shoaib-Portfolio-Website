@@ -13,7 +13,7 @@ const pains = [
   { text: "You can't tell which ad actually works.", href: "/services/tracking-analytics" },
   {
     text: "Bookings go to OTAs, and you pay commission on every one.",
-    href: "/case-studies/boutique-hotel-multan",
+    href: "/hotel-marketing",
   },
 ];
 

@@ -14,10 +14,11 @@ const explore = [
 ];
 
 const services = [
-  { href: "/services", label: "Meta Ads" },
-  { href: "/services", label: "Google Ads" },
-  { href: "/services", label: "Tracking & Analytics" },
-  { href: "/services", label: "Funnels & Web" },
+  { href: "/services/meta-ads", label: "Meta Ads" },
+  { href: "/services/google-ads", label: "Google Ads" },
+  { href: "/services/tracking-analytics", label: "Tracking & Analytics" },
+  { href: "/services/funnels-web", label: "Funnels & Web" },
+  { href: "/hotel-marketing", label: "Hotel Marketing" },
 ];
 
 export default function Footer() {
