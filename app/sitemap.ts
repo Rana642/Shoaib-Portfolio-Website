@@ -10,6 +10,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "",
     "/services",
     "/hotel-marketing",
+    "/google-business-profile-management",
     "/solutions",
     ...solutions.map((s) => `/solutions/${s.slug}`),
     "/about",

@@ -145,6 +145,42 @@ export default async function ServicesPage() {
         </section>
       ))}
 
+      {/* Also offered: standalone service landing pages */}
+      <section className="py-12 md:py-16 border-t border-ink/10">
+        <div className="container-wide">
+          <Reveal>
+            <h2 className="font-mono uppercase text-tag tracking-widest text-ink-subtle">Also</h2>
+            <ul className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              {[
+                {
+                  href: "/google-business-profile-management",
+                  title: "Google Business Profile management",
+                  note: "Setup, optimization, reviews, and posts, so local searches find you on Google Maps.",
+                },
+                {
+                  href: "/hotel-marketing",
+                  title: "Hotel digital marketing",
+                  note: "Direct bookings for independent hotels, with less OTA commission.",
+                },
+              ].map((item) => (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className="group flex h-full items-start justify-between gap-6 bg-white/50 border border-ink/5 rounded-2xl p-7 transition-all duration-300 hover:shadow-xl hover:shadow-ink/5 hover:-translate-y-1 hover:border-citrus/40"
+                  >
+                    <div>
+                      <h3 className="font-serif italic text-h3">{item.title}</h3>
+                      <p className="text-body text-ink-muted mt-2">{item.note}</p>
+                    </div>
+                    <ArrowRight className="size-5 shrink-0 mt-2 transition-transform group-hover:translate-x-1" aria-hidden />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Reveal>
+        </div>
+      </section>
+
       {/* What I don't do */}
       <section className="py-14 md:py-20 bg-ink text-cloud">
         <div className="container-narrow">

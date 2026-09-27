@@ -19,6 +19,7 @@ const services = [
   { href: "/services/google-ads", label: "Google Ads" },
   { href: "/services/tracking-analytics", label: "Tracking & Analytics" },
   { href: "/services/funnels-web", label: "Funnels & Web" },
+  { href: "/google-business-profile-management", label: "Google Business Profile" },
   { href: "/hotel-marketing", label: "Hotel Marketing" },
 ];
 
