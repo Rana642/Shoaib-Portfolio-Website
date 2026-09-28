@@ -46,34 +46,44 @@ export default function ComplimentaryServices({
 
   return (
     <div className={`rounded-xl border border-ink/10 overflow-hidden ${className}`}>
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1.5 px-4 md:px-5 py-3 bg-citrus/[0.07] border-b border-ink/10 break-after-avoid [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
-        <p className="flex items-center gap-2.5">
-          <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-citrus/30">
-            <Gift className="size-3.5 text-ink" aria-hidden />
-          </span>
-          <span className="font-mono uppercase text-tag tracking-widest text-ink">Complimentary</span>
-          <span className="text-small text-ink-muted">· included at no charge</span>
-        </p>
-        <p className="text-small">
-          <span className="text-ink-muted">Value </span>
-          <span className="font-semibold">
-            {monthly > 0 && <span className="whitespace-nowrap">{formatMoney(monthly, currency)}/mo</span>}
-            {monthly > 0 && oneTime > 0 && <span className="text-ink-subtle font-normal"> + </span>}
-            {oneTime > 0 && (
-              <span className="whitespace-nowrap">
-                {formatMoney(oneTime, currency)}
-                {monthly > 0 ? " one-time" : ""}
-              </span>
-            )}
-          </span>
-        </p>
-      </div>
-
       <table className="w-full text-left">
         {groups.map((group, g) => (
-          <tbody key={group.key} className={g > 0 ? "border-t border-ink/10" : undefined}>
-            {split && (
+          <tbody key={group.key} className={`avoid-break${g > 0 ? " border-t border-ink/10" : ""}`}>
+            {/* The header is the first group's first row, so in print it
+                always travels with that group's lines. */}
+            {g === 0 && (
               <tr>
+                <td
+                  colSpan={2}
+                  className="px-4 md:px-5 py-3 bg-citrus/[0.07] border-b border-ink/10 [print-color-adjust:exact] [-webkit-print-color-adjust:exact]"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1.5">
+                    <p className="flex items-center gap-2.5">
+                      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-citrus/30">
+                        <Gift className="size-3.5 text-ink" aria-hidden />
+                      </span>
+                      <span className="font-mono uppercase text-tag tracking-widest text-ink">Complimentary</span>
+                      <span className="text-small text-ink-muted">· included at no charge</span>
+                    </p>
+                    <p className="text-small">
+                      <span className="text-ink-muted">Value </span>
+                      <span className="font-semibold">
+                        {monthly > 0 && <span className="whitespace-nowrap">{formatMoney(monthly, currency)}/mo</span>}
+                        {monthly > 0 && oneTime > 0 && <span className="text-ink-subtle font-normal"> + </span>}
+                        {oneTime > 0 && (
+                          <span className="whitespace-nowrap">
+                            {formatMoney(oneTime, currency)}
+                            {monthly > 0 ? " one-time" : ""}
+                          </span>
+                        )}
+                      </span>
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            )}
+            {split && (
+              <tr className="keep-with-next">
                 <th
                   colSpan={2}
                   className="px-4 md:px-5 pt-4 pb-1 text-left font-normal font-mono uppercase text-tag tracking-widest text-ink-subtle"

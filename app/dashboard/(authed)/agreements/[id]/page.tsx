@@ -12,6 +12,8 @@ import AgreementActions from "@/components/dashboard/AgreementActions";
 import ConfirmActionButton from "@/components/dashboard/ConfirmActionButton";
 import WhatsAppShareLink from "@/components/dashboard/WhatsAppShareLink";
 import AgreementBody from "@/components/dashboard/AgreementBody";
+import AgreementHeader from "@/components/dashboard/AgreementHeader";
+import { getSettings } from "@/lib/dashboard/settings";
 import type { Agreement, Proposal } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
@@ -24,10 +26,11 @@ export default async function AgreementPage({ params }: PageProps<"/dashboard/ag
 
   const { clients, ...agreement } = data as Agreement & { clients: { name: string } | null };
 
-  const [{ data: proposal }, { data: items }, { data: projects }] = await Promise.all([
+  const [{ data: proposal }, { data: items }, { data: projects }, settings] = await Promise.all([
     db.from("proposals").select("*").eq("id", agreement.proposal_id).maybeSingle(),
     db.from("proposal_items").select("*").eq("proposal_id", agreement.proposal_id).order("sort_order"),
     db.from("proposal_projects").select("*").eq("proposal_id", agreement.proposal_id).order("sort_order"),
+    getSettings(),
   ]);
 
   const hiddenCount = (agreement.clauses ?? []).filter((c) => c.hidden).length;
@@ -57,11 +60,13 @@ export default async function AgreementPage({ params }: PageProps<"/dashboard/ag
         All agreements
       </Link>
 
-      <div className="flex flex-wrap items-center gap-4 mb-2">
+      <div className="flex flex-wrap items-center gap-4 mb-2 print:hidden">
         <h1 className="font-serif italic text-h2">{agreement.number}</h1>
         <StatusBadge status={agreement.status} />
       </div>
-      <p className="text-small text-ink-muted mb-8">{clients?.name ?? "—"}</p>
+      <p className="text-small text-ink-muted mb-8 print:hidden">{clients?.name ?? "—"}</p>
+
+      <AgreementHeader settings={settings} number={agreement.number} className="hidden print:flex mb-8" />
 
       {hiddenCount > 0 && (
         <p className="text-small text-ink-muted mb-6 print:hidden">

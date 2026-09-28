@@ -292,7 +292,7 @@ export default function Sidebar({
   return (
     <>
       {/* Mobile top bar */}
-      <div className="lg:hidden fixed top-0 inset-x-0 z-50 h-14 glass-dark backdrop-blur-xl backdrop-saturate-150 border-b border-cloud/10 flex items-center justify-between px-4">
+      <div className="lg:hidden print:hidden fixed top-0 inset-x-0 z-50 h-14 glass-dark backdrop-blur-xl backdrop-saturate-150 border-b border-cloud/10 flex items-center justify-between px-4">
         <Link href="/dashboard" aria-label="Ads by Shoaib home">
           <Image src="/brand/logo-horizontal-light.svg" alt="Ads by Shoaib" width={168} height={55} className="h-7 w-auto" />
         </Link>
@@ -307,7 +307,7 @@ export default function Sidebar({
 
       {/* Mobile drawer — always full width, never the collapsed rail */}
       {open && (
-        <div className="lg:hidden fixed inset-0 top-14 z-40 glass-dark backdrop-blur-xl backdrop-saturate-150 flex flex-col">
+        <div className="lg:hidden print:hidden fixed inset-0 top-14 z-40 glass-dark backdrop-blur-xl backdrop-saturate-150 flex flex-col">
           {renderNav(false)}
         </div>
       )}

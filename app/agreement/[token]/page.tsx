@@ -4,6 +4,7 @@ import { getAgreementByToken } from "@/lib/dashboard/actions/agreement-public";
 import { getSettings } from "@/lib/dashboard/settings";
 import AgreementSignForm from "@/components/dashboard/AgreementSignForm";
 import AgreementBody from "@/components/dashboard/AgreementBody";
+import AgreementHeader from "@/components/dashboard/AgreementHeader";
 import { isOfflineSignature, signedOnLabel } from "@/lib/dashboard/offline-dates";
 
 export const dynamic = "force-dynamic";
@@ -24,25 +25,7 @@ export default async function PublicAgreementPage({
     <main className="min-h-full bg-cloud px-5 py-10 md:py-16">
       <div className="max-w-3xl mx-auto">
         <div className="bg-white border border-ink/10 rounded-xl p-8 md:p-12 print:border-0 print:rounded-none print:p-0">
-          <div className="flex flex-wrap justify-between gap-8 pb-8 border-b-2 border-citrus">
-            <div>
-              <p className="font-serif italic text-h3 leading-none">
-                {settings.business_name}
-                <span className="text-citrus not-italic font-sans">.</span>
-              </p>
-              <div className="text-small text-ink-muted mt-3 space-y-0.5">
-                {settings.business_address && <p>{settings.business_address}</p>}
-                {settings.business_email && <p>{settings.business_email}</p>}
-                {settings.business_phone && <p>{settings.business_phone}</p>}
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
-                Agreement
-              </p>
-              <p className="font-serif italic text-h3 mt-1 leading-none">{agreement.number}</p>
-            </div>
-          </div>
+          <AgreementHeader settings={settings} number={agreement.number} />
 
           <div className="mt-8">
             <AgreementBody

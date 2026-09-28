@@ -62,12 +62,12 @@ export default function DashboardShell({
     });
 
   return (
-    <div className="relative min-h-screen bg-cloud">
+    <div className="relative min-h-screen bg-cloud print:bg-white">
       <PwaRegister />
       {/* Ambient colour wash — gives the frosted-glass panels something to
           actually frost over. Purely decorative, behind everything, and
           non-interactive. */}
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden>
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden print:hidden" aria-hidden>
         <div className="absolute -top-40 -left-32 size-[32rem] rounded-full bg-citrus/25 blur-3xl ambient-blob" />
         <div className="absolute top-1/4 -right-28 size-[34rem] rounded-full bg-cobalt/20 blur-3xl ambient-blob-alt" />
         <div className="absolute -bottom-32 left-1/3 size-96 rounded-full bg-citrus/15 blur-3xl ambient-blob-slow" />
@@ -85,7 +85,9 @@ export default function DashboardShell({
           collapsed ? "lg:pl-[5rem]" : "lg:pl-[16rem]"
         )}
       >
-        <div className={cn("px-5 py-8 md:px-8 md:py-10", isWide ? "max-w-none" : "max-w-6xl")}>{children}</div>
+        <div className={cn("px-5 py-8 md:px-8 md:py-10 print:p-0 print:max-w-none", isWide ? "max-w-none" : "max-w-6xl")}>
+          {children}
+        </div>
       </main>
     </div>
   );

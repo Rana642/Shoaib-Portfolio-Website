@@ -197,6 +197,20 @@
      the browser's print header (date / title), which prints in the page
      margin when "Headers and footers" is left on in the print dialog. */
   @page {
+    size: A4;
     margin: 20mm 16mm 16mm;
+  }
+
+  /* A heading/label never ends a page on its own — it moves over with the
+     table or text it introduces. */
+  .keep-with-next {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* The agreement's Investment Summary prints smaller so each project's
+     tables, totals and complimentary list sit together on the page. */
+  .print-compact {
+    zoom: 0.8;
   }
 }

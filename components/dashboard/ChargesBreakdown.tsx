@@ -157,14 +157,14 @@ function renderCharges(
   return (
     <>
       {groups.length > 0 && (
-        <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-3">
+        <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-3 keep-with-next">
           Service Charges
         </p>
       )}
       {groups.map((group) => (
         <div key={`${keyPrefix}-${group.key}`} className="mb-6 last:mb-0 avoid-break">
           {groups.length > 1 && (
-            <p className="text-small font-semibold text-ink mb-2">{group.label}</p>
+            <p className="text-small font-semibold text-ink mb-2 keep-with-next">{group.label}</p>
           )}
           <table className="w-full text-left">
             <thead>
@@ -262,7 +262,7 @@ function renderCharges(
             </p>
           </div>
           {toolsTaxAmount > 0 && (
-            <p className="text-tag text-ink-subtle text-right mt-1">
+            <p className="text-tag tracking-normal text-ink-subtle text-right mt-1">
               *Includes an estimated international transaction tax — the exact amount may vary by
               bank at the time of payment.
             </p>
@@ -362,9 +362,9 @@ export default function ChargesBreakdown({
             if (!rendered) return null;
             return (
               <div key={project.id}>
-                <p className="text-body-lg font-semibold mb-1">{project.name}</p>
+                <p className="text-body-lg font-semibold mb-1 keep-with-next">{project.name}</p>
                 {project.scope_of_work && (
-                  <p className="text-small text-ink-muted mb-4 whitespace-pre-line">
+                  <p className="text-small text-ink-muted mb-4 whitespace-pre-line keep-with-next">
                     {project.scope_of_work}
                   </p>
                 )}
@@ -384,7 +384,7 @@ export default function ChargesBreakdown({
             if (!rendered) return null;
             return (
               <div>
-                <p className="text-body-lg font-semibold mb-4">General</p>
+                <p className="text-body-lg font-semibold mb-4 keep-with-next">General</p>
                 {rendered}
               </div>
             );
@@ -392,122 +392,125 @@ export default function ChargesBreakdown({
         </div>
       )}
 
-      {projects.length > 0 && summaryRows.length > 0 && (
-        <div className="mt-12 avoid-break">
-          <p className="font-mono uppercase text-tag tracking-widest text-ink mb-3">Grand Summary</p>
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-y border-ink/10">
-                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 pr-4">Project</th>
-                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 px-3 text-right whitespace-nowrap">
-                  Services
-                </th>
-                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 pl-3 text-right whitespace-nowrap">
-                  Complimentary value
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {summaryRows.map((row) => (
-                <tr key={row.key} className="border-b border-ink/5">
-                  <td className="py-3.5 pr-4 text-body font-medium align-top">{row.name}</td>
-                  <td className="py-3.5 px-3 text-body text-right align-top">
-                    <SplitAmount split={row.services} currency={proposal.currency} />
-                  </td>
-                  <td className="py-3.5 pl-3 text-body text-right text-ink-muted align-top">
-                    <SplitAmount split={row.complimentary} currency={proposal.currency} />
-                  </td>
+      {/* Grand Summary + totals: one unit, never split across pages. */}
+      <div className="avoid-break">
+        {projects.length > 0 && summaryRows.length > 0 && (
+          <div className="mt-12">
+            <p className="font-mono uppercase text-tag tracking-widest text-ink mb-3">Grand Summary</p>
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-y border-ink/10">
+                  <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 pr-4">Project</th>
+                  <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 px-3 text-right whitespace-nowrap">
+                    Services
+                  </th>
+                  <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 pl-3 text-right whitespace-nowrap">
+                    Complimentary value
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {summaryRows.map((row) => (
+                  <tr key={row.key} className="border-b border-ink/5">
+                    <td className="py-3.5 pr-4 text-body font-medium align-top">{row.name}</td>
+                    <td className="py-3.5 px-3 text-body text-right align-top">
+                      <SplitAmount split={row.services} currency={proposal.currency} />
+                    </td>
+                    <td className="py-3.5 pl-3 text-body text-right text-ink-muted align-top">
+                      <SplitAmount split={row.complimentary} currency={proposal.currency} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-      {/* Totals: the retainer (and any one-time fee) is the deal; tools are
-          optional, taken and billed only if the client chooses. */}
-      <div className="flex justify-end mt-8 avoid-break">
-        <div className="w-full max-w-md space-y-2.5">
-          <div className="flex justify-between gap-4 text-body">
-            <span className="text-ink-muted">{hasTools ? "Services subtotal" : "Subtotal"}</span>
-            <span className="whitespace-nowrap">
-              {money(totals.subtotal)}
-              {perMonth}
-            </span>
-          </div>
-          {proposal.discount_enabled && totals.discountAmount > 0 && (
+        {/* Totals: the retainer (and any one-time fee) is the deal; tools are
+            optional, taken and billed only if the client chooses. */}
+        <div className="flex justify-end mt-8">
+          <div className="w-full max-w-md space-y-2.5">
             <div className="flex justify-between gap-4 text-body">
-              <span className="text-ink-muted">
-                Discount
-                {proposal.discount_type === "percentage" ? ` (${Number(proposal.discount_value)}%)` : ""}
-              </span>
+              <span className="text-ink-muted">{hasTools ? "Services subtotal" : "Subtotal"}</span>
               <span className="whitespace-nowrap">
-                −{money(totals.discountAmount)}
+                {money(totals.subtotal)}
                 {perMonth}
               </span>
             </div>
-          )}
-          {proposal.tax_enabled && (
-            <div className="flex justify-between gap-4 text-body">
-              <span className="text-ink-muted">
-                {proposal.tax_name} ({Number(proposal.tax_rate)}%)
-              </span>
-              <span className="whitespace-nowrap">
-                {money(totals.taxAmount)}
-                {perMonth}
-              </span>
-            </div>
-          )}
-          <div className="pt-3 border-t-2 border-ink space-y-2.5">
-            {totals.monthlyTotal > 0 && (
-              <div className="flex justify-between items-baseline gap-4">
-                <span className="font-semibold">Monthly Retainer</span>
-                <span className="font-serif italic text-h3 leading-none whitespace-nowrap">
-                  {money(totals.monthlyTotal)}
-                  <span className="text-body not-italic font-sans text-ink-muted">/mo</span>
-                </span>
-              </div>
-            )}
-            {(totals.oneTimeTotal > 0 || totals.monthlyTotal === 0) && (
-              <div className="flex justify-between items-baseline gap-4">
-                <span className="font-semibold">{totals.monthlyTotal > 0 ? "One-time" : "Total"}</span>
-                <span
-                  className={
-                    totals.monthlyTotal > 0
-                      ? "text-body-lg font-semibold whitespace-nowrap"
-                      : "font-serif italic text-h3 leading-none whitespace-nowrap"
-                  }
-                >
-                  {money(totals.oneTimeTotal)}
-                </span>
-              </div>
-            )}
-          </div>
-          {!isEmpty(complimentaryAll) && (
-            <div className="flex justify-between items-start gap-4 text-body pt-1">
-              <span className="text-ink-muted">
-                Complimentary value included
-                <span className="block text-tag tracking-normal text-ink-subtle mt-0.5">At no charge</span>
-              </span>
-              <SplitAmount split={complimentaryAll} currency={proposal.currency} className="text-ink-muted" />
-            </div>
-          )}
-          {hasTools && (
-            <div className="mt-4 pt-3 border-t border-dashed border-ink/20">
-              <div className="flex justify-between items-baseline gap-4 text-body">
+            {proposal.discount_enabled && totals.discountAmount > 0 && (
+              <div className="flex justify-between gap-4 text-body">
                 <span className="text-ink-muted">
-                  <span className="font-medium text-ink">Optional:</span> Tools &amp; Subscriptions
+                  Discount
+                  {proposal.discount_type === "percentage" ? ` (${Number(proposal.discount_value)}%)` : ""}
                 </span>
                 <span className="whitespace-nowrap">
-                  {money(totals.toolsTotal)}
-                  {toolsMonthly ? "/mo" : ""}
+                  −{money(totals.discountAmount)}
+                  {perMonth}
                 </span>
               </div>
-              <p className="text-tag tracking-normal text-ink-subtle mt-1.5">
-                Taken and billed only if and when you choose — not part of the retainer.
-              </p>
+            )}
+            {proposal.tax_enabled && (
+              <div className="flex justify-between gap-4 text-body">
+                <span className="text-ink-muted">
+                  {proposal.tax_name} ({Number(proposal.tax_rate)}%)
+                </span>
+                <span className="whitespace-nowrap">
+                  {money(totals.taxAmount)}
+                  {perMonth}
+                </span>
+              </div>
+            )}
+            <div className="pt-3 border-t-2 border-ink space-y-2.5">
+              {totals.monthlyTotal > 0 && (
+                <div className="flex justify-between items-baseline gap-4">
+                  <span className="font-semibold">Monthly Retainer</span>
+                  <span className="font-serif italic text-h3 leading-none whitespace-nowrap">
+                    {money(totals.monthlyTotal)}
+                    <span className="text-body not-italic font-sans text-ink-muted">/mo</span>
+                  </span>
+                </div>
+              )}
+              {(totals.oneTimeTotal > 0 || totals.monthlyTotal === 0) && (
+                <div className="flex justify-between items-baseline gap-4">
+                  <span className="font-semibold">{totals.monthlyTotal > 0 ? "One-time" : "Total"}</span>
+                  <span
+                    className={
+                      totals.monthlyTotal > 0
+                        ? "text-body-lg font-semibold whitespace-nowrap"
+                        : "font-serif italic text-h3 leading-none whitespace-nowrap"
+                    }
+                  >
+                    {money(totals.oneTimeTotal)}
+                  </span>
+                </div>
+              )}
             </div>
-          )}
+            {!isEmpty(complimentaryAll) && (
+              <div className="flex justify-between items-start gap-4 text-body pt-1">
+                <span className="text-ink-muted">
+                  Complimentary value included
+                  <span className="block text-tag tracking-normal text-ink-subtle mt-0.5">At no charge</span>
+                </span>
+                <SplitAmount split={complimentaryAll} currency={proposal.currency} className="text-ink-muted" />
+              </div>
+            )}
+            {hasTools && (
+              <div className="mt-4 pt-3 border-t border-dashed border-ink/20">
+                <div className="flex justify-between items-baseline gap-4 text-body">
+                  <span className="text-ink-muted">
+                    <span className="font-medium text-ink">Optional:</span> Tools &amp; Subscriptions
+                  </span>
+                  <span className="whitespace-nowrap">
+                    {money(totals.toolsTotal)}
+                    {toolsMonthly ? "/mo" : ""}
+                  </span>
+                </div>
+                <p className="text-tag tracking-normal text-ink-subtle mt-1.5">
+                  Taken and billed only if and when you choose — not part of the retainer.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </>

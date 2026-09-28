@@ -41,11 +41,11 @@ export default function AgreementBody({
   wrapped?: boolean;
 }) {
   const Wrapper: ElementType = wrapped ? Card : "div";
-  const wrapperPad = wrapped ? "p-8" : "";
+  const wrapperPad = wrapped ? "p-8 print:p-0 print:border-0 print:rounded-none print:shadow-none" : "";
 
   const summary = proposal && (
-    <div>
-      <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-3">
+    <div className="print-compact">
+      <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-3 keep-with-next">
         Investment Summary
       </p>
       <ChargesBreakdown proposal={proposal} items={items} projects={projects} />
@@ -55,7 +55,7 @@ export default function AgreementBody({
   if (!clauses || clauses.length === 0) {
     return (
       <>
-        {summary && <Wrapper className={`${wrapperPad} mb-6 avoid-break`}>{summary}</Wrapper>}
+        {summary && <Wrapper className={`${wrapperPad} mb-6`}>{summary}</Wrapper>}
         <Wrapper className={wrapperPad}>
           <p className="text-body whitespace-pre-line">{content}</p>
         </Wrapper>
@@ -84,14 +84,10 @@ export default function AgreementBody({
               <p className="text-body whitespace-pre-line">{clause.body}</p>
             </div>
           )}
-          {index === anchorIndex && summary && (
-            <div className="pt-8 border-t border-ink/10 avoid-break">{summary}</div>
-          )}
+          {index === anchorIndex && summary && <div className="pt-8 border-t border-ink/10">{summary}</div>}
         </Fragment>
       ))}
-      {anchorIndex === -1 && summary && (
-        <div className="pt-8 border-t border-ink/10 avoid-break">{summary}</div>
-      )}
+      {anchorIndex === -1 && summary && <div className="pt-8 border-t border-ink/10">{summary}</div>}
     </Wrapper>
   );
 }
