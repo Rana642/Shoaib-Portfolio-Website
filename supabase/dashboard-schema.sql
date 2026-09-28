@@ -124,6 +124,8 @@ alter table catalog_items add column if not exists count_label text;
 alter table catalog_items add column if not exists count_default int;
 
 alter table proposal_items add column if not exists is_complimentary boolean not null default false;
+alter table quotation_items add column if not exists is_complimentary boolean not null default false;
+alter table invoice_items add column if not exists is_complimentary boolean not null default false;
 
 -- A bundle can't include another bundle (checked in the app, not here)
 -- — keeps "what's included" a flat, one-level list.

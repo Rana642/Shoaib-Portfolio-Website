@@ -16,6 +16,7 @@ type EditableItem = {
   description: string;
   quantity: number;
   rate: number;
+  is_complimentary: boolean;
 };
 
 type ExistingDocument = {
@@ -32,7 +33,13 @@ type ExistingDocument = {
   tax_rate: number;
   notes: string | null;
   terms: string | null;
-  items: { catalog_item_id: string | null; description: string; quantity: number; rate: number }[];
+  items: {
+    catalog_item_id: string | null;
+    description: string;
+    quantity: number;
+    rate: number;
+    is_complimentary?: boolean;
+  }[];
 };
 
 let keyCounter = 0;
@@ -70,8 +77,8 @@ export default function DocumentForm({
   const [taxEnabled, setTaxEnabled] = useState(document?.tax_enabled ?? settings.tax_enabled);
   const [taxRate, setTaxRate] = useState(document?.tax_rate ?? settings.tax_rate);
   const [items, setItems] = useState<EditableItem[]>(
-    document?.items.map((item) => ({ ...item, key: nextKey() })) ?? [
-      { key: nextKey(), catalog_item_id: null, description: "", quantity: 1, rate: 0 },
+    document?.items.map((item) => ({ ...item, is_complimentary: item.is_complimentary ?? false, key: nextKey() })) ?? [
+      { key: nextKey(), catalog_item_id: null, description: "", quantity: 1, rate: 0, is_complimentary: false },
     ]
   );
 
@@ -94,7 +101,7 @@ export default function DocumentForm({
   const addItem = () =>
     setItems((prev) => [
       ...prev,
-      { key: nextKey(), catalog_item_id: null, description: "", quantity: 1, rate: 0 },
+      { key: nextKey(), catalog_item_id: null, description: "", quantity: 1, rate: 0, is_complimentary: false },
     ]);
 
   const removeItem = (key: string) =>
@@ -135,11 +142,12 @@ export default function DocumentForm({
     formData.set(
       "items",
       JSON.stringify(
-        items.map(({ catalog_item_id, description, quantity, rate }) => ({
+        items.map(({ catalog_item_id, description, quantity, rate, is_complimentary }) => ({
           catalog_item_id,
           description,
           quantity,
           rate,
+          is_complimentary,
         }))
       )
     );
@@ -281,6 +289,15 @@ export default function DocumentForm({
                   placeholder="What are you billing for?"
                   className={inputClasses}
                 />
+                <label className="mt-2 inline-flex items-center gap-2 text-small text-ink-muted cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={item.is_complimentary}
+                    onChange={(e) => updateItem(item.key, { is_complimentary: e.target.checked })}
+                    className="size-4 accent-ink"
+                  />
+                  Complimentary: show its value, don&apos;t charge it
+                </label>
               </div>
 
               {(() => {
@@ -343,9 +360,16 @@ export default function DocumentForm({
                   {index === 0 && (
                     <label className="block text-small font-medium mb-1.5">Amount</label>
                   )}
-                  <p className="py-2.5 text-small font-medium text-right truncate">
+                  <p
+                    className={`pt-2.5 text-small font-medium text-right truncate ${
+                      item.is_complimentary ? "text-ink-muted line-through" : "pb-2.5"
+                    }`}
+                  >
                     {formatMoney(item.quantity * item.rate, currency)}
                   </p>
+                  {item.is_complimentary && (
+                    <p className="text-tag font-semibold text-right text-ink">Complimentary</p>
+                  )}
                 </div>
                 <button
                   type="button"

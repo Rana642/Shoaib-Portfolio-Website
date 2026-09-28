@@ -156,6 +156,8 @@ export type LineItem = {
   rate: number;
   amount: number;
   sort_order: number;
+  /** Shown with its value and a "Complimentary" label, never charged. */
+  is_complimentary?: boolean;
 };
 
 export type ProposalStatus = "draft" | "sent" | "viewed" | "accepted" | "declined" | "expired";

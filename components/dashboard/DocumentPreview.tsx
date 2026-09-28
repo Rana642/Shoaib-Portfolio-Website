@@ -44,6 +44,9 @@ export default function DocumentPreview({
   const dateLabel = kind === "invoice" ? "Due date" : "Valid until";
   const dateValue = kind === "invoice" ? document.due_date : document.valid_until;
   const balance = (document.total ?? 0) - (document.amount_paid ?? 0);
+  // Complimentary lines are listed after the totals, never inside them.
+  const chargedItems = items.filter((item) => !item.is_complimentary);
+  const complimentaryItems = items.filter((item) => item.is_complimentary);
 
   return (
     <div className="bg-white border border-ink/10 rounded-xl p-8 md:p-12 print:border-0 print:rounded-none print:p-0">
@@ -107,7 +110,7 @@ export default function DocumentPreview({
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => (
+          {chargedItems.map((item) => (
             <tr key={item.id} className="border-b border-ink/5">
               <td className="py-4 pr-4 text-body whitespace-pre-line">{item.description}</td>
               <td className="py-4 px-3 text-body text-right whitespace-nowrap">
@@ -174,6 +177,46 @@ export default function DocumentPreview({
           )}
         </div>
       </div>
+
+      {complimentaryItems.length > 0 && (
+        <div className="mt-10 print:break-inside-avoid">
+          <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-1">
+            Complimentary Services
+          </p>
+          <p className="text-small text-ink-muted mb-3">
+            Included at no charge. Values are shown for reference and are not part of the total
+            above.
+          </p>
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-y border-ink/10">
+                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 pr-4">
+                  Description
+                </th>
+                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 px-3 text-right whitespace-nowrap">
+                  Value
+                </th>
+                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 pl-3 text-right whitespace-nowrap">
+                  Charge
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {complimentaryItems.map((item) => (
+                <tr key={item.id} className="border-b border-ink/5">
+                  <td className="py-4 pr-4 text-body whitespace-pre-line">{item.description}</td>
+                  <td className="py-4 px-3 text-body text-right whitespace-nowrap text-ink-muted line-through">
+                    {formatMoney(Number(item.amount), document.currency)}
+                  </td>
+                  <td className="py-4 pl-3 text-body text-right font-semibold whitespace-nowrap">
+                    Complimentary
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Footer blocks */}
       {(document.notes || document.terms || (kind === "invoice" && settings.bank_details)) && (

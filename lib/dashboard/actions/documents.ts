@@ -18,6 +18,7 @@ const lineItemSchema = z.object({
   description: z.string().min(1, "Every line needs a description").max(500),
   quantity: z.coerce.number().min(0),
   rate: z.coerce.number(),
+  is_complimentary: z.boolean().default(false),
 });
 
 const documentSchema = z.object({
@@ -190,6 +191,8 @@ async function replaceLineItems(
     description: item.description,
     quantity: item.quantity,
     rate: item.rate,
+    is_complimentary: item.is_complimentary,
+    // For a complimentary line this is its value, shown but not charged.
     amount: round2(item.quantity * item.rate),
     sort_order: index,
   }));
@@ -310,6 +313,7 @@ export async function convertQuotationToInvoice(quotationId: string) {
         quantity: item.quantity,
         rate: item.rate,
         amount: item.amount,
+        is_complimentary: item.is_complimentary ?? false,
         sort_order: index,
       }))
     );
