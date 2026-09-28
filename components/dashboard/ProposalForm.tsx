@@ -7,6 +7,8 @@ import { createProposal, updateProposal } from "@/lib/dashboard/actions/proposal
 import { Field, inputClasses, buttonStyles, Card } from "@/components/dashboard/ui";
 import { formatMoney, calculateTotals } from "@/lib/dashboard/format";
 import { CURRENCIES, type CatalogItem, type Client, type ClientProject, type Settings } from "@/lib/dashboard/types";
+import { countableFor, readCount, writeCount } from "@/lib/dashboard/countable";
+import CountStepper from "@/components/dashboard/CountStepper";
 
 type BillingType = "monthly" | "one_time";
 type ItemType = "service" | "tool";
@@ -62,24 +64,6 @@ type ExistingProposal = {
 
 let keyCounter = 0;
 const nextKey = () => `item-${keyCounter++}`;
-
-/** The count in a countable line lives in its description: the first
- *  number followed (within three words) by the unit label, e.g.
- *  "16 designed posts" or "16 custom-designed social media posts". */
-const escapeRegExp = (text: string) => text.replace(/[^\w\s-]/g, "\\$&");
-const countPattern = (label: string) =>
-  new RegExp(String.raw`\b(\d+)(?=(?:\s+[\w-]+){0,3}\s+` + escapeRegExp(label) + String.raw`\b)`, "i");
-
-function readCount(description: string, label: string): number | null {
-  const match = description.match(countPattern(label));
-  return match ? Number(match[1]) : null;
-}
-
-function writeCount(description: string, label: string, count: number): string {
-  return countPattern(label).test(description)
-    ? description.replace(countPattern(label), String(count))
-    : `${description} (${count} ${label})`;
-}
 
 // Starting drafts for a brand-new proposal — professional, fully editable,
 // not fixed boilerplate. Saves starting from a blank page every time.
@@ -244,14 +228,6 @@ export default function ProposalForm({
     });
   };
 
-  /** The catalog config for a line, when its service is countable. */
-  const countableFor = (item: EditableItem) => {
-    const source = item.catalog_item_id ? catalog.find((c) => c.id === item.catalog_item_id) : undefined;
-    return source?.count_label ? { label: source.count_label, fallback: source.count_default ?? 1 } : null;
-  };
-
-  const setCount = (item: EditableItem, label: string, count: number) =>
-    updateItem(item.key, { description: writeCount(item.description, label, Math.max(1, Math.round(count))) });
 
   const onSelectClient = (id: string) => {
     setClientId(id);
@@ -343,47 +319,19 @@ export default function ProposalForm({
         </div>
 
         {(() => {
-          const countable = countableFor(item);
+          const countable = countableFor(catalog, item.catalog_item_id);
           if (countable) {
-            const count = readCount(item.description, countable.label) ?? countable.fallback;
-            const unitLabel = countable.label.charAt(0).toUpperCase() + countable.label.slice(1);
+            const label = countable.label;
             return (
               <div className="col-span-9 sm:col-span-4">
-                {index === 0 && (
-                  <label className="block text-small font-medium mb-1.5">
-                    {unitLabel}
-                    {item.billing_type === "monthly" ? " per month" : ""}
-                  </label>
-                )}
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setCount(item, countable.label, count - 1)}
-                    aria-label={`Fewer ${countable.label}`}
-                    className="size-10 shrink-0 rounded-lg border border-ink/15 text-body hover:bg-ink/5"
-                  >
-                    −
-                  </button>
-                  <input
-                    type="number"
-                    min="1"
-                    value={count}
-                    onChange={(e) => setCount(item, countable.label, Number(e.target.value) || 1)}
-                    className={`${inputClasses} text-center`}
-                    aria-label={`Number of ${countable.label}`}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setCount(item, countable.label, count + 1)}
-                    aria-label={`More ${countable.label}`}
-                    className="size-10 shrink-0 rounded-lg border border-ink/15 text-body hover:bg-ink/5"
-                  >
-                    +
-                  </button>
-                </div>
-                <p className="text-tag text-ink-muted mt-1.5">
-                  Package price stays {formatMoney(item.rate, currency)}; set the deal with the discount.
-                </p>
+                <CountStepper
+                  label={label}
+                  count={readCount(item.description, label) ?? countable.fallback}
+                  onChange={(count) => updateItem(item.key, { description: writeCount(item.description, label, count) })}
+                  showLabel={index === 0}
+                  perMonth={item.billing_type === "monthly"}
+                  note={`Package price stays ${formatMoney(item.rate, currency)}; set the deal with the discount.`}
+                />
               </div>
             );
           }

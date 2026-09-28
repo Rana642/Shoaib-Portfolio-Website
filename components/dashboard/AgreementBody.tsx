@@ -1,6 +1,5 @@
 import { Fragment, type ElementType } from "react";
 import { Card } from "@/components/dashboard/ui";
-import HostingerPartnerBadge from "@/components/shared/HostingerPartnerBadge";
 import ChargesBreakdown, {
   type ChargesBreakdownProposal,
   type PreviewLineItem,
@@ -48,22 +47,12 @@ export default function AgreementBody({
     </div>
   );
 
-  const partnerCredential = (
-    <div className="pt-6 border-t border-ink/10 flex items-center gap-4 avoid-break">
-      <HostingerPartnerBadge width={128} asLink={false} />
-      <p className="text-tag text-ink-subtle max-w-xs leading-relaxed">
-        Verified Hostinger Partner — client sites hosted on infrastructure I trust.
-      </p>
-    </div>
-  );
-
   if (!clauses || clauses.length === 0) {
     return (
       <>
         {summary && <Wrapper className={`${wrapperPad} mb-6 avoid-break`}>{summary}</Wrapper>}
         <Wrapper className={wrapperPad}>
           <p className="text-body whitespace-pre-line">{content}</p>
-          <div className="mt-8">{partnerCredential}</div>
         </Wrapper>
       </>
     );
@@ -90,7 +79,6 @@ export default function AgreementBody({
       {anchorIndex === -1 && summary && (
         <div className="pt-8 border-t border-ink/10 avoid-break">{summary}</div>
       )}
-      {partnerCredential}
     </Wrapper>
   );
 }

@@ -7,6 +7,8 @@ import { createDocument, updateDocument } from "@/lib/dashboard/actions/document
 import { Field, inputClasses, buttonStyles, Card } from "@/components/dashboard/ui";
 import { formatMoney, calculateTotals } from "@/lib/dashboard/format";
 import { CURRENCIES, type CatalogItem, type Client, type Settings } from "@/lib/dashboard/types";
+import { countableFor, readCount, writeCount } from "@/lib/dashboard/countable";
+import CountStepper from "@/components/dashboard/CountStepper";
 
 type EditableItem = {
   key: string;
@@ -123,6 +125,8 @@ export default function DocumentForm({
       catalog_item_id: source.id,
       description,
       rate: Number(source.default_rate),
+      // Countable services are billed as one package, never per unit.
+      ...(source.count_label ? { quantity: 1 } : {}),
     });
   };
 
@@ -232,7 +236,8 @@ export default function DocumentForm({
               key={item.key}
               className="grid grid-cols-12 gap-3 items-start pb-4 border-b border-ink/5 last:border-0 last:pb-0"
             >
-              <div className="col-span-12 sm:col-span-6">
+              {/* A countable line gives two columns of Description to its stepper. */}
+              <div className={`col-span-12 ${countableFor(catalog, item.catalog_item_id) ? "sm:col-span-4" : "sm:col-span-6"}`}>
                 {index === 0 && (
                   <label className="block text-small font-medium mb-1.5">Description</label>
                 )}
@@ -278,22 +283,46 @@ export default function DocumentForm({
                 />
               </div>
 
-              <div className="col-span-4 sm:col-span-2">
-                {index === 0 && (
-                  <label className="block text-small font-medium mb-1.5">Qty</label>
-                )}
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={item.quantity}
-                  onChange={(e) =>
-                    updateItem(item.key, { quantity: Number(e.target.value) || 0 })
-                  }
-                  className={inputClasses}
-                  aria-label="Quantity"
-                />
-              </div>
+              {(() => {
+                // Countable services (posts, ...) swap Qty for a count
+                // stepper that rewrites the number in the description. Rate
+                // stays editable: invoices have no discount, so the agreed
+                // price must be billable on the line itself.
+                const countable = countableFor(catalog, item.catalog_item_id);
+                if (countable) {
+                  const label = countable.label;
+                  return (
+                    <div className="col-span-7 sm:col-span-4">
+                      <CountStepper
+                        label={label}
+                        count={readCount(item.description, label) ?? countable.fallback}
+                        onChange={(count) =>
+                          updateItem(item.key, { description: writeCount(item.description, label, count) })
+                        }
+                        showLabel={index === 0}
+                      />
+                    </div>
+                  );
+                }
+                return (
+                  <div className="col-span-4 sm:col-span-2">
+                    {index === 0 && (
+                      <label className="block text-small font-medium mb-1.5">Qty</label>
+                    )}
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={item.quantity}
+                      onChange={(e) =>
+                        updateItem(item.key, { quantity: Number(e.target.value) || 0 })
+                      }
+                      className={inputClasses}
+                      aria-label="Quantity"
+                    />
+                  </div>
+                );
+              })()}
 
               <div className="col-span-5 sm:col-span-2">
                 {index === 0 && (
