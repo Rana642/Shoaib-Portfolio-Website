@@ -68,14 +68,14 @@ function SplitAmount({ split, currency, className = "" }: { split: Split; curren
   );
 }
 
-/** The closing box of one project (or General): what it costs at the
- *  standard rate, the value of what comes free with it, and its optional
- *  tools. The discount is applied once, in the Grand Summary. */
+/** One project's (or General's) total, right under its charges: what it
+ *  costs at the standard rate, plus its optional tools. Complimentary
+ *  services stay out of it, in their own block below. The discount is
+ *  applied once, in the Grand Summary. */
 function BucketTotal({
   title,
   totalLabel,
   services,
-  complimentary,
   tools,
   toolsMonthly,
   currency,
@@ -83,43 +83,19 @@ function BucketTotal({
   title: string;
   totalLabel: string;
   services: Split;
-  complimentary: Split;
   tools: number;
   toolsMonthly: boolean;
   currency: string;
 }) {
   const money = (n: number) => formatMoney(n, currency);
-  const hasServices = !isEmpty(services);
-  const hasComplimentary = !isEmpty(complimentary);
   return (
     <div className="flex justify-end mt-6 avoid-break">
       <div className="w-full max-w-sm rounded-xl border border-ink/10 px-4 md:px-5 py-4 space-y-2.5 text-small">
         <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle">{title}</p>
-        {hasServices && (
-          <div className="flex justify-between items-start gap-4">
-            <span className="text-ink-muted">Service charges</span>
-            <SplitAmount split={services} currency={currency} />
-          </div>
-        )}
-        {hasComplimentary && (
-          <div className="space-y-1">
-            <p className="text-ink-muted">
-              Complimentary value <span className="text-ink-subtle">· no charge</span>
-            </p>
-            {complimentary.monthly > 0 && (
-              <div className="flex justify-between gap-4 pl-3">
-                <span className="text-ink-subtle">Monthly services</span>
-                <span className="whitespace-nowrap text-ink-muted">{money(complimentary.monthly)}/mo</span>
-              </div>
-            )}
-            {complimentary.oneTime > 0 && (
-              <div className="flex justify-between gap-4 pl-3">
-                <span className="text-ink-subtle">One-time work</span>
-                <span className="whitespace-nowrap text-ink-muted">{money(complimentary.oneTime)}</span>
-              </div>
-            )}
-          </div>
-        )}
+        <div className="flex justify-between items-start gap-4">
+          <span className="text-ink-muted">Service charges</span>
+          <SplitAmount split={services} currency={currency} />
+        </div>
         {tools > 0 && (
           <div className="flex justify-between gap-4">
             <span className="text-ink-muted">Optional: Tools &amp; Subscriptions</span>
@@ -129,16 +105,10 @@ function BucketTotal({
             </span>
           </div>
         )}
-        {(hasServices || hasComplimentary) && (
-          <div className="flex justify-between items-start gap-4 pt-2.5 border-t border-ink/10 text-body">
-            <span className="font-semibold">{totalLabel}</span>
-            {hasServices ? (
-              <SplitAmount split={services} currency={currency} className="font-semibold" />
-            ) : (
-              <span className="font-semibold">No charge</span>
-            )}
-          </div>
-        )}
+        <div className="flex justify-between items-start gap-4 pt-2.5 border-t border-ink/10 text-body">
+          <span className="font-semibold">{totalLabel}</span>
+          <SplitAmount split={services} currency={currency} className="font-semibold" />
+        </div>
       </div>
     </div>
   );
@@ -150,17 +120,17 @@ function BucketTotal({
  * defined) or a single project's slice of it. Returns null if the bucket
  * is empty so an unused project section doesn't leave a stray heading.
  *
- * Complimentary lines sit right under the services they come with, so
- * each project shows what's included with it.
+ * Order: Service Charges, optional Tools, the bucket's total (with
+ * projects), then its Complimentary block — kept apart from the total, so
+ * each project still shows what's included with it.
  *
  * The international-transaction-tax narration lives here, next to the
  * Tools subtotal it actually explains, rather than as a disconnected
  * footnote down by the grand total — same reasoning for why the Tools
  * subtotal itself is shown tax-inclusive.
  *
- * With projects, each bucket with services or complimentary lines closes
- * with its own total box (`summary`); a tools-only bucket already ends on
- * its tools subtotal.
+ * With projects, each bucket with services gets its own total box
+ * (`summary`); a tools-only bucket already ends on its tools subtotal.
  */
 function renderCharges(
   bucketItems: PreviewLineItem[],
@@ -245,14 +215,8 @@ function renderCharges(
         </div>
       ))}
 
-      <ComplimentaryServices
-        items={complimentaryItems}
-        currency={currency}
-        className={groups.length > 0 ? "mt-6" : ""}
-      />
-
       {toolItems.length > 0 && (
-        <div className={`avoid-break${groups.length > 0 || complimentaryItems.length > 0 ? " mt-8" : ""}`}>
+        <div className={`avoid-break${groups.length > 0 ? " mt-8" : ""}`}>
           <p className="flex items-center gap-2.5 mb-3">
             <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
               Tools &amp; Subscriptions
@@ -306,17 +270,22 @@ function renderCharges(
         </div>
       )}
 
-      {summary && (serviceItems.length > 0 || complimentaryItems.length > 0) && (
+      {summary && serviceItems.length > 0 && (
         <BucketTotal
           title={summary.title}
           totalLabel={summary.totalLabel}
           services={splitSums(serviceItems)}
-          complimentary={splitSums(complimentaryItems)}
           tools={toolsTotal}
           toolsMonthly={toolItems.every((i) => i.billing_type === "monthly")}
           currency={currency}
         />
       )}
+
+      <ComplimentaryServices
+        items={complimentaryItems}
+        currency={currency}
+        className={groups.length > 0 || toolItems.length > 0 ? "mt-8" : ""}
+      />
     </>
   );
 }
