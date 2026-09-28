@@ -151,6 +151,14 @@
     display: none !important;
   }
 
+  /* Only the app prints. Browser extensions inject fixed sidebars and
+     floating buttons straight into <body>/<html>; they would otherwise
+     print over the right edge of every page. */
+  html > :not(head):not(body),
+  body > :not([data-app-root]) {
+    display: none !important;
+  }
+
   body {
     background: #fff !important;
   }

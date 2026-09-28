@@ -29,7 +29,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col noise-overlay">
         <JsonLd data={organizationSchema()} />
         <Analytics />
-        {children}
+        {/* display:contents, so layout is unchanged; print uses it to leave
+            out anything a browser extension injects into the page. */}
+        <div data-app-root className="contents">
+          {children}
+        </div>
         <VercelAnalytics />
       </body>
     </html>
