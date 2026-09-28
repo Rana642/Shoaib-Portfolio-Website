@@ -30,6 +30,8 @@ export default async function AgreementPage({ params }: PageProps<"/dashboard/ag
     db.from("proposal_projects").select("*").eq("proposal_id", agreement.proposal_id).order("sort_order"),
   ]);
 
+  const hiddenCount = (agreement.clauses ?? []).filter((c) => c.hidden).length;
+
   async function send() {
     "use server";
     return resendAgreement(id);
@@ -60,6 +62,16 @@ export default async function AgreementPage({ params }: PageProps<"/dashboard/ag
         <StatusBadge status={agreement.status} />
       </div>
       <p className="text-small text-ink-muted mb-8">{clients?.name ?? "—"}</p>
+
+      {hiddenCount > 0 && (
+        <p className="text-small text-ink-muted mb-6 print:hidden">
+          {hiddenCount} {hiddenCount === 1 ? "clause is" : "clauses are"} hidden from this agreement —{" "}
+          <Link href={`/dashboard/agreements/${id}/edit`} className="underline underline-offset-4 hover:text-ink">
+            edit
+          </Link>{" "}
+          to show {hiddenCount === 1 ? "it" : "them"} again.
+        </p>
+      )}
 
       <div className="mb-8 space-y-4">
         <div className="flex flex-wrap items-center gap-3 print:hidden">

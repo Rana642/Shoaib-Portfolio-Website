@@ -15,6 +15,11 @@ import type { AgreementClause } from "@/lib/dashboard/types";
  * to the fee it explains. Agreements created before `clauses` existed
  * only have the old frozen `content` blob — those keep rendering exactly
  * as they always have (documents are frozen snapshots).
+ *
+ * Hidden clauses are skipped, and numbered titles ("3. Term…") are
+ * renumbered over the visible ones so hiding one leaves no gap. If the
+ * clause carrying the Investment Summary is hidden, the summary still
+ * shows in its place.
  */
 export default function AgreementBody({
   content,
@@ -59,6 +64,12 @@ export default function AgreementBody({
   }
 
   const anchorIndex = clauses.findIndex((c) => c.showInvestmentSummary);
+  const numbered = clauses.map((c) => !c.hidden && /^\d+\.\s+/.test(c.title));
+  const titles = clauses.map((clause, index) => {
+    if (!numbered[index]) return clause.title;
+    const position = numbered.slice(0, index + 1).filter(Boolean).length;
+    return clause.title.replace(/^\d+\.\s+/, `${position}. `);
+  });
 
   return (
     <Wrapper className={`${wrapperPad} space-y-8`}>
@@ -67,10 +78,12 @@ export default function AgreementBody({
       </p>
       {clauses.map((clause, index) => (
         <Fragment key={index}>
-          <div className="avoid-break">
-            {clause.title && <p className="text-small font-semibold text-ink mb-2">{clause.title}</p>}
-            <p className="text-body whitespace-pre-line">{clause.body}</p>
-          </div>
+          {!clause.hidden && (
+            <div className="avoid-break">
+              {titles[index] && <p className="text-small font-semibold text-ink mb-2">{titles[index]}</p>}
+              <p className="text-body whitespace-pre-line">{clause.body}</p>
+            </div>
+          )}
           {index === anchorIndex && summary && (
             <div className="pt-8 border-t border-ink/10 avoid-break">{summary}</div>
           )}

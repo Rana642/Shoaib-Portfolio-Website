@@ -111,6 +111,7 @@ export async function updateAgreementClauses(id: string, clauses: AgreementClaus
       title: c.title.trim(),
       body: c.body.trim(),
       showInvestmentSummary: c.showInvestmentSummary === true,
+      hidden: c.hidden === true,
     }))
     .filter((c) => c.title || c.body);
 

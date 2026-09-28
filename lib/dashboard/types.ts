@@ -212,6 +212,9 @@ export type AgreementClause = {
   title: string;
   body: string;
   showInvestmentSummary?: boolean;
+  /** Kept on file but left out of the agreement everywhere it shows
+   *  (dashboard, the client's link, print). */
+  hidden?: boolean;
 };
 
 export type Agreement = {

@@ -2,15 +2,16 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Plus, Trash2, LoaderCircle } from "lucide-react";
+import { Eye, EyeOff, Plus, Trash2, LoaderCircle } from "lucide-react";
 import { updateAgreementClauses } from "@/lib/dashboard/actions/agreements";
 import { Field, inputClasses, buttonStyles, Card } from "@/components/dashboard/ui";
 import type { AgreementClause } from "@/lib/dashboard/types";
 
 type EditableClause = AgreementClause & { key: string };
 
-let keySeed = 0;
-const nextKey = () => `clause-${keySeed++}`;
+// Saved clauses are keyed by position so the server render and the
+// browser's hydration agree; clauses added afterwards get a random key.
+const nextKey = () => `new-${crypto.randomUUID()}`;
 
 export default function AgreementClausesForm({
   agreementId,
@@ -20,9 +21,9 @@ export default function AgreementClausesForm({
   clauses: AgreementClause[];
 }) {
   const [items, setItems] = useState<EditableClause[]>(
-    (clauses.length > 0 ? clauses : [{ title: "", body: "", showInvestmentSummary: false }]).map((c) => ({
+    (clauses.length > 0 ? clauses : [{ title: "", body: "", showInvestmentSummary: false }]).map((c, index) => ({
       ...c,
-      key: nextKey(),
+      key: `clause-${index}`,
     }))
   );
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +46,7 @@ export default function AgreementClausesForm({
     startTransition(async () => {
       const result = await updateAgreementClauses(
         agreementId,
-        items.map(({ title, body, showInvestmentSummary }) => ({ title, body, showInvestmentSummary }))
+        items.map(({ title, body, showInvestmentSummary, hidden }) => ({ title, body, showInvestmentSummary, hidden }))
       );
       if (result?.error) setError(result.error);
     });
@@ -54,20 +55,36 @@ export default function AgreementClausesForm({
   return (
     <div className="space-y-5 max-w-3xl">
       {items.map((clause, index) => (
-        <Card key={clause.key} className="p-6 space-y-4">
+        <Card key={clause.key} className={`p-6 space-y-4 ${clause.hidden ? "opacity-60" : ""}`}>
           <div className="flex items-start justify-between gap-4">
-            <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle pt-2.5">
-              Clause {index + 1}
+            <span className="flex flex-wrap items-center gap-2.5 pt-2.5">
+              <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">Clause {index + 1}</span>
+              {clause.hidden && (
+                <span className="rounded-full border border-ink/15 px-2 py-0.5 text-tag text-ink-muted">
+                  Hidden from the agreement
+                </span>
+              )}
             </span>
-            <button
-              type="button"
-              onClick={() => removeClause(clause.key)}
-              disabled={items.length === 1}
-              className="text-ink-subtle hover:text-red-700 transition-colors disabled:opacity-30 disabled:pointer-events-none p-1.5"
-              aria-label="Remove clause"
-            >
-              <Trash2 className="size-4" aria-hidden />
-            </button>
+            <span className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => updateClause(clause.key, { hidden: !clause.hidden })}
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-small text-ink-muted hover:text-ink hover:bg-ink/[0.04] transition-colors cursor-pointer"
+                aria-pressed={!!clause.hidden}
+              >
+                {clause.hidden ? <Eye className="size-4" aria-hidden /> : <EyeOff className="size-4" aria-hidden />}
+                {clause.hidden ? "Show" : "Hide"}
+              </button>
+              <button
+                type="button"
+                onClick={() => removeClause(clause.key)}
+                disabled={items.length === 1}
+                className="text-ink-subtle hover:text-red-700 transition-colors disabled:opacity-30 disabled:pointer-events-none p-1.5"
+                aria-label="Remove clause"
+              >
+                <Trash2 className="size-4" aria-hidden />
+              </button>
+            </span>
           </div>
 
           <Field label="Title" htmlFor={`title-${clause.key}`}>
@@ -98,6 +115,11 @@ export default function AgreementClausesForm({
             />
             <span className="text-small">Show the Investment Summary right after this clause</span>
           </label>
+          {clause.hidden && clause.showInvestmentSummary && (
+            <p className="text-tag tracking-normal text-ink-subtle -mt-2">
+              The clause is hidden, but the Investment Summary still shows in its place.
+            </p>
+          )}
         </Card>
       ))}
 
