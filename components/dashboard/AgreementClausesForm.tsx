@@ -16,9 +16,12 @@ const nextKey = () => `new-${crypto.randomUUID()}`;
 export default function AgreementClausesForm({
   agreementId,
   clauses,
+  updatedAt,
 }: {
   agreementId: string;
   clauses: AgreementClause[];
+  /** When the agreement was last saved, as loaded — see updateAgreementClauses. */
+  updatedAt: string;
 }) {
   const [items, setItems] = useState<EditableClause[]>(
     (clauses.length > 0 ? clauses : [{ title: "", body: "", showInvestmentSummary: false }]).map((c, index) => ({
@@ -46,7 +49,8 @@ export default function AgreementClausesForm({
     startTransition(async () => {
       const result = await updateAgreementClauses(
         agreementId,
-        items.map(({ title, body, showInvestmentSummary, hidden }) => ({ title, body, showInvestmentSummary, hidden }))
+        items.map(({ title, body, showInvestmentSummary, hidden }) => ({ title, body, showInvestmentSummary, hidden })),
+        updatedAt
       );
       if (result?.error) setError(result.error);
     });

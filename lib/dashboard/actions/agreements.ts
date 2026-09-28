@@ -103,7 +103,14 @@ export async function createManualAgreement(proposalId: string) {
  *  "resend" step that depends on the content being frozen. Legacy
  *  agreements (pre-dating this field, `clauses` still null) aren't
  *  reachable here — see the edit page's own guard. */
-export async function updateAgreementClauses(id: string, clauses: AgreementClause[]) {
+export async function updateAgreementClauses(
+  id: string,
+  clauses: AgreementClause[],
+  /** The agreement's updated_at when the editor was opened: the save only
+   *  goes through if nothing changed it since (another tab, device, or a
+   *  fix made directly), so a stale page can't overwrite newer text. */
+  openedAt?: string
+) {
   await assertAuthed();
 
   const cleaned = clauses
@@ -115,11 +122,19 @@ export async function updateAgreementClauses(id: string, clauses: AgreementClaus
     }))
     .filter((c) => c.title || c.body);
 
-  const { error } = await db
+  let query = db
     .from("agreements")
     .update({ clauses: cleaned, updated_at: new Date().toISOString() })
     .eq("id", id);
+  if (openedAt) query = query.eq("updated_at", openedAt);
+  const { data, error } = await query.select("id");
   if (error) return { error: error.message };
+  if (!data || data.length === 0) {
+    return {
+      error:
+        "This agreement was changed after you opened this page, so nothing was saved. Reload the page to get the latest version, then make your change again.",
+    };
+  }
 
   revalidatePath(`/dashboard/agreements/${id}`);
   redirect(`/dashboard/agreements/${id}`);

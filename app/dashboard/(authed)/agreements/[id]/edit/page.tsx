@@ -33,7 +33,7 @@ export default async function EditAgreementPage({
 
       <PageHeader title={`Edit ${agreement.number}`} />
 
-      <AgreementClausesForm agreementId={id} clauses={agreement.clauses} />
+      <AgreementClausesForm agreementId={id} clauses={agreement.clauses} updatedAt={agreement.updated_at} />
     </>
   );
 }
