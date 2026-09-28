@@ -29,6 +29,7 @@ type EditableItem = {
   billing_type: BillingType;
   item_type: ItemType;
   project_id: string | null;
+  is_complimentary: boolean;
 };
 
 type ExistingProposal = {
@@ -59,6 +60,7 @@ type ExistingProposal = {
     billing_type: BillingType;
     item_type: ItemType;
     project_id: string | null;
+    is_complimentary?: boolean;
   }[];
 };
 
@@ -123,7 +125,7 @@ export default function ProposalForm({
     proposal?.projects.map((p) => ({ key: nextKey(), id: p.id, name: p.name, scopeOfWork: p.scope_of_work ?? "" })) ?? []
   );
   const [items, setItems] = useState<EditableItem[]>(
-    proposal?.items.map((item) => ({ ...item, key: nextKey() })) ?? [
+    proposal?.items.map((item) => ({ ...item, is_complimentary: item.is_complimentary ?? false, key: nextKey() })) ?? [
       {
         key: nextKey(),
         catalog_item_id: null,
@@ -133,6 +135,7 @@ export default function ProposalForm({
         billing_type: "one_time",
         item_type: "service",
         project_id: null,
+        is_complimentary: false,
       },
     ]
   );
@@ -164,6 +167,7 @@ export default function ProposalForm({
         billing_type: itemType === "tool" ? "monthly" : "one_time",
         item_type: itemType,
         project_id: projectId,
+        is_complimentary: false,
       },
     ]);
 
@@ -316,6 +320,15 @@ export default function ProposalForm({
             placeholder="What are you proposing?"
             className={inputClasses}
           />
+          <label className="mt-2 inline-flex items-center gap-2 text-small text-ink-muted cursor-pointer">
+            <input
+              type="checkbox"
+              checked={item.is_complimentary}
+              onChange={(e) => updateItem(item.key, { is_complimentary: e.target.checked })}
+              className="size-4 accent-ink"
+            />
+            Complimentary: show its value, don&apos;t charge it
+          </label>
         </div>
 
         {(() => {
@@ -368,9 +381,16 @@ export default function ProposalForm({
         <div className="col-span-3 sm:col-span-2 flex items-center gap-2">
           <div className="flex-1 min-w-0">
             {index === 0 && <label className="block text-small font-medium mb-1.5">Amount</label>}
-            <p className="py-2.5 text-small font-medium text-right truncate">
+            <p
+              className={`pt-2.5 text-small font-medium text-right truncate ${
+                item.is_complimentary ? "text-ink-muted line-through" : "pb-2.5"
+              }`}
+            >
               {formatMoney(item.quantity * item.rate, currency)}
             </p>
+            {item.is_complimentary && (
+              <p className="text-tag font-semibold text-right text-ink">Complimentary</p>
+            )}
           </div>
           <button
             type="button"
@@ -398,7 +418,7 @@ export default function ProposalForm({
     formData.set(
       "items",
       JSON.stringify(
-        items.map(({ catalog_item_id, description, quantity, rate, billing_type, item_type, project_id }) => ({
+        items.map(({ catalog_item_id, description, quantity, rate, billing_type, item_type, project_id, is_complimentary }) => ({
           catalog_item_id,
           description,
           quantity,
@@ -406,6 +426,7 @@ export default function ProposalForm({
           billing_type,
           item_type,
           project_id,
+          is_complimentary: item_type === "service" && is_complimentary,
         }))
       )
     );

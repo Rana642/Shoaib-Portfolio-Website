@@ -26,6 +26,7 @@ const lineItemSchema = z.object({
   billing_type: z.enum(["monthly", "one_time"]).default("one_time"),
   item_type: z.enum(["service", "tool"]).default("service"),
   project_id: z.string().uuid().nullable(),
+  is_complimentary: z.boolean().default(false),
 });
 
 /** A client-side-generated id (the project may be brand new, never yet
@@ -148,6 +149,8 @@ async function replaceProposalItems(
     billing_type: item.billing_type,
     item_type: item.item_type,
     project_id: item.project_id,
+    is_complimentary: item.is_complimentary,
+    // For a complimentary line this is its value, shown but not charged.
     amount: round2(item.quantity * item.rate),
     sort_order: index,
   }));

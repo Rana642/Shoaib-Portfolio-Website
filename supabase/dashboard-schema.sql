@@ -123,6 +123,8 @@ update catalog_items set billing_type = 'monthly' where unit = 'month';
 alter table catalog_items add column if not exists count_label text;
 alter table catalog_items add column if not exists count_default int;
 
+alter table proposal_items add column if not exists is_complimentary boolean not null default false;
+
 -- A bundle can't include another bundle (checked in the app, not here)
 -- — keeps "what's included" a flat, one-level list.
 create table if not exists catalog_bundle_members (
@@ -249,6 +251,9 @@ create table if not exists proposal_projects (
 );
 
 create index if not exists proposal_projects_parent_idx on proposal_projects (proposal_id);
+
+-- Complimentary lines: shown with their full value and a "Complimentary"
+-- label, but never counted in subtotal, discount, tax, or total.
 
 create table if not exists proposal_items (
   id uuid primary key default gen_random_uuid(),

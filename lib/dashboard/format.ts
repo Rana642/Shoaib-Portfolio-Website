@@ -66,12 +66,14 @@ export type ToolsTax = { enabled: boolean; rate: number };
  * discountable part of his fee or something his own GST re-taxes.
  */
 export function calculateTotals(
-  items: { quantity: number; rate: number; item_type?: "service" | "tool" }[],
+  allItems: { quantity: number; rate: number; item_type?: "service" | "tool"; is_complimentary?: boolean }[],
   taxEnabled: boolean,
   taxRate: number,
   discount?: Discount,
   toolsTax?: ToolsTax
 ) {
+  // Complimentary lines show their value on the document but are never charged.
+  const items = allItems.filter((item) => !item.is_complimentary);
   const subtotal = round2(
     items
       .filter((item) => item.item_type !== "tool")
