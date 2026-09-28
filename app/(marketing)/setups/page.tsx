@@ -35,11 +35,11 @@ export default function SetupsPage() {
           <Reveal>
             <Tag>Setup services</Tag>
             <h1 className="font-serif italic text-hero mt-5 max-w-3xl">
-              Just need one thing set up<span className="text-citrus">?</span>
+              Just need one thing done<span className="text-citrus">?</span>
             </h1>
             <p className="text-body-lg text-ink-muted mt-4 max-w-xl">
-              Single setups with a fixed scope and a fixed price. Done properly by the person who
-              runs the ads, so it works when you do.
+              Single setups and services with a fixed scope and a fixed price. Done properly by
+              the person who runs the ads, so it works when you do.
             </p>
           </Reveal>
 
