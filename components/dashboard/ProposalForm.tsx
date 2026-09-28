@@ -180,13 +180,17 @@ export default function ProposalForm({
   /** Copies a project and all of its Service Charges lines right below
    *  it — for a client with several similar businesses: fill one, duplicate,
    *  rename, then add or remove what differs. */
-  const duplicateProject = (key: string) => {
+  const duplicateProject = (key: string, target?: ClientProject) => {
     const source = projects.find((p) => p.key === key);
     if (!source) return;
     const copyId = crypto.randomUUID();
+    // Duplicating "as" one of the client's saved projects takes its name
+    // (and its notes as scope), so nothing has to be typed.
+    const name = target ? target.name : source.name ? `${source.name} (copy)` : "";
+    const scopeOfWork = target?.notes ? target.notes : source.scopeOfWork;
     setProjects((prev) => {
       const at = prev.findIndex((p) => p.key === key);
-      const copy = { key: nextKey(), id: copyId, name: source.name ? `${source.name} (copy)` : "", scopeOfWork: source.scopeOfWork };
+      const copy = { key: nextKey(), id: copyId, name, scopeOfWork };
       return [...prev.slice(0, at + 1), copy, ...prev.slice(at + 1)];
     });
     setItems((prev) => [
@@ -648,14 +652,41 @@ export default function ProposalForm({
                         />
                       </Field>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => duplicateProject(project.key)}
-                      className="shrink-0 mt-7 inline-flex items-center gap-1.5 text-small text-ink-muted hover:text-ink transition-colors"
-                    >
-                      <Copy className="size-4" aria-hidden />
-                      Duplicate
-                    </button>
+                    {availableClientProjects.length > 0 ? (
+                      <label className="shrink-0 mt-7 inline-flex items-center gap-1.5 text-small text-ink-muted">
+                        <Copy className="size-4" aria-hidden />
+                        <span className="sr-only">Duplicate this project as</span>
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (!value) return;
+                            duplicateProject(
+                              project.key,
+                              value === "__new" ? undefined : availableClientProjects.find((cp) => cp.id === value)
+                            );
+                          }}
+                          className="bg-transparent text-small text-ink-muted hover:text-ink cursor-pointer focus:outline-none"
+                        >
+                          <option value="">Duplicate as…</option>
+                          {availableClientProjects.map((cp) => (
+                            <option key={cp.id} value={cp.id}>
+                              {cp.name}
+                            </option>
+                          ))}
+                          <option value="__new">New project (type a name)</option>
+                        </select>
+                      </label>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => duplicateProject(project.key)}
+                        className="shrink-0 mt-7 inline-flex items-center gap-1.5 text-small text-ink-muted hover:text-ink transition-colors"
+                      >
+                        <Copy className="size-4" aria-hidden />
+                        Duplicate
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => removeProject(project.key)}
