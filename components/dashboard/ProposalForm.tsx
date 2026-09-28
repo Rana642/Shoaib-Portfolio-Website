@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import Link from "next/link";
-import { LoaderCircle, Plus, Trash2 } from "lucide-react";
+import { Copy, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { createProposal, updateProposal } from "@/lib/dashboard/actions/proposals";
 import { Field, inputClasses, buttonStyles, Card } from "@/components/dashboard/ui";
 import { formatMoney, calculateTotals } from "@/lib/dashboard/format";
@@ -176,6 +176,26 @@ export default function ProposalForm({
 
   const addProject = () =>
     setProjects((prev) => [...prev, { key: nextKey(), id: crypto.randomUUID(), name: "", scopeOfWork: "" }]);
+
+  /** Copies a project and all of its Service Charges lines right below
+   *  it — for a client with several similar businesses: fill one, duplicate,
+   *  rename, then add or remove what differs. */
+  const duplicateProject = (key: string) => {
+    const source = projects.find((p) => p.key === key);
+    if (!source) return;
+    const copyId = crypto.randomUUID();
+    setProjects((prev) => {
+      const at = prev.findIndex((p) => p.key === key);
+      const copy = { key: nextKey(), id: copyId, name: source.name ? `${source.name} (copy)` : "", scopeOfWork: source.scopeOfWork };
+      return [...prev.slice(0, at + 1), copy, ...prev.slice(at + 1)];
+    });
+    setItems((prev) => [
+      ...prev,
+      ...prev
+        .filter((item) => item.item_type === "service" && item.project_id === source.id)
+        .map((item) => ({ ...item, key: nextKey(), project_id: copyId })),
+    ]);
+  };
 
   /** Copies one of the selected client's saved projects in — its own
    *  snapshot from here on, editable, not live-linked back to the
@@ -628,6 +648,14 @@ export default function ProposalForm({
                         />
                       </Field>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => duplicateProject(project.key)}
+                      className="shrink-0 mt-7 inline-flex items-center gap-1.5 text-small text-ink-muted hover:text-ink transition-colors"
+                    >
+                      <Copy className="size-4" aria-hidden />
+                      Duplicate
+                    </button>
                     <button
                       type="button"
                       onClick={() => removeProject(project.key)}
