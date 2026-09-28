@@ -37,6 +37,113 @@ export type ChargesBreakdownProposal = {
   total: number;
 };
 
+type Split = { monthly: number; oneTime: number };
+
+/** A set of lines' amounts, split into per-month and one-time. */
+function splitSums(lines: PreviewLineItem[]): Split {
+  const sum = (monthly: boolean) =>
+    round2(
+      lines
+        .filter((i) => (i.billing_type === "monthly") === monthly)
+        .reduce((total, i) => total + Number(i.amount), 0)
+    );
+  return { monthly: sum(true), oneTime: sum(false) };
+}
+
+const isEmpty = (split: Split) => split.monthly === 0 && split.oneTime === 0;
+
+/** "PKR 20,000.00/mo" and/or "PKR 15,000.00 one-time", one per line. */
+function SplitAmount({ split, currency, className = "" }: { split: Split; currency: string; className?: string }) {
+  if (isEmpty(split)) return <span className={className}>—</span>;
+  return (
+    <span className={`inline-flex flex-col items-end ${className}`}>
+      {split.monthly > 0 && <span className="whitespace-nowrap">{formatMoney(split.monthly, currency)}/mo</span>}
+      {split.oneTime > 0 && (
+        <span className="whitespace-nowrap">
+          {formatMoney(split.oneTime, currency)}
+          {split.monthly > 0 ? " one-time" : ""}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** The closing box of one project (or General): what it costs at the
+ *  standard rate, the value of what comes free with it, and its optional
+ *  tools. The discount is applied once, in the Grand Summary. */
+function BucketTotal({
+  title,
+  totalLabel,
+  services,
+  complimentary,
+  tools,
+  toolsMonthly,
+  currency,
+}: {
+  title: string;
+  totalLabel: string;
+  services: Split;
+  complimentary: Split;
+  tools: number;
+  toolsMonthly: boolean;
+  currency: string;
+}) {
+  const money = (n: number) => formatMoney(n, currency);
+  const hasServices = !isEmpty(services);
+  const hasComplimentary = !isEmpty(complimentary);
+  return (
+    <div className="flex justify-end mt-6 avoid-break">
+      <div className="w-full max-w-sm rounded-xl border border-ink/10 px-4 md:px-5 py-4 space-y-2.5 text-small">
+        <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle">{title}</p>
+        {hasServices && (
+          <div className="flex justify-between items-start gap-4">
+            <span className="text-ink-muted">Service charges</span>
+            <SplitAmount split={services} currency={currency} />
+          </div>
+        )}
+        {hasComplimentary && (
+          <div className="space-y-1">
+            <p className="text-ink-muted">
+              Complimentary value <span className="text-ink-subtle">· no charge</span>
+            </p>
+            {complimentary.monthly > 0 && (
+              <div className="flex justify-between gap-4 pl-3">
+                <span className="text-ink-subtle">Monthly services</span>
+                <span className="whitespace-nowrap text-ink-muted">{money(complimentary.monthly)}/mo</span>
+              </div>
+            )}
+            {complimentary.oneTime > 0 && (
+              <div className="flex justify-between gap-4 pl-3">
+                <span className="text-ink-subtle">One-time work</span>
+                <span className="whitespace-nowrap text-ink-muted">{money(complimentary.oneTime)}</span>
+              </div>
+            )}
+          </div>
+        )}
+        {tools > 0 && (
+          <div className="flex justify-between gap-4">
+            <span className="text-ink-muted">Optional: Tools &amp; Subscriptions</span>
+            <span className="whitespace-nowrap">
+              {money(tools)}
+              {toolsMonthly ? "/mo" : ""}
+            </span>
+          </div>
+        )}
+        {(hasServices || hasComplimentary) && (
+          <div className="flex justify-between items-start gap-4 pt-2.5 border-t border-ink/10 text-body">
+            <span className="font-semibold">{totalLabel}</span>
+            {hasServices ? (
+              <SplitAmount split={services} currency={currency} className="font-semibold" />
+            ) : (
+              <span className="font-semibold">No charge</span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Renders the Service Charges, Complimentary and Tools & Subscriptions
  * blocks for one bucket of items — either the whole document (no projects
@@ -50,13 +157,18 @@ export type ChargesBreakdownProposal = {
  * Tools subtotal it actually explains, rather than as a disconnected
  * footnote down by the grand total — same reasoning for why the Tools
  * subtotal itself is shown tax-inclusive.
+ *
+ * With projects, each bucket with services or complimentary lines closes
+ * with its own total box (`summary`); a tools-only bucket already ends on
+ * its tools subtotal.
  */
 function renderCharges(
   bucketItems: PreviewLineItem[],
   complimentaryItems: PreviewLineItem[],
   currency: string,
   keyPrefix: string,
-  toolsTax: { enabled: boolean; rate: number }
+  toolsTax: { enabled: boolean; rate: number },
+  summary: { title: string; totalLabel: string } | null = null
 ) {
   const serviceItems = bucketItems.filter((i) => i.item_type !== "tool");
   const toolItems = bucketItems.filter((i) => i.item_type === "tool");
@@ -193,6 +305,18 @@ function renderCharges(
           )}
         </div>
       )}
+
+      {summary && (serviceItems.length > 0 || complimentaryItems.length > 0) && (
+        <BucketTotal
+          title={summary.title}
+          totalLabel={summary.totalLabel}
+          services={splitSums(serviceItems)}
+          complimentary={splitSums(complimentaryItems)}
+          tools={toolsTotal}
+          toolsMonthly={toolItems.every((i) => i.billing_type === "monthly")}
+          currency={currency}
+        />
+      )}
     </>
   );
 }
@@ -232,6 +356,24 @@ export default function ChargesBreakdown({
   const toolsMonthly = items.filter((i) => i.item_type === "tool").every((i) => i.billing_type === "monthly");
   // With only monthly services, every line above the retainer is per month too.
   const perMonth = totals.monthlyTotal > 0 && totals.oneTimeTotal === 0 ? "/mo" : "";
+  const complimentaryAll = splitSums(complimentary);
+
+  // One Grand Summary row per project (then General) that has services or
+  // complimentary lines; tools are summed on their own, as optional.
+  const summaryRows = [
+    ...projects.map((p) => ({
+      key: p.id,
+      name: p.name,
+      services: splitSums(items.filter((i) => i.project_id === p.id && i.item_type !== "tool")),
+      complimentary: splitSums(complimentary.filter((i) => i.project_id === p.id)),
+    })),
+    {
+      key: "general",
+      name: "General",
+      services: splitSums(items.filter((i) => isGeneral(i) && i.item_type !== "tool")),
+      complimentary: splitSums(complimentary.filter(isGeneral)),
+    },
+  ].filter((row) => !isEmpty(row.services) || !isEmpty(row.complimentary));
 
   return (
     <>
@@ -245,7 +387,8 @@ export default function ChargesBreakdown({
               complimentary.filter((i) => i.project_id === project.id),
               proposal.currency,
               project.id,
-              toolsTaxInput
+              toolsTaxInput,
+              { title: `${project.name} — total`, totalLabel: "Project total" }
             );
             if (!rendered) return null;
             return (
@@ -266,7 +409,8 @@ export default function ChargesBreakdown({
               complimentary.filter(isGeneral),
               proposal.currency,
               "general",
-              toolsTaxInput
+              toolsTaxInput,
+              { title: "General — total", totalLabel: "General total" }
             );
             if (!rendered) return null;
             return (
@@ -279,10 +423,42 @@ export default function ChargesBreakdown({
         </div>
       )}
 
+      {projects.length > 0 && summaryRows.length > 0 && (
+        <div className="mt-12 avoid-break">
+          <p className="font-mono uppercase text-tag tracking-widest text-ink mb-3">Grand Summary</p>
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-y border-ink/10">
+                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 pr-4">Project</th>
+                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 px-3 text-right whitespace-nowrap">
+                  Services
+                </th>
+                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 pl-3 text-right whitespace-nowrap">
+                  Complimentary value
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {summaryRows.map((row) => (
+                <tr key={row.key} className="border-b border-ink/5">
+                  <td className="py-3.5 pr-4 text-body font-medium align-top">{row.name}</td>
+                  <td className="py-3.5 px-3 text-body text-right align-top">
+                    <SplitAmount split={row.services} currency={proposal.currency} />
+                  </td>
+                  <td className="py-3.5 pl-3 text-body text-right text-ink-muted align-top">
+                    <SplitAmount split={row.complimentary} currency={proposal.currency} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Totals: the retainer (and any one-time fee) is the deal; tools are
           optional, taken and billed only if the client chooses. */}
       <div className="flex justify-end mt-8 avoid-break">
-        <div className="w-full max-w-sm space-y-2.5">
+        <div className="w-full max-w-md space-y-2.5">
           <div className="flex justify-between gap-4 text-body">
             <span className="text-ink-muted">{hasTools ? "Services subtotal" : "Subtotal"}</span>
             <span className="whitespace-nowrap">
@@ -338,6 +514,15 @@ export default function ChargesBreakdown({
               </div>
             )}
           </div>
+          {!isEmpty(complimentaryAll) && (
+            <div className="flex justify-between items-start gap-4 text-body pt-1">
+              <span className="text-ink-muted">
+                Complimentary value included
+                <span className="block text-tag tracking-normal text-ink-subtle mt-0.5">At no charge</span>
+              </span>
+              <SplitAmount split={complimentaryAll} currency={proposal.currency} className="text-ink-muted" />
+            </div>
+          )}
           {hasTools && (
             <div className="mt-4 pt-3 border-t border-dashed border-ink/20">
               <div className="flex justify-between items-baseline gap-4 text-body">

@@ -50,7 +50,12 @@ export default function ComplimentaryServices({
           <span className="font-semibold">
             {monthly > 0 && <span className="whitespace-nowrap">{formatMoney(monthly, currency)}/mo</span>}
             {monthly > 0 && oneTime > 0 && <span className="text-ink-subtle font-normal"> + </span>}
-            {oneTime > 0 && <span className="whitespace-nowrap">{formatMoney(oneTime, currency)}</span>}
+            {oneTime > 0 && (
+              <span className="whitespace-nowrap">
+                {formatMoney(oneTime, currency)}
+                {monthly > 0 ? " one-time" : ""}
+              </span>
+            )}
           </span>
         </p>
       </div>
