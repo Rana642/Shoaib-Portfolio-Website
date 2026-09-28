@@ -68,8 +68,11 @@ type ExistingProposal = {
   }[];
 };
 
-let keyCounter = 0;
-const nextKey = () => `item-${keyCounter++}`;
+// Rows loaded with the page are keyed by their position, so the server
+// render and the browser's hydration produce the same ids; rows added
+// afterwards (only ever in event handlers) get a random key.
+const initialKey = (kind: "project" | "item", index: number) => `${kind}-${index}`;
+const nextKey = () => `new-${crypto.randomUUID()}`;
 
 // Starting drafts for a brand-new proposal — professional, fully editable,
 // not fixed boilerplate. Saves starting from a blank page every time.
@@ -134,12 +137,21 @@ export default function ProposalForm({
   const [toolsTaxEnabled, setToolsTaxEnabled] = useState(proposal?.tools_tax_enabled ?? false);
   const [toolsTaxRate, setToolsTaxRate] = useState(proposal?.tools_tax_rate ?? 18);
   const [projects, setProjects] = useState<EditableProject[]>(
-    proposal?.projects.map((p) => ({ key: nextKey(), id: p.id, name: p.name, scopeOfWork: p.scope_of_work ?? "" })) ?? []
+    proposal?.projects.map((p, index) => ({
+      key: initialKey("project", index),
+      id: p.id,
+      name: p.name,
+      scopeOfWork: p.scope_of_work ?? "",
+    })) ?? []
   );
   const [items, setItems] = useState<EditableItem[]>(
-    proposal?.items.map((item) => ({ ...item, is_complimentary: item.is_complimentary ?? false, key: nextKey() })) ?? [
+    proposal?.items.map((item, index) => ({
+      ...item,
+      is_complimentary: item.is_complimentary ?? false,
+      key: initialKey("item", index),
+    })) ?? [
       {
-        key: nextKey(),
+        key: initialKey("item", 0),
         catalog_item_id: null,
         description: "",
         quantity: 1,
