@@ -1,4 +1,5 @@
 import { formatMoney } from "@/lib/dashboard/format";
+import ComplimentaryServices from "./ComplimentaryServices";
 
 export type PreviewLineItem = {
   id: string;
@@ -197,7 +198,6 @@ export default function ChargesBreakdown({
   const complimentary = allItems.filter((i) => i.is_complimentary);
   const items = allItems.filter((i) => !i.is_complimentary);
   const knownProjectIds = new Set(projects.map((p) => p.id));
-  const projectName = (id: string | null) => projects.find((p) => p.id === id)?.name;
   const generalItems = items.filter((i) => !i.project_id || !knownProjectIds.has(i.project_id));
   const toolsSubtotal = items
     .filter((i) => i.item_type === "tool")
@@ -283,53 +283,26 @@ export default function ChargesBreakdown({
         </div>
       </div>
 
-      {complimentary.length > 0 && (
-        <div className="mt-10 avoid-break">
-          <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-1">
-            Complimentary Services
-          </p>
-          <p className="text-small text-ink-muted mb-3">
-            Included with this engagement at no charge. Values are shown for reference and are not
-            part of the total above.
-          </p>
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-y border-ink/10">
-                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 pr-4">
-                  Description
-                </th>
-                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 px-3 text-right whitespace-nowrap">
-                  Value
-                </th>
-                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 pl-3 text-right whitespace-nowrap">
-                  Charge
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {complimentary.map((item) => (
-                <tr key={item.id} className="border-b border-ink/5">
-                  <td className="py-4 pr-4 text-body whitespace-pre-line">
-                    {projectName(item.project_id) && (
-                      <span className="block text-small font-semibold text-ink mb-1">
-                        {projectName(item.project_id)}
-                      </span>
-                    )}
-                    {item.description}
-                  </td>
-                  <td className="py-4 px-3 text-body text-right whitespace-nowrap text-ink-muted line-through">
-                    {formatMoney(Number(item.amount), proposal.currency)}
-                    {item.billing_type === "monthly" ? "/mo" : ""}
-                  </td>
-                  <td className="py-4 pl-3 text-body text-right font-semibold whitespace-nowrap">
-                    Complimentary
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <ComplimentaryServices
+        currency={proposal.currency}
+        note="Included with this engagement at no charge. Values are shown for reference and are not part of the total above."
+        groups={
+          projects.length === 0
+            ? [{ key: "all", title: null, items: complimentary }]
+            : [
+                ...projects.map((p) => ({
+                  key: p.id,
+                  title: p.name,
+                  items: complimentary.filter((i) => i.project_id === p.id),
+                })),
+                {
+                  key: "general",
+                  title: "General",
+                  items: complimentary.filter((i) => !i.project_id || !knownProjectIds.has(i.project_id)),
+                },
+              ]
+        }
+      />
     </>
   );
 }
