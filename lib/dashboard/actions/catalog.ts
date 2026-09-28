@@ -19,6 +19,8 @@ const catalogSchema = z.object({
   /** Not shown in the form for bundles — falls back to inferring from
    *  unit so the column (not null) always gets a sensible value. */
   billing_type: z.enum(["monthly", "one_time"]).optional(),
+  count_label: z.string().trim().max(40).optional().nullable(),
+  count_default: z.coerce.number().int().min(1).max(10000).optional().nullable(),
 });
 
 async function assertAuthed() {
@@ -38,6 +40,8 @@ function parseForm(formData: FormData) {
     is_bundle: formData.get("is_bundle") === "on",
     member_ids: formData.getAll("member_ids"),
     billing_type: formData.get("billing_type") || undefined,
+    count_label: formData.get("count_label") || null,
+    count_default: formData.get("count_default") || null,
   });
 }
 

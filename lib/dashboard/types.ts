@@ -142,6 +142,10 @@ export type CatalogItem = {
   sort_order: number;
   is_bundle: boolean;
   billing_type: "monthly" | "one_time";
+  /** e.g. "posts" — makes Proposal lines show a count stepper. */
+  count_label: string | null;
+  /** The count included at the standard rate, e.g. 16. */
+  count_default: number | null;
 };
 
 export type LineItem = {

@@ -63,6 +63,24 @@ type ExistingProposal = {
 let keyCounter = 0;
 const nextKey = () => `item-${keyCounter++}`;
 
+/** The count in a countable line lives in its description: the first
+ *  number followed (within three words) by the unit label, e.g.
+ *  "16 designed posts" or "16 custom-designed social media posts". */
+const escapeRegExp = (text: string) => text.replace(/[^\w\s-]/g, "\\$&");
+const countPattern = (label: string) =>
+  new RegExp(String.raw`\b(\d+)(?=(?:\s+[\w-]+){0,3}\s+` + escapeRegExp(label) + String.raw`\b)`, "i");
+
+function readCount(description: string, label: string): number | null {
+  const match = description.match(countPattern(label));
+  return match ? Number(match[1]) : null;
+}
+
+function writeCount(description: string, label: string, count: number): string {
+  return countPattern(label).test(description)
+    ? description.replace(countPattern(label), String(count))
+    : `${description} (${count} ${label})`;
+}
+
 // Starting drafts for a brand-new proposal — professional, fully editable,
 // not fixed boilerplate. Saves starting from a blank page every time.
 const DEFAULT_SITUATION =
@@ -221,8 +239,19 @@ export default function ProposalForm({
       description,
       rate: Number(source.default_rate),
       billing_type: source.billing_type,
+      // Countable services are priced per package, never per unit.
+      ...(source.count_label ? { quantity: 1 } : {}),
     });
   };
+
+  /** The catalog config for a line, when its service is countable. */
+  const countableFor = (item: EditableItem) => {
+    const source = item.catalog_item_id ? catalog.find((c) => c.id === item.catalog_item_id) : undefined;
+    return source?.count_label ? { label: source.count_label, fallback: source.count_default ?? 1 } : null;
+  };
+
+  const setCount = (item: EditableItem, label: string, count: number) =>
+    updateItem(item.key, { description: writeCount(item.description, label, Math.max(1, Math.round(count))) });
 
   const onSelectClient = (id: string) => {
     setClientId(id);
@@ -313,30 +342,80 @@ export default function ProposalForm({
           />
         </div>
 
-        <div className="col-span-4 sm:col-span-2">
-          {index === 0 && <label className="block text-small font-medium mb-1.5">Qty</label>}
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={item.quantity}
-            onChange={(e) => updateItem(item.key, { quantity: Number(e.target.value) || 0 })}
-            className={inputClasses}
-            aria-label="Quantity"
-          />
-        </div>
+        {(() => {
+          const countable = countableFor(item);
+          if (countable) {
+            const count = readCount(item.description, countable.label) ?? countable.fallback;
+            const unitLabel = countable.label.charAt(0).toUpperCase() + countable.label.slice(1);
+            return (
+              <div className="col-span-9 sm:col-span-4">
+                {index === 0 && (
+                  <label className="block text-small font-medium mb-1.5">
+                    {unitLabel}
+                    {item.billing_type === "monthly" ? " per month" : ""}
+                  </label>
+                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCount(item, countable.label, count - 1)}
+                    aria-label={`Fewer ${countable.label}`}
+                    className="size-10 shrink-0 rounded-lg border border-ink/15 text-body hover:bg-ink/5"
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    value={count}
+                    onChange={(e) => setCount(item, countable.label, Number(e.target.value) || 1)}
+                    className={`${inputClasses} text-center`}
+                    aria-label={`Number of ${countable.label}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setCount(item, countable.label, count + 1)}
+                    aria-label={`More ${countable.label}`}
+                    className="size-10 shrink-0 rounded-lg border border-ink/15 text-body hover:bg-ink/5"
+                  >
+                    +
+                  </button>
+                </div>
+                <p className="text-tag text-ink-muted mt-1.5">
+                  Package price stays {formatMoney(item.rate, currency)}; set the deal with the discount.
+                </p>
+              </div>
+            );
+          }
+          return (
+            <>
+              <div className="col-span-4 sm:col-span-2">
+                {index === 0 && <label className="block text-small font-medium mb-1.5">Qty</label>}
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={item.quantity}
+                  onChange={(e) => updateItem(item.key, { quantity: Number(e.target.value) || 0 })}
+                  className={inputClasses}
+                  aria-label="Quantity"
+                />
+              </div>
 
-        <div className="col-span-5 sm:col-span-2">
-          {index === 0 && <label className="block text-small font-medium mb-1.5">Rate</label>}
-          <input
-            type="number"
-            step="0.01"
-            value={item.rate}
-            onChange={(e) => updateItem(item.key, { rate: Number(e.target.value) || 0 })}
-            className={inputClasses}
-            aria-label="Rate"
-          />
-        </div>
+              <div className="col-span-5 sm:col-span-2">
+                {index === 0 && <label className="block text-small font-medium mb-1.5">Rate</label>}
+                <input
+                  type="number"
+                  step="0.01"
+                  value={item.rate}
+                  onChange={(e) => updateItem(item.key, { rate: Number(e.target.value) || 0 })}
+                  className={inputClasses}
+                  aria-label="Rate"
+                />
+              </div>
+            </>
+          );
+        })()}
 
         <div className="col-span-3 sm:col-span-2 flex items-center gap-2">
           <div className="flex-1 min-w-0">

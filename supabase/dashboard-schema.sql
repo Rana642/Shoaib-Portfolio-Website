@@ -115,6 +115,14 @@ alter table catalog_items add column if not exists billing_type text not null de
 -- every pre-existing service defaulted to one_time.
 update catalog_items set billing_type = 'monthly' where unit = 'month';
 
+-- Countable services (e.g. Social Media Management = 16 posts). When
+-- count_label is set, a Proposal line picked from this item shows a
+-- "<label> per month" stepper instead of Qty/Rate: the number lives in the
+-- line's description text (first "<n> ... <label>"), Qty stays 1, and the
+-- rate stays the catalog rate — deals are settled with the total discount.
+alter table catalog_items add column if not exists count_label text;
+alter table catalog_items add column if not exists count_default int;
+
 -- A bundle can't include another bundle (checked in the app, not here)
 -- — keeps "what's included" a flat, one-level list.
 create table if not exists catalog_bundle_members (

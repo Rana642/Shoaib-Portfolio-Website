@@ -140,6 +140,34 @@ export default function CatalogForm({
         </Field>
       )}
 
+      {!isBundle && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field
+            label="Countable unit"
+            htmlFor="count_label"
+            hint='Optional, e.g. "posts". Proposal lines then get a count stepper instead of Qty.'
+          >
+            <input
+              id="count_label"
+              name="count_label"
+              defaultValue={item?.count_label ?? ""}
+              placeholder="posts"
+              className={inputClasses}
+            />
+          </Field>
+          <Field label="Included count" htmlFor="count_default" hint="How many the standard rate includes, e.g. 16.">
+            <input
+              id="count_default"
+              name="count_default"
+              type="number"
+              min="1"
+              defaultValue={item?.count_default ?? ""}
+              className={inputClasses}
+            />
+          </Field>
+        </div>
+      )}
+
       <Field label="Sort order" htmlFor="sort_order" hint="Lower numbers appear first in the list.">
         <input
           id="sort_order"
