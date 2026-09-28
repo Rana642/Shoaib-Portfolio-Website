@@ -62,7 +62,7 @@ export default function SetupsPage() {
                     </p>
                     <p className="flex items-center gap-2 text-ink-muted">
                       <Clock className="size-3.5 text-cobalt" aria-hidden />
-                      {s.delivery ?? "Timeline on request"}
+                      {s.delivery ? `Usually ${s.delivery}` : "Timeline on request"}
                     </p>
                   </div>
                   <span className="mt-5 text-small font-medium underline-offset-4 decoration-citrus decoration-2 group-hover:underline">

@@ -57,7 +57,7 @@ export const setups: Setup[] = [
       "The actions that count as a result for you (form, call, purchase)",
     ],
     price: "PKR 5,000",
-    delivery: null,
+    delivery: "3 days",
     caseStudySlugs: [],
     related: { href: "/services/tracking-analytics", label: "Tracking & Analytics" },
   },
@@ -119,7 +119,7 @@ export const setups: Setup[] = [
       "Admin access to your website or Google Tag Manager",
     ],
     price: "PKR 15,000",
-    delivery: null,
+    delivery: "5 days",
     caseStudySlugs: [],
     related: { href: "/services/google-ads", label: "Google Ads management" },
   },
@@ -348,7 +348,7 @@ export const setups: Setup[] = [
     platformNote:
       "Meta reviews business verification and decides approval and timing. I make sure the documents and details match so the request is complete and correct.",
     price: "PKR 15,000",
-    delivery: null,
+    delivery: "7 days",
     caseStudySlugs: ["avenza-avenue"],
     related: { href: "/services/meta-ads", label: "Meta Ads management" },
   },
@@ -376,7 +376,7 @@ export const setups: Setup[] = [
       "The actions that count as a result for you",
     ],
     price: "PKR 5,000",
-    delivery: null,
+    delivery: "3 days",
     caseStudySlugs: [],
     related: { href: "/services/tracking-analytics", label: "Tracking & Analytics" },
   },
@@ -405,7 +405,7 @@ export const setups: Setup[] = [
     platformNote:
       "Meta decides who gets verified. I can't guarantee approval, but I make sure the application is complete and correct.",
     price: "PKR 5,000",
-    delivery: null,
+    delivery: "5 days",
     caseStudySlugs: ["avenza-avenue"],
     related: { href: "/services/meta-ads", label: "Meta Ads management" },
   },
@@ -434,7 +434,7 @@ export const setups: Setup[] = [
     ],
     platformNote: "Google reviews every store and product. I fix what they flag at launch.",
     price: "PKR 15,000",
-    delivery: null,
+    delivery: "5 days",
     caseStudySlugs: [],
     related: { href: "/services/google-ads", label: "Google Ads management" },
   },
@@ -444,4 +444,6 @@ export const getSetup = (slug: string) => setups.find((s) => s.slug === slug) ??
 
 /** The price line shown on cards and pages. */
 export const priceLabel = (s: Setup) => s.price ?? "Fixed price, confirmed before work starts";
-export const deliveryLabel = (s: Setup) => s.delivery ?? "Timeline confirmed with the price";
+/** Delivery is a typical figure; the actual timeline is agreed per deal. */
+export const deliveryLabel = (s: Setup) =>
+  s.delivery ? `Usually ${s.delivery}, confirmed per project` : "Timeline confirmed with the price";
