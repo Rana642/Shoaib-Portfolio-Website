@@ -30,6 +30,7 @@ export const KB_SERVER_INSTRUCTIONS = [
   "NAP (name/address/phone/email) always comes from the brand's official website (the project's `nap` doc), never from product PDFs, labels or old posts, and is never part of branding docs.",
   "CLAUDE WEB WIDGETS/ARTIFACTS: the sandbox blocks every image origin except a few CDNs — only the `Widget-safe (jsDelivr)` / cdn_url links load there; adsbyshoaib.com URLs show as broken images. If a file has no widget-safe URL yet, ask the user before calling kb_publish_to_cdn (it publishes to a PUBLIC repo).",
   "Images: every stored file has a permanent public URL (returned by kb_get_product / kb_list_assets / kb_get_asset) you can use in <img> or SVG <image href>; add &w=800&fmt=jpg to get a smaller rendition. You cannot pass the bytes of a chat-attached image to a tool — call kb_create_upload_link and give the user the link, or use kb_add_asset with a public sourceUrl.",
+  "Social posts by calendar day (\"Day 1 ki post design karo\"): call kb_get_social_post — it returns the locked image prompt, the caption and the original images to attach. Use them unchanged.",
   "The kb_* write tools (kb_upsert_doc, kb_upsert_product, kb_add_asset, kb_add_memory, kb_upsert_global_rule…) let you maintain the knowledge base; deletes need confirm=true.",
 ].join("\n");
 
@@ -444,6 +445,84 @@ Args: projectName (string), productName (string, fuzzy on name/slug), includeLit
         if (lit) {
           for (const a of assets.filter((x) => x.kind === "literature_page")) content.push(...(await assetBlocks(a, cdn)));
           for (const a of assets.filter((x) => x.kind === "literature_pdf")) content.push(...(await assetBlocks(a, cdn)));
+        }
+        return { content };
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_get_social_post",
+    {
+      title: "Get Social Post Brief By Calendar Day",
+      description: `Use this when the user asks for a social media post by calendar day ("Day 1 ki social media post design karo", "Day 2", "poora calendar"). Returns everything needed to design that day's post: the final image-generation prompt (the day's entry from the project's content calendar merged with its social-post design lock — locked copy, layout, brand colours and product rules), the caption to post, full-resolution download links for the original images to attach (logo first, then the approved product photo), and the images themselves.
+
+Then generate the graphic with your image tool (GPT image / Nano Banana), attaching exactly these images in this order, and give the user the caption. Do not change any text, add claims, redraw/recolour the product, or leave the brand palette. For "poora calendar", call this for day 1, 2, 3… one at a time.
+
+Args: projectName (string), day (number, 1-based), calendarSlug (optional marketing_doc slug; default = the project's newest content-calendar doc).`,
+      inputSchema: { projectName: z.string(), day: z.number().int().min(1), calendarSlug: slugSchema.optional() },
+      annotations: READ,
+    },
+    async ({ projectName, day, calendarSlug }: { projectName: string; day: number; calendarSlug?: string }) => {
+      try {
+        const project = await findProject(projectName);
+        const { data: docs } = await db
+          .from("project_knowledge_docs")
+          .select("slug, content, updated_at")
+          .eq("project_id", project.id)
+          .eq("doc_type", "marketing_doc")
+          .order("updated_at", { ascending: false });
+        const all = (docs ?? []) as { slug: string; content: string }[];
+        const calendar = calendarSlug ? all.find((d) => d.slug === calendarSlug) : all.find((d) => d.slug.startsWith("content-calendar"));
+        if (!calendar) throw new Error(`No content calendar for ${project.label}${calendarSlug ? ` with slug "${calendarSlug}"` : ""}. Save one as a marketing_doc whose slug starts with "content-calendar".`);
+        const lockDoc = all.find((d) => d.slug === "social-post-design-lock");
+        if (!lockDoc) throw new Error(`No "social-post-design-lock" marketing_doc for ${project.label}.`);
+        const jsonBlock = (text: string, what: string) => {
+          const m = text.match(/```json\s*\n([\s\S]*?)\n```/);
+          if (!m) throw new Error(`The ${what} doc has no \`\`\`json block.`);
+          return JSON.parse(m[1]);
+        };
+        const days = jsonBlock(calendar.content, calendar.slug) as Record<string, unknown>[];
+        const entry = days.find((d) => Number(d.post ?? d.day) === day);
+        if (!entry) throw new Error(`Day ${day} is not in ${calendar.slug} (it has days 1–${days.length}).`);
+        const lock = jsonBlock(lockDoc.content, lockDoc.slug);
+
+        const { caption_for_posting: caption, ...rest } = entry as Record<string, unknown> & { caption_for_posting?: string };
+        const prompt = { brief: `${project.name} social media post — Day ${day} of ${calendar.slug}`, global_design_lock: lock, ...rest };
+
+        // Resolve the attachments (CDN URLs in the calendar) back to stored originals.
+        const attach = (rest.attach ?? {}) as Record<string, string | string[]>;
+        const urls = Object.values(attach).flatMap((v) => (Array.isArray(v) ? v : [v])).filter(Boolean);
+        const { data: cdnRows } = await db.from("kb_cdn_files").select("storage_key, cdn_url").in("cdn_url", urls.length ? urls : ["-"]);
+        const byUrl = new Map(((cdnRows ?? []) as { storage_key: string; cdn_url: string }[]).map((r) => [r.cdn_url, r.storage_key]));
+        const many = urls.length > 3;
+        const content: Block[] = [
+          {
+            type: "text",
+            text: `Day ${day} — ${String(rest.pillar ?? "")}${rest.product ? ` — ${String(rest.product)}` : ""}\n\nSTEP 1. Attach these ${urls.length} image(s), in this order (download the full-resolution original if your image tool needs a file):\n${urls
+              .map((u, i) => {
+                const key = byUrl.get(u);
+                return `${i + 1}. ${u}${key ? `\n   Full resolution: ${kbFileUrl(key, `day-${day}-image-${i + 1}`)}` : ""}`;
+              })
+              .join("\n")}\n\nSTEP 2. Generate the image with this prompt, unchanged:\n\n\`\`\`json\n${JSON.stringify(prompt, null, 2)}\n\`\`\`\n\nSTEP 3. Check the result against the lock (product identical to the attached photo, exact text only, brand colours only, full-width footer strip, vet line). If anything differs, regenerate with "Follow the JSON exactly; fix only: …".\n\nCAPTION TO POST (give this to the user as-is):\n\n${caption ?? "(no caption in the calendar)"}`,
+          },
+        ];
+        for (const [i, u] of urls.entries()) {
+          const key = byUrl.get(u);
+          if (!key) continue;
+          try {
+            if (many) {
+              const { buffer } = await fetchObject(key);
+              const small = await sharp(buffer).flatten({ background: "#ffffff" }).resize({ width: 360, withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer();
+              content.push({ type: "text", text: `Image ${i + 1} (preview — use the full-resolution link to attach):` }, { type: "image", data: small.toString("base64"), mimeType: "image/jpeg" });
+            } else {
+              content.push({ type: "text", text: `Image ${i + 1}${i === 0 ? " (logo)" : " (approved product photo — locked, do not alter)"}:` }, await imageBlock(key));
+            }
+          } catch {
+            content.push({ type: "text", text: `Image ${i + 1}: missing from storage — use the URL above.` });
+          }
         }
         return { content };
       } catch (error) {
