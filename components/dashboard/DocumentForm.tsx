@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import Link from "next/link";
-import { LoaderCircle, Plus, Trash2 } from "lucide-react";
+import { GripVertical, ListChecks, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { createDocument, updateDocument } from "@/lib/dashboard/actions/documents";
 import { Field, inputClasses, buttonStyles, Card } from "@/components/dashboard/ui";
 import { formatMoney, calculateTotals } from "@/lib/dashboard/format";
@@ -110,13 +110,7 @@ export default function DocumentForm({
   /** Picking a catalog item fills description and rate, but both stay
    *  editable — the document keeps its own copy, so later catalog edits
    *  never rewrite an already-sent document. */
-  const applyCatalogItem = (key: string, catalogId: string) => {
-    if (!catalogId) {
-      updateItem(key, { catalog_item_id: null });
-      return;
-    }
-    const source = catalog.find((c) => c.id === catalogId);
-    if (!source) return;
+  const lineFromCatalog = (source: CatalogItem): Partial<EditableItem> => {
     const members = bundleMembers[source.id];
     const bundleTotal = bundleTotals[source.id];
     const description = source.is_bundle
@@ -128,14 +122,69 @@ export default function DocumentForm({
       : source.description
         ? `${source.name} — ${source.description}`
         : source.name;
-    updateItem(key, {
+    return {
       catalog_item_id: source.id,
       description,
       rate: Number(source.default_rate),
       // Countable services are billed as one package, never per unit.
       ...(source.count_label ? { quantity: 1 } : {}),
-    });
+    };
   };
+
+  const applyCatalogItem = (key: string, catalogId: string) => {
+    if (!catalogId) {
+      updateItem(key, { catalog_item_id: null });
+      return;
+    }
+    const source = catalog.find((c) => c.id === catalogId);
+    if (!source) return;
+    updateItem(key, lineFromCatalog(source));
+  };
+
+  // Multi-add picker: tick several catalog services, add them as lines in one go.
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+
+  const addPickedServices = () => {
+    const sources = picked
+      .map((id) => catalog.find((c) => c.id === id))
+      .filter((c): c is CatalogItem => Boolean(c));
+    if (sources.length > 0) {
+      setItems((prev) => {
+        // A lone blank line is just the starting placeholder: replace it.
+        const blank =
+          prev.length === 1 && !prev[0].catalog_item_id && !prev[0].description.trim() ? prev[0].key : null;
+        const kept = blank ? [] : prev;
+        const added: EditableItem[] = sources.map((source) => ({
+          key: nextKey(),
+          catalog_item_id: null,
+          description: "",
+          quantity: 1,
+          rate: 0,
+          is_complimentary: false,
+          ...lineFromCatalog(source),
+        }));
+        return [...kept, ...added];
+      });
+    }
+    setPicked([]);
+    setPickerOpen(false);
+  };
+
+  // Drag to reorder lines. A row is only draggable while its grip is held,
+  // so text in the row's fields stays selectable.
+  const [dragArmed, setDragArmed] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const moveItem = (fromKey: string, toKey: string) =>
+    setItems((prev) => {
+      const from = prev.findIndex((item) => item.key === fromKey);
+      const to = prev.findIndex((item) => item.key === toKey);
+      if (from < 0 || to < 0 || from === to) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
 
   const onSubmit = (formData: FormData) => {
     setError(null);
@@ -232,18 +281,119 @@ export default function DocumentForm({
       <Card className="p-6">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-body-lg font-semibold">Line items</h2>
-          <button type="button" onClick={addItem} className={buttonStyles.secondary}>
-            <Plus className="size-4" aria-hidden />
-            Add line
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {catalog.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPicked([]);
+                  setPickerOpen((open) => !open);
+                }}
+                className={buttonStyles.secondary}
+              >
+                <ListChecks className="size-4" aria-hidden />
+                Add services
+              </button>
+            )}
+            <button type="button" onClick={addItem} className={buttonStyles.secondary}>
+              <Plus className="size-4" aria-hidden />
+              Add line
+            </button>
+          </div>
         </div>
+
+        {pickerOpen && (
+          <div className="mb-5 rounded-xl border border-ink/10 bg-white/80 p-4">
+            <p className="text-small font-semibold mb-3">Tick the services to add</p>
+            <div className="max-h-72 overflow-y-auto space-y-4 pr-1">
+              {[
+                { label: "Services", list: catalog.filter((c) => c.is_active && !c.is_bundle) },
+                { label: "Bundles", list: catalog.filter((c) => c.is_active && c.is_bundle) },
+              ]
+                .filter((group) => group.list.length > 0)
+                .map((group) => (
+                  <div key={group.label}>
+                    <p className="text-tag font-semibold uppercase tracking-widest text-ink-muted mb-1.5">
+                      {group.label}
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                      {group.list.map((c) => (
+                        <label key={c.id} className="flex items-start gap-2 text-small py-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={picked.includes(c.id)}
+                            onChange={(e) =>
+                              setPicked((prev) =>
+                                e.target.checked ? [...prev, c.id] : prev.filter((id) => id !== c.id)
+                              )
+                            }
+                            className="size-4 mt-0.5 accent-ink shrink-0"
+                          />
+                          <span>
+                            {c.name}{" "}
+                            <span className="text-ink-muted">
+                              {formatMoney(Number(c.default_rate), c.currency)}/{c.unit}
+                              {items.some((item) => item.catalog_item_id === c.id) ? " · already added" : ""}
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+            </div>
+            <div className="flex flex-wrap gap-2 mt-4">
+              <button
+                type="button"
+                onClick={addPickedServices}
+                disabled={picked.length === 0}
+                className={buttonStyles.primary}
+              >
+                Add {picked.length > 0 ? picked.length : ""} service{picked.length === 1 ? "" : "s"}
+              </button>
+              <button type="button" onClick={() => setPickerOpen(false)} className={buttonStyles.secondary}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-4">
           {items.map((item, index) => (
             <div
               key={item.key}
-              className="grid grid-cols-12 gap-3 items-start pb-4 border-b border-ink/5 last:border-0 last:pb-0"
+              draggable={dragArmed === item.key}
+              onDragStart={(e) => {
+                setDragging(item.key);
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              onDragOver={(e) => {
+                if (dragging) e.preventDefault();
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragging) moveItem(dragging, item.key);
+                setDragging(null);
+                setDragArmed(null);
+              }}
+              onDragEnd={() => {
+                setDragging(null);
+                setDragArmed(null);
+              }}
+              className={`relative grid grid-cols-12 gap-3 items-start pb-4 pl-6 border-b border-ink/5 last:border-0 last:pb-0 ${
+                dragging === item.key ? "opacity-40" : ""
+              }`}
             >
+              <button
+                type="button"
+                aria-label="Drag to reorder"
+                title="Drag to reorder"
+                onMouseDown={() => setDragArmed(item.key)}
+                onMouseUp={() => setDragArmed(null)}
+                className={`absolute left-0 ${index === 0 ? "top-8" : "top-1.5"} cursor-grab active:cursor-grabbing text-ink-subtle hover:text-ink`}
+              >
+                <GripVertical className="size-4" aria-hidden />
+              </button>
               {/* A countable line gives two columns of Description to its stepper. */}
               <div className={`col-span-12 ${countableFor(catalog, item.catalog_item_id) ? "sm:col-span-4" : "sm:col-span-6"}`}>
                 {index === 0 && (
