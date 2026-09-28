@@ -32,8 +32,17 @@ export default function ComplimentaryServices({
 }) {
   if (items.length === 0) return null;
 
-  const monthly = items.filter((i) => i.billing_type === "monthly").reduce((sum, i) => sum + Number(i.amount), 0);
-  const oneTime = items.filter((i) => i.billing_type !== "monthly").reduce((sum, i) => sum + Number(i.amount), 0);
+  // Same two groups as Service Charges: retainer lines first, then one-time.
+  const groups = [
+    { key: "monthly", label: "Monthly Retainer", suffix: "/mo", items: items.filter((i) => i.billing_type === "monthly") },
+    { key: "one_time", label: "One-Time / Fixed Cost", suffix: "", items: items.filter((i) => i.billing_type !== "monthly") },
+  ]
+    .filter((group) => group.items.length > 0)
+    .map((group) => ({ ...group, total: group.items.reduce((sum, i) => sum + Number(i.amount), 0) }));
+  // Headings and subtotals only when both kinds are present.
+  const split = groups.length > 1;
+  const monthly = groups.find((g) => g.key === "monthly")?.total ?? 0;
+  const oneTime = groups.find((g) => g.key === "one_time")?.total ?? 0;
 
   return (
     <div className={`rounded-xl border border-ink/10 overflow-hidden ${className}`}>
@@ -61,28 +70,49 @@ export default function ComplimentaryServices({
       </div>
 
       <table className="w-full text-left">
-        <tbody>
-          {items.map((item, i) => {
-            const { name, detail } = splitDescription(item.description);
-            return (
-              <tr key={item.id} className={i > 0 ? "border-t border-ink/5" : undefined}>
-                <td className="pl-4 md:pl-5 pr-4 py-3.5 align-top">
-                  <p className="text-body font-medium leading-snug">{name}</p>
-                  {detail && <p className="text-small text-ink-muted mt-1 whitespace-pre-line">{detail}</p>}
-                </td>
-                <td className="pr-4 md:pr-5 pl-3 py-3.5 align-top text-right whitespace-nowrap">
-                  <p className="text-small text-ink-subtle line-through decoration-ink/40">
-                    {formatMoney(Number(item.amount), currency)}
-                    {item.billing_type === "monthly" ? "/mo" : ""}
-                  </p>
-                  <span className="inline-block mt-1.5 rounded-full border border-forest/30 bg-forest/10 px-2.5 py-1 font-mono uppercase text-[0.625rem] leading-none tracking-wider text-ink [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
-                    Complimentary
-                  </span>
+        {groups.map((group, g) => (
+          <tbody key={group.key} className={g > 0 ? "border-t border-ink/10" : undefined}>
+            {split && (
+              <tr>
+                <th
+                  colSpan={2}
+                  className="px-4 md:px-5 pt-4 pb-1 text-left font-normal font-mono uppercase text-tag tracking-widest text-ink-subtle"
+                >
+                  {group.label}
+                </th>
+              </tr>
+            )}
+            {group.items.map((item, i) => {
+              const { name, detail } = splitDescription(item.description);
+              return (
+                <tr key={item.id} className={i > 0 ? "border-t border-ink/5" : undefined}>
+                  <td className="pl-4 md:pl-5 pr-4 py-3.5 align-top">
+                    <p className="text-body font-medium leading-snug">{name}</p>
+                    {detail && <p className="text-small text-ink-muted mt-1 whitespace-pre-line">{detail}</p>}
+                  </td>
+                  <td className="pr-4 md:pr-5 pl-3 py-3.5 align-top text-right whitespace-nowrap">
+                    <p className="text-small text-ink-subtle line-through decoration-ink/40">
+                      {formatMoney(Number(item.amount), currency)}
+                      {group.suffix}
+                    </p>
+                    <span className="inline-block mt-1.5 rounded-full border border-forest/30 bg-forest/10 px-2.5 py-1 font-mono uppercase text-[0.625rem] leading-none tracking-wider text-ink [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
+                      Complimentary
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+            {split && (
+              <tr className="border-t border-ink/10">
+                <td className="pl-4 md:pl-5 pr-4 py-3 text-small text-ink-muted">{group.label} subtotal</td>
+                <td className="pr-4 md:pr-5 pl-3 py-3 text-right text-small font-semibold whitespace-nowrap">
+                  {formatMoney(group.total, currency)}
+                  {group.suffix}
                 </td>
               </tr>
-            );
-          })}
-        </tbody>
+            )}
+          </tbody>
+        ))}
       </table>
     </div>
   );
