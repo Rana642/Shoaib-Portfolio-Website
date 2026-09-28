@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import Link from "next/link";
-import { Copy, LoaderCircle, Plus, Trash2 } from "lucide-react";
+import { Copy, GripVertical, ListChecks, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { createProposal, updateProposal } from "@/lib/dashboard/actions/proposals";
 import { Field, inputClasses, buttonStyles, Card } from "@/components/dashboard/ui";
 import { formatMoney, calculateTotals } from "@/lib/dashboard/format";
@@ -228,13 +228,8 @@ export default function ProposalForm({
     }
   };
 
-  const applyCatalogItem = (key: string, catalogId: string) => {
-    if (!catalogId) {
-      updateItem(key, { catalog_item_id: null });
-      return;
-    }
-    const source = catalog.find((c) => c.id === catalogId);
-    if (!source) return;
+  /** The fields a line takes from a catalog item. */
+  const lineFromCatalog = (source: CatalogItem): Partial<EditableItem> => {
     const members = bundleMembers[source.id];
     const bundleTotal = bundleTotals[source.id];
     const description = source.is_bundle
@@ -246,15 +241,140 @@ export default function ProposalForm({
       : source.description
         ? `${source.name} — ${source.description}`
         : source.name;
-    updateItem(key, {
+    return {
       catalog_item_id: source.id,
       description,
       rate: Number(source.default_rate),
       billing_type: source.billing_type,
       // Countable services are priced per package, never per unit.
       ...(source.count_label ? { quantity: 1 } : {}),
-    });
+    };
   };
+
+  const applyCatalogItem = (key: string, catalogId: string) => {
+    if (!catalogId) {
+      updateItem(key, { catalog_item_id: null });
+      return;
+    }
+    const source = catalog.find((c) => c.id === catalogId);
+    if (!source) return;
+    updateItem(key, lineFromCatalog(source));
+  };
+
+  // Multi-add picker: tick several catalog services, add them as lines in one go.
+  const [pickerFor, setPickerFor] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string[]>([]);
+  const bucketKey = (projectId: string | null) => projectId ?? "__general";
+
+  const openPicker = (projectId: string | null) => {
+    setPicked([]);
+    setPickerFor((current) => (current === bucketKey(projectId) ? null : bucketKey(projectId)));
+  };
+
+  const addPickedServices = (projectId: string | null) => {
+    const sources = picked
+      .map((id) => catalog.find((c) => c.id === id))
+      .filter((c): c is CatalogItem => Boolean(c));
+    if (sources.length > 0) {
+      setItems((prev) => {
+        // A lone blank line in this bucket is just the starting placeholder: replace it.
+        const bucket = prev.filter((item) => item.item_type === "service" && item.project_id === projectId);
+        const blank =
+          bucket.length === 1 && !bucket[0].catalog_item_id && !bucket[0].description.trim() ? bucket[0].key : null;
+        const kept = blank ? prev.filter((item) => item.key !== blank) : prev;
+        const added: EditableItem[] = sources.map((source) => ({
+          key: nextKey(),
+          catalog_item_id: null,
+          description: "",
+          quantity: 1,
+          rate: 0,
+          billing_type: "one_time",
+          item_type: "service",
+          project_id: projectId,
+          is_complimentary: false,
+          ...lineFromCatalog(source),
+        }));
+        return [...kept, ...added];
+      });
+    }
+    setPicked([]);
+    setPickerFor(null);
+  };
+
+  const renderServicePicker = (projectId: string | null) => {
+    if (pickerFor !== bucketKey(projectId)) return null;
+    const inBucket = new Set(
+      items
+        .filter((item) => item.item_type === "service" && item.project_id === projectId && item.catalog_item_id)
+        .map((item) => item.catalog_item_id)
+    );
+    const groups = [
+      { label: "Services", list: catalog.filter((c) => c.is_active && !c.is_bundle) },
+      { label: "Bundles", list: catalog.filter((c) => c.is_active && c.is_bundle) },
+    ].filter((g) => g.list.length > 0);
+    return (
+      <div className="mb-4 rounded-xl border border-ink/10 bg-white/80 p-4">
+        <p className="text-small font-semibold mb-3">Tick the services to add</p>
+        <div className="max-h-72 overflow-y-auto space-y-4 pr-1">
+          {groups.map((group) => (
+            <div key={group.label}>
+              <p className="text-tag font-semibold uppercase tracking-widest text-ink-muted mb-1.5">{group.label}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                {group.list.map((c) => (
+                  <label key={c.id} className="flex items-start gap-2 text-small py-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={picked.includes(c.id)}
+                      onChange={(e) =>
+                        setPicked((prev) => (e.target.checked ? [...prev, c.id] : prev.filter((id) => id !== c.id)))
+                      }
+                      className="size-4 mt-0.5 accent-ink shrink-0"
+                    />
+                    <span>
+                      {c.name}{" "}
+                      <span className="text-ink-muted">
+                        {formatMoney(Number(c.default_rate), c.currency)}/{c.unit}
+                        {inBucket.has(c.id) ? " · already added" : ""}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2 mt-4">
+          <button
+            type="button"
+            onClick={() => addPickedServices(projectId)}
+            disabled={picked.length === 0}
+            className={buttonStyles.primary}
+          >
+            Add {picked.length > 0 ? picked.length : ""} service{picked.length === 1 ? "" : "s"}
+          </button>
+          <button type="button" onClick={() => setPickerFor(null)} className={buttonStyles.secondary}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // Drag to reorder lines within a list. A row is only draggable while its
+  // grip is held, so text in the row's fields stays selectable.
+  const [dragArmed, setDragArmed] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const moveItem = (fromKey: string, toKey: string) =>
+    setItems((prev) => {
+      const from = prev.findIndex((item) => item.key === fromKey);
+      const to = prev.findIndex((item) => item.key === toKey);
+      if (from < 0 || to < 0 || from === to) return prev;
+      if (prev[from].project_id !== prev[to].project_id || prev[from].item_type !== prev[to].item_type) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
 
 
   const onSelectClient = (id: string) => {
@@ -287,8 +407,38 @@ export default function ProposalForm({
     lineItems.map((item, index) => (
       <div
         key={item.key}
-        className="grid grid-cols-12 gap-3 items-start pb-4 border-b border-ink/5 last:border-0 last:pb-0"
+        draggable={dragArmed === item.key}
+        onDragStart={(e) => {
+          setDragging(item.key);
+          e.dataTransfer.effectAllowed = "move";
+        }}
+        onDragOver={(e) => {
+          if (dragging) e.preventDefault();
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          if (dragging) moveItem(dragging, item.key);
+          setDragging(null);
+          setDragArmed(null);
+        }}
+        onDragEnd={() => {
+          setDragging(null);
+          setDragArmed(null);
+        }}
+        className={`relative grid grid-cols-12 gap-3 items-start pb-4 pl-6 border-b border-ink/5 last:border-0 last:pb-0 ${
+          dragging === item.key ? "opacity-40" : ""
+        }`}
       >
+        <button
+          type="button"
+          aria-label="Drag to reorder"
+          title="Drag to reorder"
+          onMouseDown={() => setDragArmed(item.key)}
+          onMouseUp={() => setDragArmed(null)}
+          className={`absolute left-0 ${index === 0 ? "top-8" : "top-1.5"} cursor-grab active:cursor-grabbing text-ink-subtle hover:text-ink`}
+        >
+          <GripVertical className="size-4" aria-hidden />
+        </button>
         <div className="col-span-12 sm:col-span-6">
           {index === 0 && (
             <label className="block text-small font-medium mb-1.5">Description</label>
@@ -713,15 +863,24 @@ export default function ProposalForm({
                   <div className="pt-2">
                     <div className="flex items-center justify-between mb-4">
                       <p className="text-small font-semibold">Service Charges</p>
-                      <button
-                        type="button"
-                        onClick={() => addItem("service", project.id)}
-                        className={buttonStyles.secondary}
-                      >
-                        <Plus className="size-4" aria-hidden />
-                        Add line
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        {catalog.length > 0 && (
+                          <button type="button" onClick={() => openPicker(project.id)} className={buttonStyles.secondary}>
+                            <ListChecks className="size-4" aria-hidden />
+                            Add services
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => addItem("service", project.id)}
+                          className={buttonStyles.secondary}
+                        >
+                          <Plus className="size-4" aria-hidden />
+                          Add line
+                        </button>
+                      </div>
                     </div>
+                    {renderServicePicker(project.id)}
                     {projectItems.length > 0 && <div className="space-y-4">{renderServiceRows(projectItems)}</div>}
                   </div>
                 </div>
@@ -737,10 +896,18 @@ export default function ProposalForm({
           <h2 className="text-body-lg font-semibold">
             {projects.length > 0 ? "General / Shared Charges" : "Service Charges"}
           </h2>
-          <button type="button" onClick={() => addItem("service", null)} className={buttonStyles.secondary}>
-            <Plus className="size-4" aria-hidden />
-            Add line
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {catalog.length > 0 && (
+              <button type="button" onClick={() => openPicker(null)} className={buttonStyles.secondary}>
+                <ListChecks className="size-4" aria-hidden />
+                Add services
+              </button>
+            )}
+            <button type="button" onClick={() => addItem("service", null)} className={buttonStyles.secondary}>
+              <Plus className="size-4" aria-hidden />
+              Add line
+            </button>
+          </div>
         </div>
         {projects.length > 0 && (
           <p className="text-small text-ink-muted -mt-3 mb-5">
@@ -748,6 +915,7 @@ export default function ProposalForm({
           </p>
         )}
 
+        {renderServicePicker(null)}
         {generalServiceItems.length > 0 && (
           <div className="space-y-4">{renderServiceRows(generalServiceItems)}</div>
         )}
