@@ -4,6 +4,7 @@ import { getAgreementByToken } from "@/lib/dashboard/actions/agreement-public";
 import { getSettings } from "@/lib/dashboard/settings";
 import AgreementSignForm from "@/components/dashboard/AgreementSignForm";
 import AgreementBody from "@/components/dashboard/AgreementBody";
+import { isOfflineSignature, signedOnLabel } from "@/lib/dashboard/offline-dates";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -57,7 +58,8 @@ export default async function PublicAgreementPage({
           {agreement.signer_name && (
             <p className="text-small text-ink-muted mt-6">
               Signed by <span className="font-medium text-ink">{agreement.signer_name}</span>
-              {agreement.signed_at && ` on ${new Date(agreement.signed_at).toLocaleString()}`}
+              {agreement.signed_at &&
+                ` on ${signedOnLabel(agreement.signed_at, isOfflineSignature(agreement))}`}
             </p>
           )}
 

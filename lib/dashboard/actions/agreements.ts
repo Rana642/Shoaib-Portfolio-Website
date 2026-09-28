@@ -9,6 +9,7 @@ import { agreementReadyEmail } from "../../email-templates";
 import { siteUrl } from "../../seo";
 import { performProposalAcceptance } from "../proposal-acceptance";
 import { performAgreementSigning } from "../agreement-signing";
+import { DATE_RE, OFFLINE_SIGNER, dayToTimestamp, isOfflineSignature } from "../offline-dates";
 import type { Agreement, AgreementClause, Proposal } from "../types";
 
 async function assertAuthed() {
@@ -82,7 +83,7 @@ export async function createManualAgreement(proposalId: string) {
 
   const result = await performProposalAcceptance(
     proposal as Proposal,
-    "Confirmed by Shoaib (offline)",
+    OFFLINE_SIGNER,
     null,
     { agreementStatus: "draft", sendEmail: false }
   );
@@ -127,24 +128,43 @@ export async function updateAgreementClauses(id: string, clauses: AgreementClaus
  *  instead of the self-serve link — runs the same signing cascade
  *  (onboarding intake) as the public sign flow. Email is opt-in, same
  *  reasoning as markProposalAccepted. */
-export async function markAgreementSigned(id: string, sendEmail: boolean) {
+export async function markAgreementSigned(id: string, sendEmail: boolean, date?: string) {
   await assertAuthed();
+  if (date !== undefined && !DATE_RE.test(date)) return { error: "Pick the day it was signed." };
 
   const { data: agreement } = await db.from("agreements").select("*").eq("id", id).single();
   if (!agreement) return { error: "Agreement not found." };
   if (agreement.status === "signed") return { error: "This agreement has already been signed." };
   if (agreement.status === "declined") return { error: "This agreement was already declined." };
 
-  const result = await performAgreementSigning(
-    agreement as Agreement,
-    "Confirmed by Shoaib (offline)",
-    null,
-    { sendEmail }
-  );
+  const result = await performAgreementSigning(agreement as Agreement, OFFLINE_SIGNER, null, {
+    sendEmail,
+    signedAt: date ? dayToTimestamp(date) : undefined,
+  });
   if ("error" in result) return result;
 
   revalidatePath(`/dashboard/agreements/${id}`);
   revalidatePath("/dashboard/agreements");
   revalidatePath("/dashboard/onboarding");
+  return { ok: true };
+}
+
+/** Corrects the day of an offline signing. A client's own online
+ *  signature keeps exactly the moment (and IP) it was recorded with. */
+export async function setAgreementSignedDate(id: string, date: string) {
+  await assertAuthed();
+  if (!DATE_RE.test(date)) return { error: "Pick a date." };
+
+  const { data: agreement } = await db.from("agreements").select("status, signer_name, signer_ip").eq("id", id).single();
+  if (!agreement || agreement.status !== "signed") return { error: "This agreement hasn't been signed." };
+  if (!isOfflineSignature(agreement)) return { error: "The client signed this online — that date can't be changed." };
+
+  const { error } = await db
+    .from("agreements")
+    .update({ signed_at: dayToTimestamp(date), updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/dashboard/agreements/${id}`);
   return { ok: true };
 }

@@ -4,7 +4,8 @@ import { agreementReadyEmail } from "../email-templates";
 import { siteUrl } from "../seo";
 import { generateNumber } from "./numbering";
 import { buildAgreementClauses } from "./agreement-template";
-import { formatDate } from "./format";
+import { calculateTotals, formatDate } from "./format";
+import { timestampToDay } from "./offline-dates";
 import type { Proposal } from "./types";
 
 /**
@@ -20,11 +21,18 @@ export async function performProposalAcceptance(
   proposal: Proposal,
   signerName: string,
   signerIp: string | null,
-  options?: { agreementStatus?: "draft" | "sent"; sendEmail?: boolean }
+  options?: {
+    agreementStatus?: "draft" | "sent";
+    sendEmail?: boolean;
+    /** When the client actually accepted (offline confirmations can be
+     *  back-dated); defaults to now. Also the agreement's Effective Date. */
+    acceptedAt?: string;
+  }
 ): Promise<{ error: string } | { ok: true; agreementId?: string }> {
   const agreementStatus = options?.agreementStatus ?? "sent";
   const sendEmail = options?.sendEmail ?? true;
   const now = new Date().toISOString();
+  const acceptedAt = options?.acceptedAt ?? now;
 
   let clientId = proposal.client_id;
   if (!clientId) {
@@ -46,10 +54,10 @@ export async function performProposalAcceptance(
     .from("proposals")
     .update({
       status: "accepted",
-      accepted_at: now,
+      accepted_at: acceptedAt,
       client_id: clientId,
       signer_name: signerName.trim(),
-      signed_at: now,
+      signed_at: acceptedAt,
       signer_ip: signerIp,
       updated_at: now,
     })
@@ -62,15 +70,32 @@ export async function performProposalAcceptance(
     return { error: "Accepted, but couldn't generate an agreement number. Please contact us directly." };
   }
 
+  // The fee clause quotes the retainer / one-time split, with tools kept
+  // out as optional — the same maths the proposal itself shows.
+  const { data: items } = await db.from("proposal_items").select("*").eq("proposal_id", proposal.id);
+  const lines = (items ?? []).map((i) => ({ ...i, quantity: Number(i.quantity), rate: Number(i.rate) }));
+  const totals = calculateTotals(
+    lines,
+    proposal.tax_enabled,
+    Number(proposal.tax_rate),
+    { enabled: proposal.discount_enabled, type: proposal.discount_type, value: Number(proposal.discount_value) },
+    { enabled: proposal.tools_tax_enabled, rate: Number(proposal.tools_tax_rate) }
+  );
+
   const clauses = buildAgreementClauses({
     clientName: proposal.prospect_name,
     clientBusiness: proposal.prospect_business || proposal.prospect_name,
     proposalNumber: proposal.number,
     scopeOfWork: proposal.scope_of_work || "as described in the proposal",
-    feeAmount: Number(proposal.total),
+    fees: {
+      monthly: totals.monthlyTotal,
+      oneTime: totals.oneTimeTotal,
+      tools: totals.toolsTotal,
+      toolsMonthly: lines.filter((i) => i.item_type === "tool").every((i) => i.billing_type === "monthly"),
+    },
     currency: proposal.currency,
     paymentTerms: proposal.terms || "as agreed",
-    effectiveDate: formatDate(now.slice(0, 10)),
+    effectiveDate: formatDate(timestampToDay(acceptedAt)),
   });
 
   const agreementToken = crypto.randomUUID();

@@ -14,7 +14,12 @@ export async function performAgreementSigning(
   agreement: Agreement,
   signerName: string,
   signerIp: string | null,
-  options?: { sendEmail?: boolean }
+  options?: {
+    sendEmail?: boolean;
+    /** When it was actually signed (offline confirmations can be
+     *  back-dated); defaults to now. */
+    signedAt?: string;
+  }
 ): Promise<{ error: string } | { ok: true }> {
   const sendEmail = options?.sendEmail ?? true;
   const now = new Date().toISOString();
@@ -23,7 +28,7 @@ export async function performAgreementSigning(
     .from("agreements")
     .update({
       status: "signed",
-      signed_at: now,
+      signed_at: options?.signedAt ?? now,
       signer_name: signerName.trim(),
       signer_ip: signerIp,
       updated_at: now,

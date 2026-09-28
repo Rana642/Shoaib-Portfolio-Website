@@ -9,6 +9,7 @@ import { formatMoney, calculateTotals } from "@/lib/dashboard/format";
 import { CURRENCIES, type CatalogItem, type Client, type ClientProject, type Settings } from "@/lib/dashboard/types";
 import { countableFor, readCount, writeCount } from "@/lib/dashboard/countable";
 import CountStepper from "@/components/dashboard/CountStepper";
+import { timestampToDay } from "@/lib/dashboard/offline-dates";
 
 type BillingType = "monthly" | "one_time";
 type ItemType = "service" | "tool";
@@ -34,6 +35,9 @@ type EditableItem = {
 
 type ExistingProposal = {
   id: string;
+  created_at: string;
+  proposal_date?: string | null;
+  valid_until?: string | null;
   client_id: string | null;
   prospect_name: string;
   prospect_email: string;
@@ -111,6 +115,14 @@ export default function ProposalForm({
     proposal?.prospect_business ?? prefill?.business ?? ""
   );
   const [sendImmediately, setSendImmediately] = useState(false);
+  // Pakistan's today on both server and browser, so the default never
+  // differs between the two renders.
+  const [proposalDate, setProposalDate] = useState(
+    () =>
+      proposal?.proposal_date ??
+      (proposal ? timestampToDay(proposal.created_at) : new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi" }).format(new Date()))
+  );
+  const [validUntil, setValidUntil] = useState(proposal?.valid_until ?? "");
   const [currency, setCurrency] = useState(proposal?.currency ?? settings.default_currency);
   const [discountEnabled, setDiscountEnabled] = useState(proposal?.discount_enabled ?? false);
   const [discountType, setDiscountType] = useState<"percentage" | "fixed">(
@@ -704,6 +716,31 @@ export default function ProposalForm({
             </select>
           </Field>
         </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <Field label="Proposal date" htmlFor="proposal_date" hint="Printed as “Prepared” on the proposal.">
+            <input
+              id="proposal_date"
+              name="proposal_date"
+              type="date"
+              required
+              value={proposalDate}
+              onChange={(e) => setProposalDate(e.target.value)}
+              className={inputClasses}
+            />
+          </Field>
+          <Field label="Valid until (optional)" htmlFor="valid_until" hint="Shown under the date when set.">
+            <input
+              id="valid_until"
+              name="valid_until"
+              type="date"
+              min={proposalDate || undefined}
+              value={validUntil}
+              onChange={(e) => setValidUntil(e.target.value)}
+              className={inputClasses}
+            />
+          </Field>
+        </div>
       </Card>
 
       <Card className="p-6 space-y-5">
@@ -928,6 +965,7 @@ export default function ProposalForm({
             <h2 className="text-body-lg font-semibold">Tools &amp; Subscriptions</h2>
             <p className="text-small text-ink-muted mt-1">
               Third-party software you&apos;re passing through — Canva, ad tools, AI subscriptions, etc.
+              Shown to the client as optional, never part of the retainer.
             </p>
           </div>
           <button type="button" onClick={() => addItem("tool")} className={buttonStyles.secondary}>
@@ -1194,18 +1232,37 @@ export default function ProposalForm({
                 <span className="font-medium">{formatMoney(totals.taxAmount, currency)}</span>
               </div>
             )}
+            <div className="pt-2.5 border-t border-ink/10 space-y-2">
+              {totals.monthlyTotal > 0 && (
+                <div className="flex justify-between items-baseline gap-3">
+                  <span className="font-medium">Monthly Retainer</span>
+                  <span className="font-serif italic text-h3 leading-none whitespace-nowrap">
+                    {formatMoney(totals.monthlyTotal, currency)}
+                    <span className="text-small not-italic font-sans text-ink-muted">/mo</span>
+                  </span>
+                </div>
+              )}
+              {(totals.oneTimeTotal > 0 || totals.monthlyTotal === 0) && (
+                <div className="flex justify-between items-baseline gap-3">
+                  <span className="font-medium">{totals.monthlyTotal > 0 ? "One-time" : "Total"}</span>
+                  <span
+                    className={
+                      totals.monthlyTotal > 0
+                        ? "font-semibold whitespace-nowrap"
+                        : "font-serif italic text-h3 leading-none whitespace-nowrap"
+                    }
+                  >
+                    {formatMoney(totals.oneTimeTotal, currency)}
+                  </span>
+                </div>
+              )}
+            </div>
             {toolItems.length > 0 && (
-              <div className="flex justify-between text-small">
-                <span className="text-ink-muted">Tools &amp; Subscriptions</span>
+              <div className="flex justify-between text-small pt-2.5 border-t border-dashed border-ink/20">
+                <span className="text-ink-muted">Optional: Tools &amp; Subscriptions</span>
                 <span className="font-medium">{formatMoney(totals.toolsTotal, currency)}</span>
               </div>
             )}
-            <div className="flex justify-between pt-2.5 border-t border-ink/10">
-              <span className="font-medium">Total</span>
-              <span className="font-serif italic text-h3 leading-none">
-                {formatMoney(totals.total, currency)}
-              </span>
-            </div>
           </div>
         </div>
       </Card>

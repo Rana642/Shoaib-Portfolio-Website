@@ -1032,3 +1032,13 @@ alter table client_portal_users add column if not exists invited_by uuid;       
 -- their note, shown on the dashboard Planner.
 alter table scheduled_posts add column if not exists uploaded_by_email text;   -- null = uploaded by Shoaib
 alter table scheduled_posts add column if not exists client_note text;
+
+-- ── Proposal dates + retainer totals (2026-09-28) ────────────
+-- The date printed on a proposal ("Prepared …") and an optional
+-- valid-until, both editable. Null proposal_date = its created_at date.
+alter table proposals add column if not exists proposal_date date;
+alter table proposals add column if not exists valid_until date;
+-- Tools & subscriptions are optional (the client takes them if and when
+-- they choose), so a proposal's total is now its services only: the
+-- monthly retainer plus any one-time fees. Re-bases existing proposals.
+update proposals set total = subtotal - discount_amount + tax_amount;

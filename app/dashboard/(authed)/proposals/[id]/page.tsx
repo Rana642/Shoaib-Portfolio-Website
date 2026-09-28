@@ -3,7 +3,14 @@ import Link from "next/link";
 import { ArrowLeft, Users, FileSignature } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
 import { getSettings } from "@/lib/dashboard/settings";
-import { sendProposal, deleteProposal, markProposalAccepted } from "@/lib/dashboard/actions/proposals";
+import {
+  sendProposal,
+  deleteProposal,
+  markProposalAccepted,
+  setProposalAcceptedDate,
+} from "@/lib/dashboard/actions/proposals";
+import { todayInKarachi } from "@/lib/dashboard/letters";
+import { isOfflineSignature, signedOnLabel, timestampToDay } from "@/lib/dashboard/offline-dates";
 import { siteUrl } from "@/lib/seo";
 import { StatusBadge } from "@/components/dashboard/ui";
 import ProposalPreview from "@/components/dashboard/ProposalPreview";
@@ -11,6 +18,7 @@ import ProposalActions from "@/components/dashboard/ProposalActions";
 import DeleteButton from "@/components/dashboard/DeleteButton";
 import ConfirmActionButton from "@/components/dashboard/ConfirmActionButton";
 import WhatsAppShareLink from "@/components/dashboard/WhatsAppShareLink";
+import SignedDateEditor from "@/components/dashboard/SignedDateEditor";
 import type { Proposal } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
@@ -47,10 +55,18 @@ export default async function ProposalPage({ params }: PageProps<"/dashboard/pro
     return sendProposal(id);
   }
 
-  async function markAccepted() {
+  async function markAccepted(_sendEmail: boolean, date?: string) {
     "use server";
-    return markProposalAccepted(id);
+    return markProposalAccepted(id, date);
   }
+
+  async function changeAcceptedDate(date: string) {
+    "use server";
+    return setProposalAcceptedDate(id, date);
+  }
+
+  const p = proposal as Proposal;
+  const offline = isOfflineSignature(p);
 
   async function handleDelete() {
     "use server";
@@ -113,6 +129,7 @@ export default async function ProposalPage({ params }: PageProps<"/dashboard/pro
                 action={markAccepted}
                 label="Mark accepted (confirmed offline)"
                 confirmLabel="Click again to confirm acceptance"
+                datePicker={{ label: "Accepted on", defaultValue: todayInKarachi() }}
               />
               <p className="text-tag text-ink-subtle mt-2 max-w-md">
                 Locks the deal and creates a draft agreement — nothing is emailed until you send it
@@ -125,11 +142,21 @@ export default async function ProposalPage({ params }: PageProps<"/dashboard/pro
 
       <ProposalPreview proposal={proposal as Proposal} items={items} projects={projects} settings={settings} />
 
-      {(proposal as Proposal).signer_name && (
-        <div className="mt-6 text-small text-ink-muted print:hidden">
-          Accepted and signed by <span className="font-medium text-ink">{(proposal as Proposal).signer_name}</span>
-          {(proposal as Proposal).signed_at &&
-            ` on ${new Date((proposal as Proposal).signed_at as string).toLocaleString()}`}
+      {p.signer_name && (
+        <div className="mt-6 print:hidden">
+          {offline && p.signed_at ? (
+            <SignedDateEditor
+              prefix="Accepted and signed by"
+              signer={p.signer_name}
+              day={timestampToDay(p.signed_at)}
+              action={changeAcceptedDate}
+            />
+          ) : (
+            <p className="text-small text-ink-muted">
+              Accepted and signed by <span className="font-medium text-ink">{p.signer_name}</span>
+              {p.signed_at && ` on ${signedOnLabel(p.signed_at, false)}`}
+            </p>
+          )}
         </div>
       )}
 

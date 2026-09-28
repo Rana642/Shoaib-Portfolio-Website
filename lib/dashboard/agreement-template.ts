@@ -16,12 +16,25 @@ export function buildAgreementClauses(input: {
   clientBusiness: string;
   proposalNumber: string;
   scopeOfWork: string;
-  feeAmount: number;
+  /** From the proposal's lines: the monthly retainer, one-time fees, and
+   *  the optional tools & subscriptions (never part of the fee). */
+  fees: { monthly: number; oneTime: number; tools: number; toolsMonthly: boolean };
   currency: string;
   paymentTerms: string;
   effectiveDate: string;
 }): AgreementClause[] {
-  const fee = formatMoney(input.feeAmount, input.currency);
+  const money = (n: number) => formatMoney(n, input.currency);
+  const { monthly, oneTime, tools, toolsMonthly } = input.fees;
+  const fee =
+    monthly > 0 && oneTime > 0
+      ? `a monthly retainer of ${money(monthly)} per month, plus one-time fees of ${money(oneTime)}`
+      : monthly > 0
+        ? `a monthly retainer of ${money(monthly)} per month`
+        : money(oneTime);
+  const toolsNote =
+    tools > 0
+      ? ` Tools and subscriptions listed in the proposal (currently ${money(tools)}${toolsMonthly ? " per month" : ""}) are optional: they are taken and billed only if and when the Client chooses, and are not part of these fees.`
+      : "";
   // The template appends its own trailing period after each of these —
   // strip one the source text already ends with so it doesn't double up.
   const scopeOfWork = input.scopeOfWork.trim().replace(/\.+$/, "");
@@ -38,7 +51,7 @@ export function buildAgreementClauses(input: {
     },
     {
       title: "2. Fees & Payment",
-      body: `Total fees for the services described are ${fee}, payable according to the terms set out in Proposal ${input.proposalNumber}: ${paymentTerms}. Late payments may result in a pause of services until accounts are settled.`,
+      body: `Fees for the services described are ${fee}, payable according to the terms set out in Proposal ${input.proposalNumber}: ${paymentTerms}.${toolsNote} Late payments may result in a pause of services until accounts are settled.`,
       showInvestmentSummary: true,
     },
     {

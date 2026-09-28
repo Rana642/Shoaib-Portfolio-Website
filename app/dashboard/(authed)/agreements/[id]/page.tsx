@@ -2,7 +2,10 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
-import { resendAgreement, markAgreementSigned } from "@/lib/dashboard/actions/agreements";
+import { resendAgreement, markAgreementSigned, setAgreementSignedDate } from "@/lib/dashboard/actions/agreements";
+import { todayInKarachi } from "@/lib/dashboard/letters";
+import { isOfflineSignature, signedOnLabel, timestampToDay } from "@/lib/dashboard/offline-dates";
+import SignedDateEditor from "@/components/dashboard/SignedDateEditor";
 import { siteUrl } from "@/lib/seo";
 import { StatusBadge } from "@/components/dashboard/ui";
 import AgreementActions from "@/components/dashboard/AgreementActions";
@@ -32,9 +35,14 @@ export default async function AgreementPage({ params }: PageProps<"/dashboard/ag
     return resendAgreement(id);
   }
 
-  async function markSigned(sendEmail: boolean) {
+  async function markSigned(sendEmail: boolean, date?: string) {
     "use server";
-    return markAgreementSigned(id, sendEmail);
+    return markAgreementSigned(id, sendEmail, date);
+  }
+
+  async function changeSignedDate(date: string) {
+    "use server";
+    return setAgreementSignedDate(id, date);
   }
 
   return (
@@ -73,6 +81,7 @@ export default async function AgreementPage({ params }: PageProps<"/dashboard/ag
               label="Mark signed (confirmed offline)"
               confirmLabel="Click again to confirm signing"
               emailCheckboxLabel="Also email the onboarding invite to the client"
+              datePicker={{ label: "Signed on", defaultValue: todayInKarachi() }}
             />
           </div>
         )}
@@ -86,12 +95,22 @@ export default async function AgreementPage({ params }: PageProps<"/dashboard/ag
         projects={projects ?? []}
       />
 
-      {agreement.signer_name && (
-        <p className="text-small text-ink-muted mt-6">
-          Signed by <span className="font-medium text-ink">{agreement.signer_name}</span>
-          {agreement.signed_at && ` on ${new Date(agreement.signed_at).toLocaleString()}`}
-        </p>
-      )}
+      {agreement.signer_name &&
+        (isOfflineSignature(agreement) && agreement.signed_at ? (
+          <div className="mt-6">
+            <SignedDateEditor
+              prefix="Signed by"
+              signer={agreement.signer_name}
+              day={timestampToDay(agreement.signed_at)}
+              action={changeSignedDate}
+            />
+          </div>
+        ) : (
+          <p className="text-small text-ink-muted mt-6">
+            Signed by <span className="font-medium text-ink">{agreement.signer_name}</span>
+            {agreement.signed_at && ` on ${signedOnLabel(agreement.signed_at, false)}`}
+          </p>
+        ))}
     </>
   );
 }

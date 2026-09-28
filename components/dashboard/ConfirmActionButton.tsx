@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { LoaderCircle, CheckCircle2 } from "lucide-react";
-import { buttonStyles } from "@/components/dashboard/ui";
+import { buttonStyles, inputClasses } from "@/components/dashboard/ui";
 
 /**
  * Two-step confirm for real-but-non-destructive side effects (client
@@ -15,25 +15,35 @@ import { buttonStyles } from "@/components/dashboard/ui";
  * happens, but the email that would normally go with it only fires if
  * ticked, since Shoaib may be sharing the resulting link himself
  * (WhatsApp, in person) rather than through Resend.
+ *
+ * `datePicker`, when given, adds a date field (e.g. the day a client
+ * confirmed over the phone, which may be before today) passed to `action`.
  */
 export default function ConfirmActionButton({
   action,
   label,
   confirmLabel = "Click again to confirm",
   emailCheckboxLabel,
+  datePicker,
 }: {
-  action: (sendEmail: boolean) => Promise<{ error?: string; ok?: boolean }>;
+  action: (sendEmail: boolean, date?: string) => Promise<{ error?: string; ok?: boolean }>;
   label: string;
   confirmLabel?: string;
   emailCheckboxLabel?: string;
+  datePicker?: { label: string; defaultValue: string };
 }) {
   const [armed, setArmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [sendEmail, setSendEmail] = useState(false);
+  const [date, setDate] = useState(datePicker?.defaultValue ?? "");
   const [pending, startTransition] = useTransition();
 
   const onClick = () => {
+    if (datePicker && !date) {
+      setError("Pick a date first.");
+      return;
+    }
     if (!armed) {
       setArmed(true);
       setTimeout(() => setArmed(false), 4000);
@@ -41,7 +51,7 @@ export default function ConfirmActionButton({
     }
     setError(null);
     startTransition(async () => {
-      const result = await action(sendEmail);
+      const result = await action(sendEmail, datePicker ? date : undefined);
       if (result?.error) {
         setError(result.error);
         setArmed(false);
@@ -53,6 +63,17 @@ export default function ConfirmActionButton({
 
   return (
     <div>
+      {datePicker && !done && (
+        <label className="flex items-center gap-2.5 mb-3">
+          <span className="text-small whitespace-nowrap">{datePicker.label}</span>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className={`${inputClasses} !w-44 !py-1.5`}
+          />
+        </label>
+      )}
       {emailCheckboxLabel && !done && (
         <label className="flex items-center gap-2.5 mb-3 cursor-pointer">
           <input

@@ -45,7 +45,7 @@ export default function DocumentPreview({
   const dateLabel = kind === "invoice" ? "Due date" : "Valid until";
   const dateValue = kind === "invoice" ? document.due_date : document.valid_until;
   const balance = (document.total ?? 0) - (document.amount_paid ?? 0);
-  // Complimentary lines are listed after the totals, never inside them.
+  // Complimentary lines are listed under the charged ones, never inside the totals.
   const chargedItems = items.filter((item) => !item.is_complimentary);
   const complimentaryItems = items.filter((item) => item.is_complimentary);
 
@@ -128,6 +128,8 @@ export default function DocumentPreview({
         </tbody>
       </table>
 
+      <ComplimentaryServices items={complimentaryItems} currency={document.currency} className="mt-6" />
+
       {/* Totals — kept intact across a page break so the grand total never
           lands alone on a fresh page, split from the figures above it. */}
       <div className="flex justify-end mt-6 print:break-inside-avoid">
@@ -178,12 +180,6 @@ export default function DocumentPreview({
           )}
         </div>
       </div>
-
-      <ComplimentaryServices
-        currency={document.currency}
-        note="Included at no charge. Values are shown for reference and are not part of the total above."
-        groups={[{ key: "all", title: null, items: complimentaryItems }]}
-      />
 
       {/* Footer blocks */}
       {(document.notes || document.terms || (kind === "invoice" && settings.bank_details)) && (

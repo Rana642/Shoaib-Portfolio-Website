@@ -9,6 +9,9 @@ import ChargesBreakdown, {
 type PreviewProposal = ChargesBreakdownProposal & {
   number: string;
   created_at: string;
+  /** The date printed as "Prepared"; null = the created date. */
+  proposal_date?: string | null;
+  valid_until?: string | null;
   prospect_name: string;
   prospect_email: string;
   prospect_business: string | null;
@@ -56,7 +59,8 @@ export default function ProposalPreview({
           <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle">Proposal</p>
           <p className="font-serif italic text-h3 mt-1 leading-tight">{proposal.number}</p>
           <div className="text-small text-ink-muted mt-3 space-y-0.5">
-            <p>Prepared {formatDate(proposal.created_at)}</p>
+            <p>Prepared {formatDate(proposal.proposal_date ?? proposal.created_at)}</p>
+            {proposal.valid_until && <p>Valid until {formatDate(proposal.valid_until)}</p>}
           </div>
         </div>
       </div>

@@ -64,9 +64,20 @@ export type ToolsTax = { enabled: boolean; rate: number };
  * neither ever touches the tools figure, since it's a pass-through cost
  * that's already "priced in" by the time it reaches the total, not a
  * discountable part of his fee or something his own GST re-taxes.
+ *
+ * Proposals treat tools as optional (the client takes them if and when
+ * they choose), so they store `servicesTotal` and show it split into
+ * `monthlyTotal` (the retainer) and `oneTimeTotal`. Discount and tax are
+ * shared out in proportion to each part's subtotal.
  */
 export function calculateTotals(
-  allItems: { quantity: number; rate: number; item_type?: "service" | "tool"; is_complimentary?: boolean }[],
+  allItems: {
+    quantity: number;
+    rate: number;
+    item_type?: "service" | "tool";
+    billing_type?: "monthly" | "one_time";
+    is_complimentary?: boolean;
+  }[],
   taxEnabled: boolean,
   taxRate: number,
   discount?: Discount,
@@ -95,7 +106,26 @@ export function calculateTotals(
   const toolsTaxAmount = toolsTax?.enabled ? round2((toolsSubtotal * toolsTax.rate) / 100) : 0;
   const toolsTotal = round2(toolsSubtotal + toolsTaxAmount);
   const total = round2(discountedSubtotal + taxAmount + toolsTotal);
-  return { subtotal, discountAmount, taxAmount, toolsSubtotal, toolsTaxAmount, toolsTotal, total };
+  const servicesTotal = round2(discountedSubtotal + taxAmount);
+  const monthlySubtotal = round2(
+    items
+      .filter((item) => item.item_type !== "tool" && item.billing_type === "monthly")
+      .reduce((sum, item) => sum + round2(item.quantity * item.rate), 0)
+  );
+  const monthlyTotal = subtotal > 0 ? round2((servicesTotal * monthlySubtotal) / subtotal) : 0;
+  const oneTimeTotal = round2(servicesTotal - monthlyTotal);
+  return {
+    subtotal,
+    discountAmount,
+    taxAmount,
+    toolsSubtotal,
+    toolsTaxAmount,
+    toolsTotal,
+    total,
+    servicesTotal,
+    monthlyTotal,
+    oneTimeTotal,
+  };
 }
 
 export function round2(n: number): number {

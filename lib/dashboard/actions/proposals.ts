@@ -11,6 +11,7 @@ import { resend, isResendConfigured, fromEmail } from "../../resend";
 import { proposalSentEmail } from "../../email-templates";
 import { siteUrl } from "../../seo";
 import { performProposalAcceptance } from "../proposal-acceptance";
+import { DATE_RE, OFFLINE_SIGNER, dayToTimestamp, isOfflineSignature } from "../offline-dates";
 import type { Proposal } from "../types";
 
 async function assertAuthed() {
@@ -56,6 +57,8 @@ const proposalSchema = z.object({
   tools_tax_enabled: z.boolean(),
   tools_tax_rate: z.coerce.number().min(0),
   terms: z.string().max(5000).optional().nullable(),
+  proposal_date: z.string().regex(DATE_RE, "Pick the proposal date"),
+  valid_until: z.string().regex(DATE_RE).nullable(),
   items: z.array(lineItemSchema).min(1, "Add at least one line item"),
   projects: z.array(projectSchema).default([]),
   /** Only meaningful on create — whether to email the prospect straight
@@ -91,6 +94,8 @@ function parseProposalForm(formData: FormData) {
     tools_tax_enabled: formData.get("tools_tax_enabled") === "on",
     tools_tax_rate: formData.get("tools_tax_rate") || 18,
     terms: formData.get("terms") || null,
+    proposal_date: formData.get("proposal_date"),
+    valid_until: formData.get("valid_until") || null,
     items,
     projects,
     send_immediately: formData.get("send_immediately") === "on",
@@ -99,7 +104,23 @@ function parseProposalForm(formData: FormData) {
   if (!parsed.success) {
     return { success: false as const, error: parsed.error.issues[0].message };
   }
+  if (parsed.data.valid_until && parsed.data.valid_until < parsed.data.proposal_date) {
+    return { success: false as const, error: "“Valid until” can't be before the proposal date." };
+  }
   return { success: true as const, data: parsed.data };
+}
+
+/** Before the proposal-dates SQL has run: PostgREST rejects the unknown
+ *  columns, so the save is retried without them (the date then falls back
+ *  to the created date). */
+const isMissingColumn = (error: { code?: string } | null) =>
+  error?.code === "PGRST204" || error?.code === "42703";
+
+function withoutDates<T extends { proposal_date?: unknown; valid_until?: unknown }>(row: T) {
+  const rest = { ...row };
+  delete rest.proposal_date;
+  delete rest.valid_until;
+  return rest;
 }
 
 /** Deletes and reinserts a proposal's Project blocks. Each project's id
@@ -178,22 +199,23 @@ export async function createProposal(formData: FormData) {
     { enabled: proposal.tools_tax_enabled, rate: proposal.tools_tax_rate }
   );
 
-  const { data: created, error } = await db
-    .from("proposals")
-    .insert({
-      ...proposal,
-      number,
-      access_token: crypto.randomUUID(),
-      subtotal: totals.subtotal,
-      discount_amount: totals.discountAmount,
-      tax_amount: totals.taxAmount,
-      tools_tax_amount: totals.toolsTaxAmount,
-      total: totals.total,
-    })
-    .select("id")
-    .single();
+  const row = {
+    ...proposal,
+    number,
+    access_token: crypto.randomUUID(),
+    subtotal: totals.subtotal,
+    discount_amount: totals.discountAmount,
+    tax_amount: totals.taxAmount,
+    tools_tax_amount: totals.toolsTaxAmount,
+    // Services only (retainer + one-time): tools are optional.
+    total: totals.servicesTotal,
+  };
+  let { data: created, error } = await db.from("proposals").insert(row).select("id").single();
+  if (isMissingColumn(error)) {
+    ({ data: created, error } = await db.from("proposals").insert(withoutDates(row)).select("id").single());
+  }
 
-  if (error) return { error: error.message };
+  if (error || !created) return { error: error?.message ?? "Couldn't save the proposal." };
 
   const projectsError = await replaceProposalProjects(created.id, projects);
   if (projectsError) return { error: projectsError };
@@ -226,18 +248,20 @@ export async function updateProposal(id: string, formData: FormData) {
     { enabled: proposal.tools_tax_enabled, rate: proposal.tools_tax_rate }
   );
 
-  const { error } = await db
-    .from("proposals")
-    .update({
-      ...proposal,
-      subtotal: totals.subtotal,
-      discount_amount: totals.discountAmount,
-      tax_amount: totals.taxAmount,
-      tools_tax_amount: totals.toolsTaxAmount,
-      total: totals.total,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
+  const row = {
+    ...proposal,
+    subtotal: totals.subtotal,
+    discount_amount: totals.discountAmount,
+    tax_amount: totals.taxAmount,
+    tools_tax_amount: totals.toolsTaxAmount,
+    // Services only (retainer + one-time): tools are optional.
+    total: totals.servicesTotal,
+    updated_at: new Date().toISOString(),
+  };
+  let { error } = await db.from("proposals").update(row).eq("id", id);
+  if (isMissingColumn(error)) {
+    ({ error } = await db.from("proposals").update(withoutDates(row)).eq("id", id));
+  }
 
   if (error) return { error: error.message };
 
@@ -303,24 +327,45 @@ export async function sendProposal(id: string) {
  *  whenever it's actually needed. The online self-serve accept flow
  *  (proposal-public.ts) is untouched: it still auto-sends the Agreement
  *  immediately, since there's no one in that loop to send it manually. */
-export async function markProposalAccepted(id: string) {
+export async function markProposalAccepted(id: string, date?: string) {
   await assertAuthed();
+  if (date !== undefined && !DATE_RE.test(date)) return { error: "Pick the day they accepted." };
 
   const { data: proposal } = await db.from("proposals").select("*").eq("id", id).single();
   if (!proposal) return { error: "Proposal not found." };
   if (proposal.status === "accepted") return { error: "This proposal has already been accepted." };
   if (proposal.status === "declined") return { error: "This proposal was already declined." };
 
-  const result = await performProposalAcceptance(
-    proposal as Proposal,
-    "Confirmed by Shoaib (offline)",
-    null,
-    { agreementStatus: "draft", sendEmail: false }
-  );
+  const result = await performProposalAcceptance(proposal as Proposal, OFFLINE_SIGNER, null, {
+    agreementStatus: "draft",
+    sendEmail: false,
+    acceptedAt: date ? dayToTimestamp(date) : undefined,
+  });
   if ("error" in result) return result;
 
   revalidatePath(`/dashboard/proposals/${id}`);
   revalidatePath("/dashboard/proposals");
   revalidatePath("/dashboard/agreements");
+  return { ok: true };
+}
+
+/** Corrects the day of an offline acceptance. A client's own online
+ *  acceptance keeps exactly the moment (and IP) it was recorded with. */
+export async function setProposalAcceptedDate(id: string, date: string) {
+  await assertAuthed();
+  if (!DATE_RE.test(date)) return { error: "Pick a date." };
+
+  const { data: proposal } = await db.from("proposals").select("status, signer_name, signer_ip").eq("id", id).single();
+  if (!proposal || proposal.status !== "accepted") return { error: "This proposal hasn't been accepted." };
+  if (!isOfflineSignature(proposal)) return { error: "The client accepted this online — that date can't be changed." };
+
+  const at = dayToTimestamp(date);
+  const { error } = await db
+    .from("proposals")
+    .update({ accepted_at: at, signed_at: at, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/dashboard/proposals/${id}`);
   return { ok: true };
 }

@@ -12,6 +12,8 @@ type ProposalRow = {
   number: string;
   status: string;
   created_at: string;
+  /** Missing until the proposal-dates SQL has run. */
+  proposal_date?: string | null;
   currency: string;
   total: number;
   prospect_name: string;
@@ -21,7 +23,7 @@ type ProposalRow = {
 export default async function ProposalsPage() {
   const { data } = await db
     .from("proposals")
-    .select("id, number, status, created_at, currency, total, prospect_name, prospect_business")
+    .select("*")
     .order("created_at", { ascending: false });
 
   const proposals = (data ?? []) as ProposalRow[];
@@ -83,7 +85,7 @@ export default async function ProposalsPage() {
                       {p.prospect_business || p.prospect_name}
                     </td>
                     <td className="px-5 py-4 text-small text-ink-muted hidden md:table-cell whitespace-nowrap">
-                      {formatDate(p.created_at)}
+                      {formatDate(p.proposal_date ?? p.created_at)}
                     </td>
                     <td className="px-5 py-4 text-small font-medium text-right whitespace-nowrap">
                       {formatMoney(Number(p.total), p.currency)}

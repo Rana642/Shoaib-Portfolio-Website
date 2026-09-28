@@ -190,6 +190,9 @@ export type Proposal = {
   tax_amount: number;
   total: number;
   terms: string | null;
+  /** The date printed on the proposal; null = its created_at date. */
+  proposal_date?: string | null;
+  valid_until?: string | null;
   access_token: string;
   sent_at: string | null;
   viewed_at: string | null;
