@@ -211,7 +211,7 @@ const REVIEW_ID = /^[A-Za-z0-9_-]{1,200}$/;
 // between any two writes (across all projects: it's one Google account)
 // and a daily cap per location. Never bypass or loosen this to "catch up".
 
-export const GBP_MIN_GAP_SECONDS = 120;
+export const GBP_MIN_GAP_SECONDS = 300;
 export const GBP_DAILY_CAP_PER_LOCATION = 20;
 
 /** Reserves a write slot or throws a plain-language "wait" error. Reserve
