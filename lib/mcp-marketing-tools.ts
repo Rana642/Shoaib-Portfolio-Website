@@ -4,6 +4,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { listAccessibleCustomers, googleAdsSearch, googleAdsMutate, generateKeywordIdeas } from "./google-ads-client";
 import { googleApiRequest } from "./google-api-passthrough";
 import { metaMarketingRequest, listMetaAdAccounts } from "./meta-marketing-client";
+import { registerGbpTools } from "./mcp-gbp-tools";
 
 /**
  * Full-functionality marketing-API tools: Google Ads (audit/edit/create),
@@ -49,6 +50,9 @@ function previewResult(label: string, wouldSend: unknown) {
 }
 
 export function registerMarketingTools(server: McpServer): void {
+  // Google Business Profile (per client project, Socially Snap OAuth client).
+  registerGbpTools(server);
+
   // ── Google Ads ──────────────────────────────────────────────────────
   server.registerTool(
     "google_ads_list_accounts",

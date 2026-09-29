@@ -1059,3 +1059,18 @@ create table if not exists meta_ad_connections (
   connected_at timestamptz not null default now()
 );
 alter table meta_ad_connections enable row level security;
+
+-- Google Business Profile connections, one per client project. The OAuth
+-- client is the "Socially Snap" Google Cloud project's (API Vault service
+-- "gmb"); the grant's refresh token is AES-256-GCM encrypted with
+-- SOCIAL_TOKENS_ENCRYPTION_KEY. Used by /dashboard/gbp and the gbp_* MCP tools.
+create table if not exists gbp_connections (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null unique references client_projects(id) on delete cascade,
+  refresh_token_enc text not null,
+  connected_email text,
+  locations jsonb not null default '[]'::jsonb,
+  selected_location text,
+  connected_at timestamptz not null default now()
+);
+alter table gbp_connections enable row level security;
