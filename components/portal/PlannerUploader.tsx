@@ -14,7 +14,16 @@ type Picked = { file: File; preview: string };
 /** The client's upload: final graphics + the day they should go out. Each
  *  file goes straight to storage (presigned PUT), then becomes a planner
  *  post waiting for its caption. */
-export default function PlannerUploader({ projectId, defaultDate }: { projectId: string; defaultDate: string }) {
+export default function PlannerUploader({
+  projectId,
+  defaultDate,
+  onDone,
+}: {
+  projectId: string;
+  defaultDate: string;
+  /** Called after a successful upload (the planner's "Add" dialog closes). */
+  onDone?: () => void;
+}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [picked, setPicked] = useState<Picked[]>([]);
@@ -76,6 +85,7 @@ export default function PlannerUploader({ projectId, defaultDate }: { projectId:
       setPicked([]);
       setNote("");
       router.refresh();
+      onDone?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed — please try again.");
     } finally {

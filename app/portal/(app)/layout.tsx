@@ -1,9 +1,6 @@
-import Image from "next/image";
-import Link from "next/link";
 import { db } from "@/lib/dashboard/db";
 import { can, requirePortalUser } from "@/lib/portal/auth";
-import SignOutButton from "@/components/portal/SignOutButton";
-import PortalNav from "@/components/portal/PortalNav";
+import PortalShell, { type PortalLink } from "@/components/portal/PortalShell";
 
 /**
  * The signed-in portal. proxy.ts already turns away anyone without the
@@ -15,35 +12,19 @@ export default async function PortalAppLayout({ children }: { children: React.Re
   const ctx = await requirePortalUser();
   const { data: client } = await db.from("clients").select("name").eq("id", ctx.clientId).maybeSingle();
 
-  const links = [
-    { href: "/portal", label: "Home" },
-    ...(can(ctx, "planner") || can(ctx, "uploads") ? [{ href: "/portal/planner", label: "Planner" }] : []),
-    ...(can(ctx, "intakes") ? [{ href: "/portal/intakes", label: "Intake forms" }] : []),
-    ...(ctx.role === "owner" && can(ctx, "team") ? [{ href: "/portal/team", label: "Team" }] : []),
+  const links: PortalLink[] = [
+    ...(can(ctx, "planner") || can(ctx, "uploads") ? (["planner"] as const) : []),
+    ...(can(ctx, "intakes") ? (["intakes"] as const) : []),
+    ...(ctx.role === "owner" && can(ctx, "team") ? (["team"] as const) : []),
   ];
 
   return (
-    <>
-      <header className="border-b border-ink/10 bg-white/70 backdrop-blur">
-        <div className="max-w-4xl mx-auto px-5 h-16 flex items-center gap-4">
-          <Link href="/portal" aria-label="Portal home">
-            <Image src="/brand/logo-horizontal.svg" alt="Ads by Shoaib" width={168} height={55} className="h-7 w-auto" priority />
-          </Link>
-          <span className="hidden sm:inline font-mono uppercase text-tag tracking-widest text-ink-subtle">Client portal</span>
-          <div className="ml-auto flex items-center gap-3 min-w-0">
-            <span className="text-small text-ink-muted truncate hidden sm:inline">{ctx.user.email}</span>
-            <SignOutButton />
-          </div>
-        </div>
-        {links.length > 1 && <PortalNav links={links} />}
-      </header>
-      <main className="max-w-4xl mx-auto px-5 py-8 md:py-12">
-        {client ? (
-          children
-        ) : (
-          <p className="text-body text-ink-muted">This portal isn&apos;t active any more. If that&apos;s unexpected, get in touch with me.</p>
-        )}
-      </main>
-    </>
+    <PortalShell email={ctx.user.email ?? ""} links={client ? links : []}>
+      {client ? (
+        children
+      ) : (
+        <p className="text-body text-ink-muted">This portal isn&apos;t active any more. If that&apos;s unexpected, get in touch with me.</p>
+      )}
+    </PortalShell>
   );
 }

@@ -4,6 +4,8 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check } from "lucide-react";
 import { createPlannerPost, deletePost, movePost } from "@/lib/dashboard/actions/social";
+import { deletePortalUpload } from "@/lib/portal/planner";
+import PlannerUploader from "@/components/portal/PlannerUploader";
 import { inputClasses, buttonStyles, Card } from "@/components/dashboard/ui";
 import { cn } from "@/lib/utils";
 import { FacebookIcon, InstagramIcon, LinkedinIcon, TikTokIcon } from "@/components/ui/SocialIcons";
@@ -25,6 +27,17 @@ const STATUS_LABEL: Record<string, { text: string; classes: string }> = {
   posted: { text: "Posted", classes: "bg-green-600/10 text-green-700" },
   failed: { text: "Failed", classes: "bg-red-600/10 text-red-700" },
 };
+
+// What a client sees in the portal: failed posts never reach them (the page
+// filters those out), and "needs caption" is my job, not theirs.
+const CLIENT_STATUS_LABEL: Record<string, { text: string; classes: string }> = {
+  pending_caption: { text: "Being prepared", classes: "bg-citrus/15 text-ink" },
+  scheduled: { text: "Scheduled", classes: "bg-cobalt/10 text-ink" },
+  posted: { text: "Posted", classes: "bg-green-600/10 text-green-700" },
+};
+
+/** A client may take back only their own upload that's still waiting for a caption. */
+const clientCanRemove = (post: ScheduledPost) => Boolean(post.uploaded_by_email) && post.status === "pending_caption";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DRAG_MIME = "application/x-scheduled-post-id";
@@ -69,6 +82,9 @@ export default function PlannerCalendar({
   selectedProjectId,
   posts,
   connectedPlatforms,
+  mode = "admin",
+  canUpload = true,
+  plannerPath = "/dashboard/social/planner",
 }: {
   projects: ProjectOption[];
   selectedProjectId: string;
@@ -76,7 +92,17 @@ export default function PlannerCalendar({
   /** Platforms this project has an active connected account for — drives
    *  the upload modal's "post to" checkboxes. */
   connectedPlatforms: string[];
+  /** "client" = the client portal: view + (optionally) upload graphics.
+   *  No moving, bulk upload, captions or deleting anything but their own
+   *  still-pending uploads — all of that stays mine. */
+  mode?: "admin" | "client";
+  /** Client mode: whether they may add graphics (the "uploads" feature). */
+  canUpload?: boolean;
+  /** Where switching project navigates. */
+  plannerPath?: string;
 }) {
+  const isClient = mode === "client";
+  const canAdd = !isClient || canUpload;
   const router = useRouter();
   const [view, setView] = useState<ViewMode>("week");
   const [monthCursor, setMonthCursor] = useState(() => {
@@ -129,7 +155,7 @@ export default function PlannerCalendar({
     });
   };
 
-  const dayDropProps = (key: string) => ({
+  const dayDropProps = (key: string) => isClient ? {} : ({
     onDragOver: (e: React.DragEvent) => {
       e.preventDefault();
       setDragOverKey(key);
@@ -209,7 +235,7 @@ export default function PlannerCalendar({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {connectedPlatforms.length > 0 && (
+          {!isClient && connectedPlatforms.length > 0 && (
             <div className="flex items-center gap-1.5" title="Connected for this project">
               <span className="text-tag uppercase tracking-widest text-ink-subtle mr-0.5">Connected:</span>
               {connectedPlatforms.map((platform) => {
@@ -226,21 +252,25 @@ export default function PlannerCalendar({
               })}
             </div>
           )}
-          <select
-            className={`${inputClasses} max-w-72`}
-            value={selectedProjectId}
-            onChange={(e) => router.push(`/dashboard/social/planner?project=${e.target.value}`)}
-          >
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-          <button type="button" onClick={() => setBulkOpen(true)} className={buttonStyles.secondary}>
-            <UploadCloud className="size-4" aria-hidden />
-            Bulk upload
-          </button>
+          {(!isClient || projects.length > 1) && (
+            <select
+              className={`${inputClasses} max-w-72`}
+              value={selectedProjectId}
+              onChange={(e) => router.push(`${plannerPath}?project=${e.target.value}`)}
+            >
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          )}
+          {!isClient && (
+            <button type="button" onClick={() => setBulkOpen(true)} className={buttonStyles.secondary}>
+              <UploadCloud className="size-4" aria-hidden />
+              Bulk upload
+            </button>
+          )}
         </div>
       </div>
 
@@ -271,16 +301,18 @@ export default function PlannerCalendar({
                   </div>
                   <div className="flex-1 p-2 space-y-2">
                     {dayPosts.map((p) => (
-                      <WeekPostCard key={p.id} post={p} />
+                      <WeekPostCard key={p.id} post={p} client={isClient} />
                     ))}
-                    <button
-                      type="button"
-                      onClick={() => setUploadDate(key)}
-                      className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-ink/15 text-ink-subtle hover:text-ink hover:border-ink/30 transition-colors py-2 text-small"
-                    >
-                      <Plus className="size-3.5" aria-hidden />
-                      Add
-                    </button>
+                    {canAdd && (
+                      <button
+                        type="button"
+                        onClick={() => setUploadDate(key)}
+                        className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-ink/15 text-ink-subtle hover:text-ink hover:border-ink/30 transition-colors py-2 text-small"
+                      >
+                        <Plus className="size-3.5" aria-hidden />
+                        Add
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -314,18 +346,20 @@ export default function PlannerCalendar({
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-small text-ink-subtle">{dayNum}</span>
-                    <button
-                      type="button"
-                      aria-label={`Add post on ${key}`}
-                      onClick={() => setUploadDate(key)}
-                      className="text-ink-subtle hover:text-ink transition-colors"
-                    >
-                      <Plus className="size-3.5" aria-hidden />
-                    </button>
+                    {canAdd && (
+                      <button
+                        type="button"
+                        aria-label={`Add post on ${key}`}
+                        onClick={() => setUploadDate(key)}
+                        className="text-ink-subtle hover:text-ink transition-colors"
+                      >
+                        <Plus className="size-3.5" aria-hidden />
+                      </button>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {dayPosts.map((p) => (
-                      <DayPostThumb key={p.id} post={p} />
+                      <DayPostThumb key={p.id} post={p} client={isClient} />
                     ))}
                   </div>
                 </div>
@@ -335,7 +369,19 @@ export default function PlannerCalendar({
         </Card>
       )}
 
-      {uploadDate && (
+      {uploadDate && isClient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" onClick={() => setUploadDate(null)}>
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <PlannerUploader key={uploadDate} projectId={selectedProjectId} defaultDate={uploadDate} onDone={() => setUploadDate(null)} />
+            <div className="flex justify-end mt-3">
+              <button type="button" onClick={() => setUploadDate(null)} className={buttonStyles.secondary}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {uploadDate && !isClient && (
         <UploadModal
           date={uploadDate}
           projectId={selectedProjectId}
@@ -357,17 +403,25 @@ export default function PlannerCalendar({
   );
 }
 
-function WeekPostCard({ post }: { post: PostWithUrl }) {
+function removePost(post: ScheduledPost, client: boolean) {
+  return client ? deletePortalUpload(post.id) : deletePost(post.id);
+}
+
+function WeekPostCard({ post, client = false }: { post: PostWithUrl; client?: boolean }) {
   const [pending, startTransition] = useTransition();
   const ring = STATUS_RING[post.status] ?? "ring-ink/20";
-  const label = STATUS_LABEL[post.status];
+  const label = (client ? CLIENT_STATUS_LABEL : STATUS_LABEL)[post.status];
+  const removable = !client || clientCanRemove(post);
 
   return (
     <div
-      className="relative group rounded-lg border border-ink/10 overflow-hidden cursor-grab active:cursor-grabbing bg-white"
+      className={cn(
+        "relative group rounded-lg border border-ink/10 overflow-hidden bg-white",
+        !client && "cursor-grab active:cursor-grabbing"
+      )}
       title={post.caption ?? post.original_filename}
-      draggable
-      onDragStart={(e) => e.dataTransfer.setData(DRAG_MIME, post.id)}
+      draggable={!client}
+      onDragStart={client ? undefined : (e) => e.dataTransfer.setData(DRAG_MIME, post.id)}
     >
       <div className="flex items-center justify-between px-2 pt-1.5 gap-1">
         {post.scheduled_at && <p className="text-tag text-ink-subtle">{timeLabel(post.scheduled_at)}</p>}
@@ -390,38 +444,42 @@ function WeekPostCard({ post }: { post: PostWithUrl }) {
       )}
       {post.uploaded_by_email && (
         <p className="text-tag px-2 pb-1.5 line-clamp-3" title={post.client_note ?? undefined}>
-          <span className="inline-block rounded-full bg-citrus/25 px-1.5 py-0.5 font-medium">From client</span>
+          <span className="inline-block rounded-full bg-citrus/25 px-1.5 py-0.5 font-medium">{client ? "Your upload" : "From client"}</span>
           {post.client_note && <span className="block text-ink-muted mt-0.5">“{post.client_note}”</span>}
         </p>
       )}
-      <button
-        type="button"
-        aria-label="Remove post"
-        disabled={pending}
-        onClick={() => startTransition(() => deletePost(post.id))}
-        className="absolute top-1 right-1 hidden group-hover:flex items-center justify-center size-5 rounded-full bg-ink text-cloud"
-      >
-        {pending ? <LoaderCircle className="size-3 animate-spin" aria-hidden /> : <Trash2 className="size-3" aria-hidden />}
-      </button>
+      {removable && (
+        <button
+          type="button"
+          aria-label="Remove post"
+          disabled={pending}
+          onClick={() => startTransition(async () => void (await removePost(post, client)))}
+          className="absolute top-1 right-1 hidden group-hover:flex items-center justify-center size-5 rounded-full bg-ink text-cloud"
+        >
+          {pending ? <LoaderCircle className="size-3 animate-spin" aria-hidden /> : <Trash2 className="size-3" aria-hidden />}
+        </button>
+      )}
     </div>
   );
 }
 
-function DayPostThumb({ post }: { post: PostWithUrl }) {
+function DayPostThumb({ post, client = false }: { post: PostWithUrl; client?: boolean }) {
   const [pending, startTransition] = useTransition();
   const ring = STATUS_RING[post.status] ?? "ring-ink/20";
+  const removable = !client || clientCanRemove(post);
 
   return (
     <div
-      className="relative group cursor-grab active:cursor-grabbing"
+      className={cn("relative group", !client && "cursor-grab active:cursor-grabbing")}
       title={[
         post.caption ?? post.original_filename,
-        post.uploaded_by_email && `From client (${post.uploaded_by_email})${post.client_note ? `: ${post.client_note}` : ""}`,
+        client && CLIENT_STATUS_LABEL[post.status]?.text,
+        post.uploaded_by_email && `${client ? "Your upload" : "From client"} (${post.uploaded_by_email})${post.client_note ? `: ${post.client_note}` : ""}`,
       ]
         .filter(Boolean)
         .join("\n")}
-      draggable
-      onDragStart={(e) => e.dataTransfer.setData(DRAG_MIME, post.id)}
+      draggable={!client}
+      onDragStart={client ? undefined : (e) => e.dataTransfer.setData(DRAG_MIME, post.id)}
     >
       {post.imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -429,15 +487,17 @@ function DayPostThumb({ post }: { post: PostWithUrl }) {
       ) : (
         <div className={cn("size-9 rounded bg-ink/10 ring-2", ring)} />
       )}
-      <button
-        type="button"
-        aria-label="Remove post"
-        disabled={pending}
-        onClick={() => startTransition(() => deletePost(post.id))}
-        className="absolute -top-1.5 -right-1.5 hidden group-hover:flex items-center justify-center size-4 rounded-full bg-ink text-cloud"
-      >
-        {pending ? <LoaderCircle className="size-2.5 animate-spin" aria-hidden /> : <Trash2 className="size-2.5" aria-hidden />}
-      </button>
+      {removable && (
+        <button
+          type="button"
+          aria-label="Remove post"
+          disabled={pending}
+          onClick={() => startTransition(async () => void (await removePost(post, client)))}
+          className="absolute -top-1.5 -right-1.5 hidden group-hover:flex items-center justify-center size-4 rounded-full bg-ink text-cloud"
+        >
+          {pending ? <LoaderCircle className="size-2.5 animate-spin" aria-hidden /> : <Trash2 className="size-2.5" aria-hidden />}
+        </button>
+      )}
     </div>
   );
 }

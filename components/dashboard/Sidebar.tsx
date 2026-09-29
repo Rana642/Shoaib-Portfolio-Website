@@ -17,7 +17,11 @@ import {
   FolderInput,
   KeyRound,
   Plug,
-  Share2,
+  CalendarDays,
+  BarChart3,
+  Megaphone,
+  MapPin,
+  Link2,
   ScrollText,
   Settings as SettingsIcon,
   PenSquare,
@@ -33,19 +37,23 @@ import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-type NavItem =
+export type NavItem =
+  /** A small heading that starts a group (a thin divider on the icon rail). */
+  | { section: string }
   | { href: string; label: string; icon: LucideIcon; exact?: boolean }
   | { label: string; icon: LucideIcon; children: { href: string; label: string }[] };
 
 // Ordered to match the actual funnel: a lead comes in, gets a proposal,
 // accepts, signs an agreement, onboards, then becomes a billed client.
-const nav: NavItem[] = [
+const DASHBOARD_NAV: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
+  { section: "Sales" },
   { href: "/dashboard/leads", label: "Leads", icon: Inbox },
   { href: "/dashboard/proposals", label: "Proposals", icon: Send },
   { href: "/dashboard/agreements", label: "Agreements", icon: FileSignature },
   { href: "/dashboard/onboarding", label: "Onboarding", icon: ClipboardList },
   { href: "/dashboard/intakes", label: "Intakes", icon: FolderInput },
+  { section: "Clients & billing" },
   { href: "/dashboard/clients", label: "Clients", icon: Users },
   {
     label: "Services Catalog",
@@ -58,18 +66,15 @@ const nav: NavItem[] = [
   { href: "/dashboard/quotations", label: "Quotations", icon: FileText },
   { href: "/dashboard/invoices", label: "Invoices", icon: Receipt },
   { href: "/dashboard/letterhead", label: "Letterhead", icon: ScrollText },
+  { section: "Marketing" },
+  { href: "/dashboard/social/planner", label: "Planner", icon: CalendarDays },
+  { href: "/dashboard/social/insights", label: "Insights", icon: BarChart3 },
+  { href: "/dashboard/ads", label: "Meta Ads", icon: Megaphone },
+  { href: "/dashboard/gbp", label: "Google Business", icon: MapPin },
+  { href: "/dashboard/social", label: "Connections", icon: Link2, exact: true },
+  { section: "Admin" },
   { href: "/dashboard/vault", label: "Password Vault", icon: KeyRound },
   { href: "/dashboard/api-vault", label: "API Vault", icon: Plug },
-  {
-    label: "Social",
-    icon: Share2,
-    children: [
-      { href: "/dashboard/social/planner", label: "Planner" },
-      { href: "/dashboard/social/insights", label: "Insights" },
-      { href: "/dashboard/ads", label: "Meta Ads" },
-      { href: "/dashboard/social", label: "Connections" },
-    ],
-  },
   { href: "/dashboard/settings", label: "Settings", icon: SettingsIcon },
 ];
 
@@ -77,11 +82,25 @@ export default function Sidebar({
   email,
   collapsed = false,
   onToggle,
+  nav = DASHBOARD_NAV,
+  homeHref = "/dashboard",
+  areaLabel = "Dashboard",
+  loginHref = "/dashboard/login",
+  showStudio = true,
 }: {
   email: string;
   /** Desktop-only icon rail. Mobile always renders the full drawer. */
   collapsed?: boolean;
   onToggle?: () => void;
+  /** The client portal reuses this sidebar with its own items. */
+  nav?: NavItem[];
+  homeHref?: string;
+  /** Small caption under the logo ("Dashboard" / "Client portal"). */
+  areaLabel?: string;
+  /** Where signing out lands. */
+  loginHref?: string;
+  /** The Sanity "Website Content" link — Shoaib's dashboard only. */
+  showStudio?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -94,7 +113,7 @@ export default function Sidebar({
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
     await supabase.auth.signOut();
-    router.push("/dashboard/login");
+    router.push(loginHref);
     router.refresh();
   };
 
@@ -122,14 +141,14 @@ export default function Sidebar({
 
     return (
       <>
-        <div className={cn("py-6", rail ? "px-3" : "px-5")}>
+        <div className={cn("py-6 shrink-0", rail ? "px-3" : "px-5")}>
           <div className={cn("flex items-center", rail ? "justify-center" : "justify-between")}>
             {rail ? (
-              <Link href="/dashboard" title="Ads by Shoaib">
+              <Link href={homeHref} title="Ads by Shoaib">
                 <Image src="/brand/mark.svg" alt="Ads by Shoaib" width={28} height={30} className="size-7" />
               </Link>
             ) : (
-              <Link href="/dashboard" aria-label="Ads by Shoaib home">
+              <Link href={homeHref} aria-label="Ads by Shoaib home">
                 <Image src="/brand/logo-horizontal-light.svg" alt="Ads by Shoaib" width={168} height={55} className="h-8 w-auto" />
               </Link>
             )}
@@ -150,13 +169,22 @@ export default function Sidebar({
           </div>
           {!rail && (
             <p className="font-mono uppercase text-tag tracking-widest text-cloud/30 mt-2">
-              Dashboard
+              {areaLabel}
             </p>
           )}
         </div>
 
-        <nav className={cn("flex-1 space-y-1", rail ? "px-2" : "px-3")}>
+        <nav className={cn("sidebar-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-1 pb-4", rail ? "px-2" : "px-3")}>
           {nav.map((item) => {
+            if ("section" in item) {
+              return rail ? (
+                <div key={item.section} className="my-3 mx-2 border-t border-cloud/10" aria-hidden />
+              ) : (
+                <p key={item.section} className="px-3 pt-5 pb-1.5 font-mono uppercase text-[10px] tracking-widest text-cloud/35">
+                  {item.section}
+                </p>
+              );
+            }
             if ("children" in item) {
               const groupActive = isGroupRoute(item.children);
               // Collapsed rail can't show a dropdown legibly — the group
@@ -246,6 +274,7 @@ export default function Sidebar({
             );
           })}
 
+          {showStudio && (
           <div className="pt-4 mt-4 border-t border-cloud/10">
             {/* Blog and case studies stay in Sanity — richer editor for
                 long-form content than anything worth rebuilding here. */}
@@ -270,9 +299,10 @@ export default function Sidebar({
               )}
             </a>
           </div>
+          )}
         </nav>
 
-        <div className={cn("py-4 border-t border-cloud/10", rail ? "px-2" : "px-3")}>
+        <div className={cn("py-4 shrink-0 border-t border-cloud/10", rail ? "px-2" : "px-3")}>
           {!rail && <p className="px-3 text-small text-cloud/40 truncate mb-2">{email}</p>}
           <button
             onClick={signOut}
@@ -294,7 +324,7 @@ export default function Sidebar({
     <>
       {/* Mobile top bar */}
       <div className="lg:hidden print:hidden fixed top-0 inset-x-0 z-50 h-14 glass-dark backdrop-blur-xl backdrop-saturate-150 border-b border-cloud/10 flex items-center justify-between px-4">
-        <Link href="/dashboard" aria-label="Ads by Shoaib home">
+        <Link href={homeHref} aria-label="Ads by Shoaib home">
           <Image src="/brand/logo-horizontal-light.svg" alt="Ads by Shoaib" width={168} height={55} className="h-7 w-auto" />
         </Link>
         <button

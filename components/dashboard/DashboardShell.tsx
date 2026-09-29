@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import Sidebar from "@/components/dashboard/Sidebar";
+import Sidebar, { type NavItem } from "@/components/dashboard/Sidebar";
 import PwaRegister from "@/components/dashboard/PwaRegister";
 import { cn } from "@/lib/utils";
 
@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 // width. The Planner's week columns and the Insights charts want the
 // opposite — they should use whatever horizontal space is actually there
 // instead of scrolling sideways or leaving the right side empty.
-const WIDE_ROUTES = ["/dashboard/social/planner", "/dashboard/social/insights"];
+const WIDE_ROUTES = ["/dashboard/social/planner", "/dashboard/social/insights", "/portal/planner"];
 
 const STORAGE_KEY = "dashboard-sidebar-collapsed";
 
@@ -24,14 +24,18 @@ const STORAGE_KEY = "dashboard-sidebar-collapsed";
 export default function DashboardShell({
   email,
   children,
+  portal,
 }: {
   email: string;
   children: React.ReactNode;
+  /** The client portal: same shell, its own sidebar items, no PWA. */
+  portal?: { nav: NavItem[] };
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const pathname = usePathname();
   const isWide = WIDE_ROUTES.some((route) => pathname.startsWith(route));
+  const storageKey = portal ? `portal-${STORAGE_KEY}` : STORAGE_KEY;
 
   // Reading persisted UI state from localStorage has to happen after mount
   // — doing it during render would diverge from the server's HTML and
@@ -41,20 +45,20 @@ export default function DashboardShell({
   useEffect(() => {
     let restored = false;
     try {
-      restored = localStorage.getItem(STORAGE_KEY) === "1";
+      restored = localStorage.getItem(storageKey) === "1";
     } catch {
       /* private mode / blocked storage — just default to expanded */
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCollapsed(restored);
     setHydrated(true);
-  }, []);
+  }, [storageKey]);
 
   const toggle = () =>
     setCollapsed((prev) => {
       const next = !prev;
       try {
-        localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
+        localStorage.setItem(storageKey, next ? "1" : "0");
       } catch {
         /* ignore */
       }
@@ -63,7 +67,7 @@ export default function DashboardShell({
 
   return (
     <div className="relative min-h-screen bg-cloud print:bg-white">
-      <PwaRegister />
+      {!portal && <PwaRegister />}
       {/* Ambient colour wash — gives the frosted-glass panels something to
           actually frost over. Purely decorative, behind everything, and
           non-interactive. */}
@@ -73,7 +77,20 @@ export default function DashboardShell({
         <div className="absolute -bottom-32 left-1/3 size-96 rounded-full bg-citrus/15 blur-3xl ambient-blob-slow" />
       </div>
 
-      <Sidebar email={email} collapsed={collapsed} onToggle={toggle} />
+      {portal ? (
+        <Sidebar
+          email={email}
+          collapsed={collapsed}
+          onToggle={toggle}
+          nav={portal.nav}
+          homeHref="/portal"
+          areaLabel="Client portal"
+          loginHref="/portal/login"
+          showStudio={false}
+        />
+      ) : (
+        <Sidebar email={email} collapsed={collapsed} onToggle={toggle} />
+      )}
 
       <main
         className={cn(
