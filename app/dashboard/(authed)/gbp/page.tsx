@@ -3,8 +3,8 @@ import { Star } from "lucide-react";
 import { listProjectOptions } from "@/lib/dashboard/projects";
 import { formatDate } from "@/lib/dashboard/format";
 import { PageHeader, Card, EmptyState, buttonStyles, inputClasses, labelClasses } from "@/components/dashboard/ui";
-import { STARS, findLocation, gbpAccessToken, getGbpConnection, listReviews, type GbpReview } from "@/lib/gbp";
-import { deleteGbpReply, disconnectGbp, replyGbpReview, selectGbpLocation } from "@/lib/dashboard/actions/gbp";
+import { STARS, existingGrants, findLocation, gbpAccessToken, getGbpConnection, listReviews, type GbpReview } from "@/lib/gbp";
+import { deleteGbpReply, disconnectGbp, linkAllGbpProjects, linkGbpFromExisting, replyGbpReview, selectGbpLocation } from "@/lib/dashboard/actions/gbp";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +37,7 @@ function Stars({ n }: { n: number }) {
 export default async function GbpPage({
   searchParams,
 }: {
-  searchParams: Promise<{ project?: string; connected?: string; replied?: string; reply_deleted?: string; disconnected?: string; error?: string; filter?: string }>;
+  searchParams: Promise<{ project?: string; connected?: string; replied?: string; reply_deleted?: string; disconnected?: string; error?: string; filter?: string; linked?: string; pick?: string }>;
 }) {
   const params = await searchParams;
   const projects = await listProjectOptions();
@@ -46,6 +46,7 @@ export default async function GbpPage({
   const conn = projectId ? await getGbpConnection(projectId) : null;
   const location = conn ? findLocation(conn) : null;
   const unrepliedOnly = params.filter === "unreplied";
+  const grants = project && !conn ? await existingGrants() : [];
 
   let reviews: GbpReview[] = [];
   let summary: { averageRating: number | null; total: number } = { averageRating: null, total: 0 };
@@ -91,7 +92,20 @@ export default async function GbpPage({
         </button>
       </form>
 
-      {params.connected && <Notice tone="ok">Connected. The Business Profile locations this Google account manages are listed below.</Notice>}
+      {params.connected && (
+        <Notice tone="ok">
+          {params.pick
+            ? "Connected. No location is clearly named after this project — choose it below."
+            : "Connected. The Business Profile locations this Google account manages are listed below."}
+        </Notice>
+      )}
+      {params.linked !== undefined && (
+        <Notice tone="ok">
+          {Number(params.linked) > 0
+            ? `Linked ${params.linked} more project${params.linked === "1" ? "" : "s"} to their matching Business Profile location.`
+            : "No other project has a clearly matching location — connect those one by one."}
+        </Notice>
+      )}
       {params.replied && <Notice tone="ok">Reply posted. It shows on Google under the review.</Notice>}
       {params.reply_deleted && <Notice tone="ok">Reply deleted from Google.</Notice>}
       {params.disconnected && <Notice tone="ok">Disconnected. The saved access for this project was deleted.</Notice>}
@@ -104,9 +118,28 @@ export default async function GbpPage({
           title={`Connect ${project.label.split(" — ")[0]}'s Business Profile`}
           description="Sign in with the Google account that owns or manages the Business Profile and allow Socially Snap to manage it. You can disconnect at any time."
           action={
-            <a href={`/api/dashboard/gbp/authorize?project_id=${project.id}`} className={buttonStyles.primary}>
-              Connect with Google
-            </a>
+            <div className="flex flex-col items-center gap-3">
+              {grants.map((g) => (
+                <form key={g.sourceProjectId} action={linkGbpFromExisting}>
+                  <input type="hidden" name="project_id" value={project.id} />
+                  <input type="hidden" name="source_project_id" value={g.sourceProjectId} />
+                  <button type="submit" className={buttonStyles.primary}>
+                    Use {g.email ?? "the connected Google account"} ({g.locations} locations)
+                  </button>
+                </form>
+              ))}
+              {grants.length > 0 && (
+                <form action={linkAllGbpProjects}>
+                  <input type="hidden" name="project_id" value={project.id} />
+                  <button type="submit" className={buttonStyles.secondary}>
+                    Link every project with a matching location
+                  </button>
+                </form>
+              )}
+              <a href={`/api/dashboard/gbp/authorize?project_id=${project.id}`} className={grants.length ? "text-small text-ink-muted underline hover:text-ink" : buttonStyles.primary}>
+                {grants.length ? "Or sign in with a different Google account" : "Connect with Google"}
+              </a>
+            </div>
           }
         />
       ) : (

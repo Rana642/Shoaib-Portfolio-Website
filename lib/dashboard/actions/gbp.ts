@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAdminUser } from "../auth";
 import { db } from "../db";
-import { deleteReviewReply, findLocation, gbpAccessToken, getGbpConnection, replyToReview } from "../../gbp";
+import { deleteReviewReply, existingGrants, findLocation, gbpAccessToken, getGbpConnection, linkFromGrant, matchLocation, replyToReview, type GbpLocation } from "../../gbp";
 
 async function assertAuthed() {
   const user = await getAdminUser();
@@ -66,4 +66,52 @@ export async function disconnectGbp(formData: FormData) {
   await db.from("gbp_connections").delete().eq("project_id", projectId);
   revalidatePath("/dashboard/gbp");
   redirect(back(projectId, "&disconnected=1"));
+}
+
+async function projectName(projectId: string): Promise<string | null> {
+  const { data } = await db.from("client_projects").select("name").eq("id", projectId).maybeSingle();
+  return (data?.name as string | undefined) ?? null;
+}
+
+/** Connect a project with a Google account that's already connected on
+ *  another project — no second Google sign-in. */
+export async function linkGbpFromExisting(formData: FormData) {
+  await assertAuthed();
+  const projectId = String(formData.get("project_id") ?? "");
+  const sourceProjectId = String(formData.get("source_project_id") ?? "");
+  const name = await projectName(projectId);
+  if (!name) redirect("/dashboard/gbp?error=project");
+  let message = "&connected=1";
+  try {
+    const loc = await linkFromGrant(projectId, sourceProjectId, name);
+    if (!loc) message = "&connected=1&pick=1";
+  } catch (error) {
+    message = `&error=${encodeURIComponent(error instanceof Error ? error.message : "link")}`;
+  }
+  revalidatePath("/dashboard/gbp");
+  redirect(back(projectId, message));
+}
+
+/** Every not-yet-connected project whose name matches one of the newest
+ *  grant's locations gets linked in one go. */
+export async function linkAllGbpProjects(formData: FormData) {
+  await assertAuthed();
+  const returnTo = String(formData.get("project_id") ?? "");
+  const [grant] = await existingGrants();
+  if (!grant) redirect(back(returnTo, "&error=Connect%20one%20project%20with%20Google%20first."));
+  const { data: src } = await db.from("gbp_connections").select("locations").eq("project_id", grant.sourceProjectId).maybeSingle();
+  const locations = (src?.locations ?? []) as GbpLocation[];
+  const [{ data: projects }, { data: connected }] = await Promise.all([
+    db.from("client_projects").select("id, name"),
+    db.from("gbp_connections").select("project_id"),
+  ]);
+  const done = new Set(((connected ?? []) as { project_id: string }[]).map((c) => c.project_id));
+  let linked = 0;
+  for (const p of (projects ?? []) as { id: string; name: string }[]) {
+    if (done.has(p.id) || !matchLocation(locations, p.name)) continue;
+    await linkFromGrant(p.id, grant.sourceProjectId, p.name);
+    linked++;
+  }
+  revalidatePath("/dashboard/gbp");
+  redirect(back(returnTo, `&linked=${linked}`));
 }

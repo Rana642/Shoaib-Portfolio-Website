@@ -153,7 +153,7 @@ export async function discoverLocations(token: string): Promise<GbpLocation[]> {
   return locations;
 }
 
-export async function saveConnection(projectId: string, refreshToken: string, email: string | null, locations: GbpLocation[]) {
+export async function saveConnection(projectId: string, refreshToken: string, email: string | null, locations: GbpLocation[], projectName?: string) {
   const { data: existing } = await db.from("gbp_connections").select("selected_location").eq("project_id", projectId).maybeSingle();
   const keep = existing?.selected_location && locations.some((l) => l.name === existing.selected_location);
   const { error } = await db.from("gbp_connections").upsert(
@@ -162,7 +162,7 @@ export async function saveConnection(projectId: string, refreshToken: string, em
       refresh_token_enc: encryptToken(refreshToken),
       connected_email: email,
       locations,
-      selected_location: keep ? existing!.selected_location : locations.length === 1 ? locations[0].name : null,
+      selected_location: keep ? existing!.selected_location : locations.length === 1 ? locations[0].name : (projectName ? matchLocation(locations, projectName)?.name ?? null : null),
       connected_at: new Date().toISOString(),
     },
     { onConflict: "project_id" }
@@ -214,4 +214,74 @@ export async function replyToReview(token: string, loc: GbpLocation, reviewId: s
 export async function deleteReviewReply(token: string, loc: GbpLocation, reviewId: string) {
   if (!REVIEW_ID.test(reviewId)) throw new Error("Invalid review id.");
   await gapi(token, `${v4(loc)}/reviews/${reviewId}/reply`, { method: "DELETE" });
+}
+
+// ── Reusing one Google grant across projects ──────────────────────────
+// Shoaib's own Google account manages every client's Business Profile, so
+// a single sign-in is enough: other projects copy that grant and get the
+// location whose name matches the project.
+
+const STOP = new Set(["multan", "the", "and", "pvt", "ltd", "private", "limited", "company", "main", "office", "best"]);
+const words = (s: string) =>
+  new Set(
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length >= 3 && !STOP.has(w))
+  );
+
+/** The location clearly named after the project (all/most of the project
+ *  name's words in the location title), or null when it's ambiguous. */
+export function matchLocation(locations: GbpLocation[], projectName: string): GbpLocation | null {
+  const want = words(projectName);
+  if (!want.size) return null;
+  const scored = locations
+    .map((l) => {
+      const have = words(l.title);
+      const shared = [...want].filter((w) => have.has(w)).length;
+      return { l, score: shared / want.size, shared };
+    })
+    .filter((x) => x.score >= 0.6 && x.shared >= 1)
+    .sort((a, b) => b.score - a.score);
+  if (!scored.length) return null;
+  if (scored.length > 1 && scored[1].score === scored[0].score) return null;
+  return scored[0].l;
+}
+
+/** Existing grants, one per Google account (the newest project using it). */
+export async function existingGrants(): Promise<{ sourceProjectId: string; email: string | null; locations: number }[]> {
+  const { data } = await db.from("gbp_connections").select("project_id, connected_email, locations, connected_at").order("connected_at", { ascending: false });
+  const seen = new Map<string, { sourceProjectId: string; email: string | null; locations: number }>();
+  for (const r of (data ?? []) as { project_id: string; connected_email: string | null; locations: GbpLocation[] }[]) {
+    const k = r.connected_email ?? r.project_id;
+    if (!seen.has(k)) seen.set(k, { sourceProjectId: r.project_id, email: r.connected_email, locations: r.locations.length });
+  }
+  return [...seen.values()];
+}
+
+/** Gives `projectId` the same Google grant as `sourceProjectId`, picking the
+ *  matching location when there is one. Returns the chosen location. */
+export async function linkFromGrant(projectId: string, sourceProjectId: string, projectName: string): Promise<GbpLocation | null> {
+  const { data: src } = await db
+    .from("gbp_connections")
+    .select("refresh_token_enc, connected_email, locations")
+    .eq("project_id", sourceProjectId)
+    .maybeSingle();
+  if (!src) throw new Error("That Google connection no longer exists.");
+  const locations = src.locations as GbpLocation[];
+  const match = matchLocation(locations, projectName);
+  const { error } = await db.from("gbp_connections").upsert(
+    {
+      project_id: projectId,
+      refresh_token_enc: src.refresh_token_enc,
+      connected_email: src.connected_email,
+      locations,
+      selected_location: match?.name ?? null,
+      connected_at: new Date().toISOString(),
+    },
+    { onConflict: "project_id" }
+  );
+  if (error) throw new Error(error.message);
+  return match;
 }
