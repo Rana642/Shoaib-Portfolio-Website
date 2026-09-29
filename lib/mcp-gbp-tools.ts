@@ -3,14 +3,20 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "./dashboard/db";
 import { listProjectOptions } from "./dashboard/projects";
-import { STARS, findLocation, gbpAccessToken, getGbpConnection, listReviews, replyToReview, type GbpConnection } from "./gbp";
+import { GBP_DAILY_CAP_PER_LOCATION, GBP_MIN_GAP_SECONDS, STARS, findLocation, gbpAccessToken, getGbpConnection, listReviews, paceGbpWrite, replyToReview, type GbpConnection } from "./gbp";
 
 /**
  * Google Business Profile tools, per client project — the same grants the
  * dashboard's /dashboard/gbp page uses (Socially Snap OAuth client, token
  * per project in gbp_connections). Reads run directly; every write needs
  * confirm=true or it only returns a preview, like the other marketing tools.
+ *
+ * Google-friendly pace (standing rule): writes are NEVER done in bulk. Every
+ * write goes through paceGbpWrite() — one at a time, a minimum gap apart,
+ * and a daily cap per location. A caller asked to "reply to all" must do
+ * one, then come back later for the next, not loop.
  */
+const PACE_NOTE = `GOOGLE-FRIENDLY PACE (standing rule): never reply or post in bulk. One write at a time, at least ${GBP_MIN_GAP_SECONDS / 60} minutes apart across all projects, max ${GBP_DAILY_CAP_PER_LOCATION} per location per 24 h — the server refuses anything faster. If asked to handle many reviews, draft them all for review, then publish ONE and tell the user when the next can go.`;
 
 function formatError(error: unknown): string {
   return `Error: ${error instanceof Error ? error.message : String(error)}`;
@@ -132,7 +138,9 @@ Args:
   - project, location: as in gbp_list_reviews.
   - reviewId (string): from gbp_list_reviews.
   - comment (string): the reply text (1–4096 characters).
-  - confirm (boolean): when false/omitted nothing is sent — a preview is returned. Set true to publish.`,
+  - confirm (boolean): when false/omitted nothing is sent — a preview is returned. Set true to publish.
+
+${PACE_NOTE}`,
       inputSchema: { project: z.string().min(1), location: z.string().optional(), reviewId: z.string().min(1), comment: z.string().min(1).max(4096), confirm: z.boolean().optional() },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
@@ -158,7 +166,9 @@ Args:
   - project (string): project id or part of its label (see gbp_list_connections).
   - url (string): full https URL on a Business Profile API host, e.g. "https://mybusiness.googleapis.com/v4/accounts/1/locations/2/localPosts" or "https://businessprofileperformance.googleapis.com/v1/locations/2:fetchMultiDailyMetricsTimeSeries?dailyMetrics=WEBSITE_CLICKS&dailyRange.startDate.year=2026&...".
   - method ("GET" | "POST" | "PATCH" | "PUT" | "DELETE"), body (object, optional).
-  - confirm (boolean): required true for anything but GET, otherwise a preview is returned.`,
+  - confirm (boolean): required true for anything but GET, otherwise a preview is returned.
+
+${PACE_NOTE}`,
       inputSchema: {
         project: z.string().min(1),
         url: z.string().url(),
@@ -174,16 +184,21 @@ Args:
         if (u.protocol !== "https:" || !ALLOWED_HOSTS.includes(u.hostname)) throw new Error(`Only Business Profile API hosts are allowed: ${ALLOWED_HOSTS.join(", ")}`);
         const p = await resolveConnected(project);
         if (method !== "GET" && !confirm) return text(`PREVIEW ONLY — nothing was sent. Re-run with confirm=true to execute.\n\n${JSON.stringify({ project: p.label, method, url, body: body ?? null }, null, 2)}`);
-        const res = await fetch(u.toString(), {
-          method,
-          headers: { Authorization: `Bearer ${await gbpAccessToken(p.id)}`, "Content-Type": "application/json" },
-          body: body && method !== "GET" ? JSON.stringify(body) : undefined,
-          cache: "no-store",
-        });
-        const raw = await res.text();
-        const parsed = raw ? JSON.parse(raw) : {};
-        if (!res.ok) throw new Error(parsed?.error?.message || `HTTP ${res.status}`);
-        return json(parsed);
+        const call = async () => {
+          const res = await fetch(u.toString(), {
+            method,
+            headers: { Authorization: `Bearer ${await gbpAccessToken(p.id)}`, "Content-Type": "application/json" },
+            body: body && method !== "GET" ? JSON.stringify(body) : undefined,
+            cache: "no-store",
+          });
+          const raw = await res.text();
+          const parsed = raw ? JSON.parse(raw) : {};
+          if (!res.ok) throw new Error(parsed?.error?.message || `HTTP ${res.status}`);
+          return parsed;
+        };
+        // Writes are paced per location (the "locations/…" id in the URL).
+        const loc = u.pathname.match(/locations\/[^/:]+/)?.[0] ?? `project:${p.id}`;
+        return json(method === "GET" ? await call() : await paceGbpWrite(loc, `api_${method.toLowerCase()}`, call));
       } catch (error) {
         return fail(error);
       }

@@ -204,16 +204,70 @@ export async function listReviews(token: string, loc: GbpLocation, pageToken?: s
 
 const REVIEW_ID = /^[A-Za-z0-9_-]{1,200}$/;
 
+// ── Google-friendly pacing (standing rule, Shoaib 2026-09-30) ─────────
+// Replies, posts and edits never go out in bulk. Every write to Google
+// Business Profile — from the dashboard, the MCP tools or anything added
+// later — must go through paceGbpWrite(), which enforces a minimum gap
+// between any two writes (across all projects: it's one Google account)
+// and a daily cap per location. Never bypass or loosen this to "catch up".
+
+export const GBP_MIN_GAP_SECONDS = 120;
+export const GBP_DAILY_CAP_PER_LOCATION = 20;
+
+/** Reserves a write slot or throws a plain-language "wait" error. Reserve
+ *  first, then check, so two requests arriving together can't both pass. */
+export async function reserveGbpWrite(location: string, kind: string): Promise<string> {
+  const { data: slot, error } = await db.from("gbp_write_log").insert({ location, kind }).select("id, created_at").single();
+  if (error || !slot) throw new Error("Couldn't check the Google-friendly pace — try again in a minute.");
+  const release = () => db.from("gbp_write_log").delete().eq("id", slot.id);
+
+  const since = new Date(new Date(slot.created_at as string).getTime() - GBP_MIN_GAP_SECONDS * 1000).toISOString();
+  const { data: recent } = await db
+    .from("gbp_write_log")
+    .select("id, created_at")
+    .gte("created_at", since)
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
+  const first = (recent ?? [])[0] as { id: string; created_at: string } | undefined;
+  if (first && first.id !== slot.id) {
+    await release();
+    const wait = Math.max(1, Math.ceil(GBP_MIN_GAP_SECONDS - (Date.now() - new Date(first.created_at).getTime()) / 1000));
+    throw new Error(`Google-friendly pace: one reply/post at a time, at least ${GBP_MIN_GAP_SECONDS / 60} minutes apart. Try again in ${wait} seconds.`);
+  }
+
+  const dayStart = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const { count } = await db.from("gbp_write_log").select("id", { count: "exact", head: true }).eq("location", location).gte("created_at", dayStart);
+  if ((count ?? 0) > GBP_DAILY_CAP_PER_LOCATION) {
+    await release();
+    throw new Error(`Google-friendly pace: ${GBP_DAILY_CAP_PER_LOCATION} replies/posts per location per 24 hours is the limit. Continue tomorrow.`);
+  }
+  return slot.id as string;
+}
+
+/** Runs one Google Business Profile write inside the pacing rule. A failed
+ *  call gives its slot back so it doesn't count against the pace. */
+export async function paceGbpWrite<T>(location: string, kind: string, write: () => Promise<T>): Promise<T> {
+  const slotId = await reserveGbpWrite(location, kind);
+  try {
+    return await write();
+  } catch (error) {
+    await db.from("gbp_write_log").delete().eq("id", slotId);
+    throw error;
+  }
+}
+
 export async function replyToReview(token: string, loc: GbpLocation, reviewId: string, comment: string) {
   if (!REVIEW_ID.test(reviewId)) throw new Error("Invalid review id.");
   const text = comment.trim();
   if (!text || text.length > 4096) throw new Error("A reply needs 1–4096 characters.");
-  return gapi<{ comment: string; updateTime: string }>(token, `${v4(loc)}/reviews/${reviewId}/reply`, { method: "PUT", body: JSON.stringify({ comment: text }) });
+  return paceGbpWrite(loc.name, "review_reply", () =>
+    gapi<{ comment: string; updateTime: string }>(token, `${v4(loc)}/reviews/${reviewId}/reply`, { method: "PUT", body: JSON.stringify({ comment: text }) })
+  );
 }
 
 export async function deleteReviewReply(token: string, loc: GbpLocation, reviewId: string) {
   if (!REVIEW_ID.test(reviewId)) throw new Error("Invalid review id.");
-  await gapi(token, `${v4(loc)}/reviews/${reviewId}/reply`, { method: "DELETE" });
+  await paceGbpWrite(loc.name, "review_reply_delete", () => gapi(token, `${v4(loc)}/reviews/${reviewId}/reply`, { method: "DELETE" }));
 }
 
 // ── Reusing one Google grant across projects ──────────────────────────

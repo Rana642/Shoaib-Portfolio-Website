@@ -1074,3 +1074,17 @@ create table if not exists gbp_connections (
   connected_at timestamptz not null default now()
 );
 alter table gbp_connections enable row level security;
+
+-- Google-friendly pacing for Google Business Profile writes (replies,
+-- posts, edits): every write is logged so lib/gbp.ts can refuse bulk
+-- bursts — a minimum gap between any two writes and a daily cap per
+-- location (Shoaib's standing rule, 2026-09-30).
+create table if not exists gbp_write_log (
+  id uuid primary key default gen_random_uuid(),
+  location text not null,
+  kind text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists gbp_write_log_created_idx on gbp_write_log (created_at desc);
+create index if not exists gbp_write_log_loc_idx on gbp_write_log (location, created_at desc);
+alter table gbp_write_log enable row level security;
