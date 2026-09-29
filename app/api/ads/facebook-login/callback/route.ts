@@ -2,20 +2,15 @@ import { NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/dashboard/auth";
 import { getVaultCredential } from "@/lib/marketing-vault";
 import { GRAPH_BASE } from "@/lib/social-fb";
-import { db } from "@/lib/dashboard/db";
+import { discoverWithToken, saveConnection } from "@/lib/meta-ads-connections";
 
 /**
  * "Facebook Login for Business" redirect target — the registered Valid
  * OAuth Redirect URI on the "ABS Marketing" app. Reached via
  * /api/dashboard/ads/facebook-login/authorize, which sets `state` to the
- * target client_projects id.
- *
- * Deliberately doesn't persist anything yet — this proves the connect flow
- * works end-to-end (real access token, real discovered ad account(s)) and
- * is what gets recorded for Meta's App Review demo. The existing meta_ads_*
- * MCP tools keep reading from the vault's own System User token; wiring a
- * per-project token store is a separate step if/when Shoaib wants clients
- * to self-connect rather than him doing this himself as their agency.
+ * target client_projects id. Exchanges the code for a long-lived token,
+ * discovers what the person granted (their name, ad accounts, Pages), saves
+ * it encrypted per project, then opens /dashboard/ads for that project.
  */
 export async function GET(request: Request) {
   const user = await getAdminUser();
@@ -31,7 +26,8 @@ export async function GET(request: Request) {
   const projectId = url.searchParams.get("state");
   const errorParam = url.searchParams.get("error");
   if (errorParam) {
-    return NextResponse.json({ error: errorParam, error_description: url.searchParams.get("error_description") }, { status: 400 });
+    const back = projectId ? `/dashboard/ads?project=${projectId}&` : "/dashboard/ads?";
+    return NextResponse.redirect(new URL(`${back}error=${encodeURIComponent(url.searchParams.get("error_description") || "Facebook connection was cancelled.")}`, url.origin));
   }
   if (!code || !projectId) {
     return NextResponse.json({ error: "Missing code or state in the callback URL." }, { status: 400 });
@@ -65,49 +61,18 @@ export async function GET(request: Request) {
       redirect_uri: redirectUri,
       code,
     });
-    const { access_token: userToken } = await graphGet<{ access_token: string }>("/oauth/access_token", {
+    const { access_token: userToken, expires_in: expiresIn } = await graphGet<{ access_token: string; expires_in?: number }>("/oauth/access_token", {
       grant_type: "fb_exchange_token",
       client_id: app_id,
       client_secret: app_secret,
       fb_exchange_token: shortLived,
     });
 
-    // Discover ad accounts two ways, same as lib/meta-marketing-client.ts's
-    // listMetaAdAccounts — /me/adaccounts misses accounts assigned as a
-    // *client* ad account on a Business rather than owned/assigned directly.
-    const fields = "id,name,account_status,currency,business_name";
-    const direct = await graphGet<{ data?: { id: string; name: string }[] }>("/me/adaccounts", { fields, access_token: userToken });
-    const businesses = await graphGet<{ data?: { id: string }[] }>("/me/businesses", { fields: "id", access_token: userToken });
-
-    const merged = new Map<string, { id: string; name: string }>();
-    for (const acc of direct.data ?? []) merged.set(acc.id, acc);
-    for (const biz of businesses.data ?? []) {
-      for (const edge of ["owned_ad_accounts", "client_ad_accounts"]) {
-        try {
-          const res = await graphGet<{ data?: { id: string; name: string }[] }>(`/${biz.id}/${edge}`, { fields, access_token: userToken });
-          for (const acc of res.data ?? []) merged.set(acc.id, acc);
-        } catch {
-          /* no permission on this edge for this business — skip */
-        }
-      }
-    }
-
-    const { data: project } = await db.from("client_projects").select("name").eq("id", projectId).maybeSingle();
-    const accounts = [...merged.values()];
-    const lines = accounts.length
-      ? accounts.map((a) => `<li>${a.name} (${a.id})</li>`).join("")
-      : "<li>No ad accounts found for this login.</li>";
-
-    return new NextResponse(
-      `<!doctype html><html><head><meta charset="utf-8"></head><body style="font-family:system-ui;max-width:560px;margin:60px auto">
-        <h1>Connected ✓</h1>
-        <p>Project: <strong>${project?.name ?? projectId}</strong></p>
-        <p>Ad accounts this login can access:</p>
-        <ul>${lines}</ul>
-      </body></html>`,
-      { headers: { "Content-Type": "text/html; charset=utf-8" } }
-    );
+    const found = await discoverWithToken(userToken);
+    await saveConnection(projectId, userToken, expiresIn ?? null, found);
+    return NextResponse.redirect(new URL(`/dashboard/ads?project=${projectId}&connected=1`, url.origin));
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Connect failed." }, { status: 502 });
+    const msg = error instanceof Error ? error.message : "Connect failed.";
+    return NextResponse.redirect(new URL(`/dashboard/ads?project=${projectId}&error=${encodeURIComponent(msg)}`, url.origin));
   }
 }

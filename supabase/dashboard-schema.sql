@@ -1042,3 +1042,20 @@ alter table proposals add column if not exists valid_until date;
 -- they choose), so a proposal's total is now its services only: the
 -- monthly retainer plus any one-time fees. Re-bases existing proposals.
 update proposals set total = subtotal - discount_amount + tax_amount;
+
+-- Meta Ads connections (Facebook Login for Business on the "ABS Marketing"
+-- app), one per client project. The token is AES-256-GCM encrypted with
+-- SOCIAL_TOKENS_ENCRYPTION_KEY. Used by /dashboard/ads.
+create table if not exists meta_ad_connections (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null unique references client_projects(id) on delete cascade,
+  access_token_enc text not null,
+  token_expires_at timestamptz,
+  connected_user_id text,
+  connected_user_name text,
+  ad_accounts jsonb not null default '[]'::jsonb,
+  pages jsonb not null default '[]'::jsonb,
+  selected_ad_account_id text,
+  connected_at timestamptz not null default now()
+);
+alter table meta_ad_connections enable row level security;

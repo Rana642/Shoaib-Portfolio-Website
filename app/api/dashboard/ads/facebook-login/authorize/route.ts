@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   const authorizeUrl = new URL(`${GRAPH_BASE.replace("graph.facebook.com", "www.facebook.com")}/dialog/oauth`);
   authorizeUrl.searchParams.set("client_id", app_id);
   authorizeUrl.searchParams.set("redirect_uri", `${url.origin}/api/ads/facebook-login/callback`);
-  authorizeUrl.searchParams.set("scope", "ads_management,ads_read,business_management");
+  authorizeUrl.searchParams.set("scope", "ads_management,ads_read,business_management,pages_show_list,pages_read_engagement");
   authorizeUrl.searchParams.set("response_type", "code");
   authorizeUrl.searchParams.set("state", projectId);
 
