@@ -95,6 +95,14 @@ export async function queueReplies(
   return { queued: rows.length, unchanged: clean.length - rows.length };
 }
 
+/** Which of these reviews are already in the queue, and in what state. */
+export async function queuedStatuses(location: string, reviewIds: string[]): Promise<Map<string, QueueStatus>> {
+  if (!reviewIds.length) return new Map();
+  const { data, error } = await db.from("gbp_reply_queue").select("review_id, status").eq("location", location).in("review_id", reviewIds);
+  if (error) throw new Error(error.message);
+  return new Map(((data ?? []) as { review_id: string; status: QueueStatus }[]).map((r) => [r.review_id, r.status]));
+}
+
 /** Counts per status, plus how many went out in the last 24 hours. */
 export async function replyQueueStats(projectId?: string) {
   let q = db.from("gbp_reply_queue").select("status, sent_at");

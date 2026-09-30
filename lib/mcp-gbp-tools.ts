@@ -4,7 +4,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "./dashboard/db";
 import { listProjectOptions } from "./dashboard/projects";
 import { GBP_DAILY_CAP_PER_LOCATION, GBP_MIN_GAP_SECONDS, STARS, findLocation, gbpAccessToken, getGbpConnection, listReviews, paceGbpWrite, replyToReview, type GbpConnection } from "./gbp";
-import { listQueuedReplies, queueReplies, replyQueueStats, type QueueInput, type QueueStatus } from "./gbp-replies";
+import { listQueuedReplies, queueReplies, queuedStatuses, replyQueueStats, type QueueInput, type QueueStatus } from "./gbp-replies";
 
 /**
  * Google Business Profile tools, per client project — the same grants the
@@ -102,7 +102,7 @@ export function registerGbpTools(server: McpServer): void {
     "gbp_list_reviews",
     {
       title: "Google Business — Reviews",
-      description: `Reads the latest reviews of a connected client's Business Profile location (newest first, up to 50 per page), with the average rating, total count and any owner reply.
+      description: `Reads the latest reviews of a connected client's Business Profile location (newest first, up to 50 per page), with the average rating, total count, any owner reply, and "queued" — the review's state in the reply queue (approved = waiting to be sent, draft, sent, skipped, failed) or null when no reply has been queued for it.
 
 Args:
   - project (string): project id or part of its "Client — Project" label.
@@ -117,13 +117,16 @@ Args:
         const p = await resolveConnected(project);
         const loc = pickLocation(p.conn, location);
         const res = await listReviews(await gbpAccessToken(p.id), loc, pageToken);
-        const reviews = (onlyUnreplied ? res.reviews.filter((r) => !r.reviewReply) : res.reviews).map((r) => ({
+        const picked = onlyUnreplied ? res.reviews.filter((r) => !r.reviewReply) : res.reviews;
+        const queued = await queuedStatuses(loc.name, picked.map((r) => r.reviewId));
+        const reviews = picked.map((r) => ({
           reviewId: r.reviewId,
           reviewer: r.reviewer.isAnonymous ? "Anonymous" : r.reviewer.displayName ?? "Google user",
           stars: STARS[r.starRating] ?? 0,
           comment: r.comment ?? null,
           created: r.createTime,
           reply: r.reviewReply?.comment ?? null,
+          queued: queued.get(r.reviewId) ?? null,
         }));
         return json({ project: p.label, location: loc.title, averageRating: res.averageRating, totalReviews: res.total, nextPageToken: res.nextPageToken, reviews });
       } catch (error) {
