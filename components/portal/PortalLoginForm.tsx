@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { LoaderCircle } from "lucide-react";
 import { Field, buttonStyles, inputClasses } from "@/components/dashboard/ui";
-import { portalClientId } from "@/lib/dashboard/roles";
+import { isAdmin, portalClientId } from "@/lib/dashboard/roles";
 
 export default function PortalLoginForm() {
   const router = useRouter();
@@ -29,9 +29,14 @@ export default function PortalLoginForm() {
       return;
     }
     // Only client-portal logins belong here — anything else is signed back out.
+    // The admin login is the usual culprit: the browser autofills it here.
     if (!portalClientId(data.user)) {
       await supabase.auth.signOut();
-      setError("This account doesn't have access to the client portal.");
+      setError(
+        isAdmin(data.user)
+          ? "That's the admin login — it opens the dashboard, not a client portal. Sign in with the email your portal invite was sent to."
+          : "This account doesn't have access to the client portal."
+      );
       setLoading(false);
       return;
     }

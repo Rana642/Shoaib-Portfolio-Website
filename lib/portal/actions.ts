@@ -43,7 +43,7 @@ export async function requestPortalPasswordReset(email: string) {
         from: fromEmail,
         to: target,
         subject: "Reset your client portal password",
-        html: portalResetEmail({ url: portalWelcomeUrl(link.properties.hashed_token, "recovery") }),
+        html: portalResetEmail({ url: portalWelcomeUrl(link.properties.hashed_token, "recovery", target) }),
       });
       if (error) console.error("[portal] reset email failed:", error);
     }

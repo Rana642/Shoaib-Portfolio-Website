@@ -7,10 +7,12 @@ export const metadata = { title: "Set your password" };
 export default async function PortalWelcomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ token?: string; type?: string }>;
+  searchParams: Promise<{ token?: string; type?: string; email?: string }>;
 }) {
-  const { token, type } = await searchParams;
+  const { token, type, email } = await searchParams;
   const kind = type === "recovery" ? "recovery" : "invite";
+  // Only for display and the browser's password manager — never trusted.
+  const shownEmail = email && /^[^\s@]{1,64}@[^\s@]{1,255}$/.test(email) ? email : undefined;
 
   if (!token) {
     return (
@@ -35,7 +37,7 @@ export default async function PortalWelcomePage({
           : "Choose a new password for your client portal."
       }
     >
-      <WelcomeForm token={token} type={kind} />
+      <WelcomeForm token={token} type={kind} email={shownEmail} />
     </AuthCard>
   );
 }

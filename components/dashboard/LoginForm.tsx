@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { LoaderCircle } from "lucide-react";
-import { isAdmin } from "@/lib/dashboard/roles";
+import { isAdmin, portalClientId } from "@/lib/dashboard/roles";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -40,7 +40,11 @@ export default function LoginForm() {
     // that every dashboard route would reject anyway.
     if (!isAdmin(data.user)) {
       await supabase.auth.signOut();
-      setError("This account doesn't have access to the dashboard.");
+      setError(
+        portalClientId(data.user)
+          ? "This is a client-portal login — sign in at adsbyshoaib.com/portal/login instead."
+          : "This account doesn't have access to the dashboard."
+      );
       setLoading(false);
       return;
     }

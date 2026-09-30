@@ -20,10 +20,13 @@ const MISSING_COLUMN = "42703";
  * asks for the new password; the one-time token is only redeemed when that
  * form is submitted — never on page load — so email security scanners that
  * pre-open links can't use it up. Always the real site URL, never the
- * request's Host header, which an attacker could spoof.
+ * request's Host header, which an attacker could spoof. The email rides
+ * along so the page can show it in a username field: without one, browsers
+ * save the new password without the right email and later autofill the
+ * admin login on the portal's sign-in page.
  */
-export function portalWelcomeUrl(tokenHash: string, type: "invite" | "recovery") {
-  return `${siteUrl}/portal/welcome?token=${encodeURIComponent(tokenHash)}&type=${type}`;
+export function portalWelcomeUrl(tokenHash: string, type: "invite" | "recovery", email: string) {
+  return `${siteUrl}/portal/welcome?token=${encodeURIComponent(tokenHash)}&type=${type}&email=${encodeURIComponent(email)}`;
 }
 
 /** Looks a login up by email (the admin API has no direct lookup). */
@@ -202,7 +205,7 @@ export async function createPortalInvite(opts: {
     html: portalInviteEmail({
       name,
       clientName: client.name,
-      url: portalWelcomeUrl(link.properties.hashed_token, type),
+      url: portalWelcomeUrl(link.properties.hashed_token, type, target),
       invitedBy: opts.invitedBy?.email,
     }),
   });

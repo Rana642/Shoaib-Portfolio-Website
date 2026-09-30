@@ -11,8 +11,9 @@ import { completePortalWelcome } from "@/lib/portal/actions";
 const MIN = 10;
 
 /** Sets the password from an invite or reset link. The link's one-time
- *  token is only redeemed on submit (see portalWelcomeUrl). */
-export default function WelcomeForm({ token, type }: { token: string; type: "invite" | "recovery" }) {
+ *  token is only redeemed on submit (see portalWelcomeUrl). The read-only
+ *  email is the username the browser saves the new password under. */
+export default function WelcomeForm({ token, type, email }: { token: string; type: "invite" | "recovery"; email?: string }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +37,19 @@ export default function WelcomeForm({ token, type }: { token: string; type: "inv
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
+      {email && (
+        <Field label="Email" htmlFor="welcome-email" hint="You'll sign in with this email.">
+          <input
+            id="welcome-email"
+            type="email"
+            name="email"
+            autoComplete="username"
+            value={email}
+            readOnly
+            className={`${inputClasses} bg-ink/[0.03] text-ink-muted`}
+          />
+        </Field>
+      )}
       <Field label="New password" htmlFor="welcome-password" hint={`At least ${MIN} characters.`}>
         <input
           id="welcome-password"
