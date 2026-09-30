@@ -17,6 +17,10 @@ import { listQueuedReplies, queueReplies, replyQueueStats, type QueueInput, type
  * and a daily cap per location. A caller asked to "reply to all" must do
  * one, then come back later for the next, not loop.
  */
+/** Some MCP clients send numbers as strings ("5"); accept both. */
+const intArg = (min: number, max: number) =>
+  z.union([z.number().int().min(min).max(max), z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().min(min).max(max))]);
+
 const PACE_NOTE = `GOOGLE-FRIENDLY PACE (standing rule): never reply or post in bulk. One write at a time, at least ${GBP_MIN_GAP_SECONDS / 60} minutes apart across all projects, max ${GBP_DAILY_CAP_PER_LOCATION} per location per 24 h — the server refuses anything faster. To answer many reviews, write every reply and put them in the queue with gbp_queue_replies: the server sends them one by one at a human pace.`;
 
 function formatError(error: unknown): string {
@@ -166,6 +170,7 @@ Args:
   - project, location: as in gbp_list_reviews.
   - replies (array): [{ reviewId, reply, reviewer?, stars?, comment?, created? }] — copy reviewer/stars/comment/created from gbp_list_reviews so the queue shows what each reply answers.
   - status ("approved" | "draft" | "skipped", default "approved"): approved = send when its turn comes; draft = hold for Shoaib; skipped = don't send. Queueing a review again replaces its waiting reply.
+  - onlyNew (boolean, optional): leave every review that is already in the queue (waiting, sent, skipped…) untouched and add only the rest — use this for routine "reply to new reviews" runs.
   - confirm (boolean): when false/omitted nothing is saved — a preview is returned.`,
       inputSchema: {
         project: z.string().min(1),
@@ -176,7 +181,7 @@ Args:
               reviewId: z.string().min(1),
               reply: z.string().min(1).max(4096),
               reviewer: z.string().optional(),
-              stars: z.number().int().min(0).max(5).optional(),
+              stars: intArg(0, 5).optional(),
               comment: z.string().optional(),
               created: z.string().optional(),
             })
@@ -184,11 +189,26 @@ Args:
           .min(1)
           .max(200),
         status: z.enum(["approved", "draft", "skipped"]).optional(),
+        onlyNew: z.boolean().optional(),
         confirm: z.boolean().optional(),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
-    async ({ project, location, replies, status = "approved", confirm }: { project: string; location?: string; replies: QueueInput[]; status?: "approved" | "draft" | "skipped"; confirm?: boolean }) => {
+    async ({
+      project,
+      location,
+      replies,
+      status = "approved",
+      onlyNew,
+      confirm,
+    }: {
+      project: string;
+      location?: string;
+      replies: QueueInput[];
+      status?: "approved" | "draft" | "skipped";
+      onlyNew?: boolean;
+      confirm?: boolean;
+    }) => {
       try {
         const p = await resolveConnected(project);
         const loc = pickLocation(p.conn, location);
@@ -197,7 +217,7 @@ Args:
             `PREVIEW ONLY — nothing was queued. Re-run with confirm=true.\n\nProject: ${p.label}\nLocation: ${loc.title}\nStatus: ${status}\n\n${replies.map((r) => `• ${r.reviewer ?? r.reviewId}${r.stars ? ` (${r.stars}★)` : ""}: ${r.reply}`).join("\n")}`
           );
         }
-        const res = await queueReplies(p.id, loc.name, replies, status);
+        const res = await queueReplies(p.id, loc.name, replies, status, { onlyNew });
         return json({ project: p.label, location: loc.title, ...res, queue: await replyQueueStats(p.id) });
       } catch (error) {
         return fail(error);
@@ -218,7 +238,7 @@ Args:
       inputSchema: {
         project: z.string().optional(),
         status: z.enum(["approved", "draft", "sent", "skipped", "failed"]).optional(),
-        limit: z.number().int().min(1).max(100).optional(),
+        limit: intArg(1, 100).optional(),
       },
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },

@@ -48,13 +48,16 @@ export type QueueInput = {
   created?: string | null;
 };
 
-/** Adds or updates replies for one location. Replies already sent or
- *  skipped are left alone; waiting ones get the new text/status. */
+/** Adds or updates replies for one location. Replies already sent are left
+ *  alone; waiting ones get the new text/status — or, with onlyNew, every
+ *  review that is already in the queue in any state is left alone (for the
+ *  scheduled "reply to new reviews" run). */
 export async function queueReplies(
   projectId: string,
   location: string,
   items: QueueInput[],
-  status: Extract<QueueStatus, "approved" | "draft" | "skipped"> = "approved"
+  status: Extract<QueueStatus, "approved" | "draft" | "skipped"> = "approved",
+  opts: { onlyNew?: boolean } = {}
 ): Promise<{ queued: number; unchanged: number }> {
   const clean = items
     .map((i) => ({ ...i, reviewId: i.reviewId.trim(), reply: i.reply.trim() }))
@@ -67,7 +70,9 @@ export async function queueReplies(
     .select("review_id, status")
     .eq("location", location)
     .in("review_id", clean.map((i) => i.reviewId));
-  const done = new Set(((existing ?? []) as { review_id: string; status: QueueStatus }[]).filter((r) => r.status === "sent").map((r) => r.review_id));
+  const done = new Set(
+    ((existing ?? []) as { review_id: string; status: QueueStatus }[]).filter((r) => opts.onlyNew || r.status === "sent").map((r) => r.review_id)
+  );
   const rows = clean
     .filter((i) => !done.has(i.reviewId))
     .map((i) => ({
