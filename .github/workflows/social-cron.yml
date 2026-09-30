@@ -28,3 +28,15 @@ jobs:
           echo "HTTP $status"
           cat response.json; echo
           test "$status" -ge 200 && test "$status" -lt 300
+
+      - name: Send one queued Google Business review reply
+        # At most one reply per run, at a human pace (lib/gbp-replies.ts).
+        # Runs even when the step above fails — the two don't depend on each other.
+        if: always()
+        run: |
+          status=$(curl -sS -o reply.json -w "%{http_code}" \
+            "https://adsbyshoaib.com/api/gbp/reply-cron" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+          echo "HTTP $status"
+          cat reply.json; echo
+          test "$status" -ge 200 && test "$status" -lt 300

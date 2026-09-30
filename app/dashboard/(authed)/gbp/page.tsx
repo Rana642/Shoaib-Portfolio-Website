@@ -4,7 +4,8 @@ import { listProjectOptions } from "@/lib/dashboard/projects";
 import { formatDate } from "@/lib/dashboard/format";
 import { PageHeader, Card, EmptyState, buttonStyles, inputClasses, labelClasses } from "@/components/dashboard/ui";
 import { STARS, existingGrants, findLocation, gbpAccessToken, getGbpConnection, listReviews, type GbpReview } from "@/lib/gbp";
-import { deleteGbpReply, disconnectGbp, linkAllGbpProjects, linkGbpFromExisting, replyGbpReview, selectGbpLocation } from "@/lib/dashboard/actions/gbp";
+import { deleteGbpReply, disconnectGbp, linkAllGbpProjects, linkGbpFromExisting, replyGbpReview, selectGbpLocation, skipQueuedReply, updateQueuedReply } from "@/lib/dashboard/actions/gbp";
+import { HUMAN_HOURS_PKT, HUMAN_MIN_GAP_MINUTES, listQueuedReplies, replyQueueStats, type QueuedReply } from "@/lib/gbp-replies";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +38,7 @@ function Stars({ n }: { n: number }) {
 export default async function GbpPage({
   searchParams,
 }: {
-  searchParams: Promise<{ project?: string; connected?: string; replied?: string; reply_deleted?: string; disconnected?: string; error?: string; filter?: string; linked?: string; pick?: string }>;
+  searchParams: Promise<{ project?: string; connected?: string; replied?: string; reply_deleted?: string; disconnected?: string; error?: string; filter?: string; linked?: string; pick?: string; queue_saved?: string }>;
 }) {
   const params = await searchParams;
   const projects = await listProjectOptions();
@@ -58,6 +59,20 @@ export default async function GbpPage({
       summary = { averageRating: res.averageRating, total: res.total };
     } catch (error) {
       loadError = error instanceof Error ? error.message : "Couldn't load reviews.";
+    }
+  }
+  // The reply queue (lib/gbp-replies.ts) — missing until its SQL has run.
+  let queue: { stats: Awaited<ReturnType<typeof replyQueueStats>>; waiting: QueuedReply[]; failed: QueuedReply[] } | null = null;
+  if (projectId && location) {
+    try {
+      const [stats, waiting, failed] = await Promise.all([
+        replyQueueStats(projectId),
+        listQueuedReplies({ projectId, status: "approved", limit: 10 }),
+        listQueuedReplies({ projectId, status: "failed", limit: 10 }),
+      ]);
+      queue = { stats, waiting, failed };
+    } catch {
+      queue = null;
     }
   }
   const unrepliedCount = reviews.filter((r) => !r.reviewReply).length;
@@ -108,6 +123,7 @@ export default async function GbpPage({
       )}
       {params.replied && <Notice tone="ok">Reply posted. It shows on Google under the review.</Notice>}
       {params.reply_deleted && <Notice tone="ok">Reply deleted from Google.</Notice>}
+      {params.queue_saved && <Notice tone="ok">Reply queue updated.</Notice>}
       {params.disconnected && <Notice tone="ok">Disconnected. The saved access for this project was deleted.</Notice>}
       {params.error && <Notice tone="error">{params.error.length > 20 ? params.error : "That didn't work. Check the form and try again."}</Notice>}
 
@@ -212,6 +228,72 @@ export default async function GbpPage({
                   <p className="text-h3 font-semibold mt-1">{unrepliedCount}</p>
                 </Card>
               </div>
+
+              <Card className="p-5">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="text-body-lg font-semibold">Reply queue</p>
+                  <p className="text-small text-ink-muted">
+                    Sent one at a time, {HUMAN_HOURS_PKT.from}:00–{HUMAN_HOURS_PKT.to}:00 PKT, {HUMAN_MIN_GAP_MINUTES}+ minutes apart, complaints first.
+                  </p>
+                </div>
+                {!queue ? (
+                  <p className="text-small text-ink-muted mt-3">
+                    The reply queue needs a one-time database update — run the “Google Business review replies” section (gbp_reply_queue) of supabase/dashboard-schema.sql in the
+                    Supabase SQL Editor.
+                  </p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                      {[
+                        ["Waiting", queue.stats.approved],
+                        ["Sent (24 h)", queue.stats.sentLast24h],
+                        ["Sent in total", queue.stats.sent],
+                        ["Skipped / failed", queue.stats.skipped + queue.stats.failed],
+                      ].map(([label, n]) => (
+                        <div key={label} className="rounded-lg border border-ink/10 px-3 py-2">
+                          <p className="text-tag text-ink-subtle">{label}</p>
+                          <p className="text-body-lg font-semibold">{n}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {[...queue.failed, ...queue.waiting].length === 0 ? (
+                      <p className="text-small text-ink-muted mt-4">Nothing waiting. Ask Claude to write replies and queue them (gbp_queue_replies).</p>
+                    ) : (
+                      <ul className="divide-y divide-ink/10 mt-4">
+                        {[...queue.failed, ...queue.waiting].map((q) => (
+                          <li key={q.id} className="py-3">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                              <span className="font-medium">{q.reviewer ?? "Google user"}</span>
+                              {q.stars ? <Stars n={q.stars} /> : null}
+                              {q.review_created_at && <span className="text-tag text-ink-subtle">{formatDate(q.review_created_at)}</span>}
+                              {q.status === "failed" && <span className="text-tag text-red-700">Failed: {q.last_error}</span>}
+                            </div>
+                            {q.review_comment && <p className="text-small text-ink-muted mt-1 line-clamp-2">{q.review_comment}</p>}
+                            <form action={updateQueuedReply} className="mt-2 space-y-2">
+                              <input type="hidden" name="project_id" value={project.id} />
+                              <input type="hidden" name="id" value={q.id} />
+                              <textarea name="reply" rows={3} maxLength={4096} required defaultValue={q.reply} className={inputClasses} />
+                              <div className="flex flex-wrap gap-2">
+                                <button type="submit" className={buttonStyles.secondary}>
+                                  {q.status === "failed" ? "Save and retry" : "Save reply"}
+                                </button>
+                                <button type="submit" formAction={skipQueuedReply} className={buttonStyles.danger}>
+                                  Don&apos;t send
+                                </button>
+                              </div>
+                            </form>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {queue.stats.approved > queue.waiting.length && (
+                      <p className="text-small text-ink-subtle mt-2">
+                        Showing the newest {queue.waiting.length} of {queue.stats.approved} waiting.
+                      </p>
+                    )}
+                  </>
+                )}
+              </Card>
 
               <Card className="p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">

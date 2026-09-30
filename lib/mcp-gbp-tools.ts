@@ -4,6 +4,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "./dashboard/db";
 import { listProjectOptions } from "./dashboard/projects";
 import { GBP_DAILY_CAP_PER_LOCATION, GBP_MIN_GAP_SECONDS, STARS, findLocation, gbpAccessToken, getGbpConnection, listReviews, paceGbpWrite, replyToReview, type GbpConnection } from "./gbp";
+import { listQueuedReplies, queueReplies, replyQueueStats, type QueueInput, type QueueStatus } from "./gbp-replies";
 
 /**
  * Google Business Profile tools, per client project — the same grants the
@@ -16,7 +17,7 @@ import { GBP_DAILY_CAP_PER_LOCATION, GBP_MIN_GAP_SECONDS, STARS, findLocation, g
  * and a daily cap per location. A caller asked to "reply to all" must do
  * one, then come back later for the next, not loop.
  */
-const PACE_NOTE = `GOOGLE-FRIENDLY PACE (standing rule): never reply or post in bulk. One write at a time, at least ${GBP_MIN_GAP_SECONDS / 60} minutes apart across all projects, max ${GBP_DAILY_CAP_PER_LOCATION} per location per 24 h — the server refuses anything faster. If asked to handle many reviews, draft them all for review, then publish ONE and tell the user when the next can go.`;
+const PACE_NOTE = `GOOGLE-FRIENDLY PACE (standing rule): never reply or post in bulk. One write at a time, at least ${GBP_MIN_GAP_SECONDS / 60} minutes apart across all projects, max ${GBP_DAILY_CAP_PER_LOCATION} per location per 24 h — the server refuses anything faster. To answer many reviews, write every reply and put them in the queue with gbp_queue_replies: the server sends them one by one at a human pace.`;
 
 function formatError(error: unknown): string {
   return `Error: ${error instanceof Error ? error.message : String(error)}`;
@@ -60,7 +61,6 @@ const ALLOWED_HOSTS = [
   "mybusinessverifications.googleapis.com",
   "mybusinessnotifications.googleapis.com",
   "mybusinessplaceactions.googleapis.com",
-  "mybusinessqanda.googleapis.com",
   "mybusinesslodging.googleapis.com",
   "businessprofileperformance.googleapis.com",
   "mybusiness.googleapis.com",
@@ -157,10 +157,91 @@ ${PACE_NOTE}`,
   );
 
   server.registerTool(
+    "gbp_queue_replies",
+    {
+      title: "Google Business — Queue Review Replies",
+      description: `Puts written replies in the reply queue; the server posts them one at a time at a human pace (daytime in Pakistan, 12+ minutes apart, complaints first, then newest first) and skips any review that got a reply in the meantime. Use this to answer many reviews — write each reply for its review (varied, specific, in the business's voice), never one template for all.
+
+Args:
+  - project, location: as in gbp_list_reviews.
+  - replies (array): [{ reviewId, reply, reviewer?, stars?, comment?, created? }] — copy reviewer/stars/comment/created from gbp_list_reviews so the queue shows what each reply answers.
+  - status ("approved" | "draft" | "skipped", default "approved"): approved = send when its turn comes; draft = hold for Shoaib; skipped = don't send. Queueing a review again replaces its waiting reply.
+  - confirm (boolean): when false/omitted nothing is saved — a preview is returned.`,
+      inputSchema: {
+        project: z.string().min(1),
+        location: z.string().optional(),
+        replies: z
+          .array(
+            z.object({
+              reviewId: z.string().min(1),
+              reply: z.string().min(1).max(4096),
+              reviewer: z.string().optional(),
+              stars: z.number().int().min(0).max(5).optional(),
+              comment: z.string().optional(),
+              created: z.string().optional(),
+            })
+          )
+          .min(1)
+          .max(200),
+        status: z.enum(["approved", "draft", "skipped"]).optional(),
+        confirm: z.boolean().optional(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    async ({ project, location, replies, status = "approved", confirm }: { project: string; location?: string; replies: QueueInput[]; status?: "approved" | "draft" | "skipped"; confirm?: boolean }) => {
+      try {
+        const p = await resolveConnected(project);
+        const loc = pickLocation(p.conn, location);
+        if (!confirm) {
+          return text(
+            `PREVIEW ONLY — nothing was queued. Re-run with confirm=true.\n\nProject: ${p.label}\nLocation: ${loc.title}\nStatus: ${status}\n\n${replies.map((r) => `• ${r.reviewer ?? r.reviewId}${r.stars ? ` (${r.stars}★)` : ""}: ${r.reply}`).join("\n")}`
+          );
+        }
+        const res = await queueReplies(p.id, loc.name, replies, status);
+        return json({ project: p.label, location: loc.title, ...res, queue: await replyQueueStats(p.id) });
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "gbp_reply_queue",
+    {
+      title: "Google Business — Reply Queue Status",
+      description: `Shows the review-reply queue: counts per status (approved = waiting, sent, skipped, failed, draft), replies sent in the last 24 hours, and the listed replies.
+
+Args:
+  - project (string, optional): limit to one project.
+  - status (optional): approved | draft | sent | skipped | failed — which replies to list (default approved).
+  - limit (number, optional): how many to list (default 20, max 100).`,
+      inputSchema: {
+        project: z.string().optional(),
+        status: z.enum(["approved", "draft", "sent", "skipped", "failed"]).optional(),
+        limit: z.number().int().min(1).max(100).optional(),
+      },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    async ({ project, status = "approved", limit = 20 }: { project?: string; status?: QueueStatus; limit?: number }) => {
+      try {
+        const p = project ? await resolveConnected(project) : null;
+        const items = await listQueuedReplies({ projectId: p?.id, status, limit });
+        return json({
+          project: p?.label ?? "all projects",
+          counts: await replyQueueStats(p?.id),
+          [status]: items.map((r) => ({ reviewer: r.reviewer, stars: r.stars, review: r.review_comment, reply: r.reply, created: r.review_created_at, sent_at: r.sent_at, error: r.last_error })),
+        });
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
     "gbp_request",
     {
       title: "Google Business Profile API — Passthrough",
-      description: `Any Google Business Profile API call with a connected project's grant — posts (v4 localPosts), media, Q&A, profile info (Business Information API), performance metrics (Business Profile Performance API), verifications, notifications, place actions.
+      description: `Any Google Business Profile API call with a connected project's grant — posts (v4 localPosts), media, profile info (Business Information API), performance metrics (Business Profile Performance API), verifications, notifications, place actions, lodging. (Google shut the Q&A API down on 3 Nov 2025.)
 
 Args:
   - project (string): project id or part of its label (see gbp_list_connections).

@@ -1088,3 +1088,29 @@ create table if not exists gbp_write_log (
 create index if not exists gbp_write_log_created_idx on gbp_write_log (created_at desc);
 create index if not exists gbp_write_log_loc_idx on gbp_write_log (location, created_at desc);
 alter table gbp_write_log enable row level security;
+
+-- Google Business review replies, written ahead (by Claude in a session or
+-- via the gbp_queue_replies MCP tool) and sent one at a time by
+-- /api/gbp/reply-cron at a human pace, through the same pacing rule.
+-- status: approved (waiting to go) → sent, or skipped (already had a reply /
+-- review gone), failed (3 errors), draft (held for Shoaib).
+create table if not exists gbp_reply_queue (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references client_projects(id) on delete cascade,
+  location text not null,
+  review_id text not null,
+  reviewer text,
+  stars int,
+  review_comment text,
+  review_created_at timestamptz,
+  reply text not null,
+  status text not null default 'approved' check (status in ('draft', 'approved', 'sent', 'skipped', 'failed')),
+  attempts int not null default 0,
+  last_error text,
+  created_at timestamptz not null default now(),
+  sent_at timestamptz,
+  unique (location, review_id)
+);
+create index if not exists gbp_reply_queue_status_idx on gbp_reply_queue (status, review_created_at desc);
+create index if not exists gbp_reply_queue_sent_idx on gbp_reply_queue (sent_at desc);
+alter table gbp_reply_queue enable row level security;

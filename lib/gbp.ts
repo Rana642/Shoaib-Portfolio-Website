@@ -204,6 +204,17 @@ export async function listReviews(token: string, loc: GbpLocation, pageToken?: s
 
 const REVIEW_ID = /^[A-Za-z0-9_-]{1,200}$/;
 
+/** One review as it is now, or null when it's gone (deleted or hidden). */
+export async function getReview(token: string, loc: GbpLocation, reviewId: string): Promise<GbpReview | null> {
+  if (!REVIEW_ID.test(reviewId)) throw new Error("Invalid review id.");
+  try {
+    return await gapi<GbpReview>(token, `${v4(loc)}/reviews/${reviewId}`);
+  } catch (error) {
+    if (error instanceof Error && /not found|404/i.test(error.message)) return null;
+    throw error;
+  }
+}
+
 // ── Google-friendly pacing (standing rule, Shoaib 2026-09-30) ─────────
 // Replies, posts and edits never go out in bulk. Every write to Google
 // Business Profile — from the dashboard, the MCP tools or anything added
