@@ -1120,16 +1120,26 @@ alter table gbp_reply_queue enable row level security;
 -- own cron calls /api/gbp/reply-cron every 10 minutes; the endpoint decides
 -- whether a person would send one now. The GitHub step stays as a backup —
 -- two callers at once are safe (paceGbpWrite reserves the slot first).
--- Run once, pasting the site's CRON_SECRET (Vercel → Settings → Environment
--- Variables) in place of PASTE_CRON_SECRET_HERE; it is kept in Supabase Vault.
+-- The cron's token is generated right here and never leaves the database:
+-- the endpoint reads it back with the service role (RLS on, no policies).
+create table if not exists cron_tokens (
+  name text primary key,
+  token text not null,
+  created_at timestamptz not null default now()
+);
+alter table cron_tokens enable row level security;
+insert into cron_tokens (name, token)
+  values ('gbp_reply', replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''))
+  on conflict (name) do nothing;
 --
+-- The schedule itself (pg_cron/pg_net aren't on every database, so run it
+-- by hand once):
 -- create extension if not exists pg_cron;
 -- create extension if not exists pg_net;
--- select vault.create_secret('PASTE_CRON_SECRET_HERE', 'adsbyshoaib_cron_secret');
 -- select cron.schedule('gbp-reply-cron', '*/10 * * * *', $$
 --   select net.http_get(
 --     url := 'https://adsbyshoaib.com/api/gbp/reply-cron',
---     headers := jsonb_build_object('Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'adsbyshoaib_cron_secret')),
+--     headers := jsonb_build_object('Authorization', 'Bearer ' || (select token from public.cron_tokens where name = 'gbp_reply')),
 --     timeout_milliseconds := 30000
 --   );
 -- $$);
