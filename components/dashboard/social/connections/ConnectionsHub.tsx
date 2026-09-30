@@ -163,6 +163,11 @@ export default function ConnectionsHub({
     if (def.mode === "workspace") {
       note = "Covered for every project by the workspace System User. Connect to verify this client's ad accounts.";
       action = def.connectHref ? { kind: "link", label: "Verify ad access", href: def.connectHref(pid) } : null;
+    } else if (def.key === "google_business") {
+      note = rows.length
+        ? "Reviews, replies and Planner posts go through Socially Snap, one at a time (Google-friendly pace)."
+        : "Connect with Google, or reuse the Google sign-in already connected on another project.";
+      action = def.connectHref ? { kind: "link", label: rows.length ? "Open Google Business" : "Connect Google Business", href: def.connectHref(pid) } : null;
     } else if (def.mode === "project_oauth") {
       note = `Authorize ${def.label} for this project.`;
       action = def.connectHref ? { kind: "link", label: rows.length ? "Connect another" : `Connect ${def.label}`, href: def.connectHref(pid) } : null;

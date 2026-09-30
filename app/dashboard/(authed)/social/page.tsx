@@ -20,6 +20,7 @@ export default async function SocialConnectionsPage({
     db.from("client_social_accounts").select("*").order("created_at"),
     db.from("social_connections").select("connected_at, fb_token_expires_at, li_connected_at").eq("id", 1).maybeSingle(),
   ]);
+  const { data: gbp } = await db.from("gbp_connections").select("project_id, locations, selected_location");
 
   const allAccounts = (accounts ?? []) as ClientSocialAccount[];
   const tiktokAccounts = allAccounts.filter((a) => a.platform === "tiktok");
@@ -44,6 +45,18 @@ export default async function SocialConnectionsPage({
     label,
     external_id,
   }));
+  // Google Business lives in gbp_connections, not client_social_accounts —
+  // shown on the hub as one row per project with its chosen location.
+  for (const g of (gbp ?? []) as { project_id: string; locations: { name: string; title: string }[]; selected_location: string | null }[]) {
+    const loc = g.locations.find((l) => l.name === g.selected_location);
+    hubAccounts.push({
+      id: `gbp-${g.project_id}`,
+      project_id: g.project_id,
+      platform: "google_business",
+      label: loc?.title ?? "Location not chosen yet",
+      external_id: g.selected_location ?? "",
+    });
+  }
 
   return (
     <>

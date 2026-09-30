@@ -1,5 +1,6 @@
 import { db } from "@/lib/dashboard/db";
 import { presignDownload } from "@/lib/storage";
+import { GBP_PLATFORM, gbpPlannerLocation } from "@/lib/gbp";
 import { listProjectOptions } from "@/lib/dashboard/projects";
 import { PageHeader, EmptyState, LinkButton } from "@/components/dashboard/ui";
 import PlannerCalendar from "@/components/dashboard/social/PlannerCalendar";
@@ -40,6 +41,9 @@ export default async function PlannerPage({
     db.from("client_social_accounts").select("platform").eq("project_id", selectedProjectId).eq("is_active", true),
   ]);
   const connectedPlatforms = [...new Set((accounts ?? []).map((a) => a.platform as string))];
+  // Google Business counts as connected once the project has a chosen
+  // location (/dashboard/gbp) — its posts go out through the pacing gate.
+  if (await gbpPlannerLocation(selectedProjectId).catch(() => null)) connectedPlatforms.push(GBP_PLATFORM);
 
   const postsWithUrls = await Promise.all(
     ((posts ?? []) as ScheduledPost[]).map(async (p) => ({

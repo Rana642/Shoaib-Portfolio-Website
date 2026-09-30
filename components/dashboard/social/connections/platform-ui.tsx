@@ -1,4 +1,4 @@
-import { Megaphone } from "lucide-react";
+import { MapPin, Megaphone } from "lucide-react";
 import { FacebookIcon, InstagramIcon, LinkedinIcon, TikTokIcon } from "@/components/ui/SocialIcons";
 import { cn } from "@/lib/utils";
 import type { ConnectionStatus, PlatformDef, PlatformKey } from "@/lib/social-platforms";
@@ -9,6 +9,7 @@ const ICONS: Record<PlatformKey, React.ComponentType<{ className?: string }>> = 
   linkedin: LinkedinIcon,
   tiktok: TikTokIcon,
   meta_ads: Megaphone,
+  google_business: MapPin,
 };
 
 export function PlatformChip({ platform, size = "md" }: { platform: PlatformDef; size?: "sm" | "md" }) {

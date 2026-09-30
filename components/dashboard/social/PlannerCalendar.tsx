@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin } from "lucide-react";
 import { createPlannerPost, deletePost, movePost } from "@/lib/dashboard/actions/social";
 import { deletePortalUpload } from "@/lib/portal/planner";
 import PlannerUploader from "@/components/portal/PlannerUploader";
@@ -507,6 +507,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   instagram: "Instagram",
   linkedin: "LinkedIn",
   tiktok: "TikTok",
+  google_business: "Google Business",
 };
 
 const PLATFORM_ICONS: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {
@@ -514,6 +515,7 @@ const PLATFORM_ICONS: Record<string, React.ComponentType<React.SVGProps<SVGSVGEl
   instagram: InstagramIcon,
   linkedin: LinkedinIcon,
   tiktok: TikTokIcon,
+  google_business: MapPin as unknown as React.ComponentType<React.SVGProps<SVGSVGElement>>,
 };
 
 /** One post, one image, composed with an explicit "which channels" step and

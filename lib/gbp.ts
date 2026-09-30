@@ -339,3 +339,45 @@ export async function linkFromGrant(projectId: string, sourceProjectId: string, 
   if (error) throw new Error(error.message);
   return match;
 }
+
+// ── Planner → Google Business posts ───────────────────────────────────
+
+export const GBP_PLATFORM = "google_business";
+
+/** The location a project's Planner posts go to, or null when the project
+ *  has no Google Business connection / no chosen location. */
+export async function gbpPlannerLocation(projectId: string): Promise<GbpLocation | null> {
+  const conn = await getGbpConnection(projectId);
+  return conn ? findLocation(conn) : null;
+}
+
+/** Google rejects Business Profile posts whose text contains a phone number,
+ *  and caps the text at 1500 characters. Lines with a phone number are
+ *  dropped (the profile already shows the number and a Call button). */
+export function gbpCaption(caption: string): string {
+  const phone = /(\+?\d[\d\s().-]{7,}\d)/;
+  const text = caption
+    .split("\n")
+    .filter((line) => !phone.test(line))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return text.length > 1500 ? text.slice(0, 1497).trimEnd() + "..." : text;
+}
+
+export function isGbpPaceError(error: unknown): boolean {
+  return error instanceof Error && error.message.startsWith("Google-friendly pace");
+}
+
+/** One photo "update" post on the location — through the pacing gate. */
+export async function publishGbpPhotoPost(projectId: string, loc: GbpLocation, caption: string, imageUrl: string) {
+  const summary = gbpCaption(caption);
+  if (!summary) throw new Error("The caption is empty once phone numbers are removed — Google Business posts need some text.");
+  const token = await gbpAccessToken(projectId);
+  return paceGbpWrite(loc.name, "planner_post", () =>
+    gapi<{ name: string; searchUrl?: string; state?: string }>(token, `${v4(loc)}/localPosts`, {
+      method: "POST",
+      body: JSON.stringify({ languageCode: "en", summary, topicType: "STANDARD", media: [{ mediaFormat: "PHOTO", sourceUrl: imageUrl }] }),
+    })
+  );
+}
