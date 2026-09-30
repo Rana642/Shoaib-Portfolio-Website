@@ -2,6 +2,8 @@
 
 Personal brand website for Shoaib Nabi Noor (performance marketing specialist).
 
+**Latest status:** read `docs/WORK-LOG.md` (newest work, pending items) — and the second-brain vault memory it points to.
+
 **Read `CLAUDE-CODE-INSTRUCTIONS.md` first** — it is the complete build guide:
 tech stack, locked design system, phase order, copy rules, and brand voice.
 
