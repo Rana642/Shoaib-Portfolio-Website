@@ -1114,3 +1114,22 @@ create table if not exists gbp_reply_queue (
 create index if not exists gbp_reply_queue_status_idx on gbp_reply_queue (status, review_created_at desc);
 create index if not exists gbp_reply_queue_sent_idx on gbp_reply_queue (sent_at desc);
 alter table gbp_reply_queue enable row level security;
+
+-- The reply sender's clock. GitHub's */15 schedule actually fires only every
+-- 4–5 hours (seen 2026-09-30), far too rarely for the queue, so Supabase's
+-- own cron calls /api/gbp/reply-cron every 10 minutes; the endpoint decides
+-- whether a person would send one now. The GitHub step stays as a backup —
+-- two callers at once are safe (paceGbpWrite reserves the slot first).
+-- Run once, pasting the site's CRON_SECRET (Vercel → Settings → Environment
+-- Variables) in place of PASTE_CRON_SECRET_HERE; it is kept in Supabase Vault.
+--
+-- create extension if not exists pg_cron;
+-- create extension if not exists pg_net;
+-- select vault.create_secret('PASTE_CRON_SECRET_HERE', 'adsbyshoaib_cron_secret');
+-- select cron.schedule('gbp-reply-cron', '*/10 * * * *', $$
+--   select net.http_get(
+--     url := 'https://adsbyshoaib.com/api/gbp/reply-cron',
+--     headers := jsonb_build_object('Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'adsbyshoaib_cron_secret')),
+--     timeout_milliseconds := 30000
+--   );
+-- $$);
