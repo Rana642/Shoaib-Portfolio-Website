@@ -363,13 +363,21 @@ export async function gbpPlannerLocation(projectId: string): Promise<GbpLocation
 }
 
 /** Google rejects Business Profile posts whose text contains a phone number,
- *  and caps the text at 1500 characters. Lines with a phone number are
- *  dropped (the profile already shows the number and a Call button). */
+ *  and caps the text at 1500 characters. The whole contact block is dropped —
+ *  phone, email, website, address lines (Shoaib, 2026-09-30: "Text +
+ *  Hashtags kafi hain"); the profile already shows them with a Call button. */
+const CONTACT_LINE = [
+  /(\+?\d[\d\s().-]{7,}\d)/, // phone
+  /[\w.+-]+@[\w-]+\.[\w.]+/, // email
+  /(https?:\/\/|www\.)\S+/i, // link
+  /^\s*(📞|☎️?|📱|📧|✉️?|📩|📍|🌐|🔗|💬|📲)/u, // a contact-line emoji
+  /^\s*(call|phone|tel|whats\s?app|email|e-mail|website|web|address|location)\s*[:：]/i,
+];
+
 export function gbpCaption(caption: string): string {
-  const phone = /(\+?\d[\d\s().-]{7,}\d)/;
   const text = caption
     .split("\n")
-    .filter((line) => !phone.test(line))
+    .filter((line) => !CONTACT_LINE.some((re) => re.test(line)))
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
@@ -381,11 +389,19 @@ export function isGbpPaceError(error: unknown): boolean {
 }
 
 /** One photo "update" post on the location — through the pacing gate. */
-export async function publishGbpPhotoPost(projectId: string, loc: GbpLocation, caption: string, imageUrl: string) {
+export const GBP_POST_KINDS = ["planner_post", "backfill_post"] as const;
+
+export async function publishGbpPhotoPost(
+  projectId: string,
+  loc: GbpLocation,
+  caption: string,
+  imageUrl: string,
+  kind: (typeof GBP_POST_KINDS)[number] = "planner_post"
+) {
   const summary = gbpCaption(caption);
-  if (!summary) throw new Error("The caption is empty once phone numbers are removed — Google Business posts need some text.");
+  if (!summary) throw new Error("The caption is empty once contact details are removed — Google Business posts need some text.");
   const token = await gbpAccessToken(projectId);
-  return paceGbpWrite(loc.name, "planner_post", () =>
+  return paceGbpWrite(loc.name, kind, () =>
     gapi<{ name: string; searchUrl?: string; state?: string }>(token, `${v4(loc)}/localPosts`, {
       method: "POST",
       body: JSON.stringify({ languageCode: "en", summary, topicType: "STANDARD", media: [{ mediaFormat: "PHOTO", sourceUrl: imageUrl }] }),

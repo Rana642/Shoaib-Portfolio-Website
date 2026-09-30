@@ -1,38 +1,36 @@
-import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { isCronRequest } from "@/lib/cron-auth";
 import { db } from "@/lib/dashboard/db";
+import { sendNextBackfillPost } from "@/lib/gbp-backfill";
 import { sendNextReply } from "@/lib/gbp-replies";
 
 export const maxDuration = 60;
 
-const same = (a: string, b: string) => {
-  const x = Buffer.from(a);
-  const y = Buffer.from(b);
-  return x.length === y.length && timingSafeEqual(x, y);
-};
-
-/** Supabase pg_cron's token: generated inside the database and kept in
- *  cron_tokens (RLS on, no policies — only the service role reads it), so
- *  no secret ever has to be copied between Vercel and Supabase. */
-async function isSupabaseCron(bearer: string) {
-  if (bearer.length < 32) return false;
-  const { data } = await db.from("cron_tokens").select("token").eq("name", "gbp_reply").maybeSingle();
-  return typeof data?.token === "string" && same(bearer, data.token);
-}
-
 /**
- * Sends at most one queued Google Business review reply per call, at a human
- * pace (see lib/gbp-replies.ts). Called every 10 minutes by Supabase pg_cron
- * (SQL in supabase/dashboard-schema.sql) with its own token, and by the
- * GitHub Actions workflow (.github/workflows/social-cron.yml) with
- * CRON_SECRET as a backup — protected either way, since it writes to real
- * profiles.
+ * The Google Business sender: at most one write per call, at a human pace —
+ * a past planner post being caught up (lib/gbp-backfill.ts) when one is due,
+ * otherwise a queued review reply (lib/gbp-replies.ts). While a planner post
+ * is due it stands aside, so the day's post gets Google's next free slot
+ * (the social cron sends it). Called every 10 minutes by Supabase pg_cron
+ * (SQL in supabase/dashboard-schema.sql), with the GitHub Actions workflow
+ * (.github/workflows/social-cron.yml) as a backup — protected either way,
+ * since it writes to real profiles.
  */
 export async function GET(request: Request) {
-  const bearer = request.headers.get("authorization")?.replace(/^Bearer /, "") ?? "";
-  const secret = process.env.CRON_SECRET;
-  const ok = (secret && bearer && same(bearer, secret)) || (await isSupabaseCron(bearer));
-  if (!ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const result = await sendNextReply();
-  return NextResponse.json(result);
+  if (!(await isCronRequest(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const now = new Date();
+  const { data: due } = await db
+    .from("scheduled_posts")
+    .select("id")
+    .eq("status", "scheduled")
+    .lte("scheduled_at", now.toISOString())
+    .gte("scheduled_at", new Date(now.getTime() - 2 * 3600 * 1000).toISOString())
+    .limit(1);
+  if (due?.length) return NextResponse.json({ status: "yield", detail: "a planner post is due" });
+
+  const backfill = await sendNextBackfillPost(now);
+  if (backfill.status === "sent" || backfill.status === "failed" || backfill.status === "error") return NextResponse.json({ backfill });
+  const reply = await sendNextReply(now);
+  return NextResponse.json({ backfill: backfill.status, reply });
 }

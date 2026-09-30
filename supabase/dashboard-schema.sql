@@ -1143,3 +1143,37 @@ insert into cron_tokens (name, token)
 --     timeout_milliseconds := 30000
 --   );
 -- $$);
+
+-- The social poster on the same clock (every 15 minutes), with its own token.
+insert into cron_tokens (name, token)
+  values ('social', replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''))
+  on conflict (name) do nothing;
+-- select cron.schedule('social-cron', '*/15 * * * *', $$
+--   select net.http_get(
+--     url := 'https://adsbyshoaib.com/api/social/cron',
+--     headers := jsonb_build_object('Authorization', 'Bearer ' || (select token from public.cron_tokens where name = 'social')),
+--     timeout_milliseconds := 60000
+--   );
+-- $$);
+
+-- Planner posts published before the project's Google Business profile was
+-- on the Planner, caught up on Google one at a time (lib/gbp-backfill.ts).
+-- media_key = the image parked in storage for Google to fetch, when the
+-- original upload was already cleared.
+create table if not exists gbp_post_backfill (
+  post_id uuid primary key references scheduled_posts(id) on delete cascade,
+  project_id uuid not null references client_projects(id) on delete cascade,
+  status text not null default 'waiting' check (status in ('waiting', 'posted', 'failed', 'skipped')),
+  attempts int not null default 0,
+  last_error text,
+  gbp_post text,
+  media_key text,
+  created_at timestamptz not null default now(),
+  posted_at timestamptz
+);
+create index if not exists gbp_post_backfill_status_idx on gbp_post_backfill (status);
+alter table gbp_post_backfill enable row level security;
+-- To catch a project up (its already-posted planner posts):
+-- insert into gbp_post_backfill (post_id, project_id)
+--   select id, project_id from scheduled_posts where project_id = '<project id>' and status = 'posted'
+--   on conflict (post_id) do nothing;

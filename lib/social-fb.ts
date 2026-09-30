@@ -58,6 +58,26 @@ async function graphGet<T>(path: string, params: Record<string, string>): Promis
   return body;
 }
 
+/** The image of a photo this tool already published, for reposting it
+ *  elsewhere after the original upload was cleared from storage. Instagram
+ *  gives the full-size file; on Facebook a native-scheduled post id is a
+ *  photo id (with `images`), a live one a feed post id (with `full_picture`). */
+export async function publishedImageUrl(platform: "instagram" | "facebook", postId: string, token: string): Promise<string | null> {
+  if (platform === "instagram") {
+    const r = await graphGet<{ media_url?: string }>(`/${postId}`, { fields: "media_url", access_token: token });
+    return r.media_url ?? null;
+  }
+  try {
+    const r = await graphGet<{ images?: { source: string; width: number }[] }>(`/${postId}`, { fields: "images", access_token: token });
+    const best = [...(r.images ?? [])].sort((a, b) => b.width - a.width)[0];
+    if (best) return best.source;
+  } catch {
+    /* a feed post id, not a photo id */
+  }
+  const r = await graphGet<{ full_picture?: string }>(`/${postId}`, { fields: "full_picture", access_token: token });
+  return r.full_picture ?? null;
+}
+
 /** Exchanges a short-lived User Access Token (from Graph API Explorer) for a
  *  long-lived one (~60 days) — required before deriving Page tokens that
  *  themselves become effectively permanent. */

@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "./dashboard/db";
-import { findLocation, gbpAccessToken, getGbpConnection, getReview, isGbpPaceError, replyToReview } from "./gbp";
+import { GBP_DAILY_CAP_PER_LOCATION, findLocation, gbpAccessToken, getGbpConnection, getReview, isGbpPaceError, replyToReview } from "./gbp";
 
 /**
  * Review replies written ahead of time (by Claude — in a session, via the
@@ -18,6 +18,9 @@ import { findLocation, gbpAccessToken, getGbpConnection, getReview, isGbpPaceErr
 export const HUMAN_HOURS_PKT = { from: 10, to: 22 };
 export const HUMAN_MIN_GAP_MINUTES = 12;
 export const HUMAN_SKIP_CHANCE = 0.3;
+/** Replies leave this many of a location's daily Google writes for posts —
+ *  the day's planner post and any backfilled ones (lib/gbp-backfill.ts). */
+export const REPLY_RESERVED_FOR_POSTS = 5;
 const MAX_ATTEMPTS = 3;
 
 export type QueueStatus = "draft" | "approved" | "sent" | "skipped" | "failed";
@@ -130,11 +133,23 @@ export async function listQueuedReplies(opts: { projectId?: string; status?: Que
   return (data ?? []) as QueuedReply[];
 }
 
+/** Locations whose replies for today are used up (see REPLY_RESERVED_FOR_POSTS). */
+async function locationsAtReplyLimit(): Promise<string[]> {
+  const { data } = await db
+    .from("gbp_write_log")
+    .select("location")
+    .gte("created_at", new Date(Date.now() - 24 * 3600 * 1000).toISOString());
+  const counts = new Map<string, number>();
+  for (const r of (data ?? []) as { location: string }[]) counts.set(r.location, (counts.get(r.location) ?? 0) + 1);
+  return [...counts].filter(([, n]) => n >= GBP_DAILY_CAP_PER_LOCATION - REPLY_RESERVED_FOR_POSTS).map(([l]) => l);
+}
+
 /** The reply a person would pick next: complaints first (oldest first),
  *  then everything else newest first. */
-async function nextReply(): Promise<QueuedReply | null> {
+async function nextReply(skipLocations: string[] = []): Promise<QueuedReply | null> {
   const pick = async (low: boolean) => {
     let q = db.from("gbp_reply_queue").select("*").eq("status", "approved");
+    if (skipLocations.length) q = q.not("location", "in", `(${skipLocations.map((l) => `"${l}"`).join(",")})`);
     q = low ? q.lte("stars", 3).order("review_created_at", { ascending: true }) : q.order("review_created_at", { ascending: false, nullsFirst: false });
     const { data } = await q.limit(1);
     return ((data ?? [])[0] as QueuedReply | undefined) ?? null;
@@ -150,7 +165,7 @@ async function markRow(id: string, patch: Partial<QueuedReply>) {
 
 export type SendResult =
   | { status: "sent" | "skipped" | "failed" | "error"; reviewer: string | null; detail?: string }
-  | { status: "idle" | "outside_hours" | "gap" | "resting" | "paced"; detail?: string };
+  | { status: "idle" | "outside_hours" | "gap" | "resting" | "paced" | "daily_limit"; detail?: string };
 
 /** Sends at most one queued reply, if a person would plausibly send one now. */
 export async function sendNextReply(now = new Date()): Promise<SendResult> {
@@ -164,8 +179,9 @@ export async function sendNextReply(now = new Date()): Promise<SendResult> {
     if (minutes < HUMAN_MIN_GAP_MINUTES) return { status: "gap", detail: `${Math.round(minutes)} min since the last reply` };
   }
 
-  const row = await nextReply();
-  if (!row) return { status: "idle" };
+  const full = await locationsAtReplyLimit();
+  const row = await nextReply(full);
+  if (!row) return full.length ? { status: "daily_limit", detail: `${full.length} location(s) at today's reply limit` } : { status: "idle" };
   if (Math.random() < HUMAN_SKIP_CHANCE) return { status: "resting" };
 
   const conn = await getGbpConnection(row.project_id);

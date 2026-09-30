@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isCronRequest } from "@/lib/cron-auth";
 import { db } from "@/lib/dashboard/db";
 import { listDuePosts, markPostResult } from "@/lib/scheduled-posts";
 import { GBP_PLATFORM, gbpPlannerLocation, isGbpPaceError, publishGbpPhotoPost } from "@/lib/gbp";
@@ -24,8 +25,10 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Fires due scheduled_posts (status='scheduled', scheduled_at <= now).
- * Called by Vercel Cron (see vercel.json) — protected by CRON_SECRET since
- * this is otherwise an unauthenticated route that publishes to real accounts.
+ * Called every 15 minutes by Supabase pg_cron with its own token (SQL in
+ * supabase/dashboard-schema.sql — GitHub's schedule fired only every 4–5
+ * hours), or by hand from the GitHub Actions workflow with CRON_SECRET —
+ * protected either way, since it publishes to real accounts.
  *
  * Facebook accounts scheduled 10 min-30 days out are usually already handed
  * to Meta's own scheduler as soon as they're captioned (see
@@ -41,9 +44,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * and the next run (15 min later) sends just the Google post.
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  const auth = request.headers.get("authorization");
-  if (!secret || auth !== `Bearer ${secret}`) {
+  if (!(await isCronRequest(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
