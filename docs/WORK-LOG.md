@@ -4,6 +4,23 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-09-30 (office PC)
+
+**Social posts for Tad Pharma and Meezab Z (KB data in Supabase; one code change)**
+- Shoaib's rule for AI-generated posts:
+  - **Locked:** the written content, logo, original product (identical even when AI re-renders it), footer strip + vet line, and brand colours.
+  - **Free:** scene, background, layout and styling.
+- Both `social-post-design-lock` docs were rewritten as `locked` + `creative_freedom` + a safety `do_not`.
+- Both 30-day calendars were rebuilt from Day 1:
+  - Every day has a `layout_idea` and a poultry/farm `background_idea`.
+  - Text, captions and attachments are unchanged.
+  - The reference look is Tad Day 11 (approved).
+- New marketing doc `product-brief-posts` for both brands: one social post per product (Tad 17, Meezab 9), important points from the original brochure, English.
+  - Categories `english` / `urdu` / `mix` (the last two are empty for now).
+  - Separate from the calendar.
+- New MCP tool `kb_get_product_post` ("Aminotox ki brief post design karo"). It shares its prompt/caption/images builder with `kb_get_social_post`.
+- ChatGPT's connector can't download jsDelivr images, so attach the logo and product photo files yourself.
+
 ## 2026-09-28 → 2026-09-30
 
 **Google Business Profile (live)**

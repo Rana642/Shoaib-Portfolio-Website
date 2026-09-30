@@ -32,6 +32,7 @@ export const KB_SERVER_INSTRUCTIONS = [
   "Images: every stored file has a permanent public URL (returned by kb_get_product / kb_list_assets / kb_get_asset) you can use in <img> or SVG <image href>; add &w=800&fmt=jpg to get a smaller rendition. You cannot pass the bytes of a chat-attached image to a tool — call kb_create_upload_link and give the user the link, or use kb_add_asset with a public sourceUrl.",
   "Google Business Profile (gbp_* tools): Google-friendly pace, always — never reply to reviews or post in bulk. One write at a time, at least 5 minutes apart, max 20 per location per 24 hours (the server enforces it). For many reviews: draft all for the user, publish one, and say when the next can go.",
   "Social posts by calendar day (\"Day 1 ki post design karo\"): call kb_get_social_post — it returns the locked image prompt, the caption and the original images to attach. Use them unchanged.",
+  "Product posts (one social post per product, presented like a brochure page — \"Aminotox ki brief post design karo\"): call kb_get_product_post. Same rules: use the prompt, caption and images unchanged.",
   "The kb_* write tools (kb_upsert_doc, kb_upsert_product, kb_add_asset, kb_add_memory, kb_upsert_global_rule…) let you maintain the knowledge base; deletes need confirm=true.",
 ].join("\n");
 
@@ -181,6 +182,57 @@ async function assetBlocks(a: AssetRow, cdn?: Map<string, string>): Promise<Bloc
     }
   }
   return [{ type: "text", text: `${a.title} (${a.kind}) — PDF/file URL: ${url}${widget}` }];
+}
+
+/** The ```json block of a marketing doc (content calendar, design lock, product brief posts). */
+function jsonBlock(text: string, what: string): unknown {
+  const m = text.match(/```json\s*\n([\s\S]*?)\n```/);
+  if (!m) throw new Error(`The ${what} doc has no \`\`\`json block.`);
+  return JSON.parse(m[1]);
+}
+
+/** A social-post brief (calendar day or product post) merged with the design lock:
+ *  the image prompt, the caption and the original images to attach. */
+async function designBriefBlocks(heading: string, brief: string, lock: unknown, entry: Record<string, unknown>, fileTag: string): Promise<Block[]> {
+  const rest = { ...entry };
+  const caption = rest.caption_for_posting as string | undefined;
+  delete rest.caption_for_posting;
+  delete rest.source_check;
+  const prompt = { brief, global_design_lock: lock, ...rest };
+
+  // Resolve the attachments (CDN URLs in the doc) back to stored originals.
+  const attach = (rest.attach ?? {}) as Record<string, string | string[]>;
+  const urls = Object.values(attach).flatMap((v) => (Array.isArray(v) ? v : [v])).filter(Boolean);
+  const { data: cdnRows } = await db.from("kb_cdn_files").select("storage_key, cdn_url").in("cdn_url", urls.length ? urls : ["-"]);
+  const byUrl = new Map(((cdnRows ?? []) as { storage_key: string; cdn_url: string }[]).map((r) => [r.cdn_url, r.storage_key]));
+  const many = urls.length > 3;
+  const content: Block[] = [
+    {
+      type: "text",
+      text: `${heading}\n\nSTEP 1. Attach these ${urls.length} image(s), in this order (download the full-resolution original if your image tool needs a file):\n${urls
+        .map((u, i) => {
+          const key = byUrl.get(u);
+          return `${i + 1}. ${u}${key ? `\n   Full resolution: ${kbFileUrl(key, `${fileTag}-image-${i + 1}`)}` : ""}`;
+        })
+        .join("\n")}\n\nSTEP 2. Generate the image with this prompt, unchanged:\n\n\`\`\`json\n${JSON.stringify(prompt, null, 2)}\n\`\`\`\n\nSTEP 3. Check the result against the lock (product identical to the attached photo, exact text only, brand colours only, full-width footer strip, vet line). If anything differs, regenerate with "Follow the JSON exactly; fix only: …".\n\nCAPTION TO POST (give this to the user as-is):\n\n${caption ?? "(no caption in the doc)"}`,
+    },
+  ];
+  for (const [i, u] of urls.entries()) {
+    const key = byUrl.get(u);
+    if (!key) continue;
+    try {
+      if (many) {
+        const { buffer } = await fetchObject(key);
+        const small = await sharp(buffer).flatten({ background: "#ffffff" }).resize({ width: 360, withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer();
+        content.push({ type: "text", text: `Image ${i + 1} (preview — use the full-resolution link to attach):` }, { type: "image", data: small.toString("base64"), mimeType: "image/jpeg" });
+      } else {
+        content.push({ type: "text", text: `Image ${i + 1}${i === 0 ? " (logo)" : " (approved product photo — locked, do not alter)"}:` }, await imageBlock(key));
+      }
+    } catch {
+      content.push({ type: "text", text: `Image ${i + 1}: missing from storage — use the URL above.` });
+    }
+  }
+  return content;
 }
 
 async function safeDelete(key: string | null | undefined) {
@@ -480,52 +532,60 @@ Args: projectName (string), day (number, 1-based), calendarSlug (optional market
         if (!calendar) throw new Error(`No content calendar for ${project.label}${calendarSlug ? ` with slug "${calendarSlug}"` : ""}. Save one as a marketing_doc whose slug starts with "content-calendar".`);
         const lockDoc = all.find((d) => d.slug === "social-post-design-lock");
         if (!lockDoc) throw new Error(`No "social-post-design-lock" marketing_doc for ${project.label}.`);
-        const jsonBlock = (text: string, what: string) => {
-          const m = text.match(/```json\s*\n([\s\S]*?)\n```/);
-          if (!m) throw new Error(`The ${what} doc has no \`\`\`json block.`);
-          return JSON.parse(m[1]);
-        };
         const days = jsonBlock(calendar.content, calendar.slug) as Record<string, unknown>[];
         const entry = days.find((d) => Number(d.post ?? d.day) === day);
         if (!entry) throw new Error(`Day ${day} is not in ${calendar.slug} (it has days 1–${days.length}).`);
-        const lock = jsonBlock(lockDoc.content, lockDoc.slug);
+        const heading = `Day ${day} — ${String(entry.pillar ?? "")}${entry.product ? ` — ${String(entry.product)}` : ""}`;
+        const brief = `${project.name} social media post — Day ${day} of ${calendar.slug}`;
+        return { content: await designBriefBlocks(heading, brief, jsonBlock(lockDoc.content, lockDoc.slug), entry, `day-${day}`) };
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
 
-        const { caption_for_posting: caption, ...rest } = entry as Record<string, unknown> & { caption_for_posting?: string };
-        const prompt = { brief: `${project.name} social media post — Day ${day} of ${calendar.slug}`, global_design_lock: lock, ...rest };
+  server.registerTool(
+    "kb_get_product_post",
+    {
+      title: "Get Product Brief Post",
+      description: `Use this when the user asks for a product's social media presentation post ("Aminotox ki brief post design karo", "product post", "brief post"). Separate from the content calendar: one post per product that presents it like a brochure page, with the important points from the original brochure. Returns the final image-generation prompt (the product's entry from the project's \`product-brief-posts\` doc merged with its social-post design lock), the caption to post, and the original images to attach (logo first, then the approved product photo).
 
-        // Resolve the attachments (CDN URLs in the calendar) back to stored originals.
-        const attach = (rest.attach ?? {}) as Record<string, string | string[]>;
-        const urls = Object.values(attach).flatMap((v) => (Array.isArray(v) ? v : [v])).filter(Boolean);
-        const { data: cdnRows } = await db.from("kb_cdn_files").select("storage_key, cdn_url").in("cdn_url", urls.length ? urls : ["-"]);
-        const byUrl = new Map(((cdnRows ?? []) as { storage_key: string; cdn_url: string }[]).map((r) => [r.cdn_url, r.storage_key]));
-        const many = urls.length > 3;
-        const content: Block[] = [
-          {
-            type: "text",
-            text: `Day ${day} — ${String(rest.pillar ?? "")}${rest.product ? ` — ${String(rest.product)}` : ""}\n\nSTEP 1. Attach these ${urls.length} image(s), in this order (download the full-resolution original if your image tool needs a file):\n${urls
-              .map((u, i) => {
-                const key = byUrl.get(u);
-                return `${i + 1}. ${u}${key ? `\n   Full resolution: ${kbFileUrl(key, `day-${day}-image-${i + 1}`)}` : ""}`;
-              })
-              .join("\n")}\n\nSTEP 2. Generate the image with this prompt, unchanged:\n\n\`\`\`json\n${JSON.stringify(prompt, null, 2)}\n\`\`\`\n\nSTEP 3. Check the result against the lock (product identical to the attached photo, exact text only, brand colours only, full-width footer strip, vet line). If anything differs, regenerate with "Follow the JSON exactly; fix only: …".\n\nCAPTION TO POST (give this to the user as-is):\n\n${caption ?? "(no caption in the calendar)"}`,
-          },
-        ];
-        for (const [i, u] of urls.entries()) {
-          const key = byUrl.get(u);
-          if (!key) continue;
-          try {
-            if (many) {
-              const { buffer } = await fetchObject(key);
-              const small = await sharp(buffer).flatten({ background: "#ffffff" }).resize({ width: 360, withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer();
-              content.push({ type: "text", text: `Image ${i + 1} (preview — use the full-resolution link to attach):` }, { type: "image", data: small.toString("base64"), mimeType: "image/jpeg" });
-            } else {
-              content.push({ type: "text", text: `Image ${i + 1}${i === 0 ? " (logo)" : " (approved product photo — locked, do not alter)"}:` }, await imageBlock(key));
-            }
-          } catch {
-            content.push({ type: "text", text: `Image ${i + 1}: missing from storage — use the URL above.` });
-          }
+Then generate the graphic with your image tool (GPT image / Nano Banana), attaching exactly these images in this order, and give the user the caption. Do not change any text, add claims, redraw/recolour the product, or leave the brand palette.
+
+Args: projectName (string), productName (string), category (optional: "english" by default; the doc may also have "urdu", "mix" or others).`,
+      inputSchema: { projectName: z.string(), productName: z.string(), category: slugSchema.optional() },
+      annotations: READ,
+    },
+    async ({ projectName, productName, category }: { projectName: string; productName: string; category?: string }) => {
+      try {
+        const project = await findProject(projectName);
+        const { data: docs } = await db
+          .from("project_knowledge_docs")
+          .select("slug, content")
+          .eq("project_id", project.id)
+          .eq("doc_type", "marketing_doc")
+          .in("slug", ["product-brief-posts", "social-post-design-lock"]);
+        const all = (docs ?? []) as { slug: string; content: string }[];
+        const postsDoc = all.find((d) => d.slug === "product-brief-posts");
+        if (!postsDoc) throw new Error(`No "product-brief-posts" marketing_doc for ${project.label}.`);
+        const lockDoc = all.find((d) => d.slug === "social-post-design-lock");
+        if (!lockDoc) throw new Error(`No "social-post-design-lock" marketing_doc for ${project.label}.`);
+
+        const categories = jsonBlock(postsDoc.content, postsDoc.slug) as Record<string, Record<string, unknown>[]>;
+        const cat = category ?? "english";
+        const list = categories[cat];
+        if (!Array.isArray(list) || !list.length) {
+          const filled = Object.keys(categories).filter((k) => Array.isArray(categories[k]) && categories[k].length);
+          throw new Error(`No "${cat}" product posts for ${project.label} yet (categories with posts: ${filled.join(", ") || "none"}).`);
         }
-        return { content };
+        const norm = (s: unknown) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+        const want = norm(productName);
+        const entry = list.find((e) => norm(e.product) === want) ?? list.find((e) => norm(e.product).startsWith(want));
+        if (!entry) throw new Error(`No "${cat}" product post for "${productName}". Available: ${list.map((e) => String(e.product)).join(", ")}.`);
+
+        const heading = `${String(entry.product)} — product brief post (${cat})`;
+        const brief = `${project.name} product brief post — ${String(entry.product)} (${cat})`;
+        return { content: await designBriefBlocks(heading, brief, jsonBlock(lockDoc.content, lockDoc.slug), entry, slugifyName(String(entry.product))) };
       } catch (error) {
         return fail(error);
       }
