@@ -5,6 +5,7 @@ import { HUMAN_HOURS_PKT } from "./gbp-replies";
 import { decryptAccountToken, listSocialAccountsForProject } from "./social-accounts";
 import { mintFacebookMediaUrl } from "./social-facebook-media";
 import { publishedImageUrl } from "./social-fb";
+import { IG_LOGIN_GRAPH_BASE, getFreshInstagramLoginToken, isInstagramLoginAccount } from "./social-instagram-login";
 import type { PlatformPostResult } from "./social-post";
 import { deleteObject, fetchObject, uploadObject } from "./storage";
 
@@ -102,7 +103,9 @@ async function parkImage(row: Row, planner: Planner): Promise<{ key: string; par
     const account = posted && accounts.find((a) => a.platform === platform && a.external_id === posted.external_id);
     if (!posted?.post_id || !account) continue;
     try {
-      url = await publishedImageUrl(platform, posted.post_id, decryptAccountToken(account));
+      url = isInstagramLoginAccount(account)
+        ? await publishedImageUrl(platform, posted.post_id, await getFreshInstagramLoginToken(account), IG_LOGIN_GRAPH_BASE)
+        : await publishedImageUrl(platform, posted.post_id, decryptAccountToken(account));
     } catch {
       url = null;
     }

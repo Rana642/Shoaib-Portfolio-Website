@@ -43,6 +43,7 @@ export default function ConnectionsHub({
   clientsMissingProject,
   initialProjectId,
   autoImportFacebook,
+  notice,
 }: {
   projects: ProjectOption[];
   accounts: HubAccount[];
@@ -52,6 +53,8 @@ export default function ConnectionsHub({
   clientsMissingProject: string[];
   initialProjectId: string | null;
   autoImportFacebook: boolean;
+  /** Result of a connect round trip that came back through the URL. */
+  notice?: { kind: "ok" | "error"; text: string } | null;
 }) {
   const router = useRouter();
   const [view, setView] = useState<"project" | "overview">("project");
@@ -171,15 +174,17 @@ export default function ConnectionsHub({
     } else if (def.mode === "project_oauth") {
       note = `Authorize ${def.label} for this project.`;
       action = def.connectHref ? { kind: "link", label: rows.length ? "Connect another" : `Connect ${def.label}`, href: def.connectHref(pid) } : null;
+    } else if (def.key === "instagram") {
+      // Page-linked accounts arrive with the Facebook import; the rest log
+      // in with Instagram (each must be an Instagram Tester on the app).
+      note = "Linked to the client's Facebook Page? It comes in with the Page import. Otherwise log in with Instagram (add the account as an Instagram Tester on the app first).";
+      action = { kind: "link", label: rows.length ? "Add another with Instagram login" : "Log in with Instagram", href: `/api/dashboard/social/instagram/authorize?project_id=${pid}` };
     } else if (def.loginProvider === "facebook") {
       if (!facebookLogin.connectedAt) {
         note = "Connect your Facebook Business login first.";
         action = { kind: "link", label: "Connect Facebook login", href: "/api/dashboard/social/facebook/authorize" };
       } else {
-        note =
-          def.key === "instagram"
-            ? "Link an Instagram Business account to this client's Facebook Page, then import."
-            : "Import this client's Page from your Facebook login.";
+        note = "Import this client's Page from your Facebook login.";
         action = rows.length
           ? null
           : { kind: "button", label: "Import from Facebook", onClick: () => openImport("facebook"), busy: loading === "facebook" };
@@ -227,6 +232,15 @@ export default function ConnectionsHub({
         </div>
         {error && (
           <p className="mt-4 text-small text-red-700 bg-red-500/10 border border-red-600/20 rounded-lg px-4 py-3">{error}</p>
+        )}
+        {notice && (
+          <p
+            className={`mt-4 text-small rounded-lg px-4 py-3 border ${
+              notice.kind === "ok" ? "text-ink bg-forest/10 border-forest/30" : "text-red-700 bg-red-500/10 border-red-600/20"
+            }`}
+          >
+            {notice.text}
+          </p>
         )}
       </section>
 

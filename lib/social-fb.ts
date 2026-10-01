@@ -47,8 +47,8 @@ function peakUsagePercent(res: Response): number | null {
   return peak;
 }
 
-async function graphGet<T>(path: string, params: Record<string, string>): Promise<T> {
-  const url = new URL(`${GRAPH_BASE}${path}`);
+async function graphGet<T>(path: string, params: Record<string, string>, base = GRAPH_BASE): Promise<T> {
+  const url = new URL(`${base}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   const res = await fetch(url.toString());
   const body = (await res.json()) as T & GraphError;
@@ -62,9 +62,9 @@ async function graphGet<T>(path: string, params: Record<string, string>): Promis
  *  elsewhere after the original upload was cleared from storage. Instagram
  *  gives the full-size file; on Facebook a native-scheduled post id is a
  *  photo id (with `images`), a live one a feed post id (with `full_picture`). */
-export async function publishedImageUrl(platform: "instagram" | "facebook", postId: string, token: string): Promise<string | null> {
+export async function publishedImageUrl(platform: "instagram" | "facebook", postId: string, token: string, base = GRAPH_BASE): Promise<string | null> {
   if (platform === "instagram") {
-    const r = await graphGet<{ media_url?: string }>(`/${postId}`, { fields: "media_url", access_token: token });
+    const r = await graphGet<{ media_url?: string }>(`/${postId}`, { fields: "media_url", access_token: token }, base);
     return r.media_url ?? null;
   }
   try {
@@ -197,10 +197,11 @@ export async function deleteFacebookPost(postId: string, pageAccessToken: string
  *  attempting a publish, so a busy day fails with a clear message instead of
  *  a confusing Graph API error (or, worse, silently contributing to a
  *  restriction). See https://developers.facebook.com/docs/instagram-platform/content-publishing */
-async function assertInstagramPublishingHeadroom(igUserId: string, pageAccessToken: string): Promise<void> {
+async function assertInstagramPublishingHeadroom(igUserId: string, pageAccessToken: string, base: string): Promise<void> {
   const { data } = await graphGet<{ data: { quota_usage: number; config: { quota_total: number } }[] }>(
     `/${igUserId}/content_publishing_limit`,
-    { fields: "config,quota_usage", access_token: pageAccessToken }
+    { fields: "config,quota_usage", access_token: pageAccessToken },
+    base
   );
   const usage = data?.[0];
   if (usage && usage.quota_usage >= usage.config.quota_total) {
@@ -216,14 +217,15 @@ async function assertInstagramPublishingHeadroom(igUserId: string, pageAccessTok
  *  "Media ID is not available" even though the container is perfectly
  *  valid — it just wasn't ready yet (hit in production 2026-09-16). Photo
  *  containers normally finish in a few seconds. */
-async function waitForContainerFinished(containerId: string, pageAccessToken: string): Promise<void> {
+async function waitForContainerFinished(containerId: string, pageAccessToken: string, base: string): Promise<void> {
   const maxAttempts = 20;
   const intervalMs = 1500;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const { status_code } = await graphGet<{ status_code: string }>(`/${containerId}`, {
-      fields: "status_code",
-      access_token: pageAccessToken,
-    });
+    const { status_code } = await graphGet<{ status_code: string }>(
+      `/${containerId}`,
+      { fields: "status_code", access_token: pageAccessToken },
+      base
+    );
     if (status_code === "FINISHED") return;
     if (status_code === "ERROR" || status_code === "EXPIRED") {
       throw new Error(`Instagram media container ${status_code.toLowerCase()} before it could be published.`);
@@ -234,8 +236,9 @@ async function waitForContainerFinished(containerId: string, pageAccessToken: st
 }
 
 /** Two-step Instagram publish: create a media container, then publish it.
- *  Requires the IG account to be a Business/Creator account linked to a
- *  Facebook Page — Meta does not allow API posting to a standalone account.
+ *  Needs a Business/Creator account — either linked to a Facebook Page (Page
+ *  token, graph.facebook.com) or connected through Instagram Login (its own
+ *  token, graph.instagram.com — pass that host as `base`).
  *  Instagram has no native "schedule for later" API at all (unlike
  *  Facebook) — every third-party tool, including this one, has to hold the
  *  post and call this at the right time itself. */
@@ -243,11 +246,12 @@ export async function postInstagramPhoto(
   igUserId: string,
   pageAccessToken: string,
   imageUrl: string,
-  caption: string
+  caption: string,
+  base = GRAPH_BASE
 ): Promise<FacebookPostResult> {
-  await assertInstagramPublishingHeadroom(igUserId, pageAccessToken);
+  await assertInstagramPublishingHeadroom(igUserId, pageAccessToken, base);
 
-  const createRes = await fetch(`${GRAPH_BASE}/${igUserId}/media`, {
+  const createRes = await fetch(`${base}/${igUserId}/media`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ image_url: imageUrl, caption, access_token: pageAccessToken }),
@@ -257,9 +261,9 @@ export async function postInstagramPhoto(
     throw new Error(created.error?.message || "Instagram media container creation failed");
   }
 
-  await waitForContainerFinished(created.id, pageAccessToken);
+  await waitForContainerFinished(created.id, pageAccessToken, base);
 
-  const publishRes = await fetch(`${GRAPH_BASE}/${igUserId}/media_publish`, {
+  const publishRes = await fetch(`${base}/${igUserId}/media_publish`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ creation_id: created.id, access_token: pageAccessToken }),

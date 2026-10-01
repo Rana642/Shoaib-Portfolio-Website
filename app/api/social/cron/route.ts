@@ -5,6 +5,7 @@ import { listDuePosts, markPostResult } from "@/lib/scheduled-posts";
 import { GBP_PLATFORM, gbpPlannerLocation, isGbpPaceError, publishGbpPhotoPost } from "@/lib/gbp";
 import { mintFacebookMediaUrl } from "@/lib/social-facebook-media";
 import { postToAllProjectAccounts, type PlatformPostResult } from "@/lib/social-post";
+import { refreshExpiringInstagramLogins } from "@/lib/social-instagram-login";
 import { presignDownload, deleteObject } from "@/lib/storage";
 
 // Cron runs every 15 min (vercel.json) but a batch of due posts still fires
@@ -127,5 +128,14 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ checked: due.length, processed: results.length, backedOff, results });
+  // Instagram-login tokens last 60 days; keep them alive even on projects
+  // that rarely post. Best-effort — posting results above are what matter.
+  let instagramTokensRefreshed = 0;
+  try {
+    instagramTokensRefreshed = await refreshExpiringInstagramLogins();
+  } catch {
+    /* retried on the next run */
+  }
+
+  return NextResponse.json({ checked: due.length, processed: results.length, backedOff, results, instagramTokensRefreshed });
 }

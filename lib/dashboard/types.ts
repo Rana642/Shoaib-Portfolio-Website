@@ -452,6 +452,11 @@ export const API_SERVICE_PRESETS: ApiServicePreset[] = [
     suggestedFields: ["app_id", "app_secret", "access_token"],
   },
   {
+    value: "instagram_login",
+    label: "Instagram API (Instagram Login)",
+    suggestedFields: ["app_id", "app_secret"],
+  },
+  {
     value: "ga4",
     label: "Google Analytics 4 (GA4)",
     suggestedFields: ["client_id", "client_secret", "refresh_token", "property_id"],

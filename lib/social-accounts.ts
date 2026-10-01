@@ -108,8 +108,16 @@ export async function saveFacebookPageMappings(
     }
     return out;
   });
-  if (rows.length === 0) return;
-  const { error } = await db.from("client_social_accounts").insert(rows);
+  // An Instagram account the project already has (e.g. through Instagram
+  // Login) isn't added a second time — it would post everything twice.
+  const igIds = rows.filter((r) => r.platform === "instagram").map((r) => r.external_id);
+  const { data: haveIg } = igIds.length
+    ? await db.from("client_social_accounts").select("project_id, external_id").eq("platform", "instagram").in("external_id", igIds)
+    : { data: [] };
+  const taken = new Set(((haveIg ?? []) as { project_id: string; external_id: string }[]).map((r) => `${r.project_id}:${r.external_id}`));
+  const fresh = rows.filter((r) => r.platform !== "instagram" || !taken.has(`${r.project_id}:${r.external_id}`));
+  if (fresh.length === 0) return;
+  const { error } = await db.from("client_social_accounts").insert(fresh);
   if (error) throw new Error(error.message);
 }
 
@@ -159,6 +167,52 @@ export async function saveTikTokAccount(input: {
       .insert({ project_id: input.project_id, platform: "tiktok", external_id: input.open_id, ...tokenFields });
     if (error) throw new Error(error.message);
   }
+}
+
+/** Saves an Instagram account connected through Instagram Login (see
+ *  lib/social-instagram-login.ts) — platform "instagram" with an expiring
+ *  token, which is what marks it as a login account. Refuses an account the
+ *  project already has through its Facebook Page, which would post twice. */
+export async function saveInstagramLoginAccount(input: {
+  project_id: string;
+  ig_user_id: string;
+  username: string;
+  access_token: string;
+  expires_in: number;
+}): Promise<"created" | "updated"> {
+  const { data: existing } = await db
+    .from("client_social_accounts")
+    .select("id, token_expires_at")
+    .eq("project_id", input.project_id)
+    .eq("platform", "instagram")
+    .eq("external_id", input.ig_user_id)
+    .maybeSingle();
+  if (existing && existing.token_expires_at === null) {
+    throw new Error(`@${input.username} is already connected to this project through its Facebook Page — no need to log in with Instagram.`);
+  }
+  const fields = {
+    label: `@${input.username}`,
+    access_token_encrypted: encryptToken(input.access_token),
+    refresh_token_encrypted: null,
+    token_expires_at: new Date(Date.now() + input.expires_in * 1000).toISOString(),
+    is_active: true,
+  };
+  if (existing) {
+    const { error } = await db.from("client_social_accounts").update(fields).eq("id", existing.id);
+    if (error) throw new Error(error.message);
+    return "updated";
+  }
+  const { error } = await db.from("client_social_accounts").insert({ project_id: input.project_id, platform: "instagram", external_id: input.ig_user_id, ...fields });
+  if (error) throw new Error(error.message);
+  return "created";
+}
+
+export async function updateInstagramLoginToken(accountId: string, accessToken: string, expiresIn: number) {
+  const { error } = await db
+    .from("client_social_accounts")
+    .update({ access_token_encrypted: encryptToken(accessToken), token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString() })
+    .eq("id", accountId);
+  if (error) throw new Error(error.message);
 }
 
 /** Persists a rotated TikTok access/refresh token pair after a refresh call

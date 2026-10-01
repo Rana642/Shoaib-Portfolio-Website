@@ -11,7 +11,7 @@ export const metadata = { title: "Connections" };
 export default async function SocialConnectionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ project?: string; fb?: string }>;
+  searchParams: Promise<{ project?: string; fb?: string; instagram?: string; instagram_error?: string }>;
 }) {
   const params = await searchParams;
   const [projects, clientsMissingProject, { data: accounts }, { data: connection }] = await Promise.all([
@@ -84,6 +84,13 @@ export default async function SocialConnectionsPage({
         clientsMissingProject={clientsMissingProject.map((c) => c.name)}
         initialProjectId={params.project ?? null}
         autoImportFacebook={params.fb === "connected"}
+        notice={
+          params.instagram_error
+            ? { kind: "error", text: `Instagram: ${params.instagram_error.slice(0, 300)}` }
+            : params.instagram
+              ? { kind: "ok", text: `Instagram ${params.instagram.slice(0, 60)} connected through Instagram login.` }
+              : null
+        }
       />
     </>
   );

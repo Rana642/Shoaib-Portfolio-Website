@@ -1,6 +1,7 @@
 import "server-only";
 import { GRAPH_BASE } from "./social-fb";
 import { listSocialAccountsForProject, decryptAccountToken } from "./social-accounts";
+import { IG_LOGIN_GRAPH_BASE, getFreshInstagramLoginToken, isInstagramLoginAccount } from "./social-instagram-login";
 import type { ClientSocialAccount, SocialPlatform } from "./dashboard/types";
 import type { InsightRange, TrendPoint } from "./social-insights-shared";
 
@@ -27,8 +28,8 @@ type Window = { since: number; until: number };
 type DailyValue = { value: number | Record<string, number>; end_time: string };
 type InsightRow = { name: string; period: string; values: DailyValue[] };
 
-async function graphGet<T>(path: string, params: Record<string, string>): Promise<T> {
-  const url = new URL(`${GRAPH_BASE}${path}`);
+async function graphGet<T>(path: string, params: Record<string, string>, base = GRAPH_BASE): Promise<T> {
+  const url = new URL(`${base}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS } });
   const body = (await res.json()) as T & GraphError;
@@ -376,7 +377,7 @@ export type InstagramInsights = {
   postingTimes: PostingTimeAnalysis;
 };
 
-async function igTotals(igId: string, token: string, windows: Window[]): Promise<IgTotals> {
+async function igTotals(igId: string, token: string, windows: Window[], base: string): Promise<IgTotals> {
   const results = await Promise.all(
     windows.map((w) =>
       graphGet<{ data: { name: string; total_value?: { value?: number } }[] }>(`/${igId}/insights`, {
@@ -386,7 +387,7 @@ async function igTotals(igId: string, token: string, windows: Window[]): Promise
         since: String(w.since),
         until: String(w.until),
         access_token: token,
-      })
+      }, base)
     )
   );
   const out = {} as IgTotals;
@@ -401,7 +402,7 @@ async function igTotals(igId: string, token: string, windows: Window[]): Promise
 
 /** Daily reach stitches cleanly across 30-day windows — each day's value
  *  stands on its own, unlike a range total. */
-async function igReachSeries(igId: string, token: string, windows: Window[]): Promise<TrendPoint[]> {
+async function igReachSeries(igId: string, token: string, windows: Window[], base: string): Promise<TrendPoint[]> {
   const results = await Promise.all(
     windows.map((w) =>
       graphGet<{ data: InsightRow[] }>(`/${igId}/insights`, {
@@ -410,7 +411,7 @@ async function igReachSeries(igId: string, token: string, windows: Window[]): Pr
         since: String(w.since),
         until: String(w.until),
         access_token: token,
-      })
+      }, base)
     )
   );
   return toSeries(results.flatMap((r) => r.data?.[0]?.values ?? []));
@@ -429,19 +430,19 @@ type IgMediaApi = {
   insights?: { data?: { name: string; values?: { value?: number }[] }[] };
 };
 
-async function igMedia(igId: string, token: string, since: number): Promise<PostRow[]> {
+async function igMedia(igId: string, token: string, since: number, host: string): Promise<PostRow[]> {
   const base = "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count";
   let data: IgMediaApi[];
   try {
-    ({ data } = await graphGet<{ data: IgMediaApi[] }>(`/${igId}/media`, {
-      fields: `${base},insights.metric(reach,views,shares,saved)`,
-      limit: "100",
-      access_token: token,
-    }));
+    ({ data } = await graphGet<{ data: IgMediaApi[] }>(
+      `/${igId}/media`,
+      { fields: `${base},insights.metric(reach,views,shares,saved)`, limit: "100", access_token: token },
+      host
+    ));
   } catch {
     // One media type rejecting one metric fails the whole expanded request —
     // fall back to the counts every media object carries on its own.
-    ({ data } = await graphGet<{ data: IgMediaApi[] }>(`/${igId}/media`, { fields: base, limit: "100", access_token: token }));
+    ({ data } = await graphGet<{ data: IgMediaApi[] }>(`/${igId}/media`, { fields: base, limit: "100", access_token: token }, host));
   }
   return data
     .filter((m) => new Date(m.timestamp).getTime() / 1000 >= since)
@@ -464,20 +465,20 @@ async function igMedia(igId: string, token: string, since: number): Promise<Post
 }
 
 async function instagramInsights(account: ClientSocialAccount, rangeDays: InsightRange): Promise<InstagramInsights> {
-  const token = decryptAccountToken(account);
+  // Instagram-login accounts: own token, graph.instagram.com, same metrics.
+  const viaLogin = isInstagramLoginAccount(account);
+  const token = viaLogin ? await getFreshInstagramLoginToken(account) : decryptAccountToken(account);
+  const host = viaLogin ? IG_LOGIN_GRAPH_BASE : GRAPH_BASE;
   const igId = account.external_id;
   const curWindows = windowsFor(rangeDays, 0, IG_MAX_WINDOW);
   const prevWindows = windowsFor(rangeDays, rangeDays, IG_MAX_WINDOW);
 
   const [profile, current, previous, reach, media] = await Promise.all([
-    graphGet<{ username?: string; followers_count?: number }>(`/${igId}`, {
-      fields: "username,followers_count",
-      access_token: token,
-    }),
-    igTotals(igId, token, curWindows),
-    igTotals(igId, token, prevWindows),
-    igReachSeries(igId, token, curWindows),
-    igMedia(igId, token, curWindows[0].since),
+    graphGet<{ username?: string; followers_count?: number }>(`/${igId}`, { fields: "username,followers_count", access_token: token }, host),
+    igTotals(igId, token, curWindows, host),
+    igTotals(igId, token, prevWindows, host),
+    igReachSeries(igId, token, curWindows, host),
+    igMedia(igId, token, curWindows[0].since, host),
   ]);
 
   return {

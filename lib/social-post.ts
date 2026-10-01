@@ -5,6 +5,7 @@ import { postLinkedInPhoto } from "./social-linkedin";
 import { getFreshTikTokAccessToken, publishTikTokPhotoPost, mintTikTokMediaUrl } from "./social-tiktok";
 import { mintInstagramMediaUrl } from "./social-instagram-media";
 import { mintFacebookMediaUrl } from "./social-facebook-media";
+import { IG_LOGIN_GRAPH_BASE, getFreshInstagramLoginToken, isInstagramLoginAccount } from "./social-instagram-login";
 import { getScheduledPost, recordNativeScheduleResult } from "./scheduled-posts";
 import type { ClientSocialAccount, ScheduledPost } from "./dashboard/types";
 
@@ -64,8 +65,11 @@ async function postToOneAccount(
       } else if (account.platform === "instagram") {
         // Always the JPEG-proxy URL, not the raw R2 imageUrl — Instagram's
         // media container creation rejects PNG outright (see
-        // lib/social-instagram-media.ts).
-        const r = await postInstagramPhoto(account.external_id, token, mintInstagramMediaUrl(mediaKey), caption);
+        // lib/social-instagram-media.ts). Accounts connected through
+        // Instagram Login use their own (refreshed) token on graph.instagram.com.
+        const r = isInstagramLoginAccount(account)
+          ? await postInstagramPhoto(account.external_id, await getFreshInstagramLoginToken(account), mintInstagramMediaUrl(mediaKey), caption, IG_LOGIN_GRAPH_BASE)
+          : await postInstagramPhoto(account.external_id, token, mintInstagramMediaUrl(mediaKey), caption);
         post_id = r.post_id;
         usagePercent = r.usagePercent;
       } else if (account.platform === "linkedin") {
