@@ -96,6 +96,43 @@ export function verifyUploadToken(token: string): UploadTokenPayload | null {
 
 export const kbUploadUrl = (token: string) => `${SITE}/kb-upload/${token}`;
 
+// ── direct uploads (a shell PUTs the file, then calls the finish URL) ──
+
+/** One file of a direct upload: where the PUT lands (key, under
+ *  knowledge/<project>/uploads/) and how to register it afterwards. */
+export type DirectUploadPayload = {
+  p: string; // project id
+  key: string; // upload key the presigned PUT writes to
+  k: string; // asset kind
+  pr?: string | null; // product id
+  t: string; // title
+  n?: string | null; // notes
+  m?: boolean; // make primary product photo
+  s?: number; // sort (page order)
+  e: number; // expiry (unix seconds)
+};
+
+export function signDirectUploadToken(payload: Omit<DirectUploadPayload, "e">, ttlSeconds: number): string {
+  const body = Buffer.from(JSON.stringify({ ...payload, e: Math.floor(Date.now() / 1000) + ttlSeconds })).toString("base64url");
+  return `${body}.${sign("kb-direct", body)}`;
+}
+
+export function verifyDirectUploadToken(token: string): DirectUploadPayload | null {
+  if (!secret) return null;
+  const [body, sig] = token.split(".");
+  if (!body || !sig || !safeEqual(sig, sign("kb-direct", body))) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as DirectUploadPayload;
+    if (payload.e < Math.floor(Date.now() / 1000)) return null;
+    if (!payload.key.startsWith(`${KB_KEY_PREFIX}${payload.p}/uploads/`) || payload.key.includes("..")) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+export const kbDirectFinishUrl = (token: string) => `${SITE}/api/kb/direct-upload?t=${token}`;
+
 // ── asset rows ────────────────────────────────────────────────────
 
 async function safeDelete(key: string | null | undefined) {
@@ -118,6 +155,7 @@ export async function registerAsset(input: {
   contentType: string;
   notes?: string | null;
   makePrimary?: boolean;
+  sort?: number;
 }): Promise<{ id: string; url: string; primary: boolean }> {
   const { data, error } = await db
     .from("project_assets")
@@ -129,6 +167,7 @@ export async function registerAsset(input: {
       storage_key: input.key,
       content_type: input.contentType,
       notes: input.notes ?? null,
+      ...(input.sort !== undefined ? { sort: input.sort } : {}),
     })
     .select("id")
     .single();

@@ -8,8 +8,8 @@ import net from "node:net";
 import sharp from "sharp";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "./dashboard/db";
-import { fetchObject, uploadObject, deleteObject } from "./storage";
-import { kbFileUrl, kbUploadUrl, registerAsset, signUploadToken, sniff } from "./kb-files";
+import { fetchObject, uploadObject, deleteObject, presignUpload } from "./storage";
+import { kbDirectFinishUrl, kbFileUrl, kbUploadUrl, registerAsset, signDirectUploadToken, signUploadToken, sniff } from "./kb-files";
 import { CDN_REPO, cdnUrlMap, publishToCdn, slugifyName } from "./kb-cdn";
 
 /**
@@ -29,7 +29,7 @@ export const KB_SERVER_INSTRUCTIONS = [
   "Knowledge base tools (kb_*): before writing captions, ad copy, creatives or image-generation prompts for a client project, call kb_get_brief with the project name — it returns global rules, the project's brand docs and the product list. For any product claim (composition, dosage, indications) call kb_get_product and quote it verbatim; never approximate.",
   "NAP (name/address/phone/email) always comes from the brand's official website (the project's `nap` doc), never from product PDFs, labels or old posts, and is never part of branding docs.",
   "CLAUDE WEB WIDGETS/ARTIFACTS: the sandbox blocks every image origin except a few CDNs — only the `Widget-safe (jsDelivr)` / cdn_url links load there; adsbyshoaib.com URLs show as broken images. If a file has no widget-safe URL yet, ask the user before calling kb_publish_to_cdn (it publishes to a PUBLIC repo).",
-  "Images: every stored file has a permanent public URL (returned by kb_get_product / kb_list_assets / kb_get_asset) you can use in <img> or SVG <image href>; add &w=800&fmt=jpg to get a smaller rendition. You cannot pass the bytes of a chat-attached image to a tool — call kb_create_upload_link and give the user the link, or use kb_add_asset with a public sourceUrl.",
+  "Images: every stored file has a permanent public URL (returned by kb_get_product / kb_list_assets / kb_get_asset) you can use in <img> or SVG <image href>; add &w=800&fmt=jpg to get a smaller rendition. Adding files: if you can run shell commands and the files are on that machine, use kb_create_direct_upload (curl, no browser, many files at once); with a public https link use kb_add_asset sourceUrl; a file that only exists in the chat needs kb_create_upload_link for the user to open. kb_update_asset fixes a file's title/notes/order/product or makes it the main photo.",
   "Google Business Profile (gbp_* tools): Google-friendly pace, always — never reply to reviews or post in bulk. One write at a time, at least 5 minutes apart, max 20 per location per 24 hours (the server enforces it). For many reviews: draft all for the user, publish one, and say when the next can go.",
   "Social posts by calendar day (\"Day 1 ki post design karo\"): call kb_get_social_post — it returns the locked image prompt, the caption and the original images to attach. Use them unchanged.",
   "Product posts (one social post per product, presented like a brochure page — \"Aminotox ki brief post design karo\"): call kb_get_product_post. Same rules: use the prompt, caption and images unchanged.",
@@ -49,7 +49,13 @@ const docTypeSchema = z
   .regex(/^[a-z][a-z0-9_]{1,39}$/, "lowercase letters/digits/underscore, e.g. brand_position, marketing_doc, memory");
 const slugSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,60}$/, "lowercase letters/digits/hyphen");
 const ASSET_KINDS = ["product_image", "reference_image", "logo", "document", "presentation_page", "other"] as const;
+/** Direct uploads also take brochure literature (page images + the PDF). */
+const DIRECT_KINDS = [...ASSET_KINDS, "literature_page", "literature_pdf"] as const;
+const DIRECT_TYPES: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", gif: "image/gif", pdf: "application/pdf" };
+const DIRECT_TTL_SECONDS = 30 * 60;
 const confirmSchema = z.boolean().optional();
+/** Some MCP clients send numbers as strings ("3"); accept both. */
+const intLike = z.union([z.number().int(), z.string().regex(/^-?\d+$/).transform(Number)]);
 
 function formatError(error: unknown): string {
   return `Error: ${error instanceof Error ? error.message : String(error)}`;
@@ -473,6 +479,11 @@ Args: projectName (string), productName (string, fuzzy on name/slug), includeLit
         const presentation = assets.filter((y) => y.kind === "presentation_page");
         for (const x of presentation) urlLines.push(fileLine(`Presentation page "${x.title}"`, x.storage_key, x.title));
         if (lit) for (const x of assets.filter((y) => y.kind === "literature_page" || y.kind === "literature_pdf")) urlLines.push(fileLine(x.title, x.storage_key, x.title));
+        // Pack photos and label print files: links only (open one when you need it).
+        for (const x of assets.filter((y) => y.kind === "reference_image")) {
+          const note = x.notes ? `\n  Note: ${x.notes.length > 220 ? `${x.notes.slice(0, 217)}...` : x.notes}` : "";
+          urlLines.push(`${fileLine(`Reference "${x.title}"`, x.storage_key, x.title)}${note}`);
+        }
         const content: Block[] = [{ type: "text", text: product.content }];
         if (urlLines.length) {
           const missing = urlLines.length > 0 && [...urlLines].some((l) => !l.includes("Widget-safe"));
@@ -912,6 +923,213 @@ Args: projectName, kind (product_image | reference_image | logo | document | pre
         const token = signUploadToken({ p: project.id, k: args.kind, pr: product?.id ?? null, t: args.title, n: args.notes ?? null, m: args.makePrimary === true });
         const url = kbUploadUrl(token);
         return ok(`Upload link for ${project.label} (${args.kind}: "${args.title}"${product ? `, product ${product.name}` : ""}) — valid for 1 hour:\n${url}\n\nAsk the user to open it and choose the file(s), then call kb_list_assets with recent=true.`, { url });
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_create_direct_upload",
+    {
+      title: "Upload Local Files Directly (sessions with a shell)",
+      description: `For a session that can run shell commands (Claude Code, Cowork) with the files on that machine: stores them in the knowledge base with no browser and no base64. Returns one shell command per file — a curl PUT of the file to storage, then a curl POST to a finish URL that checks the bytes, registers the file (kind, title, product, main photo, page order) and prints JSON with its permanent public URL. Put the file's real local path, quoted, in place of FILE and run it. Links work for 30 minutes; repeating the finish step returns the same asset, never a copy.
+
+Files: png/jpg/webp/gif or PDF, up to 25 MB each, up to 20 per call. Kinds: product_image (needs productName; makePrimary=true makes it the main photo), reference_image, logo, document, presentation_page, literature_page (brochure page images — sort = page number), literature_pdf, other. A file that only exists in the chat (no shell) needs kb_create_upload_link instead.
+
+Args: projectName, files: [{ filename (with extension), kind, title, productName?, notes?, makePrimary?, sort? }].`,
+      inputSchema: {
+        projectName: z.string(),
+        files: z
+          .array(
+            z.object({
+              filename: z.string().min(1).max(200),
+              kind: z.enum(DIRECT_KINDS),
+              title: z.string().min(1).max(200),
+              productName: z.string().optional(),
+              notes: z.string().max(2000).optional(),
+              makePrimary: z.boolean().optional(),
+              sort: intLike.optional(),
+            })
+          )
+          .min(1)
+          .max(20),
+      },
+      annotations: { ...WRITE, idempotentHint: false },
+    },
+    async (args: {
+      projectName: string;
+      files: { filename: string; kind: (typeof DIRECT_KINDS)[number]; title: string; productName?: string; notes?: string; makePrimary?: boolean; sort?: number }[];
+    }) => {
+      try {
+        const project = await findProject(args.projectName);
+        // Validate everything first, so a bad entry doesn't leave half a batch.
+        const plan = [];
+        for (const f of args.files) {
+          const product = f.productName ? await findProduct(project.id, f.productName) : null;
+          if (f.kind === "product_image" && !product) throw new Error(`${f.filename}: kind=product_image needs productName.`);
+          const ext = extname(f.filename).slice(1).toLowerCase();
+          const type = DIRECT_TYPES[ext];
+          if (!type) throw new Error(`${f.filename}: unsupported file type — use png, jpg, webp, gif or pdf.`);
+          const imageOnly = f.kind !== "document" && f.kind !== "other" && f.kind !== "literature_pdf";
+          if (imageOnly && type === "application/pdf") throw new Error(`${f.filename}: kind=${f.kind} must be an image.`);
+          if (f.kind === "literature_pdf" && type !== "application/pdf") throw new Error(`${f.filename}: kind=literature_pdf must be a PDF.`);
+          plan.push({ f, product, type });
+        }
+        const uploads = [];
+        for (const { f, product, type } of plan) {
+          const safe = f.filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80);
+          const key = `knowledge/${project.id}/uploads/${randomUUID()}-${safe}`;
+          const putUrl = await presignUpload(key, type, undefined, DIRECT_TTL_SECONDS);
+          const finishUrl = kbDirectFinishUrl(
+            signDirectUploadToken(
+              { p: project.id, key, k: f.kind, pr: product?.id ?? null, t: f.title, n: f.notes ?? null, m: f.makePrimary === true, ...(f.sort !== undefined ? { s: f.sort } : {}) },
+              DIRECT_TTL_SECONDS
+            )
+          );
+          const command = `curl -sSf -X PUT -H "Content-Type: ${type}" -T "FILE" "${putUrl}" && curl -sS -X POST "${finishUrl}"`;
+          uploads.push({ filename: f.filename, kind: f.kind, title: f.title, product: product?.name ?? null, contentType: type, putUrl, finishUrl, command });
+        }
+        const lines = uploads.map(
+          (u, i) => `${i + 1}. ${u.filename} → ${u.kind} "${u.title}"${u.product ? ` (${u.product})` : ""}\n${u.command}`
+        );
+        return ok(
+          `Direct upload for ${project.label} — ${uploads.length} file(s), links valid 30 minutes. Run each command with FILE replaced by that file's quoted local path. Each prints JSON: ok, asset_id, url (permanent).\n\n${lines.join("\n\n")}`,
+          { uploads }
+        );
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_update_asset",
+    {
+      title: "Edit A Stored File's Details",
+      description: `Changes a stored file's title, notes, page order, kind or product link, or makes a product photo the product's main photo. The file itself is untouched — to replace it, upload the new file and remove the old one with kb_delete_asset.
+
+Notes are APPENDED by default so existing notes (e.g. "APPROVED by Shoaib") are kept; pass notesMode="replace" only when the user asks to rewrite them. makePrimary keeps the previous main photo as an extra product photo.
+
+Args: assetId (uuid), title?, notes?, notesMode? ('append' | 'replace'), sort?, kind?, productName? (another product of the same project), makePrimary? (product photos only).`,
+      inputSchema: {
+        assetId: z.string().uuid(),
+        title: z.string().min(1).max(200).optional(),
+        notes: z.string().max(2000).optional(),
+        notesMode: z.enum(["append", "replace"]).optional(),
+        sort: intLike.optional(),
+        kind: z.enum(DIRECT_KINDS).optional(),
+        productName: z.string().optional(),
+        makePrimary: z.boolean().optional(),
+      },
+      annotations: WRITE,
+    },
+    async (args: { assetId: string; title?: string; notes?: string; notesMode?: "append" | "replace"; sort?: number; kind?: (typeof DIRECT_KINDS)[number]; productName?: string; makePrimary?: boolean }) => {
+      try {
+        const { data } = await db.from("project_assets").select("id, project_id, product_id, kind, title, storage_key, content_type, notes, sort").eq("id", args.assetId).maybeSingle();
+        const asset = data as AssetRow | null;
+        if (!asset) throw new Error(`No asset ${args.assetId}.`);
+        const patch: Record<string, unknown> = {};
+        if (args.title) patch.title = args.title;
+        if (args.notes !== undefined) {
+          patch.notes = args.notesMode === "replace" || !asset.notes ? args.notes : `${asset.notes}\n${args.notes}`;
+          if (String(patch.notes).length > 4000) throw new Error("Notes would exceed 4000 characters — use notesMode=replace with a shorter text.");
+        }
+        if (args.sort !== undefined) patch.sort = args.sort;
+        if (args.kind) {
+          const pdf = asset.content_type === "application/pdf";
+          if (pdf && !["document", "other", "literature_pdf"].includes(args.kind)) throw new Error(`This file is a PDF — kind=${args.kind} needs an image.`);
+          if (!pdf && args.kind === "literature_pdf") throw new Error("kind=literature_pdf needs a PDF.");
+          patch.kind = args.kind;
+        }
+        let productId = asset.product_id;
+        if (args.productName) {
+          productId = (await findProduct(asset.project_id, args.productName)).id;
+          patch.product_id = productId;
+        }
+        const kind = (patch.kind as string | undefined) ?? asset.kind;
+        if (args.makePrimary && (kind !== "product_image" || !productId)) throw new Error("makePrimary needs a product photo (kind=product_image) linked to a product.");
+        if (Object.keys(patch).length) {
+          const { error } = await db.from("project_assets").update(patch).eq("id", asset.id);
+          if (error) throw new Error(error.message);
+        }
+        let primaryNote = "";
+        if (args.makePrimary && productId) {
+          const { data: product } = await db.from("project_products").select("name, image_key").eq("id", productId).maybeSingle();
+          const old = product?.image_key as string | null | undefined;
+          if (old && old !== asset.storage_key) {
+            // Keep the previous main photo reachable as an extra photo.
+            const { data: listed } = await db.from("project_assets").select("id").eq("storage_key", old).limit(1);
+            if (!(listed ?? []).length) {
+              await db.from("project_assets").insert({
+                project_id: asset.project_id,
+                product_id: productId,
+                kind: "product_image",
+                title: `${product?.name ?? "Product"} — previous main photo`,
+                storage_key: old,
+                content_type: old.endsWith(".png") ? "image/png" : old.endsWith(".webp") ? "image/webp" : "image/jpeg",
+                notes: `Main photo until ${new Date().toISOString().slice(0, 10)}, replaced by "${(patch.title as string | undefined) ?? asset.title}".`,
+              });
+            }
+          }
+          const { error } = await db.from("project_products").update({ image_key: asset.storage_key, updated_at: new Date().toISOString() }).eq("id", productId);
+          if (error) throw new Error(error.message);
+          primaryNote = ` Now the main photo of ${product?.name ?? "the product"}${old && old !== asset.storage_key ? " (the previous one is kept as an extra photo)" : ""}.`;
+        }
+        if (!Object.keys(patch).length && !primaryNote) return ok("Nothing to change — pass at least one field.");
+        return ok(`Updated "${(patch.title as string | undefined) ?? asset.title}"${Object.keys(patch).length ? ` (${Object.keys(patch).join(", ")})` : ""}.${primaryNote}`);
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_upsert_products",
+    {
+      title: "Create/Update Many Products",
+      description: `Batch form of kb_upsert_product — up to 50 products in one call, same rules: each content is the product's EXACT manufacturer literature, never invented; same slug = update. Each product is reported separately, so one bad entry doesn't stop the rest.
+
+Args: projectName, products: [{ name, slug?, category?, content (markdown), mode? ('replace' | 'append', default replace) }].`,
+      inputSchema: {
+        projectName: z.string(),
+        products: z
+          .array(
+            z.object({
+              name: z.string().min(1).max(120),
+              slug: slugSchema.optional(),
+              category: z.string().max(120).optional(),
+              content: z.string().min(1),
+              mode: z.enum(["replace", "append"]).optional(),
+            })
+          )
+          .min(1)
+          .max(50),
+      },
+      annotations: WRITE,
+    },
+    async ({ projectName, products }: { projectName: string; products: { name: string; slug?: string; category?: string; content: string; mode?: "replace" | "append" }[] }) => {
+      try {
+        const project = await findProject(projectName);
+        const lines: string[] = [];
+        let done = 0;
+        for (const p of products) {
+          const s = p.slug ?? slugify(p.name);
+          try {
+            const { data: existing } = await db.from("project_products").select("content, category").eq("project_id", project.id).eq("slug", s).maybeSingle();
+            const merged = mergeContent(existing?.content, p.content, p.mode ?? "replace");
+            const { error } = await db.from("project_products").upsert(
+              { project_id: project.id, slug: s, name: p.name, category: p.category ?? existing?.category ?? null, content: merged, updated_at: new Date().toISOString() },
+              { onConflict: "project_id,slug" }
+            );
+            if (error) throw new Error(error.message);
+            lines.push(`✓ ${existing ? "Updated" : "Created"} ${p.name} (\`${s}\`)`);
+            done++;
+          } catch (e) {
+            lines.push(`✗ ${p.name} (\`${s}\`): ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }
+        return ok(`${project.label}: ${done}/${products.length} saved.\n${lines.join("\n")}`, { saved: done, total: products.length });
       } catch (error) {
         return fail(error);
       }

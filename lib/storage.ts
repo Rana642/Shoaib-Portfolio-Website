@@ -1,5 +1,5 @@
 import "server-only";
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 /**
@@ -81,6 +81,20 @@ export async function fetchObject(key: string): Promise<{ buffer: Buffer; conten
   const bytes = await res.Body?.transformToByteArray();
   if (!bytes) throw new Error(`Object not found: ${key}`);
   return { buffer: Buffer.from(bytes), contentType: res.ContentType || "application/octet-stream" };
+}
+
+/** Size and type of a stored object without downloading it, or null when
+ *  it isn't there. */
+export async function headObject(key: string): Promise<{ size: number; contentType: string } | null> {
+  if (!client) throw new Error("Object storage is not configured.");
+  try {
+    const res = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+    return { size: Number(res.ContentLength ?? 0), contentType: res.ContentType || "application/octet-stream" };
+  } catch (error) {
+    const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+    if (status === 404 || (error as { name?: string }).name === "NotFound") return null;
+    throw error;
+  }
 }
 
 export async function deleteObject(key: string) {
