@@ -177,8 +177,11 @@ export default function ConnectionsHub({
     } else if (def.key === "instagram") {
       // Page-linked accounts arrive with the Facebook import; the rest log
       // in with Instagram (each must be an Instagram Tester on the app).
-      note = "Linked to the client's Facebook Page? It comes in with the Page import. Otherwise log in with Instagram (add the account as an Instagram Tester on the app first).";
-      action = { kind: "link", label: rows.length ? "Add another with Instagram login" : "Log in with Instagram", href: `/api/dashboard/social/instagram/authorize?project_id=${pid}` };
+      // The account joins whichever project is picked above — say which, so
+      // a second client's account isn't added to the wrong one (2026-10-01).
+      const projectName = projectLabel(pid).split(" — ").pop();
+      note = `Linked to the client's Facebook Page? It comes in with the Page import. Otherwise log in with Instagram — the account you log in with joins ${projectName}. For another project, pick it above first.`;
+      action = { kind: "link", label: `Log in with Instagram for ${projectName}`, href: `/api/dashboard/social/instagram/authorize?project_id=${pid}` };
     } else if (def.loginProvider === "facebook") {
       if (!facebookLogin.connectedAt) {
         note = "Connect your Facebook Business login first.";
