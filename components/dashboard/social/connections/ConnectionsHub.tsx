@@ -287,7 +287,10 @@ export default function ConnectionsHub({
           <ConnectionsMatrix projects={projects} statusOf={statusOf} onOpen={selectProject} />
         ) : (
           <>
-            <Card className="p-4 sm:p-5 mb-5">
+            {/* relative z-20: the glass card's backdrop-filter makes its own
+                stacking context, so without lifting the whole card the
+                project dropdown opens *under* the platform tiles below. */}
+            <Card className="relative z-20 p-4 sm:p-5 mb-5">
               <div className="flex flex-wrap items-center gap-4">
                 <ProjectCombobox
                   className="flex-1 min-w-64"
