@@ -472,6 +472,11 @@ export const API_SERVICE_PRESETS: ApiServicePreset[] = [
     suggestedFields: ["client_id", "client_secret", "refresh_token", "site_url"],
   },
   {
+    value: "linkedin_personal",
+    label: "LinkedIn — personal profile posting (Share on LinkedIn app)",
+    suggestedFields: ["client_id", "client_secret"],
+  },
+  {
     value: "gmb",
     label: "Google Business Profile (GBP/GMB)",
     suggestedFields: ["client_id", "client_secret", "refresh_token"],

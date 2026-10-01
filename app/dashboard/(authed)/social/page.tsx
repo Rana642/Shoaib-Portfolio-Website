@@ -12,7 +12,7 @@ export const metadata = { title: "Connections" };
 export default async function SocialConnectionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ project?: string; fb?: string; fb_error?: string; instagram?: string; instagram_error?: string }>;
+  searchParams: Promise<{ project?: string; li?: string; li_error?: string; fb?: string; fb_error?: string; instagram?: string; instagram_error?: string }>;
 }) {
   const params = await searchParams;
   const [projects, clientsMissingProject, { data: accounts }, { data: connection }, fbLogins] = await Promise.all([
@@ -69,6 +69,14 @@ export default async function SocialConnectionsPage({
         title="Connections"
         description="Link each client project to its social and ad platforms. Workspace logins discover accounts once; projects pick what they use."
       />
+      {params.li === "connected" && (
+        <div className="rounded-lg border border-green-600/25 bg-green-500/10 text-green-800 px-4 py-3 text-small mb-6">
+          LinkedIn profile connected. LinkedIn tokens last 60 days — reconnect it from the LinkedIn tile when it expires.
+        </div>
+      )}
+      {params.li_error && (
+        <div className="rounded-lg border border-red-600/25 bg-red-500/10 text-red-800 px-4 py-3 text-small mb-6">{params.li_error}</div>
+      )}
       <ConnectionsHub
         projects={projects}
         accounts={hubAccounts}

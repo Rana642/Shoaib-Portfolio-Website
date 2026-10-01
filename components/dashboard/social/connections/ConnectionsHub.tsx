@@ -197,9 +197,12 @@ export default function ConnectionsHub({
           : { kind: "button", label: "Import from Facebook", onClick: () => openImport("facebook"), busy: loading === "facebook" };
       }
     } else if (def.loginProvider === "linkedin") {
+      const personalHref = `/api/dashboard/social/linkedin-personal/authorize?project_id=${pid}`;
       if (linkedinLogin.pendingApproval && !linkedinLogin.connectedAt) {
-        note = "Unlocks once LinkedIn approves Community Management API access.";
-        action = { kind: "disabled", label: "Awaiting LinkedIn approval" };
+        note = rows.length
+          ? "Personal profile connected (reconnect every 60 days). Company Pages unlock once LinkedIn approves Community Management API access."
+          : "Company Pages unlock once LinkedIn approves Community Management API access. A personal profile can be connected now.";
+        action = { kind: "link", label: rows.length ? "Reconnect personal profile" : "Connect personal profile", href: personalHref };
       } else {
         note = "Import this client's Company Page from your LinkedIn login.";
         action = rows.length ? null : { kind: "button", label: "Import from LinkedIn", onClick: () => openImport("linkedin"), busy: loading === "linkedin" };
