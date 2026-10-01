@@ -18,6 +18,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Call social poster cron endpoint
+        # Supabase pg_cron runs the social poster every 15 minutes now
+        # (supabase/dashboard-schema.sql) — GitHub's schedule only fired every
+        # 4–5 hours. This step runs only when started by hand, so two runs can
+        # never publish the same Instagram post twice.
+        if: github.event_name == 'workflow_dispatch'
         # Print the status and body before failing — `curl -f` alone exits
         # 22 on any 4xx/5xx without saying which, so a 401 (secret mismatch
         # with Vercel's CRON_SECRET) and a 500 looked identical in the log.
