@@ -25,6 +25,8 @@ export async function GET(request: Request) {
     "pages_show_list,pages_manage_posts,pages_read_engagement,pages_manage_engagement,instagram_basic,instagram_content_publish,business_management,read_insights"
   );
   authorizeUrl.searchParams.set("response_type", "code");
+  // ?slot=2 connects the second Facebook profile (see connectFacebookAccount).
+  authorizeUrl.searchParams.set("state", url.searchParams.get("slot") === "2" ? "slot2" : "slot1");
 
   return NextResponse.redirect(authorizeUrl.toString());
 }

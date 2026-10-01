@@ -670,6 +670,11 @@ alter table social_connections add column if not exists li_user_token_encrypted 
 alter table social_connections add column if not exists li_token_expires_at timestamptz;
 alter table social_connections add column if not exists li_connected_at timestamptz;
 
+-- Row 2 = a second Facebook profile that can discover more client Pages
+-- (2026-10-01). Row 1 stays Shoaib's own login (and carries LinkedIn).
+alter table social_connections drop constraint if exists social_connections_id_check;
+alter table social_connections add constraint social_connections_id_check check (id in (1, 2));
+
 -- One row per PROJECT (client_projects, not clients) per connected platform
 -- account — a client can run several separate businesses (e.g. Ahmed
 -- Jahanzaib Shah runs both "Tad Pharma" and "Meezab Z International"), each

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { getAdminUser } from "../auth";
 import {
   connectFacebookAccount,
+  disconnectFacebookLogin,
   rediscoverFacebookPages,
   saveFacebookPageMappings,
   connectLinkedInAccount,
@@ -40,6 +41,17 @@ export async function connectFacebook(formData: FormData) {
     return { ok: true, pages };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Couldn't connect to Facebook." };
+  }
+}
+
+export async function removeSecondFacebookLogin() {
+  await assertAuthed();
+  try {
+    await disconnectFacebookLogin(2);
+    revalidatePath("/dashboard/social");
+    return { ok: true };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't remove the second Facebook login." };
   }
 }
 

@@ -21,12 +21,12 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
+  const slot = url.searchParams.get("state") === "slot2" ? 2 : 1;
+  const fail = (message: string) => NextResponse.redirect(new URL(`/dashboard/social?fb_error=${encodeURIComponent(message.slice(0, 300))}`, url.origin));
   const code = url.searchParams.get("code");
   const errorParam = url.searchParams.get("error");
-  if (errorParam) {
-    return NextResponse.json({ error: errorParam, error_description: url.searchParams.get("error_description") }, { status: 400 });
-  }
-  if (!code) return NextResponse.json({ error: "No ?code= in the callback URL." }, { status: 400 });
+  if (errorParam) return fail(url.searchParams.get("error_description") || errorParam);
+  if (!code) return fail("Facebook didn't send back a login code. Please try again.");
 
   const appId = process.env.META_APP_ID || "";
   const appSecret = process.env.META_APP_SECRET || "";
@@ -46,9 +46,9 @@ export async function GET(request: Request) {
       throw new Error(body.error?.message || `Token exchange failed (HTTP ${res.status})`);
     }
 
-    await connectFacebookAccount(body.access_token);
+    await connectFacebookAccount(body.access_token, slot);
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Connect failed." }, { status: 502 });
+    return fail(error instanceof Error ? error.message : "Connect failed.");
   }
 
   return NextResponse.redirect(new URL("/dashboard/social?fb=connected", url.origin));

@@ -3,6 +3,7 @@ import { listProjectOptions, listClientsMissingProject } from "@/lib/dashboard/p
 import { PageHeader } from "@/components/dashboard/ui";
 import ConnectionsHub, { type HubAccount } from "@/components/dashboard/social/connections/ConnectionsHub";
 import { getTikTokAccountSummary } from "@/lib/social-tiktok";
+import { listFacebookLogins } from "@/lib/social-accounts";
 import type { ClientSocialAccount } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
@@ -11,14 +12,15 @@ export const metadata = { title: "Connections" };
 export default async function SocialConnectionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ project?: string; fb?: string; instagram?: string; instagram_error?: string }>;
+  searchParams: Promise<{ project?: string; fb?: string; fb_error?: string; instagram?: string; instagram_error?: string }>;
 }) {
   const params = await searchParams;
-  const [projects, clientsMissingProject, { data: accounts }, { data: connection }] = await Promise.all([
+  const [projects, clientsMissingProject, { data: accounts }, { data: connection }, fbLogins] = await Promise.all([
     listProjectOptions(),
     listClientsMissingProject(),
     db.from("client_social_accounts").select("*").order("created_at"),
     db.from("social_connections").select("connected_at, fb_token_expires_at, li_connected_at").eq("id", 1).maybeSingle(),
+    listFacebookLogins(),
   ]);
   const { data: gbp } = await db.from("gbp_connections").select("project_id, locations, selected_location");
 
@@ -35,7 +37,10 @@ export default async function SocialConnectionsPage({
 
   const fbExpiresAt = connection?.fb_token_expires_at ?? null;
   // eslint-disable-next-line react-hooks/purity -- server component, rendered per request
-  const fbExpiresSoon = fbExpiresAt ? new Date(fbExpiresAt).getTime() - Date.now() < 14 * 86_400_000 : false;
+  const now = Date.now();
+  const fbExpiresSoon = fbExpiresAt ? new Date(fbExpiresAt).getTime() - now < 14 * 86_400_000 : false;
+  const fb2 = fbLogins.find((l) => l.slot === 2)!;
+  const fb1Name = fbLogins.find((l) => l.slot === 1)?.name ?? null;
 
   // Never ship encrypted tokens to the browser — the hub only needs identity.
   const hubAccounts: HubAccount[] = allAccounts.map(({ id, project_id, platform, label, external_id }) => ({
@@ -73,6 +78,14 @@ export default async function SocialConnectionsPage({
           connectedAt: connection?.connected_at ?? null,
           expiresAt: fbExpiresAt,
           expiresSoon: fbExpiresSoon,
+          accountName: fb1Name,
+        }}
+        facebookLogin2={{
+          provider: "facebook",
+          connectedAt: fb2.connectedAt,
+          expiresAt: fb2.expiresAt,
+          expiresSoon: fb2.expiresAt ? new Date(fb2.expiresAt).getTime() - now < 14 * 86_400_000 : false,
+          accountName: fb2.name,
         }}
         linkedinLogin={{
           provider: "linkedin",
@@ -85,7 +98,9 @@ export default async function SocialConnectionsPage({
         initialProjectId={params.project ?? null}
         autoImportFacebook={params.fb === "connected"}
         notice={
-          params.instagram_error
+          params.fb_error
+            ? { kind: "error", text: `Facebook: ${params.fb_error.slice(0, 300)}` }
+            : params.instagram_error
             ? { kind: "error", text: `Instagram: ${params.instagram_error.slice(0, 300)}` }
             : params.instagram
               ? { kind: "ok", text: `Instagram ${params.instagram.slice(0, 60)} connected through Instagram login.` }

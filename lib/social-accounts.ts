@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "./dashboard/db";
 import { encryptToken, decryptToken } from "./social-crypto";
-import { exchangeForLongLivedUserToken, listManagedPages, type DiscoveredPage } from "./social-fb";
+import { exchangeForLongLivedUserToken, facebookMe, listManagedPages, type DiscoveredPage } from "./social-fb";
 import { listManagedOrganizations, type DiscoveredOrganization } from "./social-linkedin";
 import type { ClientSocialAccount, SocialPlatform } from "./dashboard/types";
 
@@ -49,30 +49,94 @@ export async function addManualSocialAccount(input: {
  *  User token for a long-lived one, stores it, and returns the discovered
  *  Pages for the dashboard to map to projects. Doesn't create any
  *  client_social_accounts rows yet — that happens in saveFacebookPageMappings. */
-export async function connectFacebookAccount(shortLivedToken: string): Promise<DiscoveredPage[]> {
+/** Up to two Facebook profiles can discover Pages (social_connections rows
+ *  1 and 2): Shoaib's own, plus one more profile with access to other
+ *  clients' Pages (Shoaib, 2026-10-01 — his wife's, added as a tester on the
+ *  app). Row 1 also carries the LinkedIn login. */
+export type FacebookLoginSlot = 1 | 2;
+
+export async function connectFacebookAccount(shortLivedToken: string, slot: FacebookLoginSlot = 1): Promise<DiscoveredPage[]> {
   const { access_token, expires_in } = await exchangeForLongLivedUserToken(shortLivedToken);
   // A System User token has no expires_in at all (it doesn't expire) —
   // leave fb_token_expires_at null rather than crash on Date(NaN).
   const expiresAt = expires_in ? new Date(Date.now() + expires_in * 1000).toISOString() : null;
+  const me = await facebookMe(access_token);
 
-  await db.from("social_connections").upsert({
-    id: 1,
+  // The same profile in both slots would only duplicate the Page list.
+  const { data: other } = await db.from("social_connections").select("fb_user_id").eq("id", slot === 1 ? 2 : 1).maybeSingle();
+  if (other?.fb_user_id && other.fb_user_id === me.id) {
+    throw new Error(`${me.name} is already the other Facebook login. Log out of Facebook in this browser (or use a private window), then connect the other profile.`);
+  }
+
+  const { error } = await db.from("social_connections").upsert({
+    id: slot,
+    fb_user_id: me.id,
     fb_user_token_encrypted: encryptToken(access_token),
     fb_token_expires_at: expiresAt,
     connected_at: new Date().toISOString(),
   });
+  if (error) {
+    throw new Error(
+      slot === 2 && /check constraint/i.test(error.message)
+        ? "A second Facebook login needs the database update first (social_connections id 2) — see supabase/dashboard-schema.sql."
+        : error.message
+    );
+  }
 
   return listManagedPages(access_token);
 }
 
-/** Re-discovers Pages using the already-stored long-lived User token
- *  (e.g. to refresh the list without re-pasting a token). */
+/** Both Facebook logins for the Connections page, with whose profile each
+ *  is (asked live — the name isn't stored). */
+export async function listFacebookLogins(): Promise<{ slot: FacebookLoginSlot; connectedAt: string | null; expiresAt: string | null; name: string | null }[]> {
+  const { data } = await db.from("social_connections").select("id, fb_user_token_encrypted, fb_token_expires_at, connected_at").order("id");
+  const rows = (data ?? []) as { id: number; fb_user_token_encrypted: string | null; fb_token_expires_at: string | null; connected_at: string | null }[];
+  return Promise.all(
+    ([1, 2] as const).map(async (slot) => {
+      const r = rows.find((x) => x.id === slot);
+      let name: string | null = null;
+      if (r?.fb_user_token_encrypted) {
+        try {
+          name = (await facebookMe(decryptToken(r.fb_user_token_encrypted))).name;
+        } catch {
+          name = null;
+        }
+      }
+      return { slot, connectedAt: r?.fb_user_token_encrypted ? r.connected_at : null, expiresAt: r?.fb_token_expires_at ?? null, name };
+    })
+  );
+}
+
+/** Removes the second Facebook login. Pages already imported through it keep
+ *  their own Page tokens and keep posting. */
+export async function disconnectFacebookLogin(slot: FacebookLoginSlot) {
+  if (slot === 1) throw new Error("The main Facebook login is replaced by reconnecting, not removed.");
+  const { error } = await db.from("social_connections").delete().eq("id", slot);
+  if (error) throw new Error(error.message);
+}
+
+/** Re-discovers Pages with every stored Facebook login, one list without
+ *  duplicates (a Page both profiles can reach comes from login 1). */
 export async function rediscoverFacebookPages(): Promise<DiscoveredPage[]> {
-  const { data, error } = await db.from("social_connections").select("fb_user_token_encrypted").eq("id", 1).single();
-  if (error || !data?.fb_user_token_encrypted) {
-    throw new Error("No Facebook connection saved yet — connect one first.");
+  const { data } = await db.from("social_connections").select("id, fb_user_token_encrypted").order("id");
+  const logins = ((data ?? []) as { id: number; fb_user_token_encrypted: string | null }[]).filter((r) => r.fb_user_token_encrypted);
+  if (!logins.length) throw new Error("No Facebook connection saved yet — connect one first.");
+  const pages: DiscoveredPage[] = [];
+  const seen = new Set<string>();
+  const errors: string[] = [];
+  for (const login of logins) {
+    try {
+      for (const p of await listManagedPages(decryptToken(login.fb_user_token_encrypted!))) {
+        if (seen.has(p.page_id)) continue;
+        seen.add(p.page_id);
+        pages.push(p);
+      }
+    } catch (e) {
+      errors.push(`Facebook login ${login.id}: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
-  return listManagedPages(decryptToken(data.fb_user_token_encrypted));
+  if (!pages.length && errors.length) throw new Error(errors.join(" · "));
+  return pages;
 }
 
 /** Step 2 — persists the project mapping for a set of discovered Pages

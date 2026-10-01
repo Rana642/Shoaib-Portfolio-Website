@@ -8,6 +8,7 @@ import {
   connectLinkedIn,
   refreshFacebookPages,
   refreshLinkedInOrgs,
+  removeSecondFacebookLogin,
   saveLinkedInMappings,
   saveMappings,
 } from "@/lib/dashboard/actions/social";
@@ -39,6 +40,7 @@ export default function ConnectionsHub({
   accounts,
   tiktokFollowers,
   facebookLogin,
+  facebookLogin2,
   linkedinLogin,
   clientsMissingProject,
   initialProjectId,
@@ -49,6 +51,8 @@ export default function ConnectionsHub({
   accounts: HubAccount[];
   tiktokFollowers: Record<string, number | null>;
   facebookLogin: WorkspaceLogin;
+  /** A second Facebook profile with access to other clients' Pages. */
+  facebookLogin2: WorkspaceLogin;
   linkedinLogin: WorkspaceLogin;
   clientsMissingProject: string[];
   initialProjectId: string | null;
@@ -214,7 +218,7 @@ export default function ConnectionsHub({
       {/* Workspace logins */}
       <section>
         <SectionLabel>Workspace logins</SectionLabel>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <LoginCard
             platform={byKey("facebook")}
             title="Facebook Business login"
@@ -223,6 +227,26 @@ export default function ConnectionsHub({
             primary={{ label: facebookLogin.connectedAt ? "Reconnect" : "Connect with Facebook", href: "/api/dashboard/social/facebook/authorize" }}
             onImport={facebookLogin.connectedAt ? () => openImport("facebook") : undefined}
             importing={loading === "facebook"}
+          />
+          <LoginCard
+            platform={byKey("facebook")}
+            title="Second Facebook login"
+            subtitle="Another profile with access to client Pages. Import Pages lists both logins' Pages."
+            login={facebookLogin2}
+            primary={{ label: facebookLogin2.connectedAt ? "Reconnect" : "Connect second profile", href: "/api/dashboard/social/facebook/authorize?slot=2" }}
+            onImport={facebookLogin2.connectedAt ? () => openImport("facebook") : undefined}
+            importing={loading === "facebook"}
+            onRemove={
+              facebookLogin2.connectedAt
+                ? () =>
+                    startTransition(async () => {
+                      const res = await removeSecondFacebookLogin();
+                      if (res?.error) setError(res.error);
+                      else router.refresh();
+                    })
+                : undefined
+            }
+            hint={facebookLogin2.connectedAt ? undefined : "Log out of Facebook in this browser first (or use a private window), so Facebook asks which profile to use."}
           />
           <LoginCard
             platform={byKey("linkedin")}
@@ -374,6 +398,8 @@ function LoginCard({
   primary,
   onImport,
   importing,
+  onRemove,
+  hint,
 }: {
   platform: PlatformDef;
   title: string;
@@ -382,6 +408,8 @@ function LoginCard({
   primary?: { label: string; href: string };
   onImport?: () => void;
   importing: boolean;
+  onRemove?: () => void;
+  hint?: string;
 }) {
   const expiresSoon = Boolean(login.expiresSoon);
   // Fixed locale + zone so server and browser render the same string (no hydration mismatch).
@@ -408,11 +436,12 @@ function LoginCard({
           <p className="text-tag text-ink-subtle mt-1">{subtitle}</p>
           <p className="text-small text-ink-muted mt-2">
             {login.connectedAt
-              ? `Connected ${fmt(login.connectedAt)}${login.expiresAt ? ` · valid until ${fmt(login.expiresAt)}` : ""}`
+              ? `${login.accountName ? `${login.accountName} · ` : ""}Connected ${fmt(login.connectedAt)}${login.expiresAt ? ` · valid until ${fmt(login.expiresAt)}` : ""}`
               : login.pendingApproval
                 ? "Waiting on the platform's API access review."
                 : "Not connected yet."}
           </p>
+          {hint && <p className="text-tag text-ink-subtle mt-1">{hint}</p>}
           <div className="flex flex-wrap gap-2 mt-4">
             {onImport && (
               <button type="button" onClick={onImport} disabled={importing} className={buttonStyles.primary}>
@@ -425,6 +454,17 @@ function LoginCard({
                 {primary.label}
                 <ArrowUpRight className="size-4" aria-hidden />
               </a>
+            )}
+            {onRemove && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm("Remove this Facebook login? Pages already imported through it keep posting.")) onRemove();
+                }}
+                className={buttonStyles.danger}
+              >
+                Remove
+              </button>
             )}
           </div>
         </div>

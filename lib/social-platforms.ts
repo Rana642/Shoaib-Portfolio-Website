@@ -87,6 +87,8 @@ export type WorkspaceLogin = {
   pendingApproval?: boolean;
   /** Computed server-side (render must stay pure) — token expires within 14 days. */
   expiresSoon?: boolean;
+  /** Whose profile this login is (Facebook). */
+  accountName?: string | null;
 };
 
 export type ConnectionStatus = "connected" | "not_connected" | "pending" | "workspace";

@@ -100,6 +100,11 @@ export async function exchangeForLongLivedUserToken(
   return { access_token: result.access_token, expires_in: result.expires_in ?? null };
 }
 
+/** Whose Facebook profile a User token belongs to. */
+export async function facebookMe(token: string): Promise<{ id: string; name: string }> {
+  return graphGet<{ id: string; name: string }>("/me", { fields: "id,name", access_token: token });
+}
+
 export type DiscoveredPage = {
   page_id: string;
   name: string;
