@@ -173,7 +173,7 @@ const plannerUploadSchema = z.object({
   // connected accounts" (the original, still-default behavior).
   platforms: z.string().optional(),
   // A video Reel instead of a photo post, with an optional cover image.
-  post_type: z.enum(["post", "reel"]).default("post"),
+  post_type: z.enum(["post", "reel", "story"]).default("post"),
   cover_key: z.string().min(1).optional(),
 });
 
@@ -214,7 +214,7 @@ export async function createPlannerPost(formData: FormData) {
       scheduled_at: dateToScheduledAt(parsed.data.date, parsed.data.offset_minutes),
       caption: parsed.data.caption,
       target_platforms: targetPlatforms,
-      ...(parsed.data.post_type === "reel" ? { reel: { cover_key: parsed.data.cover_key ?? null } } : {}),
+      ...(parsed.data.post_type !== "post" ? { reel: { post_type: parsed.data.post_type, cover_key: parsed.data.post_type === "reel" ? parsed.data.cover_key ?? null : null } } : {}),
     });
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Couldn't queue the upload." };

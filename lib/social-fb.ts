@@ -289,6 +289,74 @@ export async function publishFacebookReel(
   return { post_id: start.video_id, usagePercent: peakUsagePercent(res) };
 }
 
+async function pagePost<T>(path: string, params: Record<string, string>, pageAccessToken: string, what: string): Promise<{ body: T; res: Response }> {
+  const res = await fetch(`${GRAPH_BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ ...params, access_token: pageAccessToken }),
+  });
+  const body = (await res.json()) as T & GraphError;
+  if (!res.ok || body.error) throw new Error(body.error?.message || `${what} failed (HTTP ${res.status})`);
+  return { body, res };
+}
+
+/** A Facebook Page photo Story (Page Stories API): the photo is uploaded
+ *  unpublished, then published as a story. Stories can't be scheduled on
+ *  Meta's side — the cron calls this at the post's time. */
+export async function publishFacebookPhotoStory(pageId: string, pageAccessToken: string, imageUrl: string): Promise<FacebookPostResult> {
+  const { body: photo } = await pagePost<{ id?: string }>(`/${pageId}/photos`, { url: imageUrl, published: "false" }, pageAccessToken, "Facebook story photo upload");
+  if (!photo.id) throw new Error("Facebook didn't accept the story photo.");
+  const { body, res } = await pagePost<{ success?: boolean; post_id?: string }>(`/${pageId}/photo_stories`, { photo_id: photo.id }, pageAccessToken, "Facebook story");
+  if (body.success === false) throw new Error("Facebook didn't publish the story.");
+  return { post_id: body.post_id || photo.id, usagePercent: peakUsagePercent(res) };
+}
+
+/** A Facebook Page video Story (up to 60 seconds, 9:16): start → upload by
+ *  URL → finish, like a Reel. */
+export async function publishFacebookVideoStory(pageId: string, pageAccessToken: string, videoUrl: string): Promise<FacebookPostResult> {
+  const { body: start } = await pagePost<{ video_id?: string; upload_url?: string }>(`/${pageId}/video_stories`, { upload_phase: "start" }, pageAccessToken, "Facebook video story start");
+  if (!start.video_id) throw new Error("Facebook didn't open a story upload.");
+  const up = await fetch(start.upload_url || `${RUPLOAD_BASE}/${start.video_id}`, {
+    method: "POST",
+    headers: { Authorization: `OAuth ${pageAccessToken}`, file_url: videoUrl },
+  });
+  const upBody = (await up.json().catch(() => ({}))) as { success?: boolean; debug_info?: { message?: string } } & GraphError;
+  if (!up.ok || upBody.error || upBody.success === false) {
+    throw new Error(upBody.error?.message || upBody.debug_info?.message || `Facebook couldn't fetch the story video (HTTP ${up.status})`);
+  }
+  const { body, res } = await pagePost<{ success?: boolean; post_id?: string }>(
+    `/${pageId}/video_stories`,
+    { upload_phase: "finish", video_id: start.video_id },
+    pageAccessToken,
+    "Facebook video story"
+  );
+  if (body.success === false) throw new Error("Facebook didn't publish the story.");
+  return { post_id: body.post_id || start.video_id, usagePercent: peakUsagePercent(res) };
+}
+
+/** Starts an Instagram Story (photo or video) — same container flow as a
+ *  Reel: create, wait for FINISHED, publish. */
+export async function createInstagramStoryContainer(
+  igUserId: string,
+  token: string,
+  media: { imageUrl: string } | { videoUrl: string },
+  base = GRAPH_BASE
+): Promise<string> {
+  await assertInstagramPublishingHeadroom(igUserId, token, base);
+  const res = await fetch(`${base}/${igUserId}/media`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      media_type: "STORIES",
+      ...("videoUrl" in media ? { video_url: media.videoUrl } : { image_url: media.imageUrl }),
+      access_token: token,
+    }),
+  });
+  const body = (await res.json()) as { id?: string } & GraphError;
+  if (!res.ok || body.error || !body.id) throw new Error(body.error?.message || "Instagram couldn't start the story.");
+  return body.id;
+}
+
 /** Starts an Instagram Reel: creates the container, which Instagram then
  *  fetches and processes on its own (often longer than one cron run).
  *  Publish it with publishInstagramContainer once its status is FINISHED.

@@ -130,7 +130,9 @@ Returns: the image itself (view it directly), plus the post's original filename 
         if (!post) return { content: [{ type: "text", text: `Error: No post found with id '${postId}'.` }], isError: true };
         // A Reel's media is a video — show its cover image instead, if any.
         const isReel = post.post_type === "reel";
-        const imageKey = isReel ? post.cover_key : post.media_key;
+        // A Reel, or a story that is a video: never send the video as an image.
+        const isVideo = isReel || /\.(mp4|mov)$/i.test(post.media_key);
+        const imageKey = isVideo ? post.cover_key : post.media_key;
         const [image, projects] = await Promise.all([imageKey ? fetchObject(imageKey) : Promise.resolve(null), projectContextMap()]);
         const ctx = projects.get(post.project_id);
         const styleText = ctx?.postingInstructions

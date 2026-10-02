@@ -2,11 +2,14 @@ import "server-only";
 import { listSocialAccountsForProject, decryptAccountToken } from "./social-accounts";
 import {
   createInstagramReelContainer,
+  createInstagramStoryContainer,
   deleteFacebookPost,
   instagramContainerStatus,
   postFacebookPhoto,
   postInstagramPhoto,
+  publishFacebookPhotoStory,
   publishFacebookReel,
+  publishFacebookVideoStory,
   publishInstagramContainer,
   scheduleFacebookPhoto,
 } from "./social-fb";
@@ -37,30 +40,50 @@ export type PlatformPostResult = {
 
 export type ReelPending = { container_id: string; since: string };
 
-/** What a Reel needs when it's posted: the video and optional cover, as
- *  URLs Meta can fetch, and any Instagram container from an earlier run. */
-export type ReelInput = { videoUrl: string; coverUrl: string | null; pending: Record<string, ReelPending> };
+/** What a Reel or a Story needs when it's posted: URLs Meta can fetch, and
+ *  any Instagram container from an earlier run.
+ *  - Reel / video story: `videoUrl` (the original video).
+ *  - Photo story: `fbImageUrl` (size-safe proxy) and `igImageUrl` (JPEG proxy). */
+export type ReelInput = {
+  kind: "reel" | "story";
+  videoUrl: string | null;
+  fbImageUrl?: string;
+  igImageUrl?: string;
+  coverUrl: string | null;
+  pending: Record<string, ReelPending>;
+};
 
-/** Reels go to Facebook and Instagram; other platforms aren't wired for video yet. */
+/** Reels and Stories go to Facebook and Instagram; other platforms aren't wired for them yet. */
 export const REEL_PLATFORMS = ["facebook", "instagram"];
-/** Give up on an Instagram Reel that hasn't finished processing by then. */
+/** Give up on an Instagram Reel/Story that hasn't finished processing by then. */
 const REEL_PROCESSING_LIMIT_MS = 45 * 60 * 1000;
 
 async function postReelToAccount(account: ClientSocialAccount, caption: string, reel: ReelInput): Promise<PlatformPostResult> {
   const base = { platform: account.platform, label: account.label, external_id: account.external_id };
+  const what = reel.kind === "story" ? "story" : "Reel";
   try {
     if (account.platform === "facebook") {
-      const r = await publishFacebookReel(account.external_id, decryptAccountToken(account), reel.videoUrl, caption);
+      const token = decryptAccountToken(account);
+      const r =
+        reel.kind === "reel"
+          ? await publishFacebookReel(account.external_id, token, reel.videoUrl!, caption)
+          : reel.videoUrl
+            ? await publishFacebookVideoStory(account.external_id, token, reel.videoUrl)
+            : await publishFacebookPhotoStory(account.external_id, token, reel.fbImageUrl!);
       return { ...base, ok: true, post_id: r.post_id, usagePercent: r.usagePercent };
     }
-    if (account.platform !== "instagram") return { ...base, ok: false, error: "Reels go to Facebook and Instagram only for now." };
+    if (account.platform !== "instagram") return { ...base, ok: false, error: "Reels and stories go to Facebook and Instagram only for now." };
 
     const viaLogin = isInstagramLoginAccount(account);
     const token = viaLogin ? await getFreshInstagramLoginToken(account) : decryptAccountToken(account);
     const host = viaLogin ? IG_LOGIN_GRAPH_BASE : undefined;
     let pending = reel.pending[account.external_id];
     if (!pending) {
-      pending = { container_id: await createInstagramReelContainer(account.external_id, token, reel.videoUrl, caption, reel.coverUrl, host), since: new Date().toISOString() };
+      const containerId =
+        reel.kind === "reel"
+          ? await createInstagramReelContainer(account.external_id, token, reel.videoUrl!, caption, reel.coverUrl, host)
+          : await createInstagramStoryContainer(account.external_id, token, reel.videoUrl ? { videoUrl: reel.videoUrl } : { imageUrl: reel.igImageUrl! }, host);
+      pending = { container_id: containerId, since: new Date().toISOString() };
     }
     // Short videos are often ready within seconds — check a few times before
     // leaving it for the next run.
@@ -71,12 +94,12 @@ async function postReelToAccount(account: ClientSocialAccount, caption: string, 
         return { ...base, ok: true, post_id: r.post_id, usagePercent: r.usagePercent };
       }
       if (status.code === "ERROR" || status.code === "EXPIRED") {
-        return { ...base, ok: false, error: `Instagram couldn't process the video (${status.code.toLowerCase()}${status.detail ? `: ${status.detail}` : ""}).` };
+        return { ...base, ok: false, error: `Instagram couldn't process the ${what} (${status.code.toLowerCase()}${status.detail ? `: ${status.detail}` : ""}).` };
       }
       if (i < 3) await new Promise((r) => setTimeout(r, 3000));
     }
     if (Date.now() - new Date(pending.since).getTime() > REEL_PROCESSING_LIMIT_MS) {
-      return { ...base, ok: false, error: "Instagram didn't finish processing the video in 45 minutes." };
+      return { ...base, ok: false, error: `Instagram didn't finish processing the ${what} in 45 minutes.` };
     }
     return { ...base, ok: false, pending };
   } catch (error) {

@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard, CircleDashed } from "lucide-react";
 import { createPlannerPost, deletePost, movePost, reorderDay } from "@/lib/dashboard/actions/social";
 import { deletePortalUpload } from "@/lib/portal/planner";
 import PlannerUploader from "@/components/portal/PlannerUploader";
@@ -19,27 +19,37 @@ const REEL_PLATFORMS = ["facebook", "instagram"];
 /** A post's picture on the calendar: the photo, or for a Reel its cover
  *  (else the video's first frame) with a small Reel badge. */
 function PostMedia({ post, className, ring, badge = true }: { post: PostWithUrl; className: string; ring: string; badge?: boolean }) {
-  const isReel = post.post_type === "reel";
-  const still = isReel ? post.coverUrl : post.imageUrl;
+  const isVideo = post.post_type === "reel" || isVideoKey(post.media_key);
+  const still = isVideo ? post.coverUrl : post.imageUrl;
+  const Kind = KIND_BADGE[post.post_type ?? "post"];
   return (
     <div className="relative">
       {still ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={still} alt="" className={cn(className, "object-cover ring-2", ring)} />
-      ) : isReel && post.imageUrl ? (
+      ) : isVideo && post.imageUrl ? (
         <video src={post.imageUrl} muted playsInline preload="metadata" className={cn(className, "object-cover ring-2 bg-ink", ring)} />
       ) : (
         <div className={cn(className, "bg-ink/10 ring-2", ring)} />
       )}
-      {isReel && badge && (
+      {Kind && badge && (
         <span className="absolute top-1 left-1 flex items-center gap-1 rounded-full bg-ink/80 text-cloud px-1.5 py-0.5 text-tag">
-          <Clapperboard className="size-3" aria-hidden />
-          Reel
+          <Kind.Icon className="size-3" aria-hidden />
+          {Kind.label}
         </span>
       )}
     </div>
   );
 }
+
+/** An uploaded video (Reel, or a video story) — told by its file extension. */
+const isVideoKey = (key: string) => /\.(mp4|mov)$/i.test(key);
+
+const KIND_BADGE: Record<string, { label: string; Icon: typeof Clapperboard } | null> = {
+  post: null,
+  reel: { label: "Reel", Icon: Clapperboard },
+  story: { label: "Story", Icon: CircleDashed },
+};
 type ViewMode = "week" | "month";
 
 const STATUS_RING: Record<string, string> = {
@@ -568,6 +578,9 @@ function DayPostThumb({ post, client = false }: { post: PostWithUrl; client?: bo
       {post.post_type === "reel" && (
         <Clapperboard className="absolute bottom-0.5 right-0.5 size-3 text-cloud drop-shadow" aria-label="Reel" />
       )}
+      {post.post_type === "story" && (
+        <CircleDashed className="absolute bottom-0.5 right-0.5 size-3 text-cloud drop-shadow" aria-label="Story" />
+      )}
       {removable && (
         <button
           type="button"
@@ -619,8 +632,9 @@ function UploadModal({
   onClose: () => void;
 }) {
   const [caption, setCaption] = useState("");
-  // A photo post, or a video Reel (Facebook + Instagram).
-  const [kind, setKind] = useState<"post" | "reel">("post");
+  // A photo post, a video Reel, or a Story (photo or video) — Reels and
+  // Stories go to Facebook + Instagram.
+  const [kind, setKind] = useState<"post" | "reel" | "story">("post");
   const reelPlatforms = connectedPlatforms.filter((p) => REEL_PLATFORMS.includes(p));
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [videoSeconds, setVideoSeconds] = useState<number | null>(null);
@@ -636,7 +650,7 @@ function UploadModal({
   const [duplicateDate, setDuplicateDate] = useState<string | null>(null);
 
   const togglePlatform = (platform: string) => {
-    if (kind === "reel" && !REEL_PLATFORMS.includes(platform)) return;
+    if (kind !== "post" && !REEL_PLATFORMS.includes(platform)) return;
     setSelectedPlatforms((prev) => {
       const next = new Set(prev);
       if (next.has(platform)) next.delete(platform);
@@ -645,7 +659,7 @@ function UploadModal({
     });
   };
 
-  const switchKind = (next: "post" | "reel") => {
+  const switchKind = (next: "post" | "reel" | "story") => {
     if (next === kind) return;
     setKind(next);
     setFile(null);
@@ -657,19 +671,25 @@ function UploadModal({
     setVideoSeconds(null);
     setDuplicateDate(null);
     setError(null);
-    setSelectedPlatforms(new Set(next === "reel" ? reelPlatforms : connectedPlatforms));
+    setSelectedPlatforms(new Set(next === "post" ? connectedPlatforms : reelPlatforms));
   };
 
   const pickFile = (picked: File | null) => {
     if (!picked) return;
     setError(null);
-    if (kind === "reel") {
-      if (picked.type !== "video/mp4" && picked.type !== "video/quicktime") {
-        setError("Choose an MP4 or MOV video for a Reel.");
-        return;
-      }
-      // Read the length up front — Facebook only takes 3–90 second Reels.
-      setVideoSeconds(null);
+    const pickedVideo = picked.type === "video/mp4" || picked.type === "video/quicktime";
+    if (kind === "reel" && !pickedVideo) {
+      setError("Choose an MP4 or MOV video for a Reel.");
+      return;
+    }
+    if (kind === "story" && !pickedVideo && !["image/jpeg", "image/png", "image/webp"].includes(picked.type)) {
+      setError("A story is a JPG/PNG/WebP image or an MP4/MOV video.");
+      return;
+    }
+    setVideoSeconds(null);
+    if (pickedVideo) {
+      // Read the length up front — Facebook takes 3–90 second Reels and
+      // stories up to 60 seconds.
       const probeUrl = URL.createObjectURL(picked);
       const probe = document.createElement("video");
       probe.preload = "metadata";
@@ -692,15 +712,19 @@ function UploadModal({
 
   const onSubmit = async () => {
     if (!file) {
-      setError(kind === "reel" ? "Choose a video first." : "Choose an image first.");
+      setError(kind === "reel" ? "Choose a video first." : kind === "story" ? "Choose an image or a video first." : "Choose an image first.");
       return;
     }
-    if (kind === "reel" && reelPlatforms.length === 0) {
-      setError("Reels go to Facebook and Instagram — connect one of them for this project first.");
+    if (kind !== "post" && reelPlatforms.length === 0) {
+      setError(`${kind === "reel" ? "Reels" : "Stories"} go to Facebook and Instagram — connect one of them for this project first.`);
       return;
     }
     if (connectedPlatforms.length > 0 && selectedPlatforms.size === 0) {
       setError("Select at least one platform to post to.");
+      return;
+    }
+    if (kind === "story" && videoSeconds != null && (videoSeconds < 3 || videoSeconds > 60)) {
+      setError(`Video stories must be 3–60 seconds; this video is ${Math.round(videoSeconds)}s.`);
       return;
     }
     if (kind === "reel" && videoSeconds != null) {
@@ -742,11 +766,12 @@ function UploadModal({
       fd.set("media_key", mediaKey);
       fd.set("original_filename", file.name);
       fd.set("date", date);
-      if (caption.trim()) fd.set("caption", caption.trim());
-      if (kind === "reel") {
-        fd.set("post_type", "reel");
+      // Stories show no caption, so none is sent.
+      if (kind !== "story" && caption.trim()) fd.set("caption", caption.trim());
+      if (kind !== "post") {
+        fd.set("post_type", kind);
         if (coverKey) fd.set("cover_key", coverKey);
-        // A Reel always names its platforms (Facebook and/or Instagram).
+        // A Reel or Story always names its platforms (Facebook and/or Instagram).
         fd.set("platforms", JSON.stringify([...selectedPlatforms].filter((p) => REEL_PLATFORMS.includes(p))));
       }
       // Only send `platforms` when it's a strict subset of every connected
@@ -774,10 +799,10 @@ function UploadModal({
         <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-ink/10">
           <div className="flex items-center gap-4">
             <p className="font-medium">
-              Create {kind === "reel" ? "reel" : "post"} — {date}
+              Create {kind} — {date}
             </p>
             <div className="flex items-center gap-1 rounded-lg border border-ink/15 p-1" role="tablist" aria-label="What to create">
-              {(["post", "reel"] as const).map((k) => (
+              {(["post", "reel", "story"] as const).map((k) => (
                 <button
                   key={k}
                   type="button"
@@ -804,7 +829,7 @@ function UploadModal({
           <div className="flex flex-wrap gap-2 px-6 pt-4">
             {connectedPlatforms.map((platform) => {
               const Icon = PLATFORM_ICONS[platform];
-              const unavailable = kind === "reel" && !REEL_PLATFORMS.includes(platform);
+              const unavailable = kind !== "post" && !REEL_PLATFORMS.includes(platform);
               const active = !unavailable && selectedPlatforms.has(platform);
               return (
                 <button
@@ -812,7 +837,7 @@ function UploadModal({
                   type="button"
                   onClick={() => togglePlatform(platform)}
                   disabled={busy || unavailable}
-                  title={unavailable ? "Reels go to Facebook and Instagram for now" : undefined}
+                  title={unavailable ? "Reels and stories go to Facebook and Instagram for now" : undefined}
                   className={cn(
                     "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-small font-medium transition-colors",
                     unavailable ? "border-ink/10 text-ink-subtle opacity-50 cursor-not-allowed" : "cursor-pointer",
@@ -849,18 +874,36 @@ function UploadModal({
             >
               <UploadCloud className="size-6 text-ink-subtle" aria-hidden />
               <p className="text-small text-ink-muted">
-                {file ? file.name : kind === "reel" ? "Drag & drop or click to choose a video (MP4/MOV, 9:16)" : "Drag & drop or click to choose an image"}
+                {file
+                  ? file.name
+                  : kind === "reel"
+                    ? "Drag & drop or click to choose a video (MP4/MOV, 9:16)"
+                    : kind === "story"
+                      ? "Drag & drop or click to choose a 9:16 image or video (up to 60s)"
+                      : "Drag & drop or click to choose an image"}
               </p>
               <input
                 key={kind}
                 type="file"
-                accept={kind === "reel" ? "video/mp4,video/quicktime" : "image/jpeg,image/png,image/webp"}
+                accept={
+                  kind === "reel"
+                    ? "video/mp4,video/quicktime"
+                    : kind === "story"
+                      ? "image/jpeg,image/png,image/webp,video/mp4,video/quicktime"
+                      : "image/jpeg,image/png,image/webp"
+                }
                 hidden
                 disabled={busy}
                 onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
               />
             </label>
 
+            {kind === "story" && (
+              <p className="text-tag text-ink-subtle">
+                Stories show no caption and last 24 hours. Links, polls and music stickers can&apos;t be added through the API.
+                {videoSeconds != null && ` Length ${Math.round(videoSeconds)}s (3–60s allowed).`}
+              </p>
+            )}
             {kind === "reel" && (
               <>
                 {videoSeconds != null && (
@@ -890,18 +933,20 @@ function UploadModal({
               </p>
             )}
 
-            <div>
-              <textarea
-                className={inputClasses}
-                rows={5}
-                placeholder="Write a caption…"
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
-                disabled={busy}
-                maxLength={2200}
-              />
-              <p className="text-tag text-ink-subtle mt-1 text-right">{caption.length} / 2200</p>
-            </div>
+            {kind !== "story" && (
+              <div>
+                <textarea
+                  className={inputClasses}
+                  rows={5}
+                  placeholder="Write a caption…"
+                  value={caption}
+                  onChange={(e) => setCaption(e.target.value)}
+                  disabled={busy}
+                  maxLength={2200}
+                />
+                <p className="text-tag text-ink-subtle mt-1 text-right">{caption.length} / 2200</p>
+              </div>
+            )}
           </div>
 
           {/* Right: live preview — TikTok/Instagram Reels-style content is a
@@ -911,16 +956,16 @@ function UploadModal({
               is actually selected instead of one universal look. */}
           <div className="flex flex-col items-center">
             <p className="text-tag uppercase tracking-widest text-ink-subtle mb-2 self-start">Preview</p>
-            {previewPlatform === "tiktok" || kind === "reel" ? (
+            {previewPlatform === "tiktok" || kind !== "post" ? (
               <div className="relative w-full max-w-[220px] aspect-[9/16] rounded-2xl bg-ink overflow-hidden">
-                {previewUrl && kind === "reel" ? (
+                {previewUrl && file?.type.startsWith("video/") ? (
                   <video src={previewUrl} autoPlay muted loop playsInline className="absolute inset-0 size-full object-cover" />
                 ) : previewUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={previewUrl} alt="" className="absolute inset-0 size-full object-cover" />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center text-cloud/40 text-small">
-                    {kind === "reel" ? "No video yet" : "No image yet"}
+                    {kind === "reel" ? "No video yet" : kind === "story" ? "No story yet" : "No image yet"}
                   </div>
                 )}
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/80 to-transparent p-3 pt-8">

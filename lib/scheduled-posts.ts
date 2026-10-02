@@ -25,8 +25,9 @@ export async function createScheduledPost(input: {
   target_platforms?: string[] | null;
   /** A client-portal upload: who sent it, and their note. */
   fromClient?: { email: string; note: string | null };
-  /** A video Reel (and its optional cover image) instead of a photo post. */
-  reel?: { cover_key: string | null };
+  /** A video Reel (with an optional cover image) or a Story, instead of a
+   *  photo post. Stories carry no caption, so they're scheduled right away. */
+  reel?: { post_type?: "reel" | "story"; cover_key: string | null };
 }): Promise<string> {
   const { data, error } = await db
     .from("scheduled_posts")
@@ -36,14 +37,14 @@ export async function createScheduledPost(input: {
       original_filename: input.original_filename,
       scheduled_at: input.scheduled_at,
       caption: input.caption ?? null,
-      status: input.caption ? "scheduled" : "pending_caption",
+      status: input.caption || input.reel?.post_type === "story" ? "scheduled" : "pending_caption",
       target_platforms: input.target_platforms ?? null,
       // Only sent for portal uploads, so dashboard uploads keep working
       // even before these columns exist.
       ...(input.fromClient ? { uploaded_by_email: input.fromClient.email, client_note: input.fromClient.note } : {}),
       // Only sent for Reels, so photo posts keep working before the
       // post_type/cover_key columns exist.
-      ...(input.reel ? { post_type: "reel", cover_key: input.reel.cover_key } : {}),
+      ...(input.reel ? { post_type: input.reel.post_type ?? "reel", cover_key: input.reel.cover_key } : {}),
     })
     .select("id")
     .single();

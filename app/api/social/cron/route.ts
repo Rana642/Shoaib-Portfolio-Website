@@ -78,22 +78,33 @@ export async function GET(request: Request) {
     const nativeResults = prior.native ?? [];
     const priorLive = prior.live ?? [];
     const isReel = post.post_type === "reel";
+    const isStory = post.post_type === "story";
+    // A story is a photo or a video — told apart by the uploaded file's extension.
+    const isVideoFile = /\.(mp4|mov)$/i.test(post.media_key);
     // Natively scheduled on Facebook, or already tried on an earlier run
     // that only waited for Google — never post those again.
     const alreadyHandled = [...nativeResults.filter((r) => r.ok).map((r) => r.external_id), ...priorLive.map((r) => r.external_id)];
 
     try {
       const targets = post.target_platforms?.length ? post.target_platforms : null;
-      // Reels are Facebook/Instagram only — Google Business takes photos.
-      const gbpLoc = !isReel && (!targets || targets.includes(GBP_PLATFORM)) ? await gbpPlannerLocation(post.project_id) : null;
+      // Reels and stories are Facebook/Instagram only — Google Business takes photo posts.
+      const gbpLoc = !isReel && !isStory && (!targets || targets.includes(GBP_PLATFORM)) ? await gbpPlannerLocation(post.project_id) : null;
       const socialTargets = targets ? targets.filter((t) => t !== GBP_PLATFORM) : null;
 
       let liveResults: PlatformPostResult[] = [];
       if (!targets || (socialTargets && socialTargets.length > 0)) {
-        const imageUrl = await presignDownload(post.media_key, undefined, isReel ? 6 * 3600 : 3600);
-        const reel = isReel
-          ? { videoUrl: imageUrl, coverUrl: post.cover_key ? mintInstagramMediaUrl(post.cover_key) : null, pending: prior.pending ?? {} }
-          : undefined;
+        const imageUrl = await presignDownload(post.media_key, undefined, isReel || isStory ? 6 * 3600 : 3600);
+        const reel =
+          isReel || isStory
+            ? {
+                kind: isStory ? ("story" as const) : ("reel" as const),
+                videoUrl: isReel || isVideoFile ? imageUrl : null,
+                fbImageUrl: isStory && !isVideoFile ? mintFacebookMediaUrl(post.media_key) : undefined,
+                igImageUrl: isStory && !isVideoFile ? mintInstagramMediaUrl(post.media_key) : undefined,
+                coverUrl: isReel && post.cover_key ? mintInstagramMediaUrl(post.cover_key) : null,
+                pending: prior.pending ?? {},
+              }
+            : undefined;
         liveResults = await postToAllProjectAccounts(post.project_id, imageUrl, post.caption ?? "", post.media_key, alreadyHandled, socialTargets, reel);
         // A Google-only project has no social accounts — that's not a failure.
         if (gbpLoc) liveResults = liveResults.filter((r) => r.platform !== "-");
