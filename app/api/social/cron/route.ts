@@ -21,6 +21,8 @@ const STAGGER_MS = 4000;
 // just waits for the next run 15 minutes later.
 const USAGE_BACKOFF_THRESHOLD = 90;
 export const maxDuration = 60;
+/** Start no new post after this much of the run has passed. */
+const RUN_BUDGET_MS = 20_000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -52,8 +54,19 @@ export async function GET(request: Request) {
   const due = await listDuePosts();
   const results = [];
   let backedOff = false;
+  let deferred = 0;
+  const startedAt = Date.now();
 
   for (const [i, post] of due.entries()) {
+    // Only start another post while there's clearly time to finish it —
+    // an Instagram publish can take ~30s. A run cut off at maxDuration in
+    // the middle of a post could publish it without recording that, and
+    // the next run would publish it again (seen 2026-10-02 with 6 posts due
+    // in one run). What's left goes in the next run.
+    if (i > 0 && Date.now() - startedAt > RUN_BUDGET_MS) {
+      deferred = due.length - i;
+      break;
+    }
     if (i > 0) await sleep(STAGGER_MS);
     const prior = (post.result ?? {}) as { native?: PlatformPostResult[]; live?: PlatformPostResult[]; gbp?: PlatformPostResult };
     const nativeResults = prior.native ?? [];
@@ -131,11 +144,13 @@ export async function GET(request: Request) {
   // Instagram-login tokens last 60 days; keep them alive even on projects
   // that rarely post. Best-effort — posting results above are what matter.
   let instagramTokensRefreshed = 0;
-  try {
-    instagramTokensRefreshed = await refreshExpiringInstagramLogins();
-  } catch {
-    /* retried on the next run */
+  if (!deferred) {
+    try {
+      instagramTokensRefreshed = await refreshExpiringInstagramLogins();
+    } catch {
+      /* retried on the next run */
+    }
   }
 
-  return NextResponse.json({ checked: due.length, processed: results.length, backedOff, results, instagramTokensRefreshed });
+  return NextResponse.json({ checked: due.length, processed: results.length, deferred, backedOff, results, instagramTokensRefreshed });
 }
