@@ -35,6 +35,7 @@ export const KB_SERVER_INSTRUCTIONS = [
   "Product posts (one social post per product, presented like a brochure page — \"Aminotox ki brief post design karo\"): call kb_get_product_post. Same rules: use the prompt, caption and images unchanged.",
   "Caution / disclaimer lines (e.g. \"Vet — Not for human use. Veterinary use only.\") go ONLY on product-related posts and captions — a post that shows a product or is about a named product. Never on any other post (brand, general tips, dealer/B2B, Jummah, events, greetings…), in every project.",
   "Jummah / Friday and occasion posts for any project (\"Jumma post banao\", Eid, Ramadan, 14 August, 23 March, Kashmir day…): call kb_get_occasion_post — brand items stay fixed, the background and words are made for the day (Arabic/Urdu only from its verified texts), never a product or call to action.",
+  "Event posts (expo stall, seminar, dealer meet, product launch, new partner, anniversary…): follow the global rule `event-posts` — only real facts from the user/client (ask for name, date, venue, stall, photos; never invent), up to 4 posts per event (announcement, reminder, live, thank-you). A project's dated posts (Jummah, Islamic/national/international days, events) are listed in its marketing doc `dated-posts-plan` when it has one.",
   "The kb_* write tools (kb_upsert_doc, kb_upsert_product, kb_add_asset, kb_add_memory, kb_upsert_global_rule…) let you maintain the knowledge base; deletes need confirm=true.",
 ].join("\n");
 
@@ -629,7 +630,7 @@ Args: projectName (string), productName (string), category (optional: "english" 
     "kb_get_occasion_post",
     {
       title: "Get Jummah / Occasion Post Brief",
-      description: `Use this when the user asks for a Jummah / Friday post or a post for an Islamic, national or industry day for ANY project ("Jumma post banao", "Eid post", "14 August post", "Kashmir day post", "Laylat al-Qadr post"). Returns the global occasion rule (what stays fixed, what to create for the day, Arabic/Urdu rules), the occasion's motifs and names, the verified Arabic/Urdu texts to use, this time's background style (Jummah posts rotate weekly so no two Fridays look alike), the project's fixed brand items (logo, palette, typography, footer strip) and its occasion reference images.
+      description: `Use this when the user asks for a Jummah / Friday post or a post for an Islamic, national or industry day for ANY project ("Jumma post banao", "Eid post", "14 August post", "Kashmir day post", "Laylat al-Qadr post", "World Egg Day post", "AMR awareness week post", "World Animal Day post"). Returns the global occasion rule (what stays fixed, what to create for the day, Arabic/Urdu rules), the occasion's motifs and names, the verified Arabic/Urdu texts to use, this time's background style (Jummah posts rotate weekly so no two Fridays look alike), the project's fixed brand items (logo, palette, typography, footer strip) and its occasion reference images.
 
 Then design the post: a background made for the occasion in the given style, words only from the verified texts / the occasion names (plus a short message and the brand sign-off), the brand items unchanged. Never put a product, claim or call to action on these posts.
 
@@ -647,9 +648,11 @@ Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "layl
         const project = await findProject(projectName);
         const { data: ruleRow } = await db.from("kb_global_docs").select("content").eq("slug", "occasion-posts").maybeSingle();
         if (!ruleRow) throw new Error('The global rule "occasion-posts" is missing.');
-        type Occasion = { names: Record<string, string>; motifs: string; date?: string; message_ideas?: string[]; texts?: string[] };
+        type Occasion = { kind?: "islamic" | "national" | "international"; names: Record<string, string>; motifs: string; date?: string; fits?: string; message_ideas?: string[]; texts?: string[] };
         const data = jsonBlock(ruleRow.content, "occasion-posts") as {
           style_families: { id: string; name: string; look: string }[];
+          /** Non-religious looks for national and international days. */
+          day_style_families?: { id: string; name: string; look: string }[];
           occasions: Record<string, Occasion>;
           verified_texts: Record<string, { arabic: string; urdu: string; reference: string }>;
         };
@@ -674,6 +677,12 @@ Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "layl
           quaid_day: ["25december", "quaid", "quaideazam", "jinnahday"],
           world_veterinary_day: ["veterinaryday", "vetday", "worldvetday"],
           world_egg_day: ["eggday", "worldeggday"],
+          world_animal_day: ["animalday", "worldanimalday", "4october"],
+          world_food_day: ["foodday", "worldfoodday", "16october"],
+          antimicrobial_awareness_week: ["waaw", "amrweek", "amrawareness", "antimicrobial", "antibioticawareness", "antibioticweek"],
+          world_zoonoses_day: ["zoonoses", "zoonosis", "6july"],
+          world_milk_day: ["milkday", "worldmilkday", "1june"],
+          world_food_safety_day: ["foodsafety", "7june"],
         };
         const want = norm(occasion);
         // Partial matches: the longest alias wins ("eid milad" → milad, not eid).
@@ -692,7 +701,11 @@ Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "layl
         const day = date ? new Date(`${date}T12:00:00Z`) : new Date();
         const jan1 = Date.UTC(day.getUTCFullYear(), 0, 1);
         const week = Math.floor((day.getTime() - jan1) / (7 * 86400000));
-        const style = data.style_families[(week + (key && key !== "jummah" ? 2 : 0)) % data.style_families.length];
+        // Islamic occasions use the Islamic families; national/international
+        // days (and unknown occasions) use the non-religious day families.
+        const islamic = occ?.kind ? occ.kind === "islamic" : Boolean(occ);
+        const families = islamic || !data.day_style_families?.length ? data.style_families : data.day_style_families;
+        const style = families[(week + (key && key !== "jummah" ? 2 : 0)) % families.length];
 
         // The project's fixed brand items.
         const { data: docs } = await db.from("project_knowledge_docs").select("doc_type, slug, content").eq("project_id", project.id);
@@ -730,7 +743,7 @@ Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "layl
         const prompt = {
           brief: `${project.name} — ${occ?.names.english ?? occasion} post (${language})`,
           size: "1080 × 1350 px (Instagram 4:5)",
-          occasion: occ ? { key, ...occ } : { asked: occasion, note: "Not in the occasion list — follow the general rule and confirm motifs and wording with the user." },
+          occasion: occ ? { key, ...occ } : { asked: occasion, note: "Not in the occasion list — follow the general rule and confirm motifs and wording with the user. If this is the brand's own event (expo, seminar, launch, anniversary, new partner…), use the global rule `event-posts` instead: real facts and photos only." },
           style_this_time: style,
           language,
           verified_texts: texts,
@@ -741,7 +754,9 @@ Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "layl
             "faces of real people, depictions of Prophets or holy persons, altered holy sites",
             "violent, sad or blood imagery",
           ],
-          arabic_urdu: "Generate the background with no text, then set every Arabic/Urdu/English line as typed text (Arabic: Amiri / Noto Naskh Arabic; Urdu: Jameel Noori Nastaleeq). If the image is made in one go, use only the exact phrases above and check every letter, dot and diacritic; show each verse's reference.",
+          arabic_urdu: !islamic
+            ? "No Arabic on this post. Bold English headline; an Urdu line only when the language is urdu or mix, set as typed text in Jameel Noori Nastaleeq and checked letter by letter."
+            : "Generate the background with no text, then set every Arabic/Urdu/English line as typed text (Arabic: Amiri / Noto Naskh Arabic; Urdu: Jameel Noori Nastaleeq). If the image is made in one go, use only the exact phrases above and check every letter, dot and diacritic; show each verse's reference.",
         };
 
         const content: Block[] = [
