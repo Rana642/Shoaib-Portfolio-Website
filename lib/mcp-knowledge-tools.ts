@@ -198,14 +198,23 @@ function jsonBlock(text: string, what: string): unknown {
   return JSON.parse(m[1]);
 }
 
+const VET_CAPTION_LINE = /^\s*vet\s*[—–-]\s*not for human.*$\n?/gim;
+
 /** A social-post brief (calendar day or product post) merged with the design lock:
- *  the image prompt, the caption and the original images to attach. */
+ *  the image prompt, the caption and the original images to attach.
+ *  The vet line belongs on product posts only (Shoaib, 2026-10-02). */
 async function designBriefBlocks(heading: string, brief: string, lock: unknown, entry: Record<string, unknown>, fileTag: string): Promise<Block[]> {
   const rest = { ...entry };
-  const caption = rest.caption_for_posting as string | undefined;
+  const isProduct = Boolean(entry.product) || Object.keys((entry.attach ?? {}) as object).some((k) => /product/i.test(k));
+  let caption = rest.caption_for_posting as string | undefined;
+  if (!isProduct && caption) caption = caption.replace(VET_CAPTION_LINE, "").trimEnd();
   delete rest.caption_for_posting;
   delete rest.source_check;
-  const prompt = { brief, global_design_lock: lock, ...rest };
+  const globalLock =
+    !isProduct && lock && typeof lock === "object" && "vet_line" in lock
+      ? { ...lock, vet_line: "NONE on this post — it shows no product. Do not add \"Vet — Not for human use. Veterinary use only.\" or any other disclaimer line." }
+      : lock;
+  const prompt = { brief, global_design_lock: globalLock, ...rest };
 
   // Resolve the attachments (CDN URLs in the doc) back to stored originals.
   const attach = (rest.attach ?? {}) as Record<string, string | string[]>;
@@ -221,7 +230,7 @@ async function designBriefBlocks(heading: string, brief: string, lock: unknown, 
           const key = byUrl.get(u);
           return `${i + 1}. ${u}${key ? `\n   Full resolution: ${kbFileUrl(key, `${fileTag}-image-${i + 1}`)}` : ""}`;
         })
-        .join("\n")}\n\nSTEP 2. Generate the image with this prompt, unchanged:\n\n\`\`\`json\n${JSON.stringify(prompt, null, 2)}\n\`\`\`\n\nSTEP 3. Check the result against the lock (product identical to the attached photo, exact text only, brand colours only, full-width footer strip, vet line). If anything differs, regenerate with "Follow the JSON exactly; fix only: …".\n\nCAPTION TO POST (give this to the user as-is):\n\n${caption ?? "(no caption in the doc)"}`,
+        .join("\n")}\n\nSTEP 2. Generate the image with this prompt, unchanged:\n\n\`\`\`json\n${JSON.stringify(prompt, null, 2)}\n\`\`\`\n\nSTEP 3. Check the result against the lock (product identical to the attached photo, exact text only, brand colours only, full-width footer strip, ${isProduct ? "vet line" : "NO vet line"}). If anything differs, regenerate with "Follow the JSON exactly; fix only: …".\n\nCAPTION TO POST (give this to the user as-is):\n\n${caption ?? "(no caption in the doc)"}`,
     },
   ];
   for (const [i, u] of urls.entries()) {
@@ -716,7 +725,7 @@ Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "layl
           fixed_brand_items: { ...fixed, contact_details_from_nap: nap ? "see the nap doc below" : "no nap doc — ask the user" },
           not_on_this_post: [
             "product packs, product names, claims, doses, prices, offers or any call to action",
-            "product disclaimer lines (e.g. vet-use lines)",
+            "the vet line (\"Vet — Not for human use. Veterinary use only.\") or any product disclaimer — those are for product posts only",
             "faces of real people, depictions of Prophets or holy persons, altered holy sites",
             "violent, sad or blood imagery",
           ],
@@ -726,7 +735,7 @@ Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "layl
         const content: Block[] = [
           {
             type: "text",
-            text: `${occ?.names.english ?? occasion} — ${project.label}\n\nSTEP 1. Attach the logo${logo ? `: ${kbFileUrl(logo.storage_key, `${project.name}-logo`)}` : " (none stored — ask the user for it)"}\nSTEP 2. Design with this brief — background in "${style.name}" style made for the occasion; words only from the occasion names, the verified texts and a short message + "From the team at ${project.name}":\n\n\`\`\`json\n${JSON.stringify(prompt, null, 2)}\n\`\`\`\n\nSTEP 3. Check: logo unchanged, brand colours only, the project's footer strip exactly as specified, Arabic/Urdu letter-perfect, no product/claim/CTA. Then write a short caption (greeting, one line of dua or message, brand sign-off, 3–5 hashtags — no contact block, no CTA).\n\nGLOBAL RULE (occasion-posts):\n\n${ruleRow.content.replace(/```json[\s\S]*?```/, "(data above)")}`,
+            text: `${occ?.names.english ?? occasion} — ${project.label}\n\nSTEP 1. Attach the logo${logo ? `: ${kbFileUrl(logo.storage_key, `${project.name}-logo`)}` : " (none stored — ask the user for it)"}\nSTEP 2. Design with this brief — background in "${style.name}" style made for the occasion; words only from the occasion names, the verified texts and a short message + "From the team at ${project.name}":\n\n\`\`\`json\n${JSON.stringify(prompt, null, 2)}\n\`\`\`\n\nSTEP 3. Check: logo unchanged, brand colours only, the project's footer strip exactly as specified, Arabic/Urdu letter-perfect, no product/claim/CTA, no vet line. Then write a short caption (greeting, one line of dua or message, brand sign-off, 3–5 hashtags — no contact block, no CTA).\n\nGLOBAL RULE (occasion-posts):\n\n${ruleRow.content.replace(/```json[\s\S]*?```/, "(data above)")}`,
           },
         ];
         if (brandKit || graphicRules || nap) {
