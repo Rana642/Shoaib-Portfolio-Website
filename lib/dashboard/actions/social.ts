@@ -20,6 +20,7 @@ import {
   deleteScheduledPost,
   getScheduledPost,
   dateToScheduledAt,
+  reorderPostsOnDay,
   rescheduleScheduledPost,
 } from "../../scheduled-posts";
 import { submitNativeScheduleForPost, rescheduleNativePosts, cancelPostEverywhere } from "../../social-post";
@@ -244,6 +245,24 @@ export async function deletePost(id: string) {
 }
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+
+/** Drag up/down inside a day (or a drop onto a card of another day): `ids`
+ *  is that day's posts in their new order. */
+export async function reorderDay(date: string, ids: string[]) {
+  await assertAuthed();
+  const parsed = dateSchema.safeParse(date);
+  const list = z.array(z.string().uuid()).min(1).max(50).safeParse(ids);
+  if (!parsed.success || !list.success) return { error: "Invalid order." };
+  try {
+    const changed = await reorderPostsOnDay(parsed.data, list.data);
+    // Posts already handed to Meta's scheduler follow their new time.
+    for (const id of changed) await rescheduleNativePosts(id);
+    revalidatePath("/dashboard/social/planner");
+    return { ok: true, changed: changed.length };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't reorder the posts." };
+  }
+}
 
 /** Drag-and-drop (or a bulk auto-fill correction) moving a post to a
  *  different day. */

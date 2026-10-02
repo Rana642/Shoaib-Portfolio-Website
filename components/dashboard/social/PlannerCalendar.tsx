@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin } from "lucide-react";
-import { createPlannerPost, deletePost, movePost } from "@/lib/dashboard/actions/social";
+import { createPlannerPost, deletePost, movePost, reorderDay } from "@/lib/dashboard/actions/social";
 import { deletePortalUpload } from "@/lib/portal/planner";
 import PlannerUploader from "@/components/portal/PlannerUploader";
 import { inputClasses, buttonStyles, Card } from "@/components/dashboard/ui";
@@ -164,6 +164,37 @@ export default function PlannerCalendar({
     onDrop: (e: React.DragEvent) => onDropOnDay(key, e),
   });
 
+  // Dropping onto a card (week view) puts the dragged post just above or
+  // below it — reordering within a day, or moving in from another day at
+  // that spot. The order becomes the posts' times (10:00, 10:05, …).
+  const [dropTarget, setDropTarget] = useState<{ id: string; after: boolean } | null>(null);
+  const cardDropProps = (dayKey: string, dayPosts: PostWithUrl[], target: PostWithUrl) =>
+    isClient
+      ? {}
+      : {
+          onDragOver: (e: React.DragEvent<HTMLDivElement>) => {
+            e.preventDefault();
+            const box = e.currentTarget.getBoundingClientRect();
+            const after = e.clientY > box.top + box.height / 2;
+            setDropTarget((cur) => (cur?.id === target.id && cur.after === after ? cur : { id: target.id, after }));
+          },
+          onDragLeave: () => setDropTarget((cur) => (cur?.id === target.id ? null : cur)),
+          onDrop: (e: React.DragEvent<HTMLDivElement>) => {
+            e.preventDefault();
+            e.stopPropagation(); // the day column would otherwise also handle it
+            setDragOverKey(null);
+            const after = dropTarget?.id === target.id ? dropTarget.after : false;
+            setDropTarget(null);
+            const postId = e.dataTransfer.getData(DRAG_MIME);
+            if (!postId || postId === target.id) return;
+            const order = dayPosts.map((p) => p.id).filter((id) => id !== postId);
+            order.splice(order.indexOf(target.id) + (after ? 1 : 0), 0, postId);
+            startMoveTransition(() => {
+              reorderDay(dayKey, order);
+            });
+          },
+        };
+
   // Month grid cells (padded to full weeks).
   const year = monthCursor.getUTCFullYear();
   const month = monthCursor.getUTCMonth();
@@ -305,7 +336,14 @@ export default function PlannerCalendar({
                   </div>
                   <div className="flex-1 p-2 space-y-2">
                     {dayPosts.map((p) => (
-                      <WeekPostCard key={p.id} post={p} client={isClient} />
+                      <WeekPostCard
+                        key={p.id}
+                        post={p}
+                        client={isClient}
+                        dropProps={cardDropProps(key, dayPosts, p)}
+                        dropLine={dropTarget?.id === p.id ? (dropTarget.after ? "after" : "before") : null}
+                        onDragEnd={() => setDropTarget(null)}
+                      />
                     ))}
                     {canAdd && (
                       <button
@@ -411,7 +449,21 @@ function removePost(post: ScheduledPost, client: boolean) {
   return client ? deletePortalUpload(post.id) : deletePost(post.id);
 }
 
-function WeekPostCard({ post, client = false }: { post: PostWithUrl; client?: boolean }) {
+function WeekPostCard({
+  post,
+  client = false,
+  dropProps,
+  dropLine = null,
+  onDragEnd,
+}: {
+  post: PostWithUrl;
+  client?: boolean;
+  /** Drop handlers for reordering within the day (admin week view). */
+  dropProps?: React.HTMLAttributes<HTMLDivElement>;
+  /** Where a dragged post would land relative to this card. */
+  dropLine?: "before" | "after" | null;
+  onDragEnd?: () => void;
+}) {
   const [pending, startTransition] = useTransition();
   const ring = STATUS_RING[post.status] ?? "ring-ink/20";
   const label = (client ? CLIENT_STATUS_LABEL : STATUS_LABEL)[post.status];
@@ -420,12 +472,16 @@ function WeekPostCard({ post, client = false }: { post: PostWithUrl; client?: bo
   return (
     <div
       className={cn(
-        "relative group rounded-lg border border-ink/10 overflow-hidden bg-white",
-        !client && "cursor-grab active:cursor-grabbing"
+        "relative group rounded-lg border border-ink/10 bg-white",
+        !client && "cursor-grab active:cursor-grabbing",
+        dropLine === "before" && "before:absolute before:-top-1.5 before:inset-x-0 before:h-0.5 before:rounded-full before:bg-cobalt",
+        dropLine === "after" && "after:absolute after:-bottom-1.5 after:inset-x-0 after:h-0.5 after:rounded-full after:bg-cobalt"
       )}
       title={post.caption ?? post.original_filename}
       draggable={!client}
       onDragStart={client ? undefined : (e) => e.dataTransfer.setData(DRAG_MIME, post.id)}
+      onDragEnd={onDragEnd}
+      {...dropProps}
     >
       <div className="flex items-center justify-between px-2 pt-1.5 gap-1">
         {post.scheduled_at && <p className="text-tag text-ink-subtle">{timeLabel(post.scheduled_at)}</p>}

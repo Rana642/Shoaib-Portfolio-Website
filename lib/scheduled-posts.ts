@@ -94,7 +94,9 @@ export async function listDuePosts(): Promise<ScheduledPost[]> {
     .from("scheduled_posts")
     .select("*")
     .eq("status", "scheduled")
-    .lte("scheduled_at", new Date().toISOString());
+    .lte("scheduled_at", new Date().toISOString())
+    // A day's posts go out in the order set on the Planner.
+    .order("scheduled_at", { ascending: true });
   if (error) throw new Error(error.message);
   return (data ?? []) as ScheduledPost[];
 }
@@ -120,6 +122,30 @@ export async function deleteScheduledPost(id: string) {
  *  calendar, or fixing a bulk auto-fill guess (a "Friday post" that landed
  *  on the wrong day). Keeps the existing time-of-day offset within the day
  *  so drag-and-drop reordering within a busy day stays stable. */
+/** Sets the order of a day's posts (Planner drag up/down within a day, or a
+ *  drop onto a card of another day): the given order becomes 10:00, 10:05,
+ *  10:10… PKT on that date, the same spacing new posts on one day get.
+ *  Published (or failed) posts keep their time. Returns the ids whose time
+ *  actually changed. */
+export async function reorderPostsOnDay(dateStr: string, ids: string[]): Promise<string[]> {
+  const { data, error } = await db.from("scheduled_posts").select("id, status, scheduled_at").in("id", ids);
+  if (error) throw new Error(error.message);
+  const rows = new Map(((data ?? []) as { id: string; status: string; scheduled_at: string | null }[]).map((r) => [r.id, r]));
+  const changed: string[] = [];
+  let slot = 0;
+  for (const id of ids) {
+    const row = rows.get(id);
+    if (!row || row.status === "posted" || row.status === "failed") continue;
+    const at = dateToScheduledAt(dateStr, slot * 5);
+    slot++;
+    if (row.scheduled_at && new Date(row.scheduled_at).getTime() === new Date(at).getTime()) continue;
+    const { error: upErr } = await db.from("scheduled_posts").update({ scheduled_at: at }).eq("id", id);
+    if (upErr) throw new Error(upErr.message);
+    changed.push(id);
+  }
+  return changed;
+}
+
 export async function rescheduleScheduledPost(id: string, dateStr: string) {
   const existing = await getScheduledPost(id);
   const prevMinutes = existing?.scheduled_at ? new Date(existing.scheduled_at).getUTCMinutes() : 0;
