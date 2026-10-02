@@ -182,7 +182,19 @@ export default function PlannerCalendar({
     weekStart.getUTCDate() + i
   ))));
 
-  const headerLabel = view === "week" ? monthLabel(new Date(weekKeys[0])) : monthLabel(monthCursor);
+  // The week view slides a day at a time, so its 7 days often span two months.
+  const weekLabel = (() => {
+    const first = new Date(weekKeys[0]);
+    const last = new Date(weekKeys[6]);
+    if (first.getUTCMonth() === last.getUTCMonth()) return monthLabel(first);
+    const short = (d: Date, withYear: boolean) =>
+      d.toLocaleDateString(undefined, { month: "short", ...(withYear ? { year: "numeric" } : {}), timeZone: "UTC" });
+    return `${short(first, first.getUTCFullYear() !== last.getUTCFullYear())} – ${short(last, true)}`;
+  })();
+  const headerLabel = view === "week" ? weekLabel : monthLabel(monthCursor);
+  // Week view: one day per click (Shoaib, 2026-10-02) — the 7 columns slide.
+  const shiftWeek = (days: number) =>
+    setWeekStart(new Date(Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate() + days)));
 
   return (
     <div className="space-y-5">
@@ -206,12 +218,8 @@ export default function PlannerCalendar({
         <div className="flex items-center gap-3">
           <button
             type="button"
-            aria-label={view === "week" ? "Previous week" : "Previous month"}
-            onClick={() =>
-              view === "week"
-                ? setWeekStart(new Date(Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate() - 7)))
-                : setMonthCursor(new Date(Date.UTC(year, month - 1, 1)))
-            }
+            aria-label={view === "week" ? "Previous day" : "Previous month"}
+            onClick={() => (view === "week" ? shiftWeek(-1) : setMonthCursor(new Date(Date.UTC(year, month - 1, 1))))}
             className="p-2 rounded-lg text-ink-subtle hover:text-ink hover:bg-ink/5 transition-colors"
           >
             <ChevronLeft className="size-4" aria-hidden />
@@ -222,12 +230,8 @@ export default function PlannerCalendar({
           <p className="font-medium min-w-40 text-center">{headerLabel}</p>
           <button
             type="button"
-            aria-label={view === "week" ? "Next week" : "Next month"}
-            onClick={() =>
-              view === "week"
-                ? setWeekStart(new Date(Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate() + 7)))
-                : setMonthCursor(new Date(Date.UTC(year, month + 1, 1)))
-            }
+            aria-label={view === "week" ? "Next day" : "Next month"}
+            onClick={() => (view === "week" ? shiftWeek(1) : setMonthCursor(new Date(Date.UTC(year, month + 1, 1))))}
             className="p-2 rounded-lg text-ink-subtle hover:text-ink hover:bg-ink/5 transition-colors"
           >
             <ChevronRight className="size-4" aria-hidden />
