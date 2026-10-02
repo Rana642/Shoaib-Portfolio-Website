@@ -372,6 +372,10 @@ const CONTACT_LINE = [
   /(https?:\/\/|www\.)\S+/i, // link
   /^\s*(📞|☎️?|📱|📧|✉️?|📩|📍|🌐|🔗|💬|📲)/u, // a contact-line emoji
   /^\s*(call|phone|tel|whats\s?app|email|e-mail|website|web|address|location)\s*[:：]/i,
+  // A call-to-action line (Shoaib, 2026-10-02: "CTA nai jana chaiye") — a
+  // short line of its own that opens with an action word or a pointer emoji.
+  /^\s*(👉|➡️?|⬇️?|👇)/u,
+  /^\s*(book|call|dm|message us|whats\s?app|order|reserve|visit|contact|get in touch|inquire|enquire|shop|buy|grab|claim|register|sign up|apply|click|tap|reach out|secure your|schedule (?:your|a)|send us|drop us|walk in|come visit)\b.{0,80}$/i,
 ];
 
 export function gbpCaption(caption: string): string {
