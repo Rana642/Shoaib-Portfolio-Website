@@ -57,6 +57,13 @@ function buildCsp(pathname: string): string {
     if (r2) imgSrc.push(r2);
   }
   if (pathname.startsWith("/dashboard/social")) imgSrc.push("https://*.fbcdn.net", "https://*.cdninstagram.com");
+  // Reels: the upload preview plays a local blob:, the Planner plays the
+  // uploaded video from R2 — same pages as the R2 images above.
+  const mediaSrc = ["'self'", "blob:"];
+  if (pathname.startsWith("/dashboard/social") || pathname === "/portal/planner") {
+    const r2 = r2Origin();
+    if (r2) mediaSrc.push(r2);
+  }
   return [
     "default-src 'self'",
     `script-src 'self' 'unsafe-inline' https:${devEval}`,
@@ -64,6 +71,7 @@ function buildCsp(pathname: string): string {
     // style injection is far lower-risk than script injection.
     "style-src 'self' 'unsafe-inline'",
     `img-src ${imgSrc.join(" ")}`,
+    `media-src ${mediaSrc.join(" ")}`,
     "font-src 'self' data:",
     // Locks where fetch/XHR/WebSocket (and analytics beacons) may go — the
     // main guard against an injected script exfiltrating a vault secret.

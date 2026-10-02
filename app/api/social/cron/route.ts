@@ -4,7 +4,8 @@ import { db } from "@/lib/dashboard/db";
 import { listDuePosts, markPostResult } from "@/lib/scheduled-posts";
 import { GBP_PLATFORM, gbpPlannerLocation, isGbpPaceError, publishGbpPhotoPost } from "@/lib/gbp";
 import { mintFacebookMediaUrl } from "@/lib/social-facebook-media";
-import { postToAllProjectAccounts, type PlatformPostResult } from "@/lib/social-post";
+import { postToAllProjectAccounts, type PlatformPostResult, type ReelPending } from "@/lib/social-post";
+import { mintInstagramMediaUrl } from "@/lib/social-instagram-media";
 import { refreshExpiringInstagramLogins } from "@/lib/social-instagram-login";
 import { presignDownload, deleteObject } from "@/lib/storage";
 
@@ -68,24 +69,45 @@ export async function GET(request: Request) {
       break;
     }
     if (i > 0) await sleep(STAGGER_MS);
-    const prior = (post.result ?? {}) as { native?: PlatformPostResult[]; live?: PlatformPostResult[]; gbp?: PlatformPostResult };
+    const prior = (post.result ?? {}) as {
+      native?: PlatformPostResult[];
+      live?: PlatformPostResult[];
+      gbp?: PlatformPostResult;
+      pending?: Record<string, ReelPending>;
+    };
     const nativeResults = prior.native ?? [];
     const priorLive = prior.live ?? [];
+    const isReel = post.post_type === "reel";
     // Natively scheduled on Facebook, or already tried on an earlier run
     // that only waited for Google — never post those again.
     const alreadyHandled = [...nativeResults.filter((r) => r.ok).map((r) => r.external_id), ...priorLive.map((r) => r.external_id)];
 
     try {
       const targets = post.target_platforms?.length ? post.target_platforms : null;
-      const gbpLoc = !targets || targets.includes(GBP_PLATFORM) ? await gbpPlannerLocation(post.project_id) : null;
+      // Reels are Facebook/Instagram only — Google Business takes photos.
+      const gbpLoc = !isReel && (!targets || targets.includes(GBP_PLATFORM)) ? await gbpPlannerLocation(post.project_id) : null;
       const socialTargets = targets ? targets.filter((t) => t !== GBP_PLATFORM) : null;
 
       let liveResults: PlatformPostResult[] = [];
       if (!targets || (socialTargets && socialTargets.length > 0)) {
-        const imageUrl = await presignDownload(post.media_key);
-        liveResults = await postToAllProjectAccounts(post.project_id, imageUrl, post.caption ?? "", post.media_key, alreadyHandled, socialTargets);
+        const imageUrl = await presignDownload(post.media_key, undefined, isReel ? 6 * 3600 : 3600);
+        const reel = isReel
+          ? { videoUrl: imageUrl, coverUrl: post.cover_key ? mintInstagramMediaUrl(post.cover_key) : null, pending: prior.pending ?? {} }
+          : undefined;
+        liveResults = await postToAllProjectAccounts(post.project_id, imageUrl, post.caption ?? "", post.media_key, alreadyHandled, socialTargets, reel);
         // A Google-only project has no social accounts — that's not a failure.
         if (gbpLoc) liveResults = liveResults.filter((r) => r.platform !== "-");
+      }
+
+      // An Instagram Reel still processing: keep what's done, remember the
+      // container, and finish it on a later run.
+      const stillProcessing = liveResults.filter((r) => r.pending && !r.ok);
+      if (stillProcessing.length) {
+        const done = liveResults.filter((r) => !r.pending);
+        const pending = Object.fromEntries(stillProcessing.map((r) => [r.external_id, r.pending!]));
+        await db.from("scheduled_posts").update({ result: { native: nativeResults, live: [...priorLive, ...done], pending } }).eq("id", post.id);
+        results.push({ id: post.id, ok: false, processingReel: true });
+        continue;
       }
       const live = [...priorLive, ...liveResults];
 
@@ -122,10 +144,12 @@ export async function GET(request: Request) {
       // for this confirmed 'posted' outcome instead. Best-effort: a storage
       // failure here must never turn a successful post into a failed one.
       if (ok) {
-        try {
-          await deleteObject(post.media_key);
-        } catch {
-          /* orphaned object, cleaned up by a future storage audit — not fatal */
+        for (const key of [post.media_key, post.cover_key].filter((k): k is string => Boolean(k))) {
+          try {
+            await deleteObject(key);
+          } catch {
+            /* orphaned object, cleaned up by a future storage audit — not fatal */
+          }
         }
       }
 

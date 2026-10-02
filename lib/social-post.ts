@@ -1,13 +1,23 @@
 import "server-only";
 import { listSocialAccountsForProject, decryptAccountToken } from "./social-accounts";
-import { postFacebookPhoto, postInstagramPhoto, scheduleFacebookPhoto, deleteFacebookPost } from "./social-fb";
+import {
+  createInstagramReelContainer,
+  deleteFacebookPost,
+  instagramContainerStatus,
+  postFacebookPhoto,
+  postInstagramPhoto,
+  publishFacebookReel,
+  publishInstagramContainer,
+  scheduleFacebookPhoto,
+} from "./social-fb";
 import { postLinkedInPhoto } from "./social-linkedin";
 import { getFreshTikTokAccessToken, publishTikTokPhotoPost, mintTikTokMediaUrl } from "./social-tiktok";
 import { mintInstagramMediaUrl } from "./social-instagram-media";
 import { mintFacebookMediaUrl } from "./social-facebook-media";
 import { IG_LOGIN_GRAPH_BASE, getFreshInstagramLoginToken, isInstagramLoginAccount } from "./social-instagram-login";
 import { getScheduledPost, recordNativeScheduleResult } from "./scheduled-posts";
-import type { ClientSocialAccount, ScheduledPost } from "./dashboard/types";
+import { presignDownload } from "./storage";
+import type { ClientSocialAccount, PostType, ScheduledPost } from "./dashboard/types";
 
 export type PlatformPostResult = {
   platform: string;
@@ -20,7 +30,59 @@ export type PlatformPostResult = {
    *  Meta's servers publish it at scheduled_publish_time on their own. */
   native?: boolean;
   usagePercent?: number | null;
+  /** An Instagram Reel still being processed: the container to publish on a
+   *  later run, and when it was created. */
+  pending?: ReelPending;
 };
+
+export type ReelPending = { container_id: string; since: string };
+
+/** What a Reel needs when it's posted: the video and optional cover, as
+ *  URLs Meta can fetch, and any Instagram container from an earlier run. */
+export type ReelInput = { videoUrl: string; coverUrl: string | null; pending: Record<string, ReelPending> };
+
+/** Reels go to Facebook and Instagram; other platforms aren't wired for video yet. */
+export const REEL_PLATFORMS = ["facebook", "instagram"];
+/** Give up on an Instagram Reel that hasn't finished processing by then. */
+const REEL_PROCESSING_LIMIT_MS = 45 * 60 * 1000;
+
+async function postReelToAccount(account: ClientSocialAccount, caption: string, reel: ReelInput): Promise<PlatformPostResult> {
+  const base = { platform: account.platform, label: account.label, external_id: account.external_id };
+  try {
+    if (account.platform === "facebook") {
+      const r = await publishFacebookReel(account.external_id, decryptAccountToken(account), reel.videoUrl, caption);
+      return { ...base, ok: true, post_id: r.post_id, usagePercent: r.usagePercent };
+    }
+    if (account.platform !== "instagram") return { ...base, ok: false, error: "Reels go to Facebook and Instagram only for now." };
+
+    const viaLogin = isInstagramLoginAccount(account);
+    const token = viaLogin ? await getFreshInstagramLoginToken(account) : decryptAccountToken(account);
+    const host = viaLogin ? IG_LOGIN_GRAPH_BASE : undefined;
+    let pending = reel.pending[account.external_id];
+    if (!pending) {
+      pending = { container_id: await createInstagramReelContainer(account.external_id, token, reel.videoUrl, caption, reel.coverUrl, host), since: new Date().toISOString() };
+    }
+    // Short videos are often ready within seconds — check a few times before
+    // leaving it for the next run.
+    for (let i = 0; i < 4; i++) {
+      const status = await instagramContainerStatus(pending.container_id, token, host);
+      if (status.code === "FINISHED") {
+        const r = await publishInstagramContainer(account.external_id, token, pending.container_id, host);
+        return { ...base, ok: true, post_id: r.post_id, usagePercent: r.usagePercent };
+      }
+      if (status.code === "ERROR" || status.code === "EXPIRED") {
+        return { ...base, ok: false, error: `Instagram couldn't process the video (${status.code.toLowerCase()}${status.detail ? `: ${status.detail}` : ""}).` };
+      }
+      if (i < 3) await new Promise((r) => setTimeout(r, 3000));
+    }
+    if (Date.now() - new Date(pending.since).getTime() > REEL_PROCESSING_LIMIT_MS) {
+      return { ...base, ok: false, error: "Instagram didn't finish processing the video in 45 minutes." };
+    }
+    return { ...base, ok: false, pending };
+  } catch (error) {
+    return { ...base, ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
 
 const NATIVE_SCHEDULE_MIN_MS = 10 * 60 * 1000; // Meta's own floor
 const NATIVE_SCHEDULE_MAX_MS = 30 * 24 * 60 * 60 * 1000; // Meta's own ceiling
@@ -97,7 +159,9 @@ export async function postToAllProjectAccounts(
   /** null/omitted = every active connected account for the project — set
    *  from the Planner's upload modal to restrict a specific post to only
    *  some of a project's connected platforms. */
-  targetPlatforms?: string[] | null
+  targetPlatforms?: string[] | null,
+  /** Set for a video Reel instead of a photo post. */
+  reel?: ReelInput
 ): Promise<PlatformPostResult[]> {
   const all = await listSocialAccountsForProject(projectId);
   if (all.length === 0) {
@@ -109,8 +173,9 @@ export async function postToAllProjectAccounts(
   if (targetPlatforms && targetPlatforms.length > 0) {
     remaining = remaining.filter((a) => targetPlatforms.includes(a.platform));
   }
+  if (reel) remaining = remaining.filter((a) => REEL_PLATFORMS.includes(a.platform));
   if (remaining.length === 0) return [];
-  return Promise.all(remaining.map((a) => postToOneAccount(a, imageUrl, caption, mediaKey)));
+  return Promise.all(remaining.map((a) => (reel ? postReelToAccount(a, caption, reel) : postToOneAccount(a, imageUrl, caption, mediaKey))));
 }
 
 /** Hands eligible Facebook accounts to Meta's own scheduler as soon as a
@@ -124,22 +189,30 @@ export async function submitNativeSchedule(
   mediaKey: string,
   caption: string,
   scheduledAtIso: string,
-  targetPlatforms?: string[] | null
+  targetPlatforms?: string[] | null,
+  postType?: PostType
 ): Promise<PlatformPostResult[]> {
   if (!isWithinNativeScheduleWindow(scheduledAtIso)) return [];
   if (targetPlatforms && targetPlatforms.length > 0 && !targetPlatforms.includes("facebook")) return [];
+  if (postType === "story") return [];
   const accounts = await listSocialAccountsForProject(projectId);
   const eligible = accounts.filter((a) => a.platform === "facebook");
   if (eligible.length === 0) return [];
 
   const scheduledUnix = Math.floor(new Date(scheduledAtIso).getTime() / 1000);
-  const imageUrl = mintFacebookMediaUrl(mediaKey);
+  const isReel = postType === "reel";
+  // Facebook fetches the video while the Reel is being set up, so a
+  // presigned link to the original is enough; photos go through the
+  // size-safe JPEG proxy.
+  const mediaUrl = isReel ? await presignDownload(mediaKey, undefined, 6 * 3600) : mintFacebookMediaUrl(mediaKey);
   return Promise.all(
     eligible.map(async (a) => {
       const token = decryptAccountToken(a);
       const base = { platform: a.platform, label: a.label, external_id: a.external_id, native: true as const };
       try {
-        const { post_id, usagePercent } = await scheduleFacebookPhoto(a.external_id, token, imageUrl, caption, scheduledUnix);
+        const { post_id, usagePercent } = isReel
+          ? await publishFacebookReel(a.external_id, token, mediaUrl, caption, scheduledUnix)
+          : await scheduleFacebookPhoto(a.external_id, token, mediaUrl, caption, scheduledUnix);
         return { ...base, ok: true, post_id, usagePercent };
       } catch (error) {
         return { ...base, ok: false, error: error instanceof Error ? error.message : String(error) };
@@ -158,7 +231,7 @@ export async function submitNativeScheduleForPost(postId: string): Promise<void>
   try {
     const post = await getScheduledPost(postId);
     if (!post || !post.caption || !post.scheduled_at) return;
-    const results = await submitNativeSchedule(post.project_id, post.media_key, post.caption, post.scheduled_at, post.target_platforms);
+    const results = await submitNativeSchedule(post.project_id, post.media_key, post.caption, post.scheduled_at, post.target_platforms, post.post_type);
     if (results.length > 0) await recordNativeScheduleResult(postId, results);
   } catch {
     /* best-effort — the cron's due-time path still covers this post */
@@ -197,7 +270,7 @@ export async function rescheduleNativePosts(scheduledPostId: string): Promise<vo
     if (!post || !post.caption || !post.scheduled_at) return;
     await cancelNativeSchedule(post);
 
-    const results = await submitNativeSchedule(post.project_id, post.media_key, post.caption, post.scheduled_at, post.target_platforms);
+    const results = await submitNativeSchedule(post.project_id, post.media_key, post.caption, post.scheduled_at, post.target_platforms, post.post_type);
     await recordNativeScheduleResult(scheduledPostId, results);
   } catch {
     /* best-effort — worst case a stale draft post sits unpublished on Meta's side */

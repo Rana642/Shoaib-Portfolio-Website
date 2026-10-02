@@ -172,6 +172,9 @@ const plannerUploadSchema = z.object({
   // JSON-encoded string[] of platforms to target, or omitted for "all
   // connected accounts" (the original, still-default behavior).
   platforms: z.string().optional(),
+  // A video Reel instead of a photo post, with an optional cover image.
+  post_type: z.enum(["post", "reel"]).default("post"),
+  cover_key: z.string().min(1).optional(),
 });
 
 /** Creates one planner post for the day the user clicked on the calendar —
@@ -187,6 +190,8 @@ export async function createPlannerPost(formData: FormData) {
     offset_minutes: formData.get("offset_minutes") ?? 0,
     caption: formData.get("caption") || undefined,
     platforms: formData.get("platforms") || undefined,
+    post_type: formData.get("post_type") || undefined,
+    cover_key: formData.get("cover_key") || undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
@@ -209,6 +214,7 @@ export async function createPlannerPost(formData: FormData) {
       scheduled_at: dateToScheduledAt(parsed.data.date, parsed.data.offset_minutes),
       caption: parsed.data.caption,
       target_platforms: targetPlatforms,
+      ...(parsed.data.post_type === "reel" ? { reel: { cover_key: parsed.data.cover_key ?? null } } : {}),
     });
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Couldn't queue the upload." };
@@ -233,10 +239,12 @@ export async function deletePost(id: string) {
   // and this post was never actually posted, so nothing on Meta's side needs
   // the original file anymore either way.
   if (post) {
-    try {
-      await deleteObject(post.media_key);
-    } catch {
-      /* orphaned object, not fatal */
+    for (const key of [post.media_key, post.cover_key].filter((k): k is string => Boolean(k))) {
+      try {
+        await deleteObject(key);
+      } catch {
+        /* orphaned object, not fatal */
+      }
     }
   }
 

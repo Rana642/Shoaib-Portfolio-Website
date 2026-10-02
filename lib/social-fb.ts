@@ -240,6 +240,103 @@ async function waitForContainerFinished(containerId: string, pageAccessToken: st
   throw new Error("Instagram media container did not finish processing in time — try again in a moment.");
 }
 
+// ── Reels ─────────────────────────────────────────────────────────────
+
+const RUPLOAD_BASE = `https://rupload.facebook.com/video-upload/${GRAPH_VERSION}`;
+
+/** A Facebook Page Reel from a video hosted at `videoUrl` (Reels Publishing
+ *  API: start → upload by URL → finish). With `scheduledUnix` it's handed to
+ *  Meta's own scheduler like a photo post; without, it publishes now.
+ *  Facebook wants 3–90 seconds, 9:16. Returns the video id. */
+export async function publishFacebookReel(
+  pageId: string,
+  pageAccessToken: string,
+  videoUrl: string,
+  description: string,
+  scheduledUnix?: number
+): Promise<FacebookPostResult> {
+  const call = async (params: Record<string, string>) => {
+    const res = await fetch(`${GRAPH_BASE}/${pageId}/video_reels`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ ...params, access_token: pageAccessToken }),
+    });
+    const body = (await res.json()) as { video_id?: string; success?: boolean } & GraphError;
+    if (!res.ok || body.error) throw new Error(body.error?.message || `Facebook Reel ${params.upload_phase} failed (HTTP ${res.status})`);
+    return { body, res };
+  };
+
+  const { body: start } = await call({ upload_phase: "start" });
+  if (!start.video_id) throw new Error("Facebook didn't open a Reel upload.");
+
+  const up = await fetch(`${RUPLOAD_BASE}/${start.video_id}`, {
+    method: "POST",
+    headers: { Authorization: `OAuth ${pageAccessToken}`, file_url: videoUrl },
+  });
+  const upBody = (await up.json().catch(() => ({}))) as { success?: boolean; debug_info?: { message?: string } } & GraphError;
+  if (!up.ok || upBody.error || upBody.success === false) {
+    throw new Error(upBody.error?.message || upBody.debug_info?.message || `Facebook couldn't fetch the Reel video (HTTP ${up.status})`);
+  }
+
+  const { body: done, res } = await call({
+    upload_phase: "finish",
+    video_id: start.video_id,
+    description,
+    video_state: scheduledUnix ? "SCHEDULED" : "PUBLISHED",
+    ...(scheduledUnix ? { scheduled_publish_time: String(scheduledUnix) } : {}),
+  });
+  if (done.success === false) throw new Error("Facebook didn't accept the Reel.");
+  return { post_id: start.video_id, usagePercent: peakUsagePercent(res) };
+}
+
+/** Starts an Instagram Reel: creates the container, which Instagram then
+ *  fetches and processes on its own (often longer than one cron run).
+ *  Publish it with publishInstagramContainer once its status is FINISHED.
+ *  `base` = graph.instagram.com for Instagram-login accounts. */
+export async function createInstagramReelContainer(
+  igUserId: string,
+  token: string,
+  videoUrl: string,
+  caption: string,
+  coverUrl: string | null,
+  base = GRAPH_BASE
+): Promise<string> {
+  await assertInstagramPublishingHeadroom(igUserId, token, base);
+  const res = await fetch(`${base}/${igUserId}/media`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      media_type: "REELS",
+      video_url: videoUrl,
+      caption,
+      share_to_feed: "true",
+      ...(coverUrl ? { cover_url: coverUrl } : {}),
+      access_token: token,
+    }),
+  });
+  const body = (await res.json()) as { id?: string } & GraphError;
+  if (!res.ok || body.error || !body.id) throw new Error(body.error?.message || "Instagram couldn't start the Reel.");
+  return body.id;
+}
+
+/** IN_PROGRESS | FINISHED | ERROR | EXPIRED | PUBLISHED, plus Instagram's
+ *  explanation when it failed. */
+export async function instagramContainerStatus(containerId: string, token: string, base = GRAPH_BASE): Promise<{ code: string; detail: string | null }> {
+  const r = await graphGet<{ status_code?: string; status?: string }>(`/${containerId}`, { fields: "status_code,status", access_token: token }, base);
+  return { code: r.status_code ?? "IN_PROGRESS", detail: r.status ?? null };
+}
+
+export async function publishInstagramContainer(igUserId: string, token: string, containerId: string, base = GRAPH_BASE): Promise<FacebookPostResult> {
+  const res = await fetch(`${base}/${igUserId}/media_publish`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ creation_id: containerId, access_token: token }),
+  });
+  const body = (await res.json()) as { id?: string } & GraphError;
+  if (!res.ok || body.error) throw new Error(body.error?.message || "Instagram publish failed");
+  return { post_id: body.id || "", usagePercent: peakUsagePercent(res) };
+}
+
 /** Two-step Instagram publish: create a media container, then publish it.
  *  Needs a Business/Creator account — either linked to a Facebook Page (Page
  *  token, graph.facebook.com) or connected through Instagram Login (its own

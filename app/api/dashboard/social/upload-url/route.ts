@@ -26,8 +26,13 @@ export async function POST(request: Request) {
   const size = Number(body.size ?? 0);
   const projectId = String(body.projectId ?? "").trim();
   if (!name || !projectId) return NextResponse.json({ error: "Missing file name or project." }, { status: 400 });
-  if (size > 25 * 1024 * 1024) {
-    return NextResponse.json({ error: "Each image must be under 25 MB." }, { status: 413 });
+  // Reels are videos (MP4/MOV); everything else is an image.
+  const isVideo = type === "video/mp4" || type === "video/quicktime";
+  if (type.startsWith("video/") && !isVideo) {
+    return NextResponse.json({ error: "Reels must be MP4 or MOV videos." }, { status: 415 });
+  }
+  if (isVideo ? size > 300 * 1024 * 1024 : size > 25 * 1024 * 1024) {
+    return NextResponse.json({ error: isVideo ? "Videos must be under 300 MB." : "Each image must be under 25 MB." }, { status: 413 });
   }
 
   const safeName = name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-150);

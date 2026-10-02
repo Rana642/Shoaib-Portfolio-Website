@@ -128,15 +128,21 @@ Returns: the image itself (view it directly), plus the post's original filename 
       try {
         const post = await getScheduledPost(postId);
         if (!post) return { content: [{ type: "text", text: `Error: No post found with id '${postId}'.` }], isError: true };
-        const [{ buffer, contentType }, projects] = await Promise.all([fetchObject(post.media_key), projectContextMap()]);
+        // A Reel's media is a video — show its cover image instead, if any.
+        const isReel = post.post_type === "reel";
+        const imageKey = isReel ? post.cover_key : post.media_key;
+        const [image, projects] = await Promise.all([imageKey ? fetchObject(imageKey) : Promise.resolve(null), projectContextMap()]);
         const ctx = projects.get(post.project_id);
         const styleText = ctx?.postingInstructions
           ? `Posting style for ${ctx.label}: ${ctx.postingInstructions}`
           : `No posting style guide set for ${ctx?.label ?? "this project"} — use your own judgement.`;
+        const reelText = isReel
+          ? `\nThis is a video Reel (Facebook + Instagram). ${image ? "Shown: its cover image." : "It has no cover image — ask what the video shows before writing the caption."}`
+          : "";
         return {
           content: [
-            { type: "text", text: `File: ${post.original_filename}\n${styleText}` },
-            { type: "image", data: buffer.toString("base64"), mimeType: contentType },
+            { type: "text", text: `File: ${post.original_filename}${reelText}\n${styleText}` },
+            ...(image ? [{ type: "image" as const, data: image.buffer.toString("base64"), mimeType: image.contentType }] : []),
           ],
         };
       } catch (error) {

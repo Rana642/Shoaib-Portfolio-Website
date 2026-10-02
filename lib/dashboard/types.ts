@@ -122,7 +122,14 @@ export type ScheduledPost = {
   /** Set when a client (or their team) uploaded it from the portal. */
   uploaded_by_email?: string | null;
   client_note?: string | null;
+  /** "reel" = media_key is a video, posted as a Facebook/Instagram Reel;
+   *  absent/"post" = a photo post. ("story" is reserved for Stories.) */
+  post_type?: PostType;
+  /** Optional cover image for a Reel. */
+  cover_key?: string | null;
 };
+
+export type PostType = "post" | "reel" | "story";
 
 export type ClientProject = {
   id: string;

@@ -751,6 +751,14 @@ create table if not exists scheduled_posts (
 
 alter table scheduled_posts add column if not exists target_platforms text[];
 
+-- Reels (2026-10-02): post_type 'reel' = media_key is a video posted as a
+-- Facebook/Instagram Reel, with an optional cover image. 'story' is
+-- reserved for Stories.
+alter table scheduled_posts add column if not exists post_type text not null default 'post';
+alter table scheduled_posts drop constraint if exists scheduled_posts_post_type_check;
+alter table scheduled_posts add constraint scheduled_posts_post_type_check check (post_type in ('post', 'reel', 'story'));
+alter table scheduled_posts add column if not exists cover_key text;
+
 do $$
 begin
   if exists (select 1 from information_schema.columns where table_name = 'scheduled_posts' and column_name = 'client_id') then

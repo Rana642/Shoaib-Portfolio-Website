@@ -48,7 +48,9 @@ export default async function PlannerPage({
   const postsWithUrls = await Promise.all(
     ((posts ?? []) as ScheduledPost[]).map(async (p) => ({
       ...p,
+      // For a Reel this is the video; its cover (if any) comes separately.
       imageUrl: await presignDownload(p.media_key).catch(() => null),
+      coverUrl: p.cover_key ? await presignDownload(p.cover_key).catch(() => null) : null,
     }))
   );
 

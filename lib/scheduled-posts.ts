@@ -25,6 +25,8 @@ export async function createScheduledPost(input: {
   target_platforms?: string[] | null;
   /** A client-portal upload: who sent it, and their note. */
   fromClient?: { email: string; note: string | null };
+  /** A video Reel (and its optional cover image) instead of a photo post. */
+  reel?: { cover_key: string | null };
 }): Promise<string> {
   const { data, error } = await db
     .from("scheduled_posts")
@@ -39,10 +41,18 @@ export async function createScheduledPost(input: {
       // Only sent for portal uploads, so dashboard uploads keep working
       // even before these columns exist.
       ...(input.fromClient ? { uploaded_by_email: input.fromClient.email, client_note: input.fromClient.note } : {}),
+      // Only sent for Reels, so photo posts keep working before the
+      // post_type/cover_key columns exist.
+      ...(input.reel ? { post_type: "reel", cover_key: input.reel.cover_key } : {}),
     })
     .select("id")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (input.reel && /post_type|cover_key/.test(error.message)) {
+      throw new Error("Reels need the database update first (scheduled_posts.post_type / cover_key — see supabase/dashboard-schema.sql).");
+    }
+    throw new Error(error.message);
+  }
   return data.id as string;
 }
 
