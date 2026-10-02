@@ -33,6 +33,7 @@ export const KB_SERVER_INSTRUCTIONS = [
   "Google Business Profile (gbp_* tools): Google-friendly pace, always — never reply to reviews or post in bulk. One write at a time, at least 5 minutes apart, max 20 per location per 24 hours (the server enforces it). For many reviews: draft all for the user, publish one, and say when the next can go.",
   "Social posts by calendar day (\"Day 1 ki post design karo\"): call kb_get_social_post — it returns the locked image prompt, the caption and the original images to attach. Use them unchanged.",
   "Product posts (one social post per product, presented like a brochure page — \"Aminotox ki brief post design karo\"): call kb_get_product_post. Same rules: use the prompt, caption and images unchanged.",
+  "Caution / disclaimer lines (e.g. \"Vet — Not for human use. Veterinary use only.\") go ONLY on product-related posts and captions — a post that shows a product or is about a named product. Never on any other post (brand, general tips, dealer/B2B, Jummah, events, greetings…), in every project.",
   "Jummah / Friday and occasion posts for any project (\"Jumma post banao\", Eid, Ramadan, 14 August, 23 March, Kashmir day…): call kb_get_occasion_post — brand items stay fixed, the background and words are made for the day (Arabic/Urdu only from its verified texts), never a product or call to action.",
   "The kb_* write tools (kb_upsert_doc, kb_upsert_product, kb_add_asset, kb_add_memory, kb_upsert_global_rule…) let you maintain the knowledge base; deletes need confirm=true.",
 ].join("\n");
@@ -200,19 +201,28 @@ function jsonBlock(text: string, what: string): unknown {
 
 const VET_CAPTION_LINE = /^\s*vet\s*[—–-]\s*not for human.*$\n?/gim;
 
+/** Product-related = names a product, attaches a product photo, or its image text
+ *  mentions one of the project's products. Only these carry the vet/caution line. */
+function isProductRelated(entry: Record<string, unknown>, productNames: string[]): boolean {
+  if (entry.product || Object.keys((entry.attach ?? {}) as object).some((k) => /product/i.test(k))) return true;
+  const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const text = squash(JSON.stringify(entry.text_on_image ?? ""));
+  return productNames.map(squash).some((n) => n.length >= 4 && text.includes(n));
+}
+
 /** A social-post brief (calendar day or product post) merged with the design lock:
  *  the image prompt, the caption and the original images to attach.
- *  The vet line belongs on product posts only (Shoaib, 2026-10-02). */
-async function designBriefBlocks(heading: string, brief: string, lock: unknown, entry: Record<string, unknown>, fileTag: string): Promise<Block[]> {
+ *  The vet line belongs on product-related posts only (Shoaib, 2026-10-02). */
+async function designBriefBlocks(heading: string, brief: string, lock: unknown, entry: Record<string, unknown>, fileTag: string, productNames: string[] = []): Promise<Block[]> {
   const rest = { ...entry };
-  const isProduct = Boolean(entry.product) || Object.keys((entry.attach ?? {}) as object).some((k) => /product/i.test(k));
+  const isProduct = isProductRelated(entry, productNames);
   let caption = rest.caption_for_posting as string | undefined;
   if (!isProduct && caption) caption = caption.replace(VET_CAPTION_LINE, "").trimEnd();
   delete rest.caption_for_posting;
   delete rest.source_check;
   const globalLock =
     !isProduct && lock && typeof lock === "object" && "vet_line" in lock
-      ? { ...lock, vet_line: "NONE on this post — it shows no product. Do not add \"Vet — Not for human use. Veterinary use only.\" or any other disclaimer line." }
+      ? { ...lock, vet_line: "NONE on this post — it is not about a product. Do not add \"Vet — Not for human use. Veterinary use only.\" or any other caution/disclaimer line." }
       : lock;
   const prompt = { brief, global_design_lock: globalLock, ...rest };
 
@@ -558,7 +568,9 @@ Args: projectName (string), day (number, 1-based), calendarSlug (optional market
         if (!entry) throw new Error(`Day ${day} is not in ${calendar.slug} (it has days 1–${days.length}).`);
         const heading = `Day ${day} — ${String(entry.pillar ?? "")}${entry.product ? ` — ${String(entry.product)}` : ""}`;
         const brief = `${project.name} social media post — Day ${day} of ${calendar.slug}`;
-        return { content: await designBriefBlocks(heading, brief, jsonBlock(lockDoc.content, lockDoc.slug), entry, `day-${day}`) };
+        const { data: products } = await db.from("project_products").select("name, slug").eq("project_id", project.id);
+        const productNames = ((products ?? []) as { name: string; slug: string }[]).flatMap((p) => [p.name, p.slug]);
+        return { content: await designBriefBlocks(heading, brief, jsonBlock(lockDoc.content, lockDoc.slug), entry, `day-${day}`, productNames) };
       } catch (error) {
         return fail(error);
       }
