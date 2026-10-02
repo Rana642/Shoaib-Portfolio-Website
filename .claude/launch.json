@@ -12,6 +12,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "../sociallysnap", "run", "dev", "--", "--port", "3001"],
       "port": 3001
+    },
+    {
+      "name": "graphics-studio-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "../graphics-studio", "run", "dev"],
+      "port": 3010
     }
   ]
 }
