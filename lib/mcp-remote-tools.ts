@@ -4,7 +4,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "./dashboard/db";
 import { listPendingCaptionPosts, getScheduledPost, setCaptionAndSchedule } from "./scheduled-posts";
 import { fetchObject } from "./storage";
-import { submitNativeScheduleForPost } from "./social-post";
+import { rescheduleNativePosts, submitNativeScheduleForPost } from "./social-post";
 
 /**
  * The remote (Claude web/mobile/desktop) counterpart to mcp/tools/social.ts
@@ -140,10 +140,15 @@ Returns: confirmation text.`,
             isError: true,
           };
         }
+        // Already handed to Meta's scheduler (a second call to change the
+        // time/caption): cancel that draft and resubmit, or Meta would still
+        // publish the old one too.
+        const hadNative = Boolean((post.result as { native?: unknown[] } | null)?.native?.length);
         await setCaptionAndSchedule(postId, caption, scheduledAt);
         // Best-effort: hand any eligible Facebook account straight to
         // Meta's own scheduler now rather than waiting for the cron.
-        await submitNativeScheduleForPost(postId);
+        if (hadNative) await rescheduleNativePosts(postId);
+        else await submitNativeScheduleForPost(postId);
         return { content: [{ type: "text", text: `Scheduled for ${scheduledAt ?? post.scheduled_at}.` }] };
       } catch (error) {
         return { content: [{ type: "text", text: formatError(error) }], isError: true };

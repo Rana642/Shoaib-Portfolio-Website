@@ -11,7 +11,7 @@ import {
   setCaptionAndSchedule,
 } from "../../lib/scheduled-posts.js";
 import { uploadObject, fetchObject, presignDownload } from "../../lib/storage.js";
-import { postToAllProjectAccounts, submitNativeScheduleForPost } from "../../lib/social-post.js";
+import { postToAllProjectAccounts, rescheduleNativePosts, submitNativeScheduleForPost } from "../../lib/social-post.js";
 
 function formatError(error: unknown): string {
   return `Error: ${error instanceof Error ? error.message : String(error)}`;
@@ -174,10 +174,14 @@ Returns: confirmation text.`,
             isError: true,
           };
         }
+        // A second call (new time/caption) must cancel the draft already
+        // handed to Meta's scheduler, or Meta would publish the old one too.
+        const hadNative = Boolean((post.result as { native?: unknown[] } | null)?.native?.length);
         await setCaptionAndSchedule(postId, caption, scheduledAt);
         // Best-effort: hand any eligible Facebook account straight to
         // Meta's own scheduler now rather than waiting for the cron.
-        await submitNativeScheduleForPost(postId);
+        if (hadNative) await rescheduleNativePosts(postId);
+        else await submitNativeScheduleForPost(postId);
         return { content: [{ type: "text", text: `Scheduled for ${scheduledAt ?? post.scheduled_at}.` }] };
       } catch (error) {
         return { content: [{ type: "text", text: formatError(error) }], isError: true };
