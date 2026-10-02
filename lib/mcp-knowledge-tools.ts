@@ -33,6 +33,7 @@ export const KB_SERVER_INSTRUCTIONS = [
   "Google Business Profile (gbp_* tools): Google-friendly pace, always — never reply to reviews or post in bulk. One write at a time, at least 5 minutes apart, max 20 per location per 24 hours (the server enforces it). For many reviews: draft all for the user, publish one, and say when the next can go.",
   "Social posts by calendar day (\"Day 1 ki post design karo\"): call kb_get_social_post — it returns the locked image prompt, the caption and the original images to attach. Use them unchanged.",
   "Product posts (one social post per product, presented like a brochure page — \"Aminotox ki brief post design karo\"): call kb_get_product_post. Same rules: use the prompt, caption and images unchanged.",
+  "Jummah / Friday and occasion posts for any project (\"Jumma post banao\", Eid, Ramadan, 14 August, 23 March, Kashmir day…): call kb_get_occasion_post — brand items stay fixed, the background and words are made for the day (Arabic/Urdu only from its verified texts), never a product or call to action.",
   "The kb_* write tools (kb_upsert_doc, kb_upsert_product, kb_add_asset, kb_add_memory, kb_upsert_global_rule…) let you maintain the knowledge base; deletes need confirm=true.",
 ].join("\n");
 
@@ -597,6 +598,163 @@ Args: projectName (string), productName (string), category (optional: "english" 
         const heading = `${String(entry.product)} — product brief post (${cat})`;
         const brief = `${project.name} product brief post — ${String(entry.product)} (${cat})`;
         return { content: await designBriefBlocks(heading, brief, jsonBlock(lockDoc.content, lockDoc.slug), entry, slugifyName(String(entry.product))) };
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_get_occasion_post",
+    {
+      title: "Get Jummah / Occasion Post Brief",
+      description: `Use this when the user asks for a Jummah / Friday post or a post for an Islamic, national or industry day for ANY project ("Jumma post banao", "Eid post", "14 August post", "Kashmir day post", "Laylat al-Qadr post"). Returns the global occasion rule (what stays fixed, what to create for the day, Arabic/Urdu rules), the occasion's motifs and names, the verified Arabic/Urdu texts to use, this time's background style (Jummah posts rotate weekly so no two Fridays look alike), the project's fixed brand items (logo, palette, typography, footer strip) and its occasion reference images.
+
+Then design the post: a background made for the occasion in the given style, words only from the verified texts / the occasion names (plus a short message and the brand sign-off), the brand items unchanged. Never put a product, claim or call to action on these posts.
+
+Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "laylat al qadr", "kashmir day"), language ("english" | "urdu" | "arabic" | "mix", default "mix"), date (optional YYYY-MM-DD — picks the style; default today).`,
+      inputSchema: {
+        projectName: z.string(),
+        occasion: z.string().min(2),
+        language: z.enum(["english", "urdu", "arabic", "mix"]).optional(),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      },
+      annotations: READ,
+    },
+    async ({ projectName, occasion, language = "mix", date }: { projectName: string; occasion: string; language?: "english" | "urdu" | "arabic" | "mix"; date?: string }) => {
+      try {
+        const project = await findProject(projectName);
+        const { data: ruleRow } = await db.from("kb_global_docs").select("content").eq("slug", "occasion-posts").maybeSingle();
+        if (!ruleRow) throw new Error('The global rule "occasion-posts" is missing.');
+        type Occasion = { names: Record<string, string>; motifs: string; date?: string; message_ideas?: string[]; texts?: string[] };
+        const data = jsonBlock(ruleRow.content, "occasion-posts") as {
+          style_families: { id: string; name: string; look: string }[];
+          occasions: Record<string, Occasion>;
+          verified_texts: Record<string, { arabic: string; urdu: string; reference: string }>;
+        };
+
+        // Match the occasion by key, name or a common spelling.
+        const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+        const ALIASES: Record<string, string[]> = {
+          jummah: ["juma", "jumma", "jumah", "jumuah", "friday", "jummamubarak", "jummahmubarak", "blessedfriday"],
+          ramadan: ["ramzan", "ramadhan", "ramadankareem", "ramzanmubarak"],
+          laylat_al_qadr: ["laylatulqadr", "lailatulqadr", "shabeqadr", "shabqadr", "nightofpower", "27ramadan"],
+          eid_ul_fitr: ["eid", "eidulfitr", "eidalfitr", "chotieid", "eidmubarak"],
+          eid_ul_adha: ["eidaladha", "eiduladha", "bakraeid", "bakrid", "eidqurban"],
+          islamic_new_year: ["muharram", "hijrinewyear", "newislamicyear", "1muharram"],
+          ashura: ["ashur", "youmeashur", "10muharram"],
+          eid_milad_un_nabi: ["milad", "miladunnabi", "12rabiulawwal", "rabiulawwal", "mawlid"],
+          shab_e_barat: ["shabebarat", "shabbarat", "15shaban"],
+          kashmir_day: ["kashmir", "kashmirsolidarityday", "5february", "5feb", "yomeykjehtikashmir"],
+          pakistan_day: ["23march", "pakistanresolutionday", "yomepakistan"],
+          independence_day: ["14august", "independence", "jashneazadi", "azadi", "yomeazadi"],
+          defence_day: ["6september", "defenseday", "yomedifa"],
+          iqbal_day: ["9november", "iqbal", "allamaiqbal"],
+          quaid_day: ["25december", "quaid", "quaideazam", "jinnahday"],
+          world_veterinary_day: ["veterinaryday", "vetday", "worldvetday"],
+          world_egg_day: ["eggday", "worldeggday"],
+        };
+        const want = norm(occasion);
+        // Partial matches: the longest alias wins ("eid milad" → milad, not eid).
+        const partial = Object.entries(ALIASES)
+          .flatMap(([k, list]) => list.filter((a) => want.includes(a)).map((a) => ({ k, len: a.length })))
+          .sort((a, b) => b.len - a.len)[0]?.k;
+        const key =
+          Object.keys(data.occasions).find((k) => norm(k) === want) ??
+          Object.entries(data.occasions).find(([, o]) => Object.values(o.names).some((n) => norm(n) === want))?.[0] ??
+          Object.entries(ALIASES).find(([, list]) => list.includes(want))?.[0] ??
+          partial ??
+          null;
+        const occ = key ? data.occasions[key] : null;
+
+        // Style: rotates by week so consecutive Fridays never look alike.
+        const day = date ? new Date(`${date}T12:00:00Z`) : new Date();
+        const jan1 = Date.UTC(day.getUTCFullYear(), 0, 1);
+        const week = Math.floor((day.getTime() - jan1) / (7 * 86400000));
+        const style = data.style_families[(week + (key && key !== "jummah" ? 2 : 0)) % data.style_families.length];
+
+        // The project's fixed brand items.
+        const { data: docs } = await db.from("project_knowledge_docs").select("doc_type, slug, content").eq("project_id", project.id);
+        const docList = (docs ?? []) as { doc_type: string; slug: string; content: string }[];
+        const lockDoc = docList.find((d) => d.slug === "social-post-design-lock");
+        let fixed: Record<string, unknown> = {};
+        if (lockDoc) {
+          try {
+            const lock = jsonBlock(lockDoc.content, lockDoc.slug) as Record<string, unknown>;
+            fixed = {
+              logo: (lock.attached_images as Record<string, unknown> | undefined)?.logo ?? null,
+              brand_palette_only: lock.brand_palette_only ?? null,
+              typography: lock.typography ?? null,
+              footer_strip: lock.footer_strip ?? null,
+            };
+          } catch {
+            fixed = { note: "The project's design lock could not be read — use its brand kit and graphic rules below." };
+          }
+        }
+        const brandKit = docList.find((d) => d.doc_type === "brand_kit")?.content ?? null;
+        const graphicRules = docList.find((d) => d.doc_type === "graphic_rules")?.content ?? null;
+        const nap = docList.find((d) => d.doc_type === "nap")?.content ?? null;
+
+        const { data: assetRows } = await db
+          .from("project_assets")
+          .select("id, project_id, product_id, kind, title, storage_key, content_type, notes, sort")
+          .eq("project_id", project.id)
+          .or("kind.eq.logo,title.like.Occasion reference*")
+          .order("created_at");
+        const assets = (assetRows ?? []) as AssetRow[];
+        const logo = assets.find((a) => a.kind === "logo");
+        const refs = assets.filter((a) => a.title.startsWith("Occasion reference"));
+
+        const texts = (occ?.texts ?? []).map((t) => ({ id: t, ...data.verified_texts[t] })).filter((t) => t.arabic);
+        const prompt = {
+          brief: `${project.name} — ${occ?.names.english ?? occasion} post (${language})`,
+          size: "1080 × 1350 px (Instagram 4:5)",
+          occasion: occ ? { key, ...occ } : { asked: occasion, note: "Not in the occasion list — follow the general rule and confirm motifs and wording with the user." },
+          style_this_time: style,
+          language,
+          verified_texts: texts,
+          fixed_brand_items: { ...fixed, contact_details_from_nap: nap ? "see the nap doc below" : "no nap doc — ask the user" },
+          not_on_this_post: [
+            "product packs, product names, claims, doses, prices, offers or any call to action",
+            "product disclaimer lines (e.g. vet-use lines)",
+            "faces of real people, depictions of Prophets or holy persons, altered holy sites",
+            "violent, sad or blood imagery",
+          ],
+          arabic_urdu: "Generate the background with no text, then set every Arabic/Urdu/English line as typed text (Arabic: Amiri / Noto Naskh Arabic; Urdu: Jameel Noori Nastaleeq). If the image is made in one go, use only the exact phrases above and check every letter, dot and diacritic; show each verse's reference.",
+        };
+
+        const content: Block[] = [
+          {
+            type: "text",
+            text: `${occ?.names.english ?? occasion} — ${project.label}\n\nSTEP 1. Attach the logo${logo ? `: ${kbFileUrl(logo.storage_key, `${project.name}-logo`)}` : " (none stored — ask the user for it)"}\nSTEP 2. Design with this brief — background in "${style.name}" style made for the occasion; words only from the occasion names, the verified texts and a short message + "From the team at ${project.name}":\n\n\`\`\`json\n${JSON.stringify(prompt, null, 2)}\n\`\`\`\n\nSTEP 3. Check: logo unchanged, brand colours only, the project's footer strip exactly as specified, Arabic/Urdu letter-perfect, no product/claim/CTA. Then write a short caption (greeting, one line of dua or message, brand sign-off, 3–5 hashtags — no contact block, no CTA).\n\nGLOBAL RULE (occasion-posts):\n\n${ruleRow.content.replace(/```json[\s\S]*?```/, "(data above)")}`,
+          },
+        ];
+        if (brandKit || graphicRules || nap) {
+          content.push({
+            type: "text",
+            text: [brandKit && `BRAND KIT:\n${brandKit}`, graphicRules && `GRAPHIC RULES:\n${graphicRules}`, nap && `CONTACT DETAILS (nap — for the footer strip only):\n${nap}`].filter(Boolean).join("\n\n"),
+          });
+        }
+        if (logo) {
+          try {
+            content.push({ type: "text", text: "Logo (attach as-is):" }, await imageBlock(logo.storage_key));
+          } catch {
+            content.push({ type: "text", text: "Logo missing from storage — use the URL above." });
+          }
+        }
+        if (refs.length) {
+          content.push({ type: "text", text: `Occasion references for ${project.name} (learn the level and approach — never copy, never attach):` });
+          for (const r of refs.slice(0, 6)) {
+            try {
+              const { buffer } = await fetchObject(r.storage_key);
+              const small = await sharp(buffer).flatten({ background: "#ffffff" }).resize({ width: 300, withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer();
+              content.push({ type: "text", text: r.title }, { type: "image", data: small.toString("base64"), mimeType: "image/jpeg" });
+            } catch {
+              /* skip a missing reference */
+            }
+          }
+        }
+        return { content };
       } catch (error) {
         return fail(error);
       }
