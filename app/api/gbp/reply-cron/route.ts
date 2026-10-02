@@ -20,11 +20,13 @@ export async function GET(request: Request) {
   if (!(await isCronRequest(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const now = new Date();
+  // Also stand aside when a planner post is due within the next 15 minutes,
+  // so this doesn't take the Google slot the social cron is about to need.
   const { data: due } = await db
     .from("scheduled_posts")
     .select("id")
     .eq("status", "scheduled")
-    .lte("scheduled_at", now.toISOString())
+    .lte("scheduled_at", new Date(now.getTime() + 15 * 60 * 1000).toISOString())
     .gte("scheduled_at", new Date(now.getTime() - 2 * 3600 * 1000).toISOString())
     .limit(1);
   if (due?.length) return NextResponse.json({ status: "yield", detail: "a planner post is due" });
