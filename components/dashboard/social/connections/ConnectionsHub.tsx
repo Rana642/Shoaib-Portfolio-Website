@@ -183,7 +183,7 @@ export default function ConnectionsHub({
       // in with Instagram (each must be an Instagram Tester on the app).
       // The account joins whichever project is picked above — say which, so
       // a second client's account isn't added to the wrong one (2026-10-01).
-      const projectName = projectLabel(pid).split(" — ").pop();
+      const projectName = projectLabel(pid);
       note = `Linked to the client's Facebook Page? It comes in with the Page import. Otherwise log in with Instagram — the account you log in with joins ${projectName}. For another project, pick it above first.`;
       action = { kind: "link", label: `Log in with Instagram for ${projectName}`, href: `/api/dashboard/social/instagram/authorize?project_id=${pid}` };
     } else if (def.loginProvider === "facebook") {
@@ -300,6 +300,7 @@ export default function ConnectionsHub({
                   options={projects.map((p) => ({
                     id: p.id,
                     label: p.label,
+                    search: p.client,
                     meta: `${PLATFORMS.filter((pl) => ["connected", "workspace"].includes(statusOf(p.id, pl.key))).length}/${PLATFORMS.length}`,
                   }))}
                   value={projectId}

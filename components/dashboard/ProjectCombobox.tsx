@@ -4,11 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronsUpDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type ComboOption = { id: string; label: string; meta?: string };
+export type ComboOption = { id: string; label: string; meta?: string; search?: string };
 
 /** Searchable single-select dropdown — generic so the Planner, Insights, and
- *  a future multi-tenant workspace switcher can all reuse it. Labels shaped
- *  "Client — Project" render as a bold project line over a muted client line. */
+ *  a future multi-tenant workspace switcher can all reuse it. Shows project
+ *  names only; `search` lets a client's name still find its projects. */
 export default function ProjectCombobox({
   options,
   value,
@@ -30,7 +30,7 @@ export default function ProjectCombobox({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
+    return q ? options.filter((o) => `${o.label} ${o.search ?? ""}`.toLowerCase().includes(q)) : options;
   }, [options, query]);
 
   const selected = options.find((o) => o.id === value) ?? null;
@@ -127,11 +127,9 @@ export default function ProjectCombobox({
 }
 
 function OptionLabel({ label }: { label: string }) {
-  const [client, project] = label.includes(" — ") ? label.split(" — ") : [null, label];
   return (
     <span className="min-w-0">
-      <span className="block text-small font-medium truncate">{project}</span>
-      {client && <span className="block text-tag text-ink-subtle truncate">{client}</span>}
+      <span className="block text-small font-medium truncate">{label}</span>
     </span>
   );
 }

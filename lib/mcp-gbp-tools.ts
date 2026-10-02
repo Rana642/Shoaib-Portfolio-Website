@@ -36,7 +36,11 @@ async function resolveConnected(project: string): Promise<{ id: string; label: s
   const connectedIds = new Set(((data ?? []) as { project_id: string }[]).map((r) => r.project_id));
   const options = (await listProjectOptions()).filter((p) => connectedIds.has(p.id));
   const q = project.trim().toLowerCase();
-  const hit = options.find((p) => p.id === project) ?? options.find((p) => p.label.toLowerCase() === q) ?? options.filter((p) => p.label.toLowerCase().includes(q))[0];
+  const full = (p: (typeof options)[number]) => `${p.client} — ${p.name}`.toLowerCase();
+  const hit =
+    options.find((p) => p.id === project) ??
+    options.find((p) => p.name.toLowerCase() === q || full(p) === q) ??
+    options.filter((p) => full(p).includes(q))[0];
   if (!hit) {
     throw new Error(
       `No Google Business connection matches "${project}". Connected: ${options.map((p) => p.label).join("; ") || "none yet — connect one at /dashboard/gbp"}.`
@@ -105,7 +109,7 @@ export function registerGbpTools(server: McpServer): void {
       description: `Reads the latest reviews of a connected client's Business Profile location (newest first, up to 50 per page), with the average rating, total count, any owner reply, and "queued" — the review's state in the reply queue (approved = waiting to be sent, draft, sent, skipped, failed) or null when no reply has been queued for it.
 
 Args:
-  - project (string): project id or part of its "Client — Project" label.
+  - project (string): project id, its name, or part of "Client — Project".
   - location (string, optional): location title or "locations/..." name; defaults to the project's chosen location.
   - onlyUnreplied (boolean, optional): only reviews without an owner reply.
   - pageToken (string, optional): from a previous call's nextPageToken.`,

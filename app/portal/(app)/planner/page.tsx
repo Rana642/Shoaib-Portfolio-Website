@@ -62,7 +62,7 @@ export default async function PortalPlannerPage({ searchParams }: { searchParams
         mode="client"
         canUpload={canUpload}
         plannerPath="/portal/planner"
-        projects={projects.map((p) => ({ id: p.id as string, label: p.name as string, client_id: ctx.clientId }))}
+        projects={projects.map((p) => ({ id: p.id as string, label: p.name as string, name: p.name as string, client: "", client_id: ctx.clientId }))}
         selectedProjectId={selected.id as string}
         posts={withUrls}
         connectedPlatforms={[]}

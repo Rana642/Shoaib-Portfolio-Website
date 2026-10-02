@@ -131,7 +131,7 @@ export default async function GbpPage({
         <EmptyState title="Choose a client project" description="Pick the client whose Google Business Profile you want to manage." />
       ) : !conn ? (
         <EmptyState
-          title={`Connect ${project.label.split(" — ")[0]}'s Business Profile`}
+          title={`Connect ${project.name}'s Business Profile`}
           description="Sign in with the Google account that owns or manages the Business Profile and allow Socially Snap to manage it. You can disconnect at any time."
           action={
             <div className="flex flex-col items-center gap-3">

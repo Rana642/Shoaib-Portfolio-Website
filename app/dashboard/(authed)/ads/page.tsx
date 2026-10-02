@@ -94,7 +94,7 @@ export default async function MetaAdsPage({
         <EmptyState title="Choose a client project" description="Pick the client whose Meta ads you want to manage." />
       ) : !conn ? (
         <EmptyState
-          title={`Connect ${project.label.split(" — ")[0]}'s ad account`}
+          title={`Connect ${project.name}'s ad account`}
           description="You'll sign in with Facebook and choose which businesses, ad accounts and Pages to share. You can disconnect at any time."
           action={
             <a href={`/api/dashboard/ads/facebook-login/authorize?project_id=${project.id}`} className={buttonStyles.primary}>

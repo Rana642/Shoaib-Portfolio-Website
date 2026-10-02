@@ -80,7 +80,13 @@ export type SocialPlatform = "facebook" | "instagram" | "linkedin" | "tiktok";
  *  directly — a client can run several separate businesses. */
 export type ProjectOption = {
   id: string;
-  label: string; // "Client — Project"
+  /** What pickers show: the project name alone (Shoaib, 2026-10-02 — no
+   *  client name next to projects); "Project · Client" only when two
+   *  projects share a name. */
+  label: string;
+  /** The project's own name and its client's, for search/matching. */
+  name: string;
+  client: string;
   client_id: string;
 };
 

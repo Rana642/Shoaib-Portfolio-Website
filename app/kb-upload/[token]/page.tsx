@@ -29,11 +29,8 @@ export default async function KbUploadPage({ params }: { params: Promise<{ token
   let projectLabel = "";
   let productName = "";
   if (payload) {
-    const { data: project } = await db.from("client_projects").select("name, clients(name)").eq("id", payload.p).maybeSingle();
-    if (project) {
-      const client = Array.isArray(project.clients) ? project.clients[0]?.name : (project.clients as { name: string } | null)?.name;
-      projectLabel = `${client ?? "Unknown"} — ${project.name}`;
-    }
+    const { data: project } = await db.from("client_projects").select("name").eq("id", payload.p).maybeSingle();
+    if (project) projectLabel = project.name;
     if (payload.pr) {
       const { data: product } = await db.from("project_products").select("name").eq("id", payload.pr).maybeSingle();
       productName = product?.name ?? "";

@@ -36,7 +36,6 @@ export default function ConnectionsMatrix({
           {projects.map((proj) => {
             const statuses = PLATFORMS.map((p) => statusOf(proj.id, p.key));
             const done = statuses.filter((s) => s === "connected" || s === "workspace").length;
-            const [client, name] = proj.label.includes(" — ") ? proj.label.split(" — ") : [null, proj.label];
             return (
               <tr
                 key={proj.id}
@@ -44,8 +43,7 @@ export default function ConnectionsMatrix({
                 className="group border-b border-ink/5 last:border-0 cursor-pointer hover:bg-citrus/10 transition-colors"
               >
                 <td className="px-5 py-3.5">
-                  <span className="block font-medium">{name}</span>
-                  {client && <span className="block text-tag text-ink-subtle">{client}</span>}
+                  <span className="block font-medium">{proj.label}</span>
                 </td>
                 {statuses.map((s, i) => (
                   <td key={PLATFORMS[i].key} className="px-3 py-3.5">
