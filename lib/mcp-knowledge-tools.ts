@@ -38,6 +38,7 @@ export const KB_SERVER_INSTRUCTIONS = [
   "Product posts (one social post per product, presented like a brochure page — \"Aminotox ki brief post design karo\"): call kb_get_product_post. Same rules: use the prompt, caption and images unchanged.",
   "Caution / disclaimer lines (e.g. \"Vet — Not for human use. Veterinary use only.\") go ONLY on product-related posts and captions — a post that shows a product or is about a named product. Never on any other post (brand, general tips, dealer/B2B, Jummah, events, greetings…), in every project.",
   "Content is OURS for every project (Shoaib, 2026-10-03): every word on a post and its caption is written in the knowledge base and approved by the user before design. Design tools (image models, ChatGPT while designing) never write, add, shorten or rewrite words; if a post has no approved words, stop, draft them for approval, save them, then design.",
+  "Occasion words: kb_list_occasion_copy shows what is approved / pending per project; kb_save_occasion_copy saves drafts in the right format; kb_approve_occasion_copy approves them — only after the user says so. Jummah gets a new verified verse, hadith or dua and a new Islamic layout every Friday. Each project's full design system is its DESIGN.md (KB doc design_system/main), shown in kb_get_brief.",
   "Jummah / Friday and occasion posts for any project (\"Jumma post banao\", Eid, Ramadan, 14 August, 23 March, Kashmir day…): call kb_get_occasion_post — brand items stay fixed, the background and words are made for the day (Arabic/Urdu only from its verified texts), never a product or call to action.",
   "Event posts (expo stall, seminar, dealer meet, product launch, new partner, anniversary…): follow the global rule `event-posts` — only real facts from the user/client (ask for name, date, venue, stall, photos; never invent), up to 4 posts per event (announcement, reminder, live, thank-you). A project's dated posts (Jummah, Islamic/national/international days, events) are listed in its marketing doc `dated-posts-plan` when it has one.",
   "The kb_* write tools (kb_upsert_doc, kb_upsert_product, kb_add_asset, kb_add_memory, kb_upsert_global_rule…) let you maintain the knowledge base; deletes need confirm=true.",
@@ -49,7 +50,7 @@ const MAX_FETCH_BYTES = 12_000_000;
 
 const DOC_ORDER = ["nap", "brand_position", "icp", "pain_points", "graphic_rules", "system_rules"];
 /** Types shown in full inside kb_get_brief; others (marketing_doc…) are listed and fetched on demand. */
-const INLINE_TYPES = new Set([...DOC_ORDER, "memory"]);
+const INLINE_TYPES = new Set([...DOC_ORDER, "design_system", "memory"]);
 
 const docTypeSchema = z
   .string()
@@ -202,6 +203,75 @@ function jsonBlock(text: string, what: string): unknown {
   const m = text.match(/```json\s*\n([\s\S]*?)\n```/);
   if (!m) throw new Error(`The ${what} doc has no \`\`\`json block.`);
   return JSON.parse(m[1]);
+}
+
+
+/** Occasion key from a key, a name or a common spelling ("eid milad" → milad, not eid). */
+const OCCASION_ALIASES: Record<string, string[]> = {
+  jummah: ["juma", "jumma", "jumah", "jumuah", "friday", "jummamubarak", "jummahmubarak", "blessedfriday"],
+  ramadan: ["ramzan", "ramadhan", "ramadankareem", "ramzanmubarak"],
+  laylat_al_qadr: ["laylatulqadr", "lailatulqadr", "shabeqadr", "shabqadr", "nightofpower", "27ramadan"],
+  eid_ul_fitr: ["eid", "eidulfitr", "eidalfitr", "chotieid", "eidmubarak"],
+  eid_ul_adha: ["eidaladha", "eiduladha", "bakraeid", "bakrid", "eidqurban"],
+  islamic_new_year: ["muharram", "hijrinewyear", "newislamicyear", "1muharram"],
+  ashura: ["ashur", "youmeashur", "10muharram"],
+  eid_milad_un_nabi: ["milad", "miladunnabi", "12rabiulawwal", "rabiulawwal", "mawlid"],
+  shab_e_barat: ["shabebarat", "shabbarat", "15shaban"],
+  kashmir_day: ["kashmir", "kashmirsolidarityday", "5february", "5feb", "yomeykjehtikashmir"],
+  pakistan_day: ["23march", "pakistanresolutionday", "yomepakistan"],
+  independence_day: ["14august", "independence", "jashneazadi", "azadi", "yomeazadi"],
+  defence_day: ["6september", "defenseday", "yomedifa"],
+  iqbal_day: ["9november", "iqbal", "allamaiqbal"],
+  quaid_day: ["25december", "quaid", "quaideazam", "jinnahday"],
+  world_veterinary_day: ["veterinaryday", "vetday", "worldvetday"],
+  world_egg_day: ["eggday", "worldeggday"],
+  world_animal_day: ["animalday", "worldanimalday", "4october"],
+  world_food_day: ["foodday", "worldfoodday", "16october"],
+  antimicrobial_awareness_week: ["waaw", "amrweek", "amrawareness", "antimicrobial", "antibioticawareness", "antibioticweek"],
+  world_zoonoses_day: ["zoonoses", "zoonosis", "6july"],
+  world_milk_day: ["milkday", "worldmilkday", "1june"],
+  world_food_safety_day: ["foodsafety", "7june"],
+};
+
+function resolveOccasionKey(occasions: Record<string, { names: Record<string, string> }>, occasion: string): string | null {
+  const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const want = norm(occasion);
+  // Partial matches: the longest alias wins.
+  const partial = Object.entries(OCCASION_ALIASES)
+    .flatMap(([k, list]) => list.filter((a) => want.includes(a)).map((a) => ({ k, len: a.length })))
+    .sort((a, b) => b.len - a.len)[0]?.k;
+  return (
+    Object.keys(occasions).find((k) => norm(k) === want) ??
+    Object.entries(occasions).find(([, o]) => Object.values(o.names).some((n) => norm(n) === want))?.[0] ??
+    Object.entries(OCCASION_ALIASES).find(([, list]) => list.includes(want))?.[0] ??
+    partial ??
+    null
+  );
+}
+
+type OccasionCopyVariant = { approved?: boolean; approved_by?: string; date?: string; language?: string; text_id?: string; text_on_image: Record<string, string>; caption?: string };
+
+/** The project's `occasion-copy` doc (approved words for Jummah and dated posts). */
+async function readOccasionCopy(projectId: string): Promise<{ title: string; intro: string; copy: Record<string, OccasionCopyVariant[]> } | null> {
+  const { data } = await db.from("project_knowledge_docs").select("title, content").eq("project_id", projectId).eq("slug", "occasion-copy").maybeSingle();
+  if (!data) return null;
+  const row = data as { title: string; content: string };
+  const m = row.content.match(/```json\s*\n([\s\S]*?)\n```/);
+  return { title: row.title, intro: m ? row.content.slice(0, m.index).trimEnd() : row.content.trimEnd(), copy: m ? (JSON.parse(m[1]) as Record<string, OccasionCopyVariant[]>) : {} };
+}
+
+async function writeOccasionCopy(projectId: string, title: string, intro: string, copy: Record<string, OccasionCopyVariant[]>): Promise<void> {
+  const content = `${intro}\n\n\`\`\`json\n${JSON.stringify(copy, null, 2)}\n\`\`\``;
+  const { error } = await db
+    .from("project_knowledge_docs")
+    .upsert({ project_id: projectId, doc_type: "marketing_doc", slug: "occasion-copy", title, content, updated_at: new Date().toISOString() }, { onConflict: "project_id,doc_type,slug" });
+  if (error) throw new Error(error.message);
+}
+
+async function occasionKeys(): Promise<Record<string, { names: Record<string, string> }>> {
+  const { data } = await db.from("kb_global_docs").select("content").eq("slug", "occasion-posts").maybeSingle();
+  if (!data) return {};
+  return (jsonBlock((data as { content: string }).content, "occasion-posts") as { occasions: Record<string, { names: Record<string, string> }> }).occasions;
 }
 
 const VET_CAPTION_LINE = /^\s*vet\s*[—–-]\s*not for human.*$\n?/gim;
@@ -748,44 +818,7 @@ Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "layl
           verified_texts: Record<string, { arabic: string; urdu: string; reference: string }>;
         };
 
-        // Match the occasion by key, name or a common spelling.
-        const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-        const ALIASES: Record<string, string[]> = {
-          jummah: ["juma", "jumma", "jumah", "jumuah", "friday", "jummamubarak", "jummahmubarak", "blessedfriday"],
-          ramadan: ["ramzan", "ramadhan", "ramadankareem", "ramzanmubarak"],
-          laylat_al_qadr: ["laylatulqadr", "lailatulqadr", "shabeqadr", "shabqadr", "nightofpower", "27ramadan"],
-          eid_ul_fitr: ["eid", "eidulfitr", "eidalfitr", "chotieid", "eidmubarak"],
-          eid_ul_adha: ["eidaladha", "eiduladha", "bakraeid", "bakrid", "eidqurban"],
-          islamic_new_year: ["muharram", "hijrinewyear", "newislamicyear", "1muharram"],
-          ashura: ["ashur", "youmeashur", "10muharram"],
-          eid_milad_un_nabi: ["milad", "miladunnabi", "12rabiulawwal", "rabiulawwal", "mawlid"],
-          shab_e_barat: ["shabebarat", "shabbarat", "15shaban"],
-          kashmir_day: ["kashmir", "kashmirsolidarityday", "5february", "5feb", "yomeykjehtikashmir"],
-          pakistan_day: ["23march", "pakistanresolutionday", "yomepakistan"],
-          independence_day: ["14august", "independence", "jashneazadi", "azadi", "yomeazadi"],
-          defence_day: ["6september", "defenseday", "yomedifa"],
-          iqbal_day: ["9november", "iqbal", "allamaiqbal"],
-          quaid_day: ["25december", "quaid", "quaideazam", "jinnahday"],
-          world_veterinary_day: ["veterinaryday", "vetday", "worldvetday"],
-          world_egg_day: ["eggday", "worldeggday"],
-          world_animal_day: ["animalday", "worldanimalday", "4october"],
-          world_food_day: ["foodday", "worldfoodday", "16october"],
-          antimicrobial_awareness_week: ["waaw", "amrweek", "amrawareness", "antimicrobial", "antibioticawareness", "antibioticweek"],
-          world_zoonoses_day: ["zoonoses", "zoonosis", "6july"],
-          world_milk_day: ["milkday", "worldmilkday", "1june"],
-          world_food_safety_day: ["foodsafety", "7june"],
-        };
-        const want = norm(occasion);
-        // Partial matches: the longest alias wins ("eid milad" → milad, not eid).
-        const partial = Object.entries(ALIASES)
-          .flatMap(([k, list]) => list.filter((a) => want.includes(a)).map((a) => ({ k, len: a.length })))
-          .sort((a, b) => b.len - a.len)[0]?.k;
-        const key =
-          Object.keys(data.occasions).find((k) => norm(k) === want) ??
-          Object.entries(data.occasions).find(([, o]) => Object.values(o.names).some((n) => norm(n) === want))?.[0] ??
-          Object.entries(ALIASES).find(([, list]) => list.includes(want))?.[0] ??
-          partial ??
-          null;
+        const key = resolveOccasionKey(data.occasions, occasion);
         const occ = key ? data.occasions[key] : null;
 
         // Style: rotates by week so consecutive Fridays never look alike.
@@ -913,6 +946,136 @@ Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "layl
           }
         }
         return { content };
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_list_occasion_copy",
+    {
+      title: "List Occasion Copy (approved / pending)",
+      description: `Shows a project's approved and pending words for Jummah and dated posts (its \`occasion-copy\` doc): per occasion, each entry's date, approved or pending, the text used (verse / hadith / dua id) and the headline. Use it to see what is ready to design, what still needs the user's approval, and the next dated posts.
+
+Args: projectName, occasion (optional — e.g. "jummah", "world egg day"), from (optional YYYY-MM-DD — list only entries on or after this date).`,
+      inputSchema: {
+        projectName: z.string(),
+        occasion: z.string().optional(),
+        from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      },
+      annotations: READ,
+    },
+    async ({ projectName, occasion, from }: { projectName: string; occasion?: string; from?: string }) => {
+      try {
+        const project = await findProject(projectName);
+        const doc = await readOccasionCopy(project.id);
+        if (!doc) return { content: [{ type: "text", text: `${project.label} has no occasion-copy doc yet — no approved words for Jummah or dated posts.` }] };
+        const only = occasion ? resolveOccasionKey(await occasionKeys(), occasion) ?? occasion : null;
+        const lines: string[] = [];
+        for (const [key, list] of Object.entries(doc.copy)) {
+          if (only && key !== only) continue;
+          const rows = list.filter((v) => !from || !v.date || v.date >= from);
+          if (!rows.length) continue;
+          const ok = rows.filter((v) => v.approved === true).length;
+          lines.push(`${key} — ${ok} approved, ${rows.length - ok} pending`);
+          for (const v of rows) {
+            const t = v.text_on_image ?? {};
+            lines.push(`  ${v.approved ? "✅" : "⏳"} ${v.date ?? "(any date)"} ${v.text_id ? `[${v.text_id}] ` : ""}${t.reference ?? t.headline ?? ""}${t.message ? ` — ${t.message}` : t.english_meaning ? ` — ${t.english_meaning}` : ""}`);
+          }
+        }
+        return { content: [{ type: "text", text: lines.length ? `${project.label} — occasion copy\n\n${lines.join("\n")}` : "Nothing matches." }] };
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_save_occasion_copy",
+    {
+      title: "Save Occasion Copy (draft or approved)",
+      description: `Adds or replaces the words for one Jummah / dated post in a project's \`occasion-copy\` doc, in the right format. The words are OURS (global rule \`content-ours\`): save drafts with approved=false, show them to the user, and set approved=true only after the user approved these exact words in chat. Same occasion + date replaces that entry; without a date the entry is added.
+
+Args: projectName, occasion (key or name), text_on_image (object of the exact words, e.g. {"headline": "...", "message": "...", "sign_off": "From the team at <Brand>"}; Jummah: arabic_headline, headline, arabic_text, english_meaning, reference, sign_off — Arabic only from verified_texts), caption (exact caption), date (optional YYYY-MM-DD), language (default "english"), text_id (optional verified_texts id), approved (default false).`,
+      inputSchema: {
+        projectName: z.string(),
+        occasion: z.string().min(2),
+        text_on_image: z.record(z.string(), z.string()),
+        caption: z.string().min(1),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        language: z.string().optional(),
+        text_id: z.string().optional(),
+        approved: z.boolean().optional(),
+      },
+      annotations: WRITE,
+    },
+    async (args: { projectName: string; occasion: string; text_on_image: Record<string, string>; caption: string; date?: string; language?: string; text_id?: string; approved?: boolean }) => {
+      try {
+        const project = await findProject(args.projectName);
+        const key = resolveOccasionKey(await occasionKeys(), args.occasion);
+        if (!key) throw new Error(`"${args.occasion}" is not in the occasion list (global rule occasion-posts).`);
+        const doc = (await readOccasionCopy(project.id)) ?? {
+          title: "Occasion copy — approved words for Jummah and dated posts",
+          intro: `# Occasion copy (${project.name})\n\nThe words on every occasion post and its caption are **ours** (global rule \`content-ours\`). \`kb_get_occasion_post\` uses only entries with \`"approved": true\`; drafts are shown for approval and never designed.`,
+          copy: {},
+        };
+        const entry: OccasionCopyVariant = {
+          approved: args.approved === true,
+          ...(args.approved ? { approved_by: `the user, ${new Date().toISOString().slice(0, 10)}` } : {}),
+          ...(args.date ? { date: args.date } : {}),
+          language: args.language ?? "english",
+          ...(args.text_id ? { text_id: args.text_id } : {}),
+          text_on_image: args.text_on_image,
+          caption: args.caption,
+        };
+        const list = doc.copy[key] ?? [];
+        const at = args.date ? list.findIndex((v) => v.date === args.date) : -1;
+        if (at >= 0) list[at] = entry;
+        else list.push(entry);
+        doc.copy[key] = list;
+        await writeOccasionCopy(project.id, doc.title, doc.intro, doc.copy);
+        return { content: [{ type: "text", text: `Saved ${entry.approved ? "APPROVED" : "draft"} ${key}${args.date ? ` for ${args.date}` : ""} in ${project.label}'s occasion-copy (${at >= 0 ? "replaced" : "added"}).` }] };
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "kb_approve_occasion_copy",
+    {
+      title: "Approve Occasion Copy",
+      description: `Marks pending words in a project's \`occasion-copy\` doc as approved, so \`kb_get_occasion_post\` can design them. Call it ONLY after the user approved those exact words in chat ("approved", "theek hai", "haan") — never on your own.
+
+Args: projectName, occasion (key or name), date (optional YYYY-MM-DD — one entry), all (optional true — every pending entry of that occasion).`,
+      inputSchema: {
+        projectName: z.string(),
+        occasion: z.string().min(2),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        all: z.boolean().optional(),
+      },
+      annotations: WRITE,
+    },
+    async ({ projectName, occasion, date, all }: { projectName: string; occasion: string; date?: string; all?: boolean }) => {
+      try {
+        const project = await findProject(projectName);
+        const key = resolveOccasionKey(await occasionKeys(), occasion);
+        const doc = await readOccasionCopy(project.id);
+        if (!key || !doc || !doc.copy[key]?.length) throw new Error(`No occasion-copy entries for "${occasion}" in ${project.label}.`);
+        if (!date && !all && doc.copy[key].filter((v) => v.approved !== true).length > 1) throw new Error("Several pending entries — pass a date, or all=true.");
+        const stamp = `the user, ${new Date().toISOString().slice(0, 10)}`;
+        let n = 0;
+        for (const v of doc.copy[key]) {
+          if (v.approved === true) continue;
+          if (date && v.date !== date) continue;
+          v.approved = true;
+          v.approved_by = stamp;
+          n++;
+        }
+        if (!n) throw new Error("Nothing pending matched.");
+        await writeOccasionCopy(project.id, doc.title, doc.intro, doc.copy);
+        return { content: [{ type: "text", text: `Approved ${n} ${key} entr${n === 1 ? "y" : "ies"} in ${project.label}. They can be designed now with kb_get_occasion_post.` }] };
       } catch (error) {
         return fail(error);
       }
