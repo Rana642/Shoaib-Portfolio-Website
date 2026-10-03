@@ -37,6 +37,7 @@ export const KB_SERVER_INSTRUCTIONS = [
   "Social posts by calendar day (\"Day 1 ki post design karo\"): call kb_get_social_post — it returns the locked image prompt, the caption and the original images to attach. Use them unchanged.",
   "Product posts (one social post per product, presented like a brochure page — \"Aminotox ki brief post design karo\"): call kb_get_product_post. Same rules: use the prompt, caption and images unchanged.",
   "Caution / disclaimer lines (e.g. \"Vet — Not for human use. Veterinary use only.\") go ONLY on product-related posts and captions — a post that shows a product or is about a named product. Never on any other post (brand, general tips, dealer/B2B, Jummah, events, greetings…), in every project.",
+  "Content is OURS for every project (Shoaib, 2026-10-03): every word on a post and its caption is written in the knowledge base and approved by the user before design. Design tools (image models, ChatGPT while designing) never write, add, shorten or rewrite words; if a post has no approved words, stop, draft them for approval, save them, then design.",
   "Jummah / Friday and occasion posts for any project (\"Jumma post banao\", Eid, Ramadan, 14 August, 23 March, Kashmir day…): call kb_get_occasion_post — brand items stay fixed, the background and words are made for the day (Arabic/Urdu only from its verified texts), never a product or call to action.",
   "Event posts (expo stall, seminar, dealer meet, product launch, new partner, anniversary…): follow the global rule `event-posts` — only real facts from the user/client (ask for name, date, venue, stall, photos; never invent), up to 4 posts per event (announcement, reminder, live, thank-you). A project's dated posts (Jummah, Islamic/national/international days, events) are listed in its marketing doc `dated-posts-plan` when it has one.",
   "The kb_* write tools (kb_upsert_doc, kb_upsert_product, kb_add_asset, kb_add_memory, kb_upsert_global_rule…) let you maintain the knowledge base; deletes need confirm=true.",
@@ -722,7 +723,7 @@ Args: projectName (string), productName (string), category (optional: "english" 
       title: "Get Jummah / Occasion Post Brief",
       description: `Use this when the user asks for a Jummah / Friday post or a post for an Islamic, national or industry day for ANY project ("Jumma post banao", "Eid post", "14 August post", "Kashmir day post", "Laylat al-Qadr post", "World Egg Day post", "AMR awareness week post", "World Animal Day post"). Returns the global occasion rule (what stays fixed, what to create for the day, Arabic/Urdu rules), the occasion's motifs and names, the verified Arabic/Urdu texts to use, this time's background style (Jummah posts rotate weekly so no two Fridays look alike), the project's fixed brand items (logo, palette, typography, footer strip) and its occasion reference images.
 
-Then design the post: a background made for the occasion in the given style, words only from the verified texts / the occasion names (plus a short message and the brand sign-off), the brand items unchanged. Never put a product, claim or call to action on these posts.
+Then design the post: a background made for the occasion in the given style, the brand items unchanged, and ONLY the approved words from the project's \`occasion-copy\` doc (returned as text_on_image + caption). The words are ours: if none are approved yet the tool says STOP — draft them for the user's approval, save them, then design. Never put a product, claim or call to action on these posts.
 
 Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "laylat al qadr", "kashmir day"), language ("english" | "urdu" | "arabic" | "mix", default "mix"), date (optional YYYY-MM-DD — picks the style; default today).`,
       inputSchema: {
@@ -832,6 +833,24 @@ Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "layl
         const logo = assets.find((a) => a.kind === "logo");
         const refs = assets.filter((a) => a.title.startsWith("Occasion reference"));
 
+        // The words are OURS (Shoaib, 2026-10-03: "Content bhi apny khud create kerna hai wo ai per nai
+        // chorna"): approved copy lives in the project's `occasion-copy` doc; the designer never writes it.
+        type CopyVariant = { approved?: boolean; language?: string; text_on_image: Record<string, string>; caption?: string };
+        let variants: CopyVariant[] = [];
+        const copyDoc = docList.find((d) => d.slug === "occasion-copy");
+        if (copyDoc && key) {
+          try {
+            variants = ((jsonBlock(copyDoc.content, "occasion-copy") as Record<string, CopyVariant[]>)[key] ?? []).filter((v) => v && v.text_on_image);
+          } catch {
+            /* an unreadable copy doc counts as no approved copy */
+          }
+        }
+        const approved = variants.filter((v) => v.approved === true);
+        const sameLang = approved.filter((v) => !v.language || v.language === language);
+        const pool = sameLang.length ? sameLang : approved;
+        const chosen = pool.length ? pool[week % pool.length] : null;
+        const drafts = variants.filter((v) => v.approved !== true);
+
         const texts = (occ?.texts ?? []).map((t) => ({ id: t, ...data.verified_texts[t] })).filter((t) => t.arabic);
         const prompt = {
           brief: `${project.name} — ${occ?.names.english ?? occasion} post (${language})`,
@@ -842,6 +861,10 @@ Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "layl
           style_this_time: style,
           language,
           verified_texts: texts,
+          text_on_image: chosen ? chosen.text_on_image : null,
+          text_rule: chosen
+            ? "Use ONLY the approved words in text_on_image, character for character (Arabic/Urdu letter-perfect). Write no other words — no extra greeting, message, slogan or hashtag on the image."
+            : "NO APPROVED WORDS YET — do not design this post.",
           fixed_brand_items: { ...fixed, contact_details_from_nap: nap ? "see the nap doc below" : "no nap doc — ask the user" },
           not_on_this_post: [
             "product packs, product names, claims, doses, prices, offers or any call to action",
@@ -857,7 +880,7 @@ Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "layl
         const content: Block[] = [
           {
             type: "text",
-            text: `${occ?.names.english ?? occasion} — ${project.label}\n\nSTEP 1. Attach the logo${logo ? `: ${kbFileUrl(logo.storage_key, `${project.name}-logo`)}` : " (none stored — ask the user for it)"}\nSTEP 2. Design with this brief — background in "${style.name}" style made for the occasion; words only from the occasion names, the verified texts and a short message + "From the team at ${project.name}":\n\n\`\`\`json\n${JSON.stringify(prompt, null, 2)}\n\`\`\`\n\nSTEP 3. Check: logo unchanged, brand colours only, the project's footer strip exactly as specified, Arabic/Urdu letter-perfect, no product/claim/CTA, no vet line. ${SELF_CHECK} Then write a short caption (greeting, one line of dua or message, brand sign-off, 3–5 hashtags — no contact block, no CTA).\n\nGLOBAL RULE (occasion-posts):\n\n${ruleRow.content.replace(/```json[\s\S]*?```/, "(data above)")}`,
+            text: `${occ?.names.english ?? occasion} — ${project.label}\n\nSTEP 1. Attach the logo${logo ? `: ${kbFileUrl(logo.storage_key, `${project.name}-logo`)}` : " (none stored — ask the user for it)"}\n${chosen ? `STEP 2. Design with this brief — background in "${style.name}" style made for the occasion; the words are ONLY the approved text_on_image, exactly:` : `STOP — there are no APPROVED words for this occasion yet. The words are ours, never the designer's: do not design and do not invent a message or caption. Draft the words (headline, message, the sign-off "From the team at ${project.name}", and the caption: greeting, one line of dua or message, sign-off, 3–5 hashtags; no contact block, no CTA) using only the occasion names, the verified texts and the rule below. Show them to the user. After the user approves, save them in the project's marketing_doc "occasion-copy" with kb_upsert_doc (JSON: {"${key ?? "occasion_key"}": [{"approved": true, "language": "${language}", "text_on_image": {…}, "caption": "…"}]}), then call this tool again.${drafts.length ? `\n\nDRAFTS WAITING FOR APPROVAL (show these to the user):\n${JSON.stringify(drafts, null, 2)}` : ""}\n\nBrief for later:`}\n\n\`\`\`json\n${JSON.stringify(prompt, null, 2)}\n\`\`\`\n\n${chosen ? `STEP 3. Check: logo unchanged, brand colours only, the project's footer strip exactly as specified, every word exactly as approved, Arabic/Urdu letter-perfect, no product/claim/CTA, no vet line. ${SELF_CHECK}\n\nCAPTION TO POST (approved — give it as-is):\n\n${chosen.caption ?? "(no approved caption — ask the user)"}` : ""}\n\nGLOBAL RULE (occasion-posts):\n\n${ruleRow.content.replace(/```json[\s\S]*?```/, "(data above)")}`,
           },
         ];
         if (brandKit || graphicRules || nap) {
