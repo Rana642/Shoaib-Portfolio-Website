@@ -835,7 +835,7 @@ Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "layl
 
         // The words are OURS (Shoaib, 2026-10-03: "Content bhi apny khud create kerna hai wo ai per nai
         // chorna"): approved copy lives in the project's `occasion-copy` doc; the designer never writes it.
-        type CopyVariant = { approved?: boolean; language?: string; text_on_image: Record<string, string>; caption?: string };
+        type CopyVariant = { approved?: boolean; date?: string; language?: string; text_on_image: Record<string, string>; caption?: string };
         let variants: CopyVariant[] = [];
         const copyDoc = docList.find((d) => d.slug === "occasion-copy");
         if (copyDoc && key) {
@@ -848,8 +848,12 @@ Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "layl
         const approved = variants.filter((v) => v.approved === true);
         const sameLang = approved.filter((v) => !v.language || v.language === language);
         const pool = sameLang.length ? sameLang : approved;
-        const chosen = pool.length ? pool[week % pool.length] : null;
-        const drafts = variants.filter((v) => v.approved !== true);
+        // A variant written for this date wins (Jummah: one new verse/hadith/dua per Friday);
+        // otherwise the approved ones rotate by week.
+        const dayIso = date ?? new Date().toISOString().slice(0, 10);
+        const chosen = pool.find((v) => v.date === dayIso) ?? (pool.length ? pool[week % pool.length] : null);
+        const allDrafts = variants.filter((v) => v.approved !== true);
+        const drafts = allDrafts.some((v) => v.date === dayIso) ? allDrafts.filter((v) => v.date === dayIso) : allDrafts.slice(0, 3);
 
         const texts = (occ?.texts ?? []).map((t) => ({ id: t, ...data.verified_texts[t] })).filter((t) => t.arabic);
         const prompt = {
