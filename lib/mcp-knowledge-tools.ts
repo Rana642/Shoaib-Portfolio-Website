@@ -29,6 +29,7 @@ export const KB_SERVER_INSTRUCTIONS = [
   "Knowledge base tools (kb_*): before writing captions, ad copy, creatives or image-generation prompts for a client project, call kb_get_brief with the project name — it returns global rules, the project's brand docs and the product list. For any product claim (composition, dosage, indications) call kb_get_product and quote it verbatim; never approximate.",
   "Plain English by default for EVERY project (global rule `plain-english`): short sentences, everyday words a Pakistani reader knows, trade terms/product names/doses kept exact, meaning never changed. Only a project whose docs say english_level: advanced or native gets more complex English.",
   "Design for EVERY project is light and glassy, never dark (global rule `design-glass-light`): no dark backgrounds/panels/overlays, frosted-glass cards, brand colours as accents, the design drawn from the post's topic. Educational posts teach (global rule `educational-posts`) — the product is optional.",
+  "Layout for EVERY project (global rule `layout-alignment`): one shared left edge (or one centre line), equal cards, no empty cards, headline at most 2 lines, a wide wordmark logo about 30% of the width. Self-check every generated image against that rule's list (score 0–100, pass 70+ with every word correct); if it fails, make it again once with \"fix only: …\" and show the better one.",
   "NAP (name/address/phone/email) always comes from the brand's official website (the project's `nap` doc), never from product PDFs, labels or old posts, and is never part of branding docs.",
   "CLAUDE WEB WIDGETS/ARTIFACTS: the sandbox blocks every image origin except a few CDNs — only the `Widget-safe (jsDelivr)` / cdn_url links load there; adsbyshoaib.com URLs show as broken images. If a file has no widget-safe URL yet, ask the user before calling kb_publish_to_cdn (it publishes to a PUBLIC repo).",
   "Images: every stored file has a permanent public URL (returned by kb_get_product / kb_list_assets / kb_get_asset) you can use in <img> or SVG <image href>; add &w=800&fmt=jpg to get a smaller rendition. Adding files: if you can run shell commands and the files are on that machine, use kb_create_direct_upload (curl, no browser, many files at once); with a public https link use kb_add_asset sourceUrl; a file that only exists in the chat needs kb_create_upload_link for the user to open. kb_update_asset fixes a file's title/notes/order/product or makes it the main photo.",
@@ -204,13 +205,32 @@ function jsonBlock(text: string, what: string): unknown {
 
 const VET_CAPTION_LINE = /^\s*vet\s*[—–-]\s*not for human.*$\n?/gim;
 
-/** The global design rule rides inside every post prompt for every project — with
+/** The global design rules ride inside every post prompt for every project — with
  *  or without its own design lock, today's projects and future ones (Shoaib,
- *  2026-10-03: "sb projects ka mtlb hai global rule jitny projects hon gy sab"). */
-async function everyProjectDesignRule(): Promise<string | null> {
-  const { data } = await db.from("kb_global_docs").select("content").eq("slug", "design-glass-light").maybeSingle();
+ *  2026-10-03: "sb projects ka mtlb hai global rule jitny projects hon gy sab"):
+ *  `design-glass-light` (light and glass, never dark) and `layout-alignment`
+ *  (grid, logo size, self-check). */
+async function globalRule(slug: string): Promise<string | null> {
+  const { data } = await db.from("kb_global_docs").select("content").eq("slug", slug).maybeSingle();
   return (data as { content: string } | null)?.content ?? null;
 }
+
+/** How many blocks / rows / chips the post has, read from its own text — so the
+ *  image model draws exactly that many, aligned, and never an empty extra card
+ *  (Shoaib, 2026-10-03: "Content alignment dekho zara aur content presentation"). */
+function layoutPlan(text: unknown): string[] {
+  if (!text || typeof text !== "object") return [];
+  const plan = ["One shared left edge for every text block and the logo (or, in a centred layout, one centre line for all of them)."];
+  for (const [k, v] of Object.entries(text as Record<string, unknown>)) {
+    const name = k.replace(/_/g, " ");
+    if (typeof v === "string") plan.push(k === "headline" ? "headline: the largest text, at most 2 lines, broken at a natural phrase." : `${name}: one block.`);
+    else if (Array.isArray(v)) plan.push(`${name}: exactly ${v.length} item${v.length === 1 ? "" : "s"} — ${v.length} row${v.length === 1 ? "" : "s"} / card${v.length === 1 ? "" : "s"}, same size and style, equal gaps, aligned; no extra or empty card.`);
+    else if (v && typeof v === "object") plan.push(`${name}: one group of ${Object.keys(v).length} parts, aligned together.`);
+  }
+  return plan;
+}
+
+const SELF_CHECK = "Self-check the finished image against the global rule `layout-alignment` (score 0–100: exact words, logo, product, alignment, light/glass, footer and caution line, nothing cramped). Pass = 70+ with every word correct; otherwise make it again ONCE with \"Keep everything that was right; fix only: …\" and show the better one, with its score.";
 
 /** Product-related = names a product, attaches a product photo, or its image text
  *  mentions one of the project's products. Only these carry the vet/caution line. */
@@ -235,7 +255,14 @@ async function designBriefBlocks(heading: string, brief: string, lock: unknown, 
     !isProduct && lock && typeof lock === "object" && "vet_line" in lock
       ? { ...lock, vet_line: "NONE on this post — it is not about a product. Do not add \"Vet — Not for human use. Veterinary use only.\" or any other caution/disclaimer line." }
       : lock;
-  const prompt = { brief, design_rule_every_project: await everyProjectDesignRule(), global_design_lock: globalLock, ...rest };
+  const prompt = {
+    brief,
+    design_rule_every_project: await globalRule("design-glass-light"),
+    layout_rule_every_project: await globalRule("layout-alignment"),
+    layout_plan: layoutPlan(rest.text_on_image),
+    global_design_lock: globalLock,
+    ...rest,
+  };
 
   // Resolve the attachments (CDN URLs in the doc) back to stored originals.
   const attach = (rest.attach ?? {}) as Record<string, string | string[]>;
@@ -251,7 +278,7 @@ async function designBriefBlocks(heading: string, brief: string, lock: unknown, 
           const key = byUrl.get(u);
           return `${i + 1}. ${u}${key ? `\n   Full resolution: ${kbFileUrl(key, `${fileTag}-image-${i + 1}`)}` : ""}`;
         })
-        .join("\n")}\n\nSTEP 2. Generate the image with this prompt, unchanged:\n\n\`\`\`json\n${JSON.stringify(prompt, null, 2)}\n\`\`\`\n\nSTEP 3. Check the result against the lock (product identical to the attached photo, exact text only, brand colours only, full-width footer strip, ${isProduct ? "vet line" : "NO vet line"}). If anything differs, regenerate with "Follow the JSON exactly; fix only: …".\n\nCAPTION TO POST (give this to the user as-is):\n\n${caption ?? "(no caption in the doc)"}`,
+        .join("\n")}\n\nSTEP 2. Generate the image with this prompt, unchanged:\n\n\`\`\`json\n${JSON.stringify(prompt, null, 2)}\n\`\`\`\n\nSTEP 3. Check the result against the lock (product identical to the attached photo, exact text only, brand colours only, full-width footer strip, ${isProduct ? "vet line" : "NO vet line"}) and the layout_plan. ${SELF_CHECK}\n\nCAPTION TO POST (give this to the user as-is):\n\n${caption ?? "(no caption in the doc)"}`,
     },
   ];
   for (const [i, u] of urls.entries()) {
@@ -753,7 +780,8 @@ Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "layl
         const prompt = {
           brief: `${project.name} — ${occ?.names.english ?? occasion} post (${language})`,
           size: "1080 × 1350 px (Instagram 4:5)",
-          design_rule_every_project: await everyProjectDesignRule(),
+          design_rule_every_project: await globalRule("design-glass-light"),
+          layout_rule_every_project: await globalRule("layout-alignment"),
           occasion: occ ? { key, ...occ } : { asked: occasion, note: "Not in the occasion list — follow the general rule and confirm motifs and wording with the user. If this is the brand's own event (expo, seminar, launch, anniversary, new partner…), use the global rule `event-posts` instead: real facts and photos only." },
           style_this_time: style,
           language,
@@ -773,7 +801,7 @@ Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "layl
         const content: Block[] = [
           {
             type: "text",
-            text: `${occ?.names.english ?? occasion} — ${project.label}\n\nSTEP 1. Attach the logo${logo ? `: ${kbFileUrl(logo.storage_key, `${project.name}-logo`)}` : " (none stored — ask the user for it)"}\nSTEP 2. Design with this brief — background in "${style.name}" style made for the occasion; words only from the occasion names, the verified texts and a short message + "From the team at ${project.name}":\n\n\`\`\`json\n${JSON.stringify(prompt, null, 2)}\n\`\`\`\n\nSTEP 3. Check: logo unchanged, brand colours only, the project's footer strip exactly as specified, Arabic/Urdu letter-perfect, no product/claim/CTA, no vet line. Then write a short caption (greeting, one line of dua or message, brand sign-off, 3–5 hashtags — no contact block, no CTA).\n\nGLOBAL RULE (occasion-posts):\n\n${ruleRow.content.replace(/```json[\s\S]*?```/, "(data above)")}`,
+            text: `${occ?.names.english ?? occasion} — ${project.label}\n\nSTEP 1. Attach the logo${logo ? `: ${kbFileUrl(logo.storage_key, `${project.name}-logo`)}` : " (none stored — ask the user for it)"}\nSTEP 2. Design with this brief — background in "${style.name}" style made for the occasion; words only from the occasion names, the verified texts and a short message + "From the team at ${project.name}":\n\n\`\`\`json\n${JSON.stringify(prompt, null, 2)}\n\`\`\`\n\nSTEP 3. Check: logo unchanged, brand colours only, the project's footer strip exactly as specified, Arabic/Urdu letter-perfect, no product/claim/CTA, no vet line. ${SELF_CHECK} Then write a short caption (greeting, one line of dua or message, brand sign-off, 3–5 hashtags — no contact block, no CTA).\n\nGLOBAL RULE (occasion-posts):\n\n${ruleRow.content.replace(/```json[\s\S]*?```/, "(data above)")}`,
           },
         ];
         if (brandKit || graphicRules || nap) {
