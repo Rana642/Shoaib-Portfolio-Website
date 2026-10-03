@@ -273,7 +273,7 @@ async function presentationIdea(entry: Record<string, unknown>, series: Record<s
   if (!pick) return null;
   const type = contentType(entry);
   return {
-    how_to_use: "Inspiration for HOW to present this post (frames, shapes, list treatment, background) — blend it into this post's style. The locked items, the lock's do_not, design_rule_every_project and layout_rule_every_project win. Never copy another brand's words or exact layout; dark bands in the idea become white or frosted glass.",
+    how_to_use: "Inspiration for HOW to present this post (frames, shapes, list treatment, background) — blend it into this post's style. The locked items, the lock's do_not, design_rule_every_project and layout_rule_every_project win. It never adds words: any question, tag, pill or label it mentions uses only words from text_on_image. Never copy another brand's words or exact layout; dark bands in the idea become white or frosted glass.",
     content_type: type,
     idea: pick.name,
     structure: pick.structure,
