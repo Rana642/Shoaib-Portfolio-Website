@@ -28,7 +28,7 @@ import { CDN_REPO, cdnUrlMap, publishToCdn, slugifyName } from "./kb-cdn";
 export const KB_SERVER_INSTRUCTIONS = [
   "Knowledge base tools (kb_*): before writing captions, ad copy, creatives or image-generation prompts for a client project, call kb_get_brief with the project name — it returns global rules, the project's brand docs and the product list. For any product claim (composition, dosage, indications) call kb_get_product and quote it verbatim; never approximate.",
   "Plain English by default for EVERY project (global rule `plain-english`): short sentences, everyday words a Pakistani reader knows, trade terms/product names/doses kept exact, meaning never changed. Only a project whose docs say english_level: advanced or native gets more complex English.",
-  "Design for EVERY project is light and glassy, never dark (global rule `design-glass-light`): no dark backgrounds/panels/overlays, frosted-glass cards, brand colours as accents, the design drawn from the post's topic. Educational posts teach (global rule `educational-posts`) — the product is optional.",
+  "Design for EVERY project is light and glassy, never dark (global rule `design-glass-light`): no dark backgrounds/panels/overlays, frosted-glass cards, brand colours as accents, the design drawn from the post's topic. Educational posts teach (global rule `educational-posts`) — the product is optional. Each post prompt also carries one presentation idea (global rule `presentation-ideas`: frames, shapes, backgrounds) to blend into its style.",
   "Layout for EVERY project (global rule `layout-alignment`): one shared left edge (or one centre line), equal cards, no empty cards, headline at most 2 lines, a wide wordmark logo about 30% of the width. Self-check every generated image against that rule's list (score 0–100, pass 70+ with every word correct); if it fails, make it again once with \"fix only: …\" and show the better one.",
   "NAP (name/address/phone/email) always comes from the brand's official website (the project's `nap` doc), never from product PDFs, labels or old posts, and is never part of branding docs.",
   "CLAUDE WEB WIDGETS/ARTIFACTS: the sandbox blocks every image origin except a few CDNs — only the `Widget-safe (jsDelivr)` / cdn_url links load there; adsbyshoaib.com URLs show as broken images. If a file has no widget-safe URL yet, ask the user before calling kb_publish_to_cdn (it publishes to a PUBLIC repo).",
@@ -231,6 +231,57 @@ function layoutPlan(text: unknown): string[] {
   return plan;
 }
 
+type PresentationPattern = { key: string; name: string; best_for: string[]; structure: string; shapes?: string; note?: string };
+
+/** The post's content type in the words the `presentation-ideas` library uses. */
+function contentType(entry: Record<string, unknown>): string {
+  const p = String(entry.pillar ?? "").toLowerCase();
+  if (!p) return entry.product ? "product brief" : "brand awareness";
+  for (const t of ["carousel", "brand", "spotlight", "education", "tip", "range", "dealer"]) {
+    if (p.includes(t)) return { brand: "brand awareness", spotlight: "product spotlight" }[t] ?? t;
+  }
+  return p;
+}
+
+/** One presentation idea per post from the global `presentation-ideas` library
+ *  (Shoaib, 2026-10-03: shapes, frames and backgrounds for inspiration — not
+ *  content), matched to the content type. The whole series (calendar or product
+ *  posts) is walked in order, each post starting one step further round the
+ *  library and never taking the previous post's idea, so posts in a row look
+ *  different. */
+async function presentationIdea(entry: Record<string, unknown>, series: Record<string, unknown>[] = [entry]): Promise<Record<string, unknown> | null> {
+  const rule = await globalRule("presentation-ideas");
+  if (!rule) return null;
+  let patterns: PresentationPattern[];
+  try {
+    patterns = (jsonBlock(rule, "presentation-ideas") as { patterns: PresentationPattern[] }).patterns;
+  } catch {
+    return null;
+  }
+  const ring = patterns.filter((p) => !p.best_for.includes("carousel"));
+  if (!ring.length) return null;
+  const at = series.indexOf(entry);
+  let pick: PresentationPattern | undefined;
+  for (const [i, e] of (at >= 0 ? series.slice(0, at + 1) : [entry]).entries()) {
+    const type = contentType(e);
+    const carousel = type === "carousel" ? patterns.find((p) => p.best_for.includes("carousel")) : undefined;
+    const order = ring.map((_, j) => ring[(i + j) % ring.length]);
+    const fits = order.filter((p) => p.best_for.includes(type));
+    const pool = fits.length ? fits : order;
+    pick = carousel ?? pool.find((p) => p.key !== pick?.key) ?? pool[0];
+  }
+  if (!pick) return null;
+  const type = contentType(entry);
+  return {
+    how_to_use: "Inspiration for HOW to present this post (frames, shapes, list treatment, background) — blend it into this post's style. The locked items, the lock's do_not, design_rule_every_project and layout_rule_every_project win. Never copy another brand's words or exact layout; dark bands in the idea become white or frosted glass.",
+    content_type: type,
+    idea: pick.name,
+    structure: pick.structure,
+    ...(pick.shapes ? { shapes: pick.shapes } : {}),
+    ...(pick.note ? { note: pick.note } : {}),
+  };
+}
+
 const SELF_CHECK = "Self-check the finished image against the global rule `layout-alignment` (score 0–100: exact words, logo, product, alignment, light/glass, footer and caution line, nothing cramped). Pass = 70+ with every word correct; otherwise make it again ONCE with \"Keep everything that was right; fix only: …\" and show the better one, with its score.";
 
 /** Product-related = names a product, attaches a product photo, or its image text
@@ -245,7 +296,7 @@ function isProductRelated(entry: Record<string, unknown>, productNames: string[]
 /** A social-post brief (calendar day or product post) merged with the design lock:
  *  the image prompt, the caption and the original images to attach.
  *  The vet line belongs on product-related posts only (Shoaib, 2026-10-02). */
-async function designBriefBlocks(heading: string, brief: string, lock: unknown, entry: Record<string, unknown>, fileTag: string, productNames: string[] = []): Promise<Block[]> {
+async function designBriefBlocks(heading: string, brief: string, lock: unknown, entry: Record<string, unknown>, fileTag: string, productNames: string[] = [], series: Record<string, unknown>[] = [entry]): Promise<Block[]> {
   const rest = { ...entry };
   const isProduct = isProductRelated(entry, productNames);
   let caption = rest.caption_for_posting as string | undefined;
@@ -261,6 +312,7 @@ async function designBriefBlocks(heading: string, brief: string, lock: unknown, 
     design_rule_every_project: await globalRule("design-glass-light"),
     layout_rule_every_project: await globalRule("layout-alignment"),
     layout_plan: layoutPlan(rest.text_on_image),
+    presentation_idea_this_time: await presentationIdea(entry, series),
     global_design_lock: globalLock,
     ...rest,
   };
@@ -609,7 +661,7 @@ Args: projectName (string), day (number, 1-based), calendarSlug (optional market
         const brief = `${project.name} social media post — Day ${day} of ${calendar.slug}`;
         const { data: products } = await db.from("project_products").select("name, slug").eq("project_id", project.id);
         const productNames = ((products ?? []) as { name: string; slug: string }[]).flatMap((p) => [p.name, p.slug]);
-        return { content: await designBriefBlocks(heading, brief, jsonBlock(lockDoc.content, lockDoc.slug), entry, `day-${day}`, productNames) };
+        return { content: await designBriefBlocks(heading, brief, jsonBlock(lockDoc.content, lockDoc.slug), entry, `day-${day}`, productNames, days) };
       } catch (error) {
         return fail(error);
       }
@@ -657,7 +709,7 @@ Args: projectName (string), productName (string), category (optional: "english" 
 
         const heading = `${String(entry.product)} — product brief post (${cat})`;
         const brief = `${project.name} product brief post — ${String(entry.product)} (${cat})`;
-        return { content: await designBriefBlocks(heading, brief, jsonBlock(lockDoc.content, lockDoc.slug), entry, slugifyName(String(entry.product))) };
+        return { content: await designBriefBlocks(heading, brief, jsonBlock(lockDoc.content, lockDoc.slug), entry, slugifyName(String(entry.product)), [], list) };
       } catch (error) {
         return fail(error);
       }
