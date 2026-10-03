@@ -4,6 +4,30 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-03 (evening) — Social design system, content-is-ours, Jummah library, Meezab
+
+- **Design system (Tad, then Meezab — same client):**
+  - KB `design_system/main` = each project's DESIGN.md: tokens, logo A (top-left, info posts) / B (top-centre, greetings and brand), brand device (Tad chevron, Meezab teal square), glass tints, icons.
+  - The locks carry a `design_system` key, the crop rule and the Arabic-on-Jummah exception.
+  - Code prototype in graphics-studio `scripts/social-design` (9429052).
+- **Global rules:**
+  - `layout-alignment` grew: think-first, rule of thirds, minimal, one light source, AI decides layout and scene, professional shapes and icons, 9:16 safe zones.
+  - `presentation-ideas`: 9 patterns.
+  - `content-ours`: every word approved in the KB before design.
+- **Occasion copy:**
+  - `kb_get_occasion_post` uses only approved words from the `occasion-copy` doc (ac29e54). A variant written for the date wins (157a972).
+  - New tools: `kb_list_occasion_copy`, `kb_save_occasion_copy`, `kb_approve_occasion_copy` (fe2a034). `kb_get_brief` shows the DESIGN.md.
+- **Jummah library:**
+  - 17 new verified texts (9 ayat, 3 duas, 5 Sahih hadith). The Arabic is taken from the source (Tanzil, hadith-api), and references were checked on sunnah.com.
+  - 16 Islamic style families.
+  - Tad and Meezab each have 16 approved dated Fridays (9 Oct 2026 – 22 Jan 2027), offset 8 weeks so the two pages never post the same verse on the same day.
+  - The Tad and Meezab World Animal / Egg / Food Day copy is approved.
+- **Open:**
+  - OpenAI credits (samples).
+  - Tad: official white logo and real farm photos.
+  - Meezab: confirm the 18 Oct anniversary post.
+- **ChatGPT:** refresh the connector to see the 3 new tools.
+
 ## 2026-10-03 (later) — KB MCP design rules for ChatGPT testing
 
 - **Why:** the OpenAI API balance ran out (the $5 on the Socially Snap org). Shoaib now tests post design through ChatGPT on the remote KB MCP, so the image is made on his ChatGPT plan.
