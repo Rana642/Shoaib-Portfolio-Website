@@ -204,6 +204,14 @@ function jsonBlock(text: string, what: string): unknown {
 
 const VET_CAPTION_LINE = /^\s*vet\s*[—–-]\s*not for human.*$\n?/gim;
 
+/** The global design rule rides inside every post prompt for every project — with
+ *  or without its own design lock, today's projects and future ones (Shoaib,
+ *  2026-10-03: "sb projects ka mtlb hai global rule jitny projects hon gy sab"). */
+async function everyProjectDesignRule(): Promise<string | null> {
+  const { data } = await db.from("kb_global_docs").select("content").eq("slug", "design-glass-light").maybeSingle();
+  return (data as { content: string } | null)?.content ?? null;
+}
+
 /** Product-related = names a product, attaches a product photo, or its image text
  *  mentions one of the project's products. Only these carry the vet/caution line. */
 function isProductRelated(entry: Record<string, unknown>, productNames: string[]): boolean {
@@ -227,7 +235,7 @@ async function designBriefBlocks(heading: string, brief: string, lock: unknown, 
     !isProduct && lock && typeof lock === "object" && "vet_line" in lock
       ? { ...lock, vet_line: "NONE on this post — it is not about a product. Do not add \"Vet — Not for human use. Veterinary use only.\" or any other caution/disclaimer line." }
       : lock;
-  const prompt = { brief, global_design_lock: globalLock, ...rest };
+  const prompt = { brief, design_rule_every_project: await everyProjectDesignRule(), global_design_lock: globalLock, ...rest };
 
   // Resolve the attachments (CDN URLs in the doc) back to stored originals.
   const attach = (rest.attach ?? {}) as Record<string, string | string[]>;
@@ -745,6 +753,7 @@ Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "layl
         const prompt = {
           brief: `${project.name} — ${occ?.names.english ?? occasion} post (${language})`,
           size: "1080 × 1350 px (Instagram 4:5)",
+          design_rule_every_project: await everyProjectDesignRule(),
           occasion: occ ? { key, ...occ } : { asked: occasion, note: "Not in the occasion list — follow the general rule and confirm motifs and wording with the user. If this is the brand's own event (expo, seminar, launch, anniversary, new partner…), use the global rule `event-posts` instead: real facts and photos only." },
           style_this_time: style,
           language,
