@@ -224,7 +224,8 @@ function layoutPlan(text: unknown): string[] {
   for (const [k, v] of Object.entries(text as Record<string, unknown>)) {
     const name = k.replace(/_/g, " ");
     if (typeof v === "string") plan.push(k === "headline" ? "headline: the largest text, at most 2 lines, broken at a natural phrase." : `${name}: one block.`);
-    else if (Array.isArray(v)) plan.push(`${name}: exactly ${v.length} item${v.length === 1 ? "" : "s"} — ${v.length} row${v.length === 1 ? "" : "s"} / card${v.length === 1 ? "" : "s"}, same size and style, equal gaps, aligned; no extra or empty card.`);
+    else if (Array.isArray(v) && /chip/i.test(k)) plan.push(`${name}: exactly ${v.length} — in ONE row (or one glass bar with ${v.length} parts and thin dividers); each as wide as its own text, all the same height; a long one stays on 1–2 lines; no extra or empty chip.`);
+    else if (Array.isArray(v)) plan.push(`${name}: exactly ${v.length} item${v.length === 1 ? "" : "s"} — ${v.length} row${v.length === 1 ? "" : "s"} / card${v.length === 1 ? "" : "s"} in the same style and font size, equal gaps, aligned; no extra or empty card.`);
     else if (v && typeof v === "object") plan.push(`${name}: one group of ${Object.keys(v).length} parts, aligned together.`);
   }
   return plan;
