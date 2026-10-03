@@ -4,6 +4,19 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-03 (later) — KB MCP design rules for ChatGPT testing
+
+- **Why:** the OpenAI API balance ran out (the $5 on the Socially Snap org). Shoaib now tests post design through ChatGPT on the remote KB MCP, so the image is made on his ChatGPT plan.
+- **New global rules:**
+  - `layout-alignment`: one shared left edge or one centre line, equal cards, no empty cards, headline at most 2 lines, logo ~30% width for a wordmark, and a self-check (score 0–100, pass 70+, one retry with "fix only").
+  - `presentation-ideas`: 8 presentation patterns plus a shapes library, distilled from Shoaib's inspiration posts.
+- **Every calendar and product post prompt now carries** `layout_rule_every_project`, `layout_plan` (counted from the post's text) and `presentation_idea_this_time`. Ideas rotate with no back-to-back repeats.
+  - Occasion prompts carry the layout rule too.
+  - Commits: 77dd740, 83099dc, 8cebbd2, a32a1f2.
+- **Tad `social-post-design-lock`:** the stale "solid dark panel" lines were removed and an ALIGNMENT line was added.
+- **Tad 11-type redo** (scratchpad `generate4.ts`) is paused at Product Spotlight draft4 until the API credits are added.
+  - The pipeline now has an alignment grid, a judge layout check, a logo placed on the measured text edge, and saves every attempt.
+
 ## 2026-10-01 → 2026-10-03 (home PC)
 
 **Connections and accounts**
