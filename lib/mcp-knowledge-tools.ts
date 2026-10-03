@@ -807,6 +807,9 @@ Args: projectName, occasion (e.g. "jummah", "eid ul fitr", "pakistan day", "layl
             const lock = jsonBlock(lockDoc.content, lockDoc.slug) as Record<string, unknown>;
             fixed = {
               logo: (lock.attached_images as Record<string, unknown> | undefined)?.logo ?? null,
+              // Where the logo goes (e.g. Tad: top-centre on greetings) and the project's design system.
+              logo_place: ((lock.locked as string[] | undefined) ?? []).find((l) => /LOGO/.test(l)) ?? null,
+              design_system: lock.design_system ?? null,
               brand_palette_only: lock.brand_palette_only ?? null,
               typography: lock.typography ?? null,
               footer_strip: lock.footer_strip ?? null,
