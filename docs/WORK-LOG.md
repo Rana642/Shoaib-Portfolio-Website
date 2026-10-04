@@ -30,6 +30,12 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - Both: free cancellation and a 100% refund at any time.
   - Site wording is unified (d238e5f, 2f3648d). The promotions label is clearer (945c3c7).
 - New `docs/PRICING.md` in the hotel repo is the source of truth for prices, deals and payment terms.
+- **One-page booking (Zehneria-style), live:**
+  - Room cards (home, /rooms, LP) and the room page open a dates popup for that room. It lands on /reservations with the room first and highlighted.
+  - Book Now there swaps the list for a selected-room row with Modify, plus the guest form on the same page (`ReservationsFlow.tsx`, `BookingForm embedded`).
+  - The compact form has full name, phone + email, and a Terms popup where "I Agree" ticks the box. The button reads "Book Now & Pay at Hotel / in Advance". The "Your Booking Details" sidebar shows Pay Now / Balance and the saving.
+  - Commits 0b12714, c231548, 2def6f6. The flow is documented in docs/PRICING.md.
+  - Dev gotcha: "Invalid hook call" after hot reload means the dev server needs a restart.
 
 ## 2026-10-04 (home PC) — Hotel Elegant Executive Suites Multan
 
