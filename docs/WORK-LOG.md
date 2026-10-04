@@ -4,6 +4,25 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-05 (later) — Hotel Elegant CRO pass before ads (live)
+- **Ads are NOT launching yet.** Shoaib wants the fixes done first. Still blocked on the ad-account side:
+  - Conversion-goal cleanup on both platforms (needs permissions or UI work).
+  - Meta campaigns still optimise on SEARCH.
+  - Stale live ad copy (432 reviews, 8.3, "no advance payment").
+  - End-to-end test with a Meta Events Manager test code, using one real deal booking that is cancelled afterwards.
+- **LP `/lp/book` deal copy synced** to the live deals (5f61ec6). `lib/lpConfig.ts` LP_PROMOTIONS is hand-kept, so update it whenever the promotions change.
+- **Reservations card:** the payment inclusion follows the deal: "Pay in Advance" on deals, "Pay at Hotel" otherwise (2416fcc).
+- **CRO (4f634bb):**
+  - Deals: the guest pays after booking. The form no longer requires a screenshot. The thank-you page shows `AdvancePaymentBox` (bank details, upload, Send on WhatsApp); `actions/paymentProof.ts` attaches the screenshot and emails the hotel. Guest email updated.
+  - Mobile booking form: fields come first, with a compact Grand Total above the button.
+  - Mobile reservations: the search bar collapses to "dates · Modify" when dates are already in the URL.
+  - WhatsApp booking message reads "incl. GST & City Tax".
+  - Not yet tested end to end, because it needs a real booking.
+- **Speed check:** TTFB 0.28s, DOM ready 0.39s, CLS 0. AdsBot-Google and facebookexternalhit get 200.
+  - Lighthouse is 403-blocked by Hostinger's bot protection, so it can't be used.
+  - The free PSI API quota was exhausted.
+- **Tell hotel staff:** deal bookings can now arrive unpaid. Follow up on WhatsApp and confirm only once the transfer is verified.
+
 ## 2026-10-05 — Hotel Elegant rate parity (live)
 - Website commit 0637d79 makes pricing **tax-exclusive like Booking.com** (lib/pricing.ts). GST + City Tax (26%) is added at checkout.
 - DB rates (pre-tax): standard = Booking.com standard, offer = Genius 3 (-20%).
@@ -17,7 +36,6 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   | Junior | 13,000 | 10,400 |
 
 - A promotion deal now applies only if it beats the offer.
-- Client still has to decide the Early Booking / Long Stay percentages: they currently add nothing over the offer.
 - Gotcha: the DB prices and the pricing code must switch together. Old code with new prices would have undercharged 26%.
 - **Deals:**
   - Early Booking 25% (≥7 days ahead).
