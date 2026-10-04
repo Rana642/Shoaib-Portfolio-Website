@@ -18,6 +18,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "../graphics-studio", "run", "dev"],
       "port": 3010
+    },
+    {
+      "name": "hotel-elegant-dev",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [".claude/hotel-elegant-dev.cjs"],
+      "port": 3020
     }
   ]
 }

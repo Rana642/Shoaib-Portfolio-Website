@@ -4,6 +4,67 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-04 (home PC) — Hotel Elegant Executive Suites Multan
+
+**Knowledge base (KB `kb_*`, data in Supabase)**
+- New KB for Hotel Elegant:
+  - Docs: nap, brand_position, icp, pain_points, graphic_rules, system_rules, memory.
+  - 5 rooms as products.
+  - 30 assets: logos and real photos.
+- Main goal: real guests and bookings from Google Ads + Meta Ads. No calendar work for now.
+- **NAP locked = Google Business Profile.**
+  - Name: "Hotel Elegant Executive Suites Multan".
+  - Address: "Hotel Elegant Executive Suites, 77A, A Block Gulgasht Colony, Multan, 60750".
+  - Phone: 0317 3330998.
+  - Mismatches on FB, IG, OTAs and the old site are in KB `nap-consistency-audit`.
+- Audits and plans in the KB:
+  - `ads-audit-2026-10`: Meta was optimising the SEARCH event; Google web conversions were at 0.
+  - `website-audit-2026-10`
+  - `competitor-and-global-research`: Meta Ad Library was checked in Shoaib's Chrome.
+  - `ads-playbook`: draft.
+  - `fix-checklist`: has a progress log.
+
+**Website repo `Rana642/Hotel-Elegant-Multan` (all live, verified in the browser)**
+- df979ca — tracking fixes:
+  - Google Ads conversions now fire on every WhatsApp/Call link. The root cause of the 0 conversions was TrackedLink, which never sent them.
+  - Tracking init is inline in `<head>`.
+  - /admin and staff traffic are excluded (`he_internal`).
+  - The duplicate noscript PageView is removed.
+  - WhatsApp messages carry "(Ref: GA/FB/GS/WEB)" codes.
+- e491dea — trust and SEO:
+  - Review numbers come from `lib/reviewStats.ts` (4.6★ / 631).
+  - Booking.com score and links removed.
+  - "Five Star" removed.
+  - Schema name = GBP name.
+  - /reservations gets an H1 and goes into the sitemap.
+  - 301s for old URLs.
+- ba14736 — phone display in GBP format.
+- e532ebd — site-wide WhatsApp/Call buttons now send GA4 events.
+- ef3e97e — **Meta Purchase at booking submit** (thank-you Pixel + CAPI, deduped).
+  - A confirm-time Purchase was tried and reverted (Shoaib: too few bookings to ever leave learning).
+- cc1f294 — `docs/TRACKING.md` rewritten. It is the source of truth for events.
+- Hotel DB writes: homepage `stats_json` and `settings.hotel_phone` updated.
+
+**Local dev for Hotel Elegant:** launch config `hotel-elegant-dev` (port 3020) runs `.claude/hotel-elegant-dev.cjs`.
+- It must chdir into that repo, or this repo's Tailwind v4 config breaks it.
+- It uses the hotel's production DB: never submit test bookings.
+
+**Blocked / pending**
+- **Conversion-goal cleanup (blocked):**
+  - Google: set Booking Started / Booking Lead secondary and set values. Our mutate tool fails on customerConversionGoals, and the action-level change was refused.
+  - Meta: our token has no Advertise permission on act_239008850511120.
+  - Shoaib can do both in the UI, or grant access.
+- Live ads still carry stale or wrong claims:
+  - Meta "no advance payment" on the 20% offer.
+  - "432 reviews".
+  - Google "8.3 Booking.com".
+- On Shoaib or the client:
+  - GA4 internal-traffic filter.
+  - Search Console access for sc-domain:elegant-suite.com.
+  - Booking.com King Room rate parity (8,820 vs the site's 10,773).
+  - Fixing NAP on FB/IG/OTAs.
+  - Pausing or rebuilding the Meta Search-Opt campaigns.
+
 ## 2026-10-03 (evening) — Social design system, content-is-ours, Jummah library, Meezab
 
 - **Design system (Tad, then Meezab — same client):**
