@@ -19,6 +19,17 @@ context (decisions, gotchas, rules) is in the second-brain vault:
 - A promotion deal now applies only if it beats the offer.
 - Client still has to decide the Early Booking / Long Stay percentages: they currently add nothing over the offer.
 - Gotcha: the DB prices and the pricing code must switch together. Old code with new prices would have undercharged 26%.
+- **Deals:**
+  - Early Booking 25% (≥7 days ahead).
+  - Long Stay 25% (3+ nights).
+  - Last Minute 30%, renewed to 2026-12-31: check-in today or tomorrow, Thu–Sat, booked 3 pm–midnight PKT.
+  - The biggest discount wins (commit fee79ce).
+- **Payment and cancellation, locked:**
+  - Regular rate: pay at the hotel, advance optional.
+  - Deals: full payment in advance by bank transfer.
+  - Both: free cancellation and a 100% refund at any time.
+  - Site wording is unified (d238e5f, 2f3648d). The promotions label is clearer (945c3c7).
+- New `docs/PRICING.md` in the hotel repo is the source of truth for prices, deals and payment terms.
 
 ## 2026-10-04 (home PC) — Hotel Elegant Executive Suites Multan
 
