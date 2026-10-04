@@ -4,6 +4,22 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-05 — Hotel Elegant rate parity (live)
+- Website commit 0637d79 makes pricing **tax-exclusive like Booking.com** (lib/pricing.ts). GST + City Tax (26%) is added at checkout.
+- DB rates (pre-tax): standard = Booking.com standard, offer = Genius 3 (-20%).
+
+  | Room | Standard | Offer |
+  |---|---|---|
+  | King | 7,500 | 6,000 |
+  | Family | 14,000 | 11,200 |
+  | Triple | 12,000 | 9,600 |
+  | Presidential | 16,000 | 12,800 |
+  | Junior | 13,000 | 10,400 |
+
+- A promotion deal now applies only if it beats the offer.
+- Client still has to decide the Early Booking / Long Stay percentages: they currently add nothing over the offer.
+- Gotcha: the DB prices and the pricing code must switch together. Old code with new prices would have undercharged 26%.
+
 ## 2026-10-04 (home PC) — Hotel Elegant Executive Suites Multan
 
 **Knowledge base (KB `kb_*`, data in Supabase)**
