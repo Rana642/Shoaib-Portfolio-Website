@@ -154,14 +154,19 @@ export async function postFacebookPhoto(
   return { post_id: body.post_id || body.id || "", usagePercent: peakUsagePercent(res) };
 }
 
-/** Submits a photo post to Meta's own scheduler (published=false +
- *  scheduled_publish_time) — Meta's servers fire the actual publish at that
- *  time, so this looks exactly like a person using Facebook's native
- *  scheduling, not an app "pushing" a post at the last second. Meta only
- *  accepts a window of 10 minutes to 30 days ahead; callers must check that
- *  before calling this (see isWithinNativeScheduleWindow in social-post.ts).
- *  Facebook's public docs only show this for /feed, but /photos accepts the
- *  same two params in practice (widely used by other scheduling tools). */
+/** Submits a photo post to Meta's own scheduler — Meta's servers fire the
+ *  actual publish at that time, so this looks exactly like a person using
+ *  Facebook's native scheduling, not an app "pushing" a post at the last
+ *  second. Meta only accepts a window of 10 minutes to 30 days ahead;
+ *  callers must check that before calling this (see
+ *  isWithinNativeScheduleWindow in social-post.ts).
+ *
+ *  Two steps (fixed 2026-10-05): the photo is uploaded unpublished, then a
+ *  scheduled /feed post carries it via attached_media. Scheduling straight
+ *  on /photos (published=false + scheduled_publish_time) DID publish, but
+ *  only into the Photos album — those posts never showed in the Page's
+ *  Posts feed (seen on Hotel Avalon, 2 + 5 Oct). A /feed post is a real
+ *  feed post. Returns the feed post id ("{page}_{post}"). */
 export async function scheduleFacebookPhoto(
   pageId: string,
   pageAccessToken: string,
@@ -169,22 +174,34 @@ export async function scheduleFacebookPhoto(
   caption: string,
   scheduledUnixSeconds: number
 ): Promise<FacebookPostResult> {
-  const res = await fetch(`${GRAPH_BASE}/${pageId}/photos`, {
+  const upload = await fetch(`${GRAPH_BASE}/${pageId}/photos`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ url: imageUrl, published: "false", access_token: pageAccessToken }),
+  });
+  const photo = (await upload.json()) as { id?: string } & GraphError;
+  if (!upload.ok || photo.error || !photo.id) {
+    throw new Error(photo.error?.message || `Facebook photo upload failed (HTTP ${upload.status})`);
+  }
+
+  const res = await fetch(`${GRAPH_BASE}/${pageId}/feed`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      url: imageUrl,
-      caption,
-      access_token: pageAccessToken,
+      message: caption,
+      "attached_media[0]": JSON.stringify({ media_fbid: photo.id }),
       published: "false",
       scheduled_publish_time: String(scheduledUnixSeconds),
+      access_token: pageAccessToken,
     }),
   });
-  const body = (await res.json()) as { id?: string; post_id?: string } & GraphError;
-  if (!res.ok || body.error) {
+  const body = (await res.json()) as { id?: string } & GraphError;
+  if (!res.ok || body.error || !body.id) {
+    // Don't leave the unused photo sitting in the Page's library.
+    await deleteFacebookPost(photo.id, pageAccessToken).catch(() => {});
     throw new Error(body.error?.message || `Facebook scheduling failed (HTTP ${res.status})`);
   }
-  return { post_id: body.post_id || body.id || "", usagePercent: peakUsagePercent(res) };
+  return { post_id: body.id, usagePercent: Math.max(peakUsagePercent(upload) ?? 0, peakUsagePercent(res) ?? 0) };
 }
 
 /** Deletes an unpublished (natively-scheduled) Facebook post — used when a
