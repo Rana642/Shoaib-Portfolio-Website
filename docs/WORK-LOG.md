@@ -30,6 +30,12 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - Phase 3 (526b817): room-card dates popup → highlighted room on /reservations; mobile one-line search; mobile total above Book Now.
   - docs/TRACKING.md added (b83750b).
   - Dev launcher `hotel-silver-sand-dev` on port 3030.
+- **Phase 2, live** (Silver Sand repo):
+  - Shoaib's decisions: offer = Booking.com standard −20%; tax-exclusive, +16% GST at checkout; deals 25/25/30 taken off the standard rate; **no advance payment** (Shoaib said not to add it for now).
+  - Rates (standard → offer): King 3,500→2,800 · Double 8,500→6,800 · Triple 7,500→6,000 · Twin 7,000→5,600.
+  - Last Minute runs to 31 Dec: check-in today or tomorrow, Thu–Sat, booked 3 pm–midnight.
+  - Commits: 5f52bdf (code), then the DB switch, then b359234 (empty-commit rebuild).
+  - Gotcha: static pages refresh only on an admin room save or a redeploy.
 - **Google Ads:** bidding is already clean. GBP local actions are not biddable, so no change was made.
 - **GBP:** 24 review replies queued as DRAFT for Shoaib's approval.
 - **Facebook:** the page map pin is in Chennai. Owner must fix it.
