@@ -18,6 +18,25 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - Toni & Guy "Deal 5" scheduled 5 Oct, 18:45 PKT.
 - **Open:** past photo-only posts were left as they are; ask Shoaib whether to re-post any. Verify that the 18:00 and 18:13 posts on 5 Oct show in the feed.
 
+## 2026-10-06 — Hotels: ads LIVE (Silver Sand + Elegant)
+- **Budget (daily, per hotel):** Google Rs 2,000 + Meta Rs 2,000, Rs 8,000/day in total. Client brief PDF approved (`client-briefs/`, untracked).
+- **Google** (both accounts): Brand Rs 300 + "Hotel in Multan" Non-brand Rs 1,700.
+  - Ads corrected (new prices, review counts, 25% deals); all 9 approved.
+  - Elegant got 40 negatives.
+  - No call or WhatsApp assets (website-first rule).
+  - Old campaigns paused.
+- **Meta:**
+  - Access fixed: the system user got MANAGE on the ad account, the ABS Marketing app was published (icon, privacy/terms URLs), and the token was rotated.
+  - Live: "Website → Contact" (Rs 1,500, optimises the pixel Contact event) + Retargeting (Rs 500) per hotel.
+  - Paused: the old Search-optimised and click-to-WhatsApp campaigns.
+- **Rule (Shoaib):** ads go to the website first; never open WhatsApp or a call directly.
+- **robots.txt:** only Meta's crawlers can read /privacy and /terms (a584b91). Search engines stay blocked.
+- **GA4 cleaned** on both properties (key events plus active internal-traffic filters). The GA4 token now has analytics.edit.
+- **Next:**
+  - Confirm the Meta website ads get approved and Google impressions start (0 so far on 5–6 Oct).
+  - Monday: first report by Ref code.
+  - Open security task: strip the access token from meta_ads_get paging URLs.
+
 ## 2026-10-05 (night) — Hotel Silver Sand Multan: KB + parity plan
 - Same client as Hotel Elegant. Shoaib wants Silver Sand brought to the same standard first, then an ads plan for both hotels.
 - **KB built** (project "Muhammad Ajmal — Hotel Silver Sand Multan"):
