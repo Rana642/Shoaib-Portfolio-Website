@@ -36,11 +36,12 @@ export const KB_SERVER_INSTRUCTIONS = [
   "Google Business Profile (gbp_* tools): Google-friendly pace, always — never reply to reviews or post in bulk. One write at a time, at least 5 minutes apart, max 20 per location per 24 hours (the server enforces it). For many reviews: draft all for the user, publish one, and say when the next can go.",
   "Social posts by calendar day (\"Day 1 ki post design karo\"): call kb_get_social_post — it returns the locked image prompt, the caption and the original images to attach. Use them unchanged.",
   "Product posts (one social post per product, presented like a brochure page — \"Aminotox ki brief post design karo\"): call kb_get_product_post. Same rules: use the prompt, caption and images unchanged.",
-  "Caution / disclaimer lines (e.g. \"Vet — Not for human use. Veterinary use only.\") go ONLY on product-related posts and captions — a post that shows a product or is about a named product. Never on any other post (brand, general tips, dealer/B2B, Jummah, events, greetings…), in every project.",
+  "Caution / disclaimer lines (e.g. \"Vet — Not for human use. Veterinary use only.\") go ONLY on product-related posts and captions — a post that shows a product or is about a named product. Never on any other post (brand, general tips, distributor/B2B, Jummah, events, greetings…), in every project.",
+  "Never write the word \"dealer\" (or \"dealers\", \"dealership\") in any post, caption, headline or copy, for any project (Shoaib, 2026-10-05) — always \"distributor\" / \"distributors\", and \"Become a Distributor\" for recruitment posts (global rule `no-dealer-word`).",
   "Content is OURS for every project (Shoaib, 2026-10-03): every word on a post and its caption is written in the knowledge base and approved by the user before design. Design tools (image models, ChatGPT while designing) never write, add, shorten or rewrite words; if a post has no approved words, stop, draft them for approval, save them, then design.",
   "Occasion words: kb_list_occasion_copy shows what is approved / pending per project; kb_save_occasion_copy saves drafts in the right format; kb_approve_occasion_copy approves them — only after the user says so. Jummah gets a new verified verse, hadith or dua and a new Islamic layout every Friday. Each project's full design system is its DESIGN.md (KB doc design_system/main), shown in kb_get_brief.",
   "Jummah / Friday and occasion posts for any project (\"Jumma post banao\", Eid, Ramadan, 14 August, 23 March, Kashmir day…): call kb_get_occasion_post — brand items stay fixed, the background and words are made for the day (Arabic/Urdu only from its verified texts), never a product or call to action.",
-  "Event posts (expo stall, seminar, dealer meet, product launch, new partner, anniversary…): follow the global rule `event-posts` — only real facts from the user/client (ask for name, date, venue, stall, photos; never invent), up to 4 posts per event (announcement, reminder, live, thank-you). A project's dated posts (Jummah, Islamic/national/international days, events) are listed in its marketing doc `dated-posts-plan` when it has one.",
+  "Event posts (expo stall, seminar, distributor meet, product launch, new partner, anniversary…): follow the global rule `event-posts` — only real facts from the user/client (ask for name, date, venue, stall, photos; never invent), up to 4 posts per event (announcement, reminder, live, thank-you). A project's dated posts (Jummah, Islamic/national/international days, events) are listed in its marketing doc `dated-posts-plan` when it has one.",
   "The kb_* write tools (kb_upsert_doc, kb_upsert_product, kb_add_asset, kb_add_memory, kb_upsert_global_rule…) let you maintain the knowledge base; deletes need confirm=true.",
 ].join("\n");
 
@@ -308,7 +309,7 @@ type PresentationPattern = { key: string; name: string; best_for: string[]; stru
 function contentType(entry: Record<string, unknown>): string {
   const p = String(entry.pillar ?? "").toLowerCase();
   if (!p) return entry.product ? "product brief" : "brand awareness";
-  for (const t of ["carousel", "brand", "spotlight", "education", "tip", "range", "dealer"]) {
+  for (const t of ["carousel", "brand", "spotlight", "education", "tip", "range", "distributor"]) {
     if (p.includes(t)) return { brand: "brand awareness", spotlight: "product spotlight" }[t] ?? t;
   }
   return p;

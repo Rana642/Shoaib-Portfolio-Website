@@ -194,7 +194,7 @@ export default function IntakeForm({
         <Field
           label="Target audience"
           htmlFor="target_audience"
-          hint="For example: guests, travellers, D2C, farmers, dealers, distributors, retailers, B2B clients."
+          hint="For example: guests, travellers, D2C, farmers, distributors, retailers, B2B clients."
         >
           <textarea id="target_audience" name="target_audience" rows={2} defaultValue={initial?.target_audience ?? ""} className={inputClasses} />
         </Field>
