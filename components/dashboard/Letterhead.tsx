@@ -125,14 +125,13 @@ function LetterheadArtwork() {
       {/* ── Header ── the official horizontal lockup (mark 21.59 mm tall) on
           the 20 mm margin the letter body uses, with "PERFORMANCE MARKETING"
           set under the wordmark, spanning its width. The tagline block ends
-          on the 190 mm right margin. (Shoaib, 2026-10-05: one grid for
+          on the 190 mm right margin (no rule beside it — Shoaib, 2026-10-05). (Shoaib, 2026-10-05: one grid for
           header, body and footer.) */}
       <image href="/brand/logo-horizontal.svg" x={m(MARGIN_L)} y={m(10.44)} width={m(68.04)} height={m(22.39)} />
       <text x={m(MARGIN_L + 23.04)} y={m(35.09)} fontSize={fs(1.86)} fontWeight={500} fill={COLOR.ink} textLength={m(44.64)} lengthAdjust="spacing">
         PERFORMANCE MARKETING
       </text>
 
-      <rect x={m(TAGLINE_X - 6.77 - 13.38)} y={m(21.25)} width={m(13.38)} height={m(0.59)} fill={COLOR.cobalt} />
       <text x={m(TAGLINE_X)} y={m(20.12)} fontSize={fs(1.95)} fontWeight={500} fill={COLOR.ink} textLength={m(34.62)} lengthAdjust="spacing">
         STRATEGY TODAY
       </text>

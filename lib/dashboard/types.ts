@@ -435,7 +435,8 @@ export type Letter = {
   updated_at: string;
   ref_no: string;
   title: string;
-  letter_date: string;
+  /** null = no date yet: the letter prints "Date: ____". */
+  letter_date: string | null;
   show_meta: boolean;
   body: string;
 };

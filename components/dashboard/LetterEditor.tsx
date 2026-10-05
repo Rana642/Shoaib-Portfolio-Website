@@ -67,7 +67,8 @@ export default function LetterEditor({ letter, today }: { letter: Letter | null;
   const router = useRouter();
 
   const [title, setTitle] = useState(letter?.title ?? "");
-  const [date, setDate] = useState(letter?.letter_date ?? today);
+  // No date until one is typed (Shoaib, 2026-10-05) — the sheet prints "Date: ____".
+  const [date, setDate] = useState(letter?.letter_date ?? "");
   const [showMeta, setShowMeta] = useState(letter?.show_meta ?? true);
   const [id, setId] = useState(letter?.id ?? null);
   const [refNo, setRefNo] = useState(letter?.ref_no ?? null);
@@ -250,7 +251,7 @@ export default function LetterEditor({ letter, today }: { letter: Letter | null;
     const copyTitle = input.title ? `${input.title.slice(0, 190)} (copy)` : "";
     let result: Awaited<ReturnType<typeof saveLetter>>;
     try {
-      result = await saveLetter(null, { ...input, title: copyTitle, letter_date: today });
+      result = await saveLetter(null, { ...input, title: copyTitle, letter_date: "" });
     } catch {
       result = { error: "Couldn't reach the server — check your connection." };
     }
@@ -301,18 +302,27 @@ export default function LetterEditor({ letter, today }: { letter: Letter | null;
             <label htmlFor="letter-date" className={labelClasses}>
               Date
             </label>
-            <input
-              id="letter-date"
-              type="date"
-              required
-              value={date}
-              onChange={(e) => {
-                if (!e.target.value) return;
-                setDate(e.target.value);
-                updateFields({ date: e.target.value });
-              }}
-              className={inputClasses}
-            />
+            <div className="flex items-center gap-2">
+              <input
+                id="letter-date"
+                type="date"
+                value={date}
+                onChange={(e) => {
+                  setDate(e.target.value);
+                  updateFields({ date: e.target.value });
+                }}
+                className={inputClasses}
+              />
+              {date ? (
+                <button type="button" onClick={() => { setDate(""); updateFields({ date: "" }); }} className={buttonStyles.secondary}>
+                  Clear
+                </button>
+              ) : (
+                <button type="button" onClick={() => { setDate(today); updateFields({ date: today }); }} className={buttonStyles.secondary}>
+                  Today
+                </button>
+              )}
+            </div>
           </div>
           <label className="inline-flex items-center gap-2 text-small py-3 cursor-pointer select-none">
             <input
@@ -422,7 +432,13 @@ export default function LetterEditor({ letter, today }: { letter: Letter | null;
                 )}
               </p>
               <p>
-                <span className="font-semibold">Date:</span> {formatLetterDate(date)}
+                <span className="font-semibold">Date:</span>{" "}
+                {date ? (
+                  formatLetterDate(date)
+                ) : (
+                  // A blank to write the date on by hand.
+                  <span aria-label="No date" className="inline-block w-[38mm] border-b-[0.75pt] border-current" />
+                )}
               </p>
             </div>
           )}

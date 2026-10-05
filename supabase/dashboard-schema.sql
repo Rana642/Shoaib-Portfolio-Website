@@ -945,6 +945,12 @@ create table if not exists letters (
 create index if not exists letters_updated_idx on letters (updated_at desc);
 alter table letters enable row level security;
 
+-- ── Letters: optional date (2026-10-05) ──────────────────────
+-- A letter has no date until one is typed; the sheet prints "Date: ____".
+-- Existing letters keep their dates.
+alter table letters alter column letter_date drop not null;
+alter table letters alter column letter_date drop default;
+
 -- ── Password vault v2 (2026-09-26) ───────────────────────────
 -- Entries are now filed client → project, and everything describing an
 -- entry (title, platform, every field) lives inside the encrypted payload.
