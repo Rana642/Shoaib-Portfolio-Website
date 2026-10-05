@@ -4,6 +4,24 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-05 (night) — Hotel Silver Sand Multan: KB + parity plan
+- Same client as Hotel Elegant. Shoaib wants Silver Sand brought to the same standard first, then an ads plan for both hotels.
+- **KB built** (project "Muhammad Ajmal — Hotel Silver Sand Multan"):
+  - Docs: NAP locked to GBP (514 Akbar Road, Railway Colony, Multan 60000 · 0300 8720939), brand, ICP, pains, graphic/system rules, offers-and-policies, competitor-and-keyword-research, ads-audit-2026-10, nap-consistency-audit, fix-checklist.
+  - 4 room products and 7 assets.
+- Repo `Rana642/Hotel-Silver-Sand` (Vercel), local `D:\Rana Shoaib\My Projects Website\Hotel Silver Sand Multan`. Its Supabase is PRODUCTION.
+- **Audit highlights:**
+  - NAP mismatch: "near Aziz Hotel Chowk, Cantt" in the address; phone shown as 0300-872-0939.
+  - Review count 837 (GBP 845).
+  - Static "From PKR 3,000" fallback.
+  - No /admin tracking guard.
+  - Last Minute deal expired 30 Sep. Deal engine picks by priority, not biggest discount.
+  - Google Ads: GBP local actions are primary conversions.
+  - GA4: page_view, view_item_list and first_visit are key events.
+  - Meta ad sets on Search optimisation: Rs 40.6k for 3 purchases.
+- **Already fine:** Purchase at submit (Pixel + CAPI), Ads booking conversion, no GTM, one-page /reservations.
+- **Waiting on Shoaib / owner:** Booking.com standard + Genius rates, deal percentages, Last Minute renewal, whether deals need advance payment, bank details.
+
 ## 2026-10-05 (evening) — Planner "needs changes" (uploader alerts)
 - **Rule (Shoaib):** before captioning or scheduling, check every planner post: the right project, the right day, small text in photos, the icons, and the contact details.
 - **New status `needs_changes`** with `review_note` and `review_flagged_at`.
