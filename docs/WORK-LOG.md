@@ -32,6 +32,10 @@ context (decisions, gotchas, rules) is in the second-brain vault:
 - **Rule (Shoaib):** ads go to the website first; never open WhatsApp or a call directly.
 - **robots.txt:** only Meta's crawlers can read /privacy and /terms (a584b91). Search engines stay blocked.
 - **GA4 cleaned** on both properties (key events plus active internal-traffic filters). The GA4 token now has analytics.edit.
+- **Client work log (all clients):**
+  - KB global rule `client-work-log`.
+  - `client-report-log-2026-10` created in all 16 KB projects and backfilled with the real October work, for month-end client reports.
+- **Rule:** memory, vault, work log and the client KB log are updated automatically after every task. Shoaib no longer needs to ask.
 - **Next:**
   - Confirm the Meta website ads get approved and Google impressions start (0 so far on 5–6 Oct).
   - Monday: first report by Ref code.
