@@ -323,6 +323,7 @@ export async function generateRetainerInvoice(
 
 export type BillingRunResult = {
   retainer: string;
+  clientId: string;
   period: string;
   invoice?: string;
   created?: boolean;
@@ -339,7 +340,7 @@ export type BillingRunResult = {
 export async function runRetainerBilling(today = todayPkt()): Promise<BillingRunResult[]> {
   const { data: due } = await db
     .from("retainers")
-    .select("id, name, next_invoice_date, end_date")
+    .select("id, name, client_id, next_invoice_date, end_date")
     .eq("status", "active")
     .not("next_invoice_date", "is", null)
     .lte("next_invoice_date", today);
@@ -352,10 +353,10 @@ export async function runRetainerBilling(today = todayPkt()): Promise<BillingRun
       const period = next.slice(0, 7);
       const res = await generateRetainerInvoice(r.id, period, { issueDate: today });
       if ("error" in res) {
-        results.push({ retainer: r.name, period, error: res.error });
+        results.push({ retainer: r.name, clientId: r.client_id, period, error: res.error });
         break;
       }
-      results.push({ retainer: r.name, period, invoice: res.number, created: res.created });
+      results.push({ retainer: r.name, clientId: r.client_id, period, invoice: res.number, created: res.created });
       next = firstOfNextMonth(next);
       await db.from("retainers").update({ next_invoice_date: next, updated_at: new Date().toISOString() }).eq("id", r.id);
     }

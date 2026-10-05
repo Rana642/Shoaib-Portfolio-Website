@@ -1277,3 +1277,30 @@ insert into cron_tokens (name, token)
 --     timeout_milliseconds := 60000
 --   );
 -- $$);
+
+-- ── Monthly client reports (billing phase 3, 2026-10-06) ─────────────
+-- Where each project's numbers come from. GBP and social posts are found
+-- automatically (gbp_connections / scheduled_posts); the ad accounts and
+-- GA4 property are set per project on the report page:
+-- { google_ads_customer_id, google_ads_login_customer_id,
+--   meta_ad_account_id, meta_campaign_filter, ga4_property_id }
+alter table client_projects add column if not exists report_sources jsonb not null default '{}'::jsonb;
+
+-- One report per client per month: the KB work log (client-report-log-
+-- YYYY-MM) of each of the client's projects + that month's numbers,
+-- snapshotted into `sections` so a sent report never changes.
+create table if not exists client_reports (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references clients (id) on delete cascade,
+  period text not null,                -- 'YYYY-MM'
+  status text not null default 'draft' check (status in ('draft', 'sent')),
+  access_token text not null unique default replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''),
+  summary text,
+  sections jsonb not null default '[]'::jsonb,
+  generated_at timestamptz,
+  sent_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (client_id, period)
+);
+alter table client_reports enable row level security;

@@ -248,7 +248,7 @@ export function retainerDraftsReadyEmail(data: {
   return wrapper(`
     <h2 style="font-size: 18px; margin: 0 0 12px;">Monthly invoices ready for review</h2>
     <p style="font-size: 14px; line-height: 1.6; margin: 0 0 16px;">
-      These retainer invoices were created as drafts. Nothing has gone to the client — review each one and send it.
+      These retainer invoices — and last monthThese retainer invoices were created as drafts. Nothing has gone to the client — review each one and send it.#39;s report for each client — were created as drafts. Nothing has gone to the client: review each one and send it.
     </p>
     ${rows ? `<table style="width: 100%; border-collapse: collapse; font-size: 14px;">${rows}</table>` : ""}
     ${failed ? `<p style="font-size: 14px; margin: 16px 0 4px; color: #b42318;">Couldn't create:</p><ul style="font-size: 14px; margin: 0; padding-left: 18px;">${failed}</ul>` : ""}
