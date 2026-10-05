@@ -3,6 +3,8 @@ import { resend, isResendConfigured, fromEmail } from "../resend";
 import { onboardingInviteEmail } from "../email-templates";
 import { siteUrl } from "../seo";
 import type { Agreement } from "./types";
+import { createRetainerFromProposal, generateRetainerInvoice, todayPkt } from "./retainers";
+import { timestampToDay } from "./offline-dates";
 
 /**
  * Core cascade for signing an agreement — creates the onboarding intake
@@ -35,6 +37,19 @@ export async function performAgreementSigning(
     })
     .eq("id", agreement.id);
   if (error) return { error: error.message };
+
+  // First invoice — one-time services + this month's retainer — as a DRAFT
+  // for Shoaib to review and send. Later months are billed on the 1st by
+  // the billing cron. Never blocks signing.
+  try {
+    const retainer = await createRetainerFromProposal(agreement.proposal_id);
+    if (retainer) {
+      const signedDay = options?.signedAt ? timestampToDay(options.signedAt) : todayPkt();
+      await generateRetainerInvoice(retainer.id, signedDay.slice(0, 7), { includeOneTime: true });
+    }
+  } catch (invoiceError) {
+    console.error("[agreement-signing] First retainer invoice failed:", invoiceError);
+  }
 
   const { data: client } = await db.from("clients").select("*").eq("id", agreement.client_id).single();
 

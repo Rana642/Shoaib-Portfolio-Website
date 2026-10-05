@@ -4,6 +4,18 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-06 (night) — Retainer billing phase 1: Retainers
+- **New:**
+  - `retainers` + `retainer_items` tables (+ `invoices.retainer_id/period`, unique per month).
+  - `/dashboard/retainers` list and detail/edit page.
+  - Sidebar link.
+- **Automatic:**
+  - Proposal accepted → retainer is created from its monthly lines.
+  - Agreement signed → first draft invoice (one-time + first month).
+- **Optional tools:** every line has a tick, and tools start unticked. Unticked lines stay on the retainer but are never billed.
+- **Backfill:** PRO-2026-006 (Ahmed Jahanzaib Shah) gets Rs 20,000/month; Claude Pro is unticked. The **October draft is created** (due 13 Oct). Shoaib reviews it and sends.
+- **Next:** phase 2, a daily GitHub Actions cron → `/api/billing/cron` that creates drafts on the 1st. Plan: `docs/RETAINER-BILLING-PLAN.md`.
+
 ## 2026-10-05 (evening, later) — Facebook posts missing from the feed: fixed
 - **Bug:** native Facebook scheduling used `/{page}/photos` with `published=false` and `scheduled_publish_time`. Those posts published only into the **Photos album**, never the Posts feed. This affected every native FB post since 16 Sep: Hotel Elegant and Silver Sand (20 each) and the Aijaz brands since 2 Oct.
 - **Fix a95bbf5:** the photo is uploaded unpublished, then a scheduled `/{page}/feed` post carries it with `attached_media`. The post id is now `{page}_{post}`.

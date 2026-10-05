@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Users, FileSignature } from "lucide-react";
+import { ArrowLeft, Users, FileSignature, Repeat } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
 import { getSettings } from "@/lib/dashboard/settings";
 import {
@@ -9,6 +9,7 @@ import {
   markProposalAccepted,
   setProposalAcceptedDate,
 } from "@/lib/dashboard/actions/proposals";
+import { setUpRetainerFromProposal } from "@/lib/dashboard/actions/retainers";
 import { todayInKarachi } from "@/lib/dashboard/letters";
 import { isOfflineSignature, signedOnLabel, timestampToDay } from "@/lib/dashboard/offline-dates";
 import { siteUrl } from "@/lib/seo";
@@ -49,6 +50,18 @@ export default async function ProposalPage({ params }: PageProps<"/dashboard/pro
     .select("id, status")
     .eq("proposal_id", id)
     .maybeSingle();
+
+  const { data: retainer } = await db
+    .from("retainers")
+    .select("id, status")
+    .eq("proposal_id", id)
+    .maybeSingle();
+  const hasMonthly = items.some((i) => i.billing_type === "monthly" && !i.is_complimentary);
+
+  async function setUpRetainer() {
+    "use server";
+    await setUpRetainerFromProposal(id);
+  }
 
   async function send() {
     "use server";
@@ -98,6 +111,26 @@ export default async function ProposalPage({ params }: PageProps<"/dashboard/pro
               <FileSignature className="size-4 text-cobalt" aria-hidden />
               Agreement {agreement.status}
             </Link>
+          )}
+          {retainer && (
+            <Link
+              href={`/dashboard/retainers/${retainer.id}`}
+              className="inline-flex items-center gap-2 text-small bg-cobalt/8 border border-cobalt/20 rounded-lg px-4 py-2.5 hover:border-cobalt/40 transition-colors"
+            >
+              <Repeat className="size-4 text-cobalt" aria-hidden />
+              Monthly retainer {retainer.status}
+            </Link>
+          )}
+          {!retainer && hasMonthly && (proposal as Proposal).status === "accepted" && (
+            <form action={setUpRetainer}>
+              <button
+                type="submit"
+                className="inline-flex items-center gap-2 text-small border border-ink/20 rounded-lg px-4 py-2.5 hover:bg-ink/5 transition-colors cursor-pointer"
+              >
+                <Repeat className="size-4" aria-hidden />
+                Set up monthly retainer
+              </button>
+            </form>
           )}
           {intake && (
             <Link

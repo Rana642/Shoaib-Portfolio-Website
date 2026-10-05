@@ -83,6 +83,9 @@ const statusStyles: Record<string, string> = {
   cancelled: "bg-red-500/10 text-red-700 border-red-600/25",
   expired: "bg-ink/8 text-ink-subtle border-ink/15",
   overdue: "bg-red-500/10 text-red-700 border-red-600/25",
+  active: "bg-green-500/10 text-green-700 border-green-600/25",
+  paused: "bg-citrus/20 text-ink border-citrus/50",
+  ended: "bg-ink/8 text-ink-subtle border-ink/15",
 };
 
 export function StatusBadge({ status }: { status: string }) {

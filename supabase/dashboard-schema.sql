@@ -1212,3 +1212,55 @@ alter table scheduled_posts add constraint scheduled_posts_status_check
   check (status in ('pending_caption', 'needs_changes', 'scheduled', 'posted', 'failed'));
 alter table scheduled_posts add column if not exists review_note text;
 alter table scheduled_posts add column if not exists review_flagged_at timestamptz;
+
+-- ── Retainers: automatic monthly invoicing (2026-10-06) ─────────────
+-- One retainer per accepted proposal: its monthly lines (services + monthly
+-- tools) become an invoice on the 1st of every month, created as a DRAFT
+-- for Shoaib to review and send. See docs/RETAINER-BILLING-PLAN.md.
+create table if not exists retainers (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  client_id uuid not null references clients (id) on delete cascade,
+  proposal_id uuid unique references proposals (id) on delete set null,
+  name text not null,
+  status text not null default 'active' check (status in ('active','paused','ended')),
+  currency text not null default 'PKR',
+  -- Same maths as the proposal: discount + GST on services only; tools carry
+  -- their own estimated international-transaction tax.
+  discount_type text not null default 'percentage' check (discount_type in ('percentage','fixed')),
+  discount_value numeric(12,2) not null default 0,
+  tax_enabled boolean not null default false,
+  tax_name text not null default 'GST',
+  tax_rate numeric(5,2) not null default 0,
+  tools_tax_enabled boolean not null default false,
+  tools_tax_rate numeric(5,2) not null default 18,
+  start_date date not null default current_date,
+  -- The 1st of the next month to bill; advanced after each invoice.
+  next_invoice_date date,
+  end_date date,
+  due_days int not null default 7,
+  notes text
+);
+alter table retainers enable row level security;
+
+create table if not exists retainer_items (
+  id uuid primary key default gen_random_uuid(),
+  retainer_id uuid not null references retainers (id) on delete cascade,
+  catalog_item_id uuid references catalog_items (id) on delete set null,
+  description text not null,
+  quantity numeric(10,2) not null default 1,
+  rate numeric(12,2) not null default 0,
+  item_type text not null default 'service' check (item_type in ('service','tool')),
+  sort_order int not null default 0
+);
+alter table retainer_items enable row level security;
+
+-- An invoice generated from a retainer remembers which one and which month,
+-- so the same month can never be billed twice.
+alter table invoices add column if not exists retainer_id uuid references retainers (id) on delete set null;
+alter table invoices add column if not exists period text; -- 'YYYY-MM'
+create unique index if not exists invoices_retainer_period_uniq on invoices (retainer_id, period) where retainer_id is not null;
+
+-- Optional lines (2026-10-06): a tool the client may or may not want billed. Unticked = kept on the retainer but left off invoices.
+alter table retainer_items add column if not exists included boolean not null default true;

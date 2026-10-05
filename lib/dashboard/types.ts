@@ -384,6 +384,48 @@ export type Invoice = {
   terms: string | null;
   sent_at: string | null;
   paid_at: string | null;
+  /** Set when generated from a monthly retainer. */
+  retainer_id?: string | null;
+  /** 'YYYY-MM' — the month a retainer invoice bills. */
+  period?: string | null;
+};
+
+export type RetainerStatus = "active" | "paused" | "ended";
+
+export type Retainer = {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  client_id: string;
+  proposal_id: string | null;
+  name: string;
+  status: RetainerStatus;
+  currency: string;
+  discount_type: "percentage" | "fixed";
+  discount_value: number;
+  tax_enabled: boolean;
+  tax_name: string;
+  tax_rate: number;
+  tools_tax_enabled: boolean;
+  tools_tax_rate: number;
+  start_date: string;
+  next_invoice_date: string | null;
+  end_date: string | null;
+  due_days: number;
+  notes: string | null;
+};
+
+export type RetainerItem = {
+  id: string;
+  retainer_id: string;
+  catalog_item_id: string | null;
+  description: string;
+  quantity: number;
+  rate: number;
+  item_type: "service" | "tool";
+  /** Unticked = stays on the retainer but isn't billed (optional tools). */
+  included: boolean;
+  sort_order: number;
 };
 
 export type Payment = {

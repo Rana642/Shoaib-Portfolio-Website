@@ -7,6 +7,7 @@ import { buildAgreementClauses } from "./agreement-template";
 import { calculateTotals, formatDate } from "./format";
 import { timestampToDay } from "./offline-dates";
 import type { Proposal } from "./types";
+import { createRetainerFromProposal } from "./retainers";
 
 /**
  * Core cascade for accepting a proposal — creates/links the Client,
@@ -63,6 +64,14 @@ export async function performProposalAcceptance(
     })
     .eq("id", proposal.id);
   if (error) return { error: error.message };
+
+  // Monthly retainer from the proposal's monthly lines (no-op when there are
+  // none). Never blocks acceptance — billing can be set up by hand later.
+  try {
+    await createRetainerFromProposal(proposal.id, { startDate: timestampToDay(acceptedAt) });
+  } catch (retainerError) {
+    console.error("[proposal-acceptance] Retainer setup failed:", retainerError);
+  }
 
   const { data: settings } = await db.from("settings").select("*").eq("id", 1).single();
   const agreementNumber = await generateNumber("agreement", settings?.agreement_prefix ?? "AGR");
