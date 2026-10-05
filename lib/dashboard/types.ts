@@ -437,6 +437,9 @@ export type Letter = {
   title: string;
   /** null = no date yet: the letter prints "Date: ____". */
   letter_date: string | null;
+  /** The ref printed on the letter, typed by hand; "" prints "Ref: ____".
+   *  Missing until the print_ref column is added. */
+  print_ref?: string;
   show_meta: boolean;
   body: string;
 };

@@ -945,11 +945,15 @@ create table if not exists letters (
 create index if not exists letters_updated_idx on letters (updated_at desc);
 alter table letters enable row level security;
 
--- ── Letters: optional date (2026-10-05) ──────────────────────
--- A letter has no date until one is typed; the sheet prints "Date: ____".
--- Existing letters keep their dates.
+-- ── Letters: optional date and own ref (2026-10-05) ──────────
+-- A letter has no date and no printed ref until Shoaib types them; the sheet
+-- prints "Date: ____" / "Ref: ____" lines to write on. print_ref is the ref
+-- printed on the letter; ref_no stays the internal LTR record number.
+-- Letters written before this keep their date and print their LTR number.
 alter table letters alter column letter_date drop not null;
 alter table letters alter column letter_date drop default;
+alter table letters add column if not exists print_ref text not null default '';
+update letters set print_ref = ref_no where print_ref = '' and created_at < '2026-10-06';
 
 -- ── Password vault v2 (2026-09-26) ───────────────────────────
 -- Entries are now filed client → project, and everything describing an

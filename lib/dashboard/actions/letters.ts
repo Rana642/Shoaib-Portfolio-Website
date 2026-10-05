@@ -18,6 +18,9 @@ const letterSchema = z.object({
   letter_date: z
     .union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a full date")])
     .transform((v) => v || null),
+  // The ref printed on the letter — typed by Shoaib, blank (a line to write on)
+  // until then (2026-10-05). ref_no stays the internal LTR record number.
+  print_ref: z.string().trim().max(80, "Keep the ref under 80 characters"),
   show_meta: z.boolean(),
   body: z.string().max(200_000, "This letter is too long to save"),
 });
@@ -34,7 +37,11 @@ const MISSING_TABLE = "PGRST205";
 // letter_date is still NOT NULL — the one-time "optional date" update hasn't run.
 const NOT_NULL = "23502";
 const DATE_SETUP_MESSAGE =
-  "Blank dates need a one-time database update — run the “Letters: optional date” section of supabase/dashboard-schema.sql in the Supabase SQL Editor (or pick a date).";
+  "Blank dates need a one-time database update — run the “Letters: optional date and own ref” section of supabase/dashboard-schema.sql in the Supabase SQL Editor (or pick a date).";
+// PostgREST "column not in schema cache" — print_ref hasn't been added yet.
+const MISSING_COLUMN = "PGRST204";
+const REF_SETUP_MESSAGE =
+  "Your own ref needs a one-time database update — run the “Letters: optional date and own ref” section of supabase/dashboard-schema.sql in the Supabase SQL Editor.";
 const SETUP_MESSAGE =
   "Letters aren't set up in the database yet — run the “Letters” section of supabase/dashboard-schema.sql in the Supabase SQL Editor.";
 
@@ -50,14 +57,18 @@ export async function saveLetter(id: string | null, input: LetterInput): Promise
   const parsed = letterSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
+  // Before the print_ref column exists, a letter without its own ref still
+  // saves (the field is left out); one with a ref asks for the update.
+  const { print_ref, ...withoutRef } = parsed.data;
+  const missingRefColumn = (e: { code?: string } | null) => e?.code === MISSING_COLUMN && !print_ref;
+
   if (id) {
     if (!z.string().uuid().safeParse(id).success) return { error: "Letter not found" };
-    const { data, error } = await db
-      .from("letters")
-      .update({ ...parsed.data, updated_at: new Date().toISOString() })
-      .eq("id", id)
-      .select("id, ref_no, updated_at")
-      .maybeSingle();
+    const update = (row: Partial<typeof parsed.data>) =>
+      db.from("letters").update({ ...row, updated_at: new Date().toISOString() }).eq("id", id).select("id, ref_no, updated_at").maybeSingle();
+    let { data, error } = await update(parsed.data);
+    if (missingRefColumn(error)) ({ data, error } = await update(withoutRef));
+    if (error?.code === MISSING_COLUMN) return { error: REF_SETUP_MESSAGE };
     if (error) return { error: error.code === MISSING_TABLE ? SETUP_MESSAGE : error.code === NOT_NULL ? DATE_SETUP_MESSAGE : error.message };
     if (!data) return { error: "This letter was deleted — duplicate it or start a new one." };
     return { ok: true, ...data };
@@ -71,12 +82,12 @@ export async function saveLetter(id: string | null, input: LetterInput): Promise
   const ref_no = await generateNumber("letter", "LTR");
   if (!ref_no) return { error: "Couldn't generate a reference number. Check the database setup." };
 
-  const { data, error } = await db
-    .from("letters")
-    .insert({ ...parsed.data, ref_no })
-    .select("id, ref_no, updated_at")
-    .single();
+  const insert = (row: Partial<typeof parsed.data>) => db.from("letters").insert({ ...row, ref_no }).select("id, ref_no, updated_at").single();
+  let { data, error } = await insert(parsed.data);
+  if (missingRefColumn(error)) ({ data, error } = await insert(withoutRef));
+  if (error?.code === MISSING_COLUMN) return { error: REF_SETUP_MESSAGE };
   if (error) return { error: error.code === NOT_NULL ? DATE_SETUP_MESSAGE : error.message };
+  if (!data) return { error: "Couldn't save the letter — try again." };
   return { ok: true, ...data };
 }
 

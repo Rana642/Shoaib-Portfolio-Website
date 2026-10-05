@@ -31,7 +31,7 @@ import type { Letter } from "@/lib/dashboard/types";
 import { cn } from "@/lib/utils";
 
 type Status = "new" | "dirty" | "saving" | "saved" | "error";
-type Fields = { title: string; date: string; showMeta: boolean };
+type Fields = { title: string; date: string; ref: string; showMeta: boolean };
 
 // Typing pauses this long before the letter saves itself.
 const AUTOSAVE_MS = 1200;
@@ -69,9 +69,10 @@ export default function LetterEditor({ letter, today }: { letter: Letter | null;
   const [title, setTitle] = useState(letter?.title ?? "");
   // No date until one is typed (Shoaib, 2026-10-05) — the sheet prints "Date: ____".
   const [date, setDate] = useState(letter?.letter_date ?? "");
+  // The printed ref is typed by hand too; LTR numbers stay internal.
+  const [ref, setRef] = useState(letter?.print_ref ?? "");
   const [showMeta, setShowMeta] = useState(letter?.show_meta ?? true);
   const [id, setId] = useState(letter?.id ?? null);
-  const [refNo, setRefNo] = useState(letter?.ref_no ?? null);
   const [status, setStatus] = useState<Status>(letter ? "saved" : "new");
   const [error, setError] = useState<string | null>(null);
   const [overflowing, setOverflowing] = useState(false);
@@ -83,7 +84,7 @@ export default function LetterEditor({ letter, today }: { letter: Letter | null;
   const bodyRef = useRef<HTMLDivElement>(null);
   const initialBodyRef = useRef(letter?.body ?? "");
   const bodyHtmlRef = useRef("");
-  const fieldsRef = useRef<Fields>({ title, date, showMeta });
+  const fieldsRef = useRef<Fields>({ title, date, ref, showMeta });
   const idRef = useRef(letter?.id ?? null);
   const dirtyRef = useRef(false);
   const timerRef = useRef<number | undefined>(undefined);
@@ -94,6 +95,7 @@ export default function LetterEditor({ letter, today }: { letter: Letter | null;
     (): LetterInput => ({
       title: fieldsRef.current.title,
       letter_date: fieldsRef.current.date,
+      print_ref: fieldsRef.current.ref,
       show_meta: fieldsRef.current.showMeta,
       body: sanitizeLetterHtml(bodyHtmlRef.current),
     }),
@@ -125,7 +127,6 @@ export default function LetterEditor({ letter, today }: { letter: Letter | null;
       if (!idRef.current) {
         idRef.current = result.id;
         setId(result.id);
-        setRefNo(result.ref_no);
         // Give the new letter its own URL without re-rendering the page
         // (which would reset the editor) — unless we've already left it.
         if (mountedRef.current) window.history.replaceState(null, "", `/dashboard/letterhead/${result.id}`);
@@ -251,7 +252,7 @@ export default function LetterEditor({ letter, today }: { letter: Letter | null;
     const copyTitle = input.title ? `${input.title.slice(0, 190)} (copy)` : "";
     let result: Awaited<ReturnType<typeof saveLetter>>;
     try {
-      result = await saveLetter(null, { ...input, title: copyTitle, letter_date: "" });
+      result = await saveLetter(null, { ...input, title: copyTitle, letter_date: "", print_ref: "" });
     } catch {
       result = { error: "Couldn't reach the server — check your connection." };
     }
@@ -294,6 +295,22 @@ export default function LetterEditor({ letter, today }: { letter: Letter | null;
               onChange={(e) => {
                 setTitle(e.target.value);
                 updateFields({ title: e.target.value });
+              }}
+              className={inputClasses}
+            />
+          </div>
+          <div className="w-full sm:w-auto">
+            <label htmlFor="letter-ref" className={labelClasses}>
+              Ref
+            </label>
+            <input
+              id="letter-ref"
+              value={ref}
+              maxLength={80}
+              placeholder="Blank = a line to write on"
+              onChange={(e) => {
+                setRef(e.target.value);
+                updateFields({ ref: e.target.value });
               }}
               className={inputClasses}
             />
@@ -423,12 +440,12 @@ export default function LetterEditor({ letter, today }: { letter: Letter | null;
           {showMeta && (
             <div className="flex justify-between gap-6 mb-[5mm]">
               <p>
-                {refNo ? (
-                  <>
-                    <span className="font-semibold">Ref:</span> {refNo}
-                  </>
+                <span className="font-semibold">Ref:</span>{" "}
+                {ref.trim() ? (
+                  ref.trim()
                 ) : (
-                  <span className="print:hidden text-ink-subtle">Ref: given when the letter saves</span>
+                  // A blank to write the ref on by hand.
+                  <span aria-label="No ref" className="inline-block w-[38mm] border-b-[0.75pt] border-current" />
                 )}
               </p>
               <p>
