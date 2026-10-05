@@ -41,9 +41,12 @@ For every client whose proposal is accepted, the monthly retainer invoice is cre
    - Each draft can be edited, then **Send**.
    - The client gets an email (Resend) with the invoice link and PDF, and the report link and PDF.
    - New public `/invoice/[token]` page: bank details, status.
-5. **Client portal**
-   - New "Invoices & Reports" tab: all invoices with status, all monthly reports.
-   - Gated by `portal_features`.
+5. **Client portal** (Shoaib, 2026-10-06)
+   - When Shoaib presses **Send / OK**, the invoice and that month's report are published to the client's portal **at the same moment**.
+   - New "Invoices & Reports" tab, visible to **both portal roles: Owner and Member**.
+   - Drafts are never visible in the portal.
+   - The portal shows status (Due / Paid / Overdue) and the full history of past invoices and reports.
+   - The email goes to the client's email **and** every portal user (owner + members), with a link to the portal.
 6. **Payments**
    - Mark Paid / Partially paid, which already exists on invoices.
    - Later: an automatic reminder when an invoice goes overdue.

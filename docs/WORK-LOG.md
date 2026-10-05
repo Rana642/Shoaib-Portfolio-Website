@@ -39,6 +39,7 @@ context (decisions, gotchas, rules) is in the second-brain vault:
 - **Retainer billing plan approved:** `docs/RETAINER-BILLING-PLAN.md`.
   - Auto monthly invoices on the 1st (draft → Shoaib sends) plus monthly client reports.
   - Ad spend is not invoiced.
+  - On Send, the invoice + report also publish to the client portal for Owner and Member roles; drafts stay hidden.
   - Build not started.
 - **Next:**
   - Confirm the Meta website ads get approved and Google impressions start (0 so far on 5–6 Oct).
