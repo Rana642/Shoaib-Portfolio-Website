@@ -6,7 +6,20 @@ export default function robots(): MetadataRoute.Robots {
   // lib/seo.ts) so nothing gets indexed before Shoaib confirms the site
   // is final. Flip SITE_IS_LIVE in lib/seo.ts, not this file.
   if (!SITE_IS_LIVE) {
-    return { rules: [{ userAgent: "*", disallow: "/" }] };
+    return {
+      rules: [
+        // Meta's app-settings validator must be able to fetch the privacy /
+        // terms pages (Privacy, Terms and Data-deletion URLs of the ABS
+        // Marketing app). Only these two pages, only Meta's crawlers — search
+        // engines stay fully blocked and the pages keep their noindex.
+        {
+          userAgent: ["facebookexternalhit", "meta-externalagent", "Facebot"],
+          allow: ["/privacy", "/terms"],
+          disallow: "/",
+        },
+        { userAgent: "*", disallow: "/" },
+      ],
+    };
   }
 
   return {
