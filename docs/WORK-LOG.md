@@ -36,6 +36,10 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - KB global rule `client-work-log`.
   - `client-report-log-2026-10` created in all 16 KB projects and backfilled with the real October work, for month-end client reports.
 - **Rule:** memory, vault, work log and the client KB log are updated automatically after every task. Shoaib no longer needs to ask.
+- **Retainer billing plan approved:** `docs/RETAINER-BILLING-PLAN.md`.
+  - Auto monthly invoices on the 1st (draft → Shoaib sends) plus monthly client reports.
+  - Ad spend is not invoiced.
+  - Build not started.
 - **Next:**
   - Confirm the Meta website ads get approved and Google impressions start (0 so far on 5–6 Oct).
   - Monday: first report by Ref code.
