@@ -21,6 +21,24 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - Meta ad sets on Search optimisation: Rs 40.6k for 3 purchases.
 - **Already fine:** Purchase at submit (Pixel + CAPI), Ads booking conversion, no GTM, one-page /reservations.
 - **Waiting on Shoaib / owner:** Booking.com standard + Genius rates, deal percentages, Last Minute renewal, whether deals need advance payment, bank details.
+- **Done the same night, live** (Silver Sand repo):
+  - Phase 1 (f253b8a):
+    - NAP = GBP; review count 845; fallback prices fixed.
+    - /admin tracking guard. A browser that opens /admin gets `hss_internal`; clear it with `?hss_internal=0`.
+    - WhatsApp "Ref:" code. A global wa.me/tel listener fires the Ads conversions.
+    - Expired promos hidden; biggest discount wins.
+  - Phase 3 (526b817): room-card dates popup → highlighted room on /reservations; mobile one-line search; mobile total above Book Now.
+  - docs/TRACKING.md added (b83750b).
+  - Dev launcher `hotel-silver-sand-dev` on port 3030.
+- **Google Ads:** bidding is already clean. GBP local actions are not biddable, so no change was made.
+- **GBP:** 24 review replies queued as DRAFT for Shoaib's approval.
+- **Facebook:** the page map pin is in Chennai. Owner must fix it.
+- **Still pending:**
+  - Phase 2 decisions.
+  - GA4 key-event cleanup (UI).
+  - Meta: move off Search optimisation; refresh creatives.
+  - GBP: remove Pool, set check-in to 24h.
+  - Instagram / TikTok / OTA NAP check.
 
 ## 2026-10-05 (evening) — Planner "needs changes" (uploader alerts)
 - **Rule (Shoaib):** before captioning or scheduling, check every planner post: the right project, the right day, small text in photos, the icons, and the contact details.
