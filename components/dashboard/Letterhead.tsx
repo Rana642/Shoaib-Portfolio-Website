@@ -91,10 +91,11 @@ function FooterText({
 }
 
 // From Shoaib's FBR registration (Online Verification, 2026-09-25): the
-// business address, and the NTN (FBR "Reference No" — the 13-digit
+// business address (without "Cantt." — Shoaib, 2026-10-05: the address is not in
+// the cantonment), and the NTN (FBR "Reference No" — the 13-digit
 // "Registration No" is his CNIC, which he keeps off public documents).
 const NTN = "8200652-5";
-const ADDRESS = "Bismillah Colony, Near Romi Cotton Factory, Khanewal Road, Street 6, Multan Cantt., Pakistan";
+const ADDRESS = "Bismillah Colony, Near Romi Cotton Factory, Khanewal Road, Street 6, Multan, Pakistan";
 
 // One grid for header, body and footer: the letter body's 20 mm side margins
 // (Shoaib, 2026-10-05: "Design change ker sakty ho Aesthically allignment k liye").
@@ -110,8 +111,8 @@ const FOOT_GROUPS = [5.0 + ICON_GAP + 24.86, 4.4 + ICON_GAP + 24.21, 4.74 + ICON
 const FOOT_GAP = (MARGIN_R - MARGIN_L - FOOT_GROUPS.reduce((a, b) => a + b, 0)) / (FOOT_GROUPS.length - 1);
 const FOOT = FOOT_GROUPS.map((_, i) => MARGIN_L + FOOT_GROUPS.slice(0, i).reduce((a, b) => a + b, 0) + FOOT_GAP * i);
 const SEPARATORS = FOOT.slice(1).map((x) => x - FOOT_GAP / 2);
-/** Address line: pin (3.9 mm) + 2.5 mm gap + text (132.86 mm in Inter), centred on the page. */
-const ADDRESS_X = 105 - (3.9 + 2.5 + 132.86) / 2;
+/** Address line: pin (3.9 mm) + 2.5 mm gap + text (123.46 mm in Inter), centred on the page. */
+const ADDRESS_X = 105 - (3.9 + 2.5 + 123.46) / 2;
 
 /** The fixed letterhead artwork — everything except the writable body. */
 function LetterheadArtwork() {
