@@ -14,6 +14,11 @@ import DocumentPreview from "@/components/dashboard/DocumentPreview";
 import DocumentActions from "@/components/dashboard/DocumentActions";
 import PaymentForm from "@/components/dashboard/PaymentForm";
 import DeleteButton from "@/components/dashboard/DeleteButton";
+import ConfirmActionButton from "@/components/dashboard/ConfirmActionButton";
+import WhatsAppShareLink from "@/components/dashboard/WhatsAppShareLink";
+import { sendInvoiceToClient } from "@/lib/dashboard/actions/billing";
+import { billingRecipients, companionReport, invoiceUrl } from "@/lib/dashboard/billing-send";
+import { periodLabel } from "@/lib/dashboard/reports";
 import type { Client, Invoice, LineItem, Payment } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +52,14 @@ export default async function InvoicePage({ params }: PageProps<"/dashboard/invo
   const items = (itemsData ?? []) as LineItem[];
   const payments = (paymentsData ?? []) as Payment[];
   const balanceDue = Number(invoice.total) - Number(invoice.amount_paid);
+
+  const [recipients, report] = await Promise.all([billingRecipients(invoice.client_id), companionReport(invoice)]);
+  const publicUrl = invoice.access_token ? invoiceUrl(invoice.access_token) : null;
+
+  async function send(sendEmail: boolean) {
+    "use server";
+    return sendInvoiceToClient(id, sendEmail);
+  }
 
   async function changeStatus(status: string) {
     "use server";
@@ -87,6 +100,48 @@ export default async function InvoicePage({ params }: PageProps<"/dashboard/invo
             <FileText className="size-4 text-cobalt" aria-hidden />
             From quotation {invoice.quotations.number}
           </Link>
+        )}
+
+        {invoice.status === "draft" ? (
+          <Card className="p-6 mb-8 max-w-2xl">
+            <h3 className="text-body-lg font-semibold mb-1">Send to client</h3>
+            <p className="text-small text-ink-muted mb-4">
+              Marks the invoice as sent and opens its client link
+              {report && (
+                <>
+                  , together with the <strong>{periodLabel(report.period)} report</strong>
+                  {report.status === "draft" && (
+                    <>
+                      {" "}(
+                      <Link href={`/dashboard/reports/${report.id}`} className="underline underline-offset-4">
+                        review it first
+                      </Link>
+                      )
+                    </>
+                  )}
+                </>
+              )}
+              .
+            </p>
+            <ConfirmActionButton
+              action={send}
+              label={report ? "Send invoice + report" : "Send invoice"}
+              confirmLabel="Click again to send"
+              emailCheckboxLabel={recipients.length ? `Also email ${recipients.join(", ")}` : undefined}
+            />
+            {!recipients.length && (
+              <p className="text-tag text-ink-subtle mt-2">No client email or portal users: share the link after sending.</p>
+            )}
+          </Card>
+        ) : (
+          publicUrl && (
+            <div className="flex flex-wrap items-center gap-3 mb-8">
+              <a href={publicUrl} target="_blank" rel="noreferrer" className="text-small underline underline-offset-4">
+                Client link
+              </a>
+              <WhatsAppShareLink url={publicUrl} message={`Your invoice ${invoice.number} from Ads by Shoaib:`} />
+            </div>
+          )
         )}
 
         <div className="mb-8">

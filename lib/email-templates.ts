@@ -258,6 +258,34 @@ export function retainerDraftsReadyEmail(data: {
   `);
 }
 
+/** To the client + their portal users: a sent invoice and/or monthly report. */
+export function billingSentEmail(data: {
+  clientName: string;
+  invoice?: { number: string; amount: string; due: string | null; url: string; month: string | null };
+  report?: { month: string; url: string };
+  portalUrl: string;
+}) {
+  const button = (href: string, label: string) =>
+    `<a href="${href}" style="display: inline-block; background: #0F0F14; color: #FAFAFA; padding: 10px 18px; border-radius: 8px; text-decoration: none; font-size: 14px; margin: 0 8px 8px 0;">${label}</a>`;
+  const intro = data.invoice
+    ? `Here is invoice <strong>${escapeHtml(data.invoice.number)}</strong>${data.invoice.month ? ` for ${escapeHtml(data.invoice.month)}` : ""}: <strong>${escapeHtml(data.invoice.amount)}</strong>${data.invoice.due ? `, due ${escapeHtml(data.invoice.due)}` : ""}.`
+    : "";
+  const report = data.report
+    ? `${data.invoice ? " Your" : "Your"} monthly report for <strong>${escapeHtml(data.report.month)}</strong> is ready too — what was done and how the numbers moved.`
+    : "";
+  return wrapper(`
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 16px;">Hi ${escapeHtml(data.clientName)},</p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 20px;">${intro}${report}</p>
+    <p style="margin: 0 0 12px;">
+      ${data.invoice ? button(data.invoice.url, "View invoice") : ""}${data.report ? button(data.report.url, "View report") : ""}
+    </p>
+    <p style="font-size: 13px; line-height: 1.6; color: #666; margin: 12px 0 0;">
+      Both are also in your client portal: <a href="${data.portalUrl}" style="color: #0F0F14;">${data.portalUrl.replace(/^https?:\/\//, "")}</a>.
+      Reply to this email with any questions.
+    </p>
+  `);
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")

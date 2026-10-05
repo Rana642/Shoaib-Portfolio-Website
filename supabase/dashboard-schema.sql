@@ -1304,3 +1304,8 @@ create table if not exists client_reports (
   unique (client_id, period)
 );
 alter table client_reports enable row level security;
+
+-- Public invoice link (billing phase 4, 2026-10-06): /invoice/[token].
+-- Existing invoices get their own token from the volatile default.
+alter table invoices add column if not exists access_token text not null default replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
+create unique index if not exists invoices_access_token_uniq on invoices (access_token);

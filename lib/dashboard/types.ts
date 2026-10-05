@@ -388,6 +388,8 @@ export type Invoice = {
   retainer_id?: string | null;
   /** 'YYYY-MM' — the month a retainer invoice bills. */
   period?: string | null;
+  /** Public /invoice/[token] link. */
+  access_token?: string;
 };
 
 export type RetainerStatus = "active" | "paused" | "ended";

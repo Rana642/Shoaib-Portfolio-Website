@@ -4,6 +4,7 @@ import { db } from "@/lib/dashboard/db";
 import { getAdminUser } from "@/lib/dashboard/auth";
 import { periodLabel, type ClientReport } from "@/lib/dashboard/reports";
 import ReportView from "@/components/report/ReportView";
+import PrintButton from "@/components/report/PrintButton";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,9 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
   return (
     <main className="min-h-full bg-cloud px-5 py-10 md:py-16">
       <div className="max-w-3xl mx-auto">
+        <div className="flex justify-end mb-6 print:hidden">
+          <PrintButton />
+        </div>
         <ReportView
           clientName={report.clients?.name ?? ""}
           periodLabel={periodLabel(report.period)}
