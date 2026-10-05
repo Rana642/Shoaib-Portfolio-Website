@@ -57,6 +57,14 @@ export async function createScheduledPost(input: {
   return data.id as string;
 }
 
+/** How many posts are held, waiting for the uploader to fix them. */
+export async function countPostsNeedingChanges(): Promise<number> {
+  const { count, error } = await db.from("scheduled_posts").select("id", { count: "exact", head: true }).eq("status", "needs_changes");
+  // Before the "needs changes" database update there are none.
+  if (error) return 0;
+  return count ?? 0;
+}
+
 export async function listPendingCaptionPosts(): Promise<ScheduledPost[]> {
   const { data, error } = await db
     .from("scheduled_posts")
@@ -82,6 +90,13 @@ export async function getScheduledPost(id: string): Promise<ScheduledPost | null
 }
 
 export async function setCaptionAndSchedule(id: string, caption: string, scheduledAt?: string) {
+  // A post held for changes waits for the uploader's replacement (or for
+  // the flag to be cleared) — it must not slip out with the mistake.
+  const { data: current, error: readErr } = await db.from("scheduled_posts").select("*").eq("id", id).maybeSingle(); // "*": works before review_note exists
+  if (readErr) throw new Error(readErr.message);
+  if (current?.status === "needs_changes") {
+    throw new Error(`This post is held for changes (${current.review_note ?? "see the Planner"}). Wait for the uploader's new image, or clear the flag first.`);
+  }
   const patch: { caption: string; status: "scheduled"; scheduled_at?: string } = {
     caption,
     status: "scheduled",

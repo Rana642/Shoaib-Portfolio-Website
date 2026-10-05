@@ -186,6 +186,50 @@ export function passwordChangeNoticeEmail(data: { name: string; accounts: string
   `);
 }
 
+/** Tells whoever uploaded planner graphics which ones need a change before
+ *  they can be scheduled, and what exactly is wrong with each. */
+export function postChangesRequestEmail(data: {
+  items: { project: string; filename: string; date: string; issue: string; imageUrl: string | null }[];
+  plannerUrl: string;
+}) {
+  const many = data.items.length > 1;
+  const rows = data.items
+    .map(
+      (item) => `
+    <tr>
+      <td style="padding: 12px 12px 12px 0; vertical-align: top; width: 96px;">
+        ${
+          item.imageUrl
+            ? `<img src="${item.imageUrl}" alt="" width="96" style="display: block; width: 96px; height: auto; border-radius: 6px; border: 1px solid #eee;" />`
+            : ""
+        }
+      </td>
+      <td style="padding: 12px 0; vertical-align: top; font-size: 14px; line-height: 1.6;">
+        <div style="color: #666; font-size: 12px;">${escapeHtml(item.project)} · ${escapeHtml(item.filename)} · ${escapeHtml(item.date)}</div>
+        <div style="margin-top: 4px;">${escapeHtml(item.issue)}</div>
+      </td>
+    </tr>`
+    )
+    .join("");
+  return wrapper(`
+    <h2 style="font-size: 18px; margin: 0 0 16px;">${many ? `${data.items.length} posts need` : "A post needs"} a change</h2>
+    <p style="font-size: 14px; line-height: 1.6;">
+      Hi,<br /><br />
+      I checked the graphics uploaded to the planner. ${many ? "These need" : "This one needs"} a change
+      before I can schedule ${many ? "them" : "it"}:
+    </p>
+    <table style="width: 100%; border-collapse: collapse; border-top: 1px solid #eee; border-bottom: 1px solid #eee;">${rows}</table>
+    <p style="font-size: 14px; line-height: 1.6; margin-top: 16px;">
+      Open the planner and use <strong>Replace image</strong> on each one. It keeps the same day.
+    </p>
+    ${button(data.plannerUrl, "Open the planner")}
+    <p style="font-size: 14px; line-height: 1.6; color: #666;">
+      Questions? Just reply to this email.<br /><br />
+      — Shoaib
+    </p>
+  `);
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")

@@ -25,6 +25,7 @@ import {
 } from "../../scheduled-posts";
 import { submitNativeScheduleForPost, rescheduleNativePosts, cancelPostEverywhere } from "../../social-post";
 import { deleteObject } from "../../storage";
+import { clearPostFlag } from "../../post-review";
 import type { DiscoveredPage } from "../../social-fb";
 import type { DiscoveredOrganization } from "../../social-linkedin";
 
@@ -250,6 +251,21 @@ export async function deletePost(id: string) {
 
   await deleteScheduledPost(id);
   revalidatePath("/dashboard/social/planner");
+}
+
+/** "Needs changes" → back to waiting for a caption, keeping the image
+ *  (Shoaib decided it can go out as it is). */
+export async function clearPostChanges(id: string) {
+  await assertAuthed();
+  if (!z.string().uuid().safeParse(id).success) return { error: "Not found." };
+  try {
+    await clearPostFlag(id);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't clear it." };
+  }
+  revalidatePath("/dashboard/social/planner");
+  revalidatePath("/portal/planner");
+  return { ok: true };
 }
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");

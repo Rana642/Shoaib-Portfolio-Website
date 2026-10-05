@@ -2,7 +2,8 @@ import "server-only";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "./dashboard/db";
-import { listPendingCaptionPosts, getScheduledPost, setCaptionAndSchedule } from "./scheduled-posts";
+import { listPendingCaptionPosts, getScheduledPost, setCaptionAndSchedule, countPostsNeedingChanges } from "./scheduled-posts";
+import { registerPostReviewTools } from "./post-review-tools";
 import { fetchObject } from "./storage";
 import { rescheduleNativePosts, submitNativeScheduleForPost } from "./social-post";
 
@@ -43,7 +44,9 @@ export function registerRemoteSocialTools(server: McpServer): void {
       title: "List Pending-Caption Posts",
       description: `Lists images uploaded via the Planner calendar that still need a caption (status='pending_caption').
 
-For each, use social_get_post_image to view the image (which also returns that project's posting style guide, if one is set — follow it when writing the caption), then social_set_caption_and_schedule to finish it.
+For each, use social_get_post_image to view the image (which also returns that project's posting style guide, if one is set — follow it when writing the caption). Check every post first: anything with a mistake goes to social_request_changes; the rest get social_set_caption_and_schedule.
+
+Posts held with 'needs_changes' are not listed — they come back here once the uploader replaces the image.
 
 Returns (JSON): { count, posts: [{ id, project_label, original_filename, scheduled_at, posting_instructions }] }`,
       inputSchema: {},
@@ -51,7 +54,7 @@ Returns (JSON): { count, posts: [{ id, project_label, original_filename, schedul
     },
     async () => {
       try {
-        const [posts, projects] = await Promise.all([listPendingCaptionPosts(), projectContextMap()]);
+        const [posts, projects, held] = await Promise.all([listPendingCaptionPosts(), projectContextMap(), countPostsNeedingChanges()]);
         const rows = posts.map((p) => {
           const ctx = projects.get(p.project_id);
           return {
@@ -67,6 +70,7 @@ Returns (JSON): { count, posts: [{ id, project_label, original_filename, schedul
           lines.push(`- \`${r.id}\` — **${r.project_label}** — ${r.original_filename} (${r.scheduled_at ?? "no date set"})`);
           if (r.posting_instructions) lines.push(`  Posting style: ${r.posting_instructions}`);
         }
+        if (held) lines.push("", `${held} more ${held === 1 ? "is" : "are"} held for changes, waiting for the uploader's new image.`);
         return {
           content: [{ type: "text", text: lines.join("\n") }],
           structuredContent: { count: rows.length, posts: rows },
@@ -104,12 +108,16 @@ Returns: the image itself (view it directly), plus the post's original filename 
         const styleText = ctx?.postingInstructions
           ? `Posting style for ${ctx.label}: ${ctx.postingInstructions}`
           : `No posting style guide set for ${ctx?.label ?? "this project"} — use your own judgement.`;
+        const heldText =
+          post.status === "needs_changes"
+            ? `\nHELD — needs changes: ${post.review_note ?? "(no note)"} Don't schedule it until the image is replaced or the flag is cleared.`
+            : "";
         const reelText = isReel
           ? `\nThis is a video Reel (Facebook + Instagram). ${image ? "Shown: its cover image." : "It has no cover image — ask what the video shows before writing the caption."}`
           : "";
         return {
           content: [
-            { type: "text", text: `File: ${post.original_filename}${reelText}\n${styleText}` },
+            { type: "text", text: `File: ${post.original_filename}${heldText}${reelText}\n${styleText}` },
             ...(image ? [{ type: "image" as const, data: image.buffer.toString("base64"), mimeType: image.contentType }] : []),
           ],
         };
@@ -163,4 +171,6 @@ Returns: confirmation text.`,
       }
     }
   );
+
+  registerPostReviewTools(server);
 }

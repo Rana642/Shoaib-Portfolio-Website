@@ -4,6 +4,21 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-05 (evening) — Planner "needs changes" (uploader alerts)
+- **Rule (Shoaib):** before captioning or scheduling, check every planner post: the right project, the right day, small text in photos, the icons, and the contact details.
+- **New status `needs_changes`** with `review_note` and `review_flagged_at`.
+  - **SQL:** run the "Planner: needs changes" section of `supabase/dashboard-schema.sql`. Flagging fails until it runs; everything else keeps working.
+- **MCP tools** (remote and local, shared in `lib/post-review-tools.ts`):
+  - `social_request_changes` holds a batch of posts and emails each uploader ONCE (Resend, bcc + reply-to Shoaib).
+  - `social_clear_changes` clears a flag.
+- **Scheduling a held post is refused** (`setCaptionAndSchedule` guard). The pending list shows the held count, and `get_post_image` shows the note.
+- **Portal Planner:**
+  - A banner and a popup appear on arrival (once per set of flags per session). Each post has its issue plus **Replace image** and **Remove**.
+  - Replacing keeps the same day and slot and returns the post to `pending_caption`. The old image is deleted, and Shoaib gets an email with what was fixed.
+  - Portal home shows "N need a change".
+- **Dashboard Planner:** an orange "Needs changes" badge with the note and a **Clear** button.
+- **Avenza week (5–10 Oct):** 26 posts were captioned and scheduled. Fatima re-uploaded 39 and 38 already fixed ((7) on 6 Oct, (6) on 12 Oct), and both are now scheduled. No Jummah posts were uploaded for 9 Oct.
+
 ## 2026-10-05 (later) — Hotel Elegant CRO pass before ads (live)
 - **Ads are NOT launching yet.** Shoaib wants the fixes done first. Still blocked on the ad-account side:
   - Conversion-goal cleanup on both platforms (needs permissions or UI work).

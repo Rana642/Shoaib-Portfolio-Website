@@ -4,6 +4,8 @@ import { can, canSeeProject, requirePortalUser } from "@/lib/portal/auth";
 import { presignDownload, isStorageConfigured } from "@/lib/storage";
 import { Card, PageHeader } from "@/components/dashboard/ui";
 import PlannerCalendar from "@/components/dashboard/social/PlannerCalendar";
+import NeedsChangesAlert, { type FlaggedPost } from "@/components/portal/NeedsChangesAlert";
+import { plannerDayLabel } from "@/lib/post-review";
 import type { ScheduledPost } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
@@ -47,8 +49,37 @@ export default async function PortalPlannerPage({ searchParams }: { searchParams
     .eq("project_id", selected.id)
     .neq("status", "failed")
     .order("scheduled_at", { ascending: true });
-  const posts = ((data ?? []) as ScheduledPost[]).filter((p) => canView || p.uploaded_by_email);
+  const posts = ((data ?? []) as ScheduledPost[])
+    .filter((p) => canView || p.uploaded_by_email)
+    // A post I uploaded and held back is mine to fix — to the client it's
+    // just "being prepared".
+    .map((p) => (p.status === "needs_changes" && !p.uploaded_by_email ? { ...p, status: "pending_caption" as const, review_note: null } : p));
   const withUrls = await Promise.all(posts.map(async (p) => ({ ...p, imageUrl: await presignDownload(p.media_key).catch(() => null) })));
+
+  // Their uploads that need a change, across every project they can see —
+  // the popup and banner above the calendar. Fixing needs "uploads".
+  let flagged: FlaggedPost[] = [];
+  if (canUpload) {
+    const names = new Map(projects.map((p) => [p.id as string, p.name as string]));
+    const { data: rows } = await db
+      .from("scheduled_posts")
+      .select("id, project_id, original_filename, scheduled_at, review_note, media_key")
+      .in("project_id", [...names.keys()])
+      .eq("status", "needs_changes")
+      .not("uploaded_by_email", "is", null)
+      .order("scheduled_at", { ascending: true });
+    flagged = await Promise.all(
+      ((rows ?? []) as Pick<ScheduledPost, "id" | "project_id" | "original_filename" | "scheduled_at" | "review_note" | "media_key">[]).map(async (r) => ({
+        id: r.id,
+        project_id: r.project_id,
+        projectName: names.get(r.project_id) ?? "",
+        original_filename: r.original_filename,
+        dayLabel: plannerDayLabel(r.scheduled_at),
+        review_note: r.review_note ?? null,
+        imageUrl: await presignDownload(r.media_key).catch(() => null),
+      }))
+    );
+  }
 
   return (
     <>
@@ -58,6 +89,7 @@ export default async function PortalPlannerPage({ searchParams }: { searchParams
           <p className="text-small text-ink-muted">Uploads aren&apos;t available right now — please send graphics to me directly.</p>
         </Card>
       )}
+      <NeedsChangesAlert posts={flagged} />
       <PlannerCalendar
         mode="client"
         canUpload={canUpload}

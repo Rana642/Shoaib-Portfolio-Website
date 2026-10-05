@@ -103,7 +103,9 @@ export type ClientSocialAccount = {
   is_active: boolean;
 };
 
-export type ScheduledPostStatus = "pending_caption" | "scheduled" | "posted" | "failed";
+/** "needs_changes" = held: the upload has a mistake the uploader must fix
+ *  (review_note says what) before it can get a caption. */
+export type ScheduledPostStatus = "pending_caption" | "needs_changes" | "scheduled" | "posted" | "failed";
 
 export type ScheduledPost = {
   id: string;
@@ -127,6 +129,10 @@ export type ScheduledPost = {
   post_type?: PostType;
   /** Optional cover image for a Reel. */
   cover_key?: string | null;
+  /** What has to change, while status is "needs_changes" (plain English,
+   *  shown to the uploader). */
+  review_note?: string | null;
+  review_flagged_at?: string | null;
 };
 
 export type PostType = "post" | "reel" | "story";

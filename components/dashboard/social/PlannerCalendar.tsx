@@ -2,8 +2,9 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard, CircleDashed } from "lucide-react";
-import { createPlannerPost, deletePost, movePost, reorderDay } from "@/lib/dashboard/actions/social";
+import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard, CircleDashed, AlertTriangle } from "lucide-react";
+import { clearPostChanges, createPlannerPost, deletePost, movePost, reorderDay } from "@/lib/dashboard/actions/social";
+import { ReplaceImageButton } from "@/components/portal/NeedsChangesAlert";
 import { deletePortalUpload } from "@/lib/portal/planner";
 import PlannerUploader from "@/components/portal/PlannerUploader";
 import { inputClasses, buttonStyles, Card } from "@/components/dashboard/ui";
@@ -54,6 +55,7 @@ type ViewMode = "week" | "month";
 
 const STATUS_RING: Record<string, string> = {
   pending_caption: "ring-citrus",
+  needs_changes: "ring-orange-500",
   scheduled: "ring-cobalt",
   posted: "ring-green-600",
   failed: "ring-red-600",
@@ -61,6 +63,7 @@ const STATUS_RING: Record<string, string> = {
 
 const STATUS_LABEL: Record<string, { text: string; classes: string }> = {
   pending_caption: { text: "Needs caption", classes: "bg-citrus/15 text-ink" },
+  needs_changes: { text: "Needs changes", classes: "bg-orange-500/15 text-orange-800" },
   scheduled: { text: "Scheduled", classes: "bg-cobalt/10 text-ink" },
   posted: { text: "Posted", classes: "bg-green-600/10 text-green-700" },
   failed: { text: "Failed", classes: "bg-red-600/10 text-red-700" },
@@ -70,12 +73,15 @@ const STATUS_LABEL: Record<string, { text: string; classes: string }> = {
 // filters those out), and "needs caption" is my job, not theirs.
 const CLIENT_STATUS_LABEL: Record<string, { text: string; classes: string }> = {
   pending_caption: { text: "Being prepared", classes: "bg-citrus/15 text-ink" },
+  needs_changes: { text: "Needs changes", classes: "bg-orange-500/15 text-orange-800" },
   scheduled: { text: "Scheduled", classes: "bg-cobalt/10 text-ink" },
   posted: { text: "Posted", classes: "bg-green-600/10 text-green-700" },
 };
 
-/** A client may take back only their own upload that's still waiting for a caption. */
-const clientCanRemove = (post: ScheduledPost) => Boolean(post.uploaded_by_email) && post.status === "pending_caption";
+/** A client may take back only their own upload that's still waiting for a
+ *  caption, or that needs changes. */
+const clientCanRemove = (post: ScheduledPost) =>
+  Boolean(post.uploaded_by_email) && (post.status === "pending_caption" || post.status === "needs_changes");
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DRAG_MIME = "application/x-scheduled-post-id";
@@ -535,6 +541,7 @@ function WeekPostCard({
       {post.caption && (
         <p className="text-tag text-ink-muted px-2 pb-1.5 line-clamp-2">{post.caption}</p>
       )}
+      {post.status === "needs_changes" && post.review_note && <NeedsChangesNote post={post} client={client} />}
       {post.uploaded_by_email && (
         <p className="text-tag px-2 pb-1.5 line-clamp-3" title={post.client_note ?? undefined}>
           <span className="inline-block rounded-full bg-citrus/25 px-1.5 py-0.5 font-medium">{client ? "Your upload" : "From client"}</span>
@@ -556,6 +563,41 @@ function WeekPostCard({
   );
 }
 
+/** What has to change on a held post — and the fix: Replace image for the
+ *  uploader, or Clear for me when it can go out as it is. */
+function NeedsChangesNote({ post, client }: { post: PostWithUrl; client: boolean }) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className="px-2 pb-1.5 space-y-1.5">
+      <p className="text-tag text-orange-800 flex gap-1">
+        <AlertTriangle className="size-3 shrink-0 mt-0.5" aria-hidden />
+        <span>{post.review_note}</span>
+      </p>
+      {client ? (
+        post.uploaded_by_email && <ReplaceImageButton postId={post.id} projectId={post.project_id} className="w-full px-2 py-1 text-tag" />
+      ) : (
+        <button
+          type="button"
+          disabled={pending}
+          title="It can go out as it is — back to Needs caption"
+          onClick={() =>
+            startTransition(async () => {
+              const res = await clearPostChanges(post.id);
+              setError(res && "error" in res && res.error ? res.error : null);
+            })
+          }
+          className="w-full flex items-center justify-center gap-1 rounded-md border border-ink/15 px-2 py-1 text-tag text-ink-muted hover:text-ink hover:bg-ink/5"
+        >
+          {pending ? <LoaderCircle className="size-3 animate-spin" aria-hidden /> : <Check className="size-3" aria-hidden />}
+          Clear
+        </button>
+      )}
+      {error && <p className="text-tag text-red-700">{error}</p>}
+    </div>
+  );
+}
+
 function DayPostThumb({ post, client = false }: { post: PostWithUrl; client?: boolean }) {
   const [pending, startTransition] = useTransition();
   const ring = STATUS_RING[post.status] ?? "ring-ink/20";
@@ -567,6 +609,7 @@ function DayPostThumb({ post, client = false }: { post: PostWithUrl; client?: bo
       title={[
         post.caption ?? post.original_filename,
         client && CLIENT_STATUS_LABEL[post.status]?.text,
+        post.status === "needs_changes" && post.review_note && `Needs changes: ${post.review_note}`,
         post.uploaded_by_email && `${client ? "Your upload" : "From client"} (${post.uploaded_by_email})${post.client_note ? `: ${post.client_note}` : ""}`,
       ]
         .filter(Boolean)

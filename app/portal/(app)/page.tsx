@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CalendarDays, ChartLine, Clock, FileText, Lock, Send, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarDays, ChartLine, Clock, FileText, Lock, Send, ShieldCheck } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
 import { can, requirePortalUser } from "@/lib/portal/auth";
 import { portalAccountSections, type AccountStatus } from "@/lib/portal/status";
@@ -25,7 +25,18 @@ const COMING: { feature: PortalFeature; icon: typeof Clock; title: string; body:
 export default async function PortalHomePage() {
   const ctx = await requirePortalUser();
   const showAccounts = can(ctx, "credentials");
-  const [{ data: client }, sections, { count: openIntakes }] = await Promise.all([
+  // Their uploads held back for a fix (the Planner shows what and why).
+  const needsChangesQuery = () => {
+    let q = db
+      .from("scheduled_posts")
+      .select("id, client_projects!inner(client_id)", { count: "exact", head: true })
+      .eq("client_projects.client_id", ctx.clientId)
+      .eq("status", "needs_changes")
+      .not("uploaded_by_email", "is", null);
+    if (ctx.projectIds) q = q.in("project_id", ctx.projectIds);
+    return q;
+  };
+  const [{ data: client }, sections, { count: openIntakes }, { count: needsChanges }] = await Promise.all([
     db.from("clients").select("name").eq("id", ctx.clientId).maybeSingle(),
     showAccounts ? portalAccountSections(ctx.clientId, ctx.projectIds) : Promise.resolve([]),
     can(ctx, "intakes")
@@ -36,6 +47,7 @@ export default async function PortalHomePage() {
           .eq("status", "pending")
           .eq("locked", false)
       : Promise.resolve({ count: 0 }),
+    can(ctx, "uploads") ? needsChangesQuery() : Promise.resolve({ count: 0 }),
   ]);
   const coming = COMING.filter((c) => can(ctx, c.feature));
 
@@ -58,6 +70,12 @@ export default async function PortalHomePage() {
               {can(ctx, "uploads") ? "Upload your graphics and see what's scheduled" : "See what's scheduled and posted"}
             </span>
           </span>
+          {Boolean(needsChanges) && (
+            <span className="flex items-center gap-1.5 rounded-full bg-orange-500/15 px-2.5 py-1 text-tag font-medium text-orange-800">
+              <AlertTriangle className="size-3.5" aria-hidden />
+              {needsChanges} need{needsChanges === 1 ? "s" : ""} a change
+            </span>
+          )}
           <ArrowRight className="size-4 text-ink-subtle" aria-hidden />
         </Link>
       )}

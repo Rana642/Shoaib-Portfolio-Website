@@ -6,6 +6,8 @@ import { db } from "@/lib/dashboard/db";
 import { can, canSeeProject, getPortalUser, type PortalContext } from "@/lib/portal/auth";
 import { createScheduledPost, dateToScheduledAt, deleteScheduledPost, getScheduledPost } from "@/lib/scheduled-posts";
 import { resend, isResendConfigured, fromEmail, toEmail } from "@/lib/resend";
+import { deleteObject } from "@/lib/storage";
+import { plannerDayLabel, replaceFlaggedPostMedia } from "@/lib/post-review";
 
 // Client-portal uploads: final, approved graphics go straight onto the
 // planner as ordinary 'pending_caption' posts. Nothing publishes until the
@@ -87,18 +89,69 @@ export async function createPortalUploads(input: z.infer<typeof uploadSchema>) {
 }
 
 /** A client can take back their own upload while it's still waiting for a
- *  caption — never a post Shoaib made or one already scheduled/posted. */
+ *  caption (or needs changes) — never a post Shoaib made or one already
+ *  scheduled/posted. */
 export async function deletePortalUpload(postId: string) {
   if (!z.string().uuid().safeParse(postId).success) return { error: "Not found." };
   const post = await getScheduledPost(postId);
   if (!post) return { error: "Not found." };
   const ctx = await uploaderContext(post.project_id);
   if ("error" in ctx) return ctx;
-  if (!post.uploaded_by_email || post.status !== "pending_caption") {
+  if (!post.uploaded_by_email || (post.status !== "pending_caption" && post.status !== "needs_changes")) {
     return { error: "This one is already being prepared — ask me if it needs to change." };
   }
   await deleteScheduledPost(post.id);
   revalidatePath("/portal/planner");
+  revalidatePath("/dashboard/social/planner");
+  return { ok: true };
+}
+
+const replaceSchema = z.object({
+  postId: z.string().uuid(),
+  file: z.object({ key: z.string().min(1).max(512), name: z.string().min(1).max(300) }),
+});
+
+/** The corrected image for a post marked "needs changes": it takes the old
+ *  one's place (same day and slot) and goes back for a caption, and I get
+ *  an email saying what was fixed. */
+export async function replacePortalUpload(input: z.infer<typeof replaceSchema>) {
+  const parsed = replaceSchema.safeParse(input);
+  if (!parsed.success) return { error: "That image couldn't be read." };
+  const { postId, file } = parsed.data;
+  const post = await getScheduledPost(postId);
+  if (!post) return { error: "Not found." };
+  const ctx = await uploaderContext(post.project_id);
+  if ("error" in ctx) return ctx;
+  if (post.status !== "needs_changes") return { error: "This post doesn't need changes any more." };
+  const prefix = `social/${post.project_id}/`;
+  if (!file.key.startsWith(prefix) || file.key.includes("..")) return { error: "That image couldn't be read." };
+
+  let before;
+  try {
+    before = await replaceFlaggedPostMedia(postId, file);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Couldn't replace the image — please try again." };
+  }
+  // The rejected image isn't needed any more.
+  if (before.media_key !== file.key) await deleteObject(before.media_key).catch(() => {});
+
+  if (isResendConfigured) {
+    const { data: project } = await db.from("client_projects").select("name").eq("id", post.project_id).maybeSingle();
+    await resend.emails
+      .send({
+        from: fromEmail,
+        to: toEmail,
+        subject: `${project?.name ?? "A client"}: a post was fixed and re-uploaded`,
+        text: `${ctx.user.email ?? "The client"} replaced ${before.original_filename} with ${file.name} for ${project?.name ?? "a project"} (${plannerDayLabel(before.scheduled_at)}).
+What needed changing: ${before.review_note ?? "—"}
+
+It's back on the Planner, waiting for a caption.`,
+      })
+      .catch((e: unknown) => console.error("[portal] replace notify failed:", e));
+  }
+
+  revalidatePath("/portal/planner");
+  revalidatePath("/portal");
   revalidatePath("/dashboard/social/planner");
   return { ok: true };
 }

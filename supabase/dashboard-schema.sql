@@ -1200,3 +1200,15 @@ alter table gbp_post_backfill enable row level security;
 -- insert into gbp_post_backfill (post_id, project_id)
 --   select id, project_id from scheduled_posts where project_id = '<project id>' and status = 'posted'
 --   on conflict (post_id) do nothing;
+
+-- ── Planner: needs changes (2026-10-05) ──────────────────────
+-- A planner upload with a mistake (wrong photo, unsuitable icon, wrong
+-- number…) is held as 'needs_changes' instead of being scheduled.
+-- review_note says what to fix; the uploader sees it on their portal
+-- Planner and by email, replaces the image, and it goes back to
+-- 'pending_caption'.
+alter table scheduled_posts drop constraint if exists scheduled_posts_status_check;
+alter table scheduled_posts add constraint scheduled_posts_status_check
+  check (status in ('pending_caption', 'needs_changes', 'scheduled', 'posted', 'failed'));
+alter table scheduled_posts add column if not exists review_note text;
+alter table scheduled_posts add column if not exists review_flagged_at timestamptz;
