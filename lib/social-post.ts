@@ -4,6 +4,7 @@ import {
   createInstagramReelContainer,
   createInstagramStoryContainer,
   deleteFacebookPost,
+  deleteFacebookPostStrict,
   instagramContainerStatus,
   postFacebookPhoto,
   postInstagramPhoto,
@@ -279,6 +280,25 @@ async function cancelNativeSchedule(post: ScheduledPost): Promise<void> {
     if (!account || !r.post_id) continue;
     await deleteFacebookPost(r.post_id, decryptAccountToken(account));
   }
+}
+
+/** Cancels every Meta native-schedule draft of a planner post and throws if
+ *  any could still publish — used before deleting a post from a tool, which
+ *  must not report "deleted" while Facebook still has it queued. Returns how
+ *  many drafts were cancelled. */
+export async function cancelNativeScheduleStrict(scheduledPostId: string): Promise<number> {
+  const post = await getScheduledPost(scheduledPostId);
+  if (!post) return 0;
+  const native = (post.result as { native?: PlatformPostResult[] } | null)?.native ?? [];
+  const stillLive = native.filter((r) => r.native && r.ok && r.post_id);
+  if (stillLive.length === 0) return 0;
+  const accounts = await listSocialAccountsForProject(post.project_id);
+  for (const r of stillLive) {
+    const account = accounts.find((a) => a.external_id === r.external_id);
+    if (!account) throw new Error(`The ${r.platform} account for scheduled post ${r.post_id} is no longer connected — cancel it in Meta Business Suite.`);
+    await deleteFacebookPostStrict(r.post_id!, decryptAccountToken(account));
+  }
+  return stillLive.length;
 }
 
 /** Call after dragging a post to a different day (or otherwise changing its

@@ -197,6 +197,18 @@ export async function deleteFacebookPost(postId: string, pageAccessToken: string
   await fetch(`${GRAPH_BASE}/${postId}?access_token=${encodeURIComponent(pageAccessToken)}`, { method: "DELETE" });
 }
 
+/** Like deleteFacebookPost, but makes sure: throws unless Facebook confirms
+ *  the delete or the post is already gone — for removing a planner post
+ *  outright, where a draft left behind would still publish. */
+export async function deleteFacebookPostStrict(postId: string, pageAccessToken: string): Promise<void> {
+  const token = encodeURIComponent(pageAccessToken);
+  const res = await fetch(`${GRAPH_BASE}/${postId}?access_token=${token}`, { method: "DELETE" });
+  const body = (await res.json().catch(() => ({}))) as { success?: boolean; error?: { message?: string } };
+  if (res.ok && body.success) return;
+  const check = (await fetch(`${GRAPH_BASE}/${postId}?fields=id&access_token=${token}`).then((r) => r.json()).catch(() => ({}))) as { id?: string };
+  if (check.id) throw new Error(`Facebook didn't cancel scheduled post ${postId}: ${body.error?.message ?? `HTTP ${res.status}`}`);
+}
+
 /** Instagram hard-caps API publishing at 100 posts / 24h per account (50 for
  *  carousels) — this checks the account's live usage against that before
  *  attempting a publish, so a busy day fails with a clear message instead of

@@ -1,10 +1,14 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { clearPostFlag, flagPostsForChanges } from "./post-review";
+import { deleteScheduledPost, getScheduledPost } from "./scheduled-posts";
+import { cancelNativeScheduleStrict } from "./social-post";
+import { deleteObject } from "./storage";
 
 /**
- * "Needs changes" tools, shared by the remote MCP (lib/mcp-remote-tools.ts)
- * and the local one (mcp/tools/social.ts) so both stay in step.
+ * Planner tools shared by the remote MCP (lib/mcp-remote-tools.ts) and the
+ * local one (mcp/tools/social.ts) so both stay in step: "needs changes",
+ * and removing a wrong upload.
  */
 
 function formatError(error: unknown): string {
@@ -51,6 +55,45 @@ Returns: the posts flagged, any skipped (and why), and the emails sent.`,
             : []),
         ];
         return { content: [{ type: "text", text: lines.join("\n") }], structuredContent: out };
+      } catch (error) {
+        return { content: [{ type: "text", text: formatError(error) }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    "social_delete_post",
+    {
+      title: "Delete A Planner Post",
+      description: `Removes a planner post that should not go out at all (a wrong upload): cancels its Facebook scheduled draft first, then deletes the post and its image. Only when Shoaib asks for a post to be removed — for a fixable mistake use social_request_changes instead.
+
+Refuses a post that is already posted (it is live — delete it on the platform). If a Facebook draft can't be confirmed cancelled, nothing is deleted and the error says why.
+
+Args:
+  - postId (string, UUID)
+
+Returns: confirmation text.`,
+      inputSchema: { postId: z.string().uuid() },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+    },
+    async ({ postId }: { postId: string }) => {
+      try {
+        const post = await getScheduledPost(postId);
+        if (!post) return { content: [{ type: "text", text: "Already gone — no post with this id." }] };
+        if (post.status === "posted") {
+          return { content: [{ type: "text", text: "Error: This post is already live — delete it on the platform itself." }], isError: true };
+        }
+        const cancelled = await cancelNativeScheduleStrict(postId);
+        await deleteScheduledPost(postId);
+        for (const key of [post.media_key, post.cover_key].filter((k): k is string => Boolean(k))) await deleteObject(key).catch(() => {});
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Deleted ${post.original_filename} (was ${post.status}${post.scheduled_at ? `, ${post.scheduled_at}` : ""}).${cancelled ? ` Cancelled ${cancelled} Facebook scheduled draft${cancelled === 1 ? "" : "s"}.` : ""}`,
+            },
+          ],
+        };
       } catch (error) {
         return { content: [{ type: "text", text: formatError(error) }], isError: true };
       }
