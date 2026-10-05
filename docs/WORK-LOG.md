@@ -4,6 +4,20 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-05 (evening, later) — Facebook posts missing from the feed: fixed
+- **Bug:** native Facebook scheduling used `/{page}/photos` with `published=false` and `scheduled_publish_time`. Those posts published only into the **Photos album**, never the Posts feed. This affected every native FB post since 16 Sep: Hotel Elegant and Silver Sand (20 each) and the Aijaz brands since 2 Oct.
+- **Fix a95bbf5:** the photo is uploaded unpublished, then a scheduled `/{page}/feed` post carries it with `attached_media`. The post id is now `{page}_{post}`.
+- **33 upcoming posts were resubmitted** with a temporary route, then a `/{page}/scheduled_posts` audit was run:
+  - 4 stale drafts whose silent delete had failed were removed.
+  - 0 untracked items remain.
+  - Both routes were deleted (0879ca4).
+- **Also today:**
+  - `social_delete_post` MCP tool (47d0b14). It cancels the FB draft strictly before deleting, and appears only in new sessions.
+  - Aijaz Friday 9 Oct cleared: the 4 promo posts moved to Sun 11 Oct.
+  - Avalon 80.png (10 Oct) deleted.
+  - Toni & Guy "Deal 5" scheduled 5 Oct, 18:45 PKT.
+- **Open:** past photo-only posts were left as they are; ask Shoaib whether to re-post any. Verify that the 18:00 and 18:13 posts on 5 Oct show in the feed.
+
 ## 2026-10-05 (night) — Hotel Silver Sand Multan: KB + parity plan
 - Same client as Hotel Elegant. Shoaib wants Silver Sand brought to the same standard first, then an ads plan for both hotels.
 - **KB built** (project "Muhammad Ajmal — Hotel Silver Sand Multan"):
