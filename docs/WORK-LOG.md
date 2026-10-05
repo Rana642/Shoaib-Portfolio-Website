@@ -14,7 +14,11 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - Agreement signed → first draft invoice (one-time + first month).
 - **Optional tools:** every line has a tick, and tools start unticked. Unticked lines stay on the retainer but are never billed.
 - **Backfill:** PRO-2026-006 (Ahmed Jahanzaib Shah) gets Rs 20,000/month; Claude Pro is unticked. The **October draft is created** (due 13 Oct). Shoaib reviews it and sends.
-- **Next:** phase 2, a daily GitHub Actions cron → `/api/billing/cron` that creates drafts on the 1st. Plan: `docs/RETAINER-BILLING-PLAN.md`.
+- **Phase 2 done:** `/api/billing/cron` runs every day at 06:00 PKT via Supabase pg_cron `billing-cron` (token `billing`).
+  - On the 1st it creates the month's drafts.
+  - Shoaib gets a "ready for review" email.
+  - It catches up on missed months and is safe to re-run.
+- **Next:** phase 3, the monthly client report. Plan: `docs/RETAINER-BILLING-PLAN.md`.
 
 ## 2026-10-05 (evening, later) — Facebook posts missing from the feed: fixed
 - **Bug:** native Facebook scheduling used `/{page}/photos` with `published=false` and `scheduled_publish_time`. Those posts published only into the **Photos album**, never the Posts feed. This affected every native FB post since 16 Sep: Hotel Elegant and Silver Sand (20 each) and the Aijaz brands since 2 Oct.

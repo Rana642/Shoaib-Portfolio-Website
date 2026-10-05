@@ -1264,3 +1264,16 @@ create unique index if not exists invoices_retainer_period_uniq on invoices (ret
 
 -- Optional lines (2026-10-06): a tool the client may or may not want billed. Unticked = kept on the retainer but left off invoices.
 alter table retainer_items add column if not exists included boolean not null default true;
+
+-- Retainer billing run (2026-10-06): daily at 06:00 PKT (01:00 UTC). On the
+-- 1st it creates each active retainer's DRAFT invoice (app/api/billing/cron).
+insert into cron_tokens (name, token)
+  values ('billing', replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''))
+  on conflict (name) do nothing;
+-- select cron.schedule('billing-cron', '0 1 * * *', $$
+--   select net.http_get(
+--     url := 'https://adsbyshoaib.com/api/billing/cron',
+--     headers := jsonb_build_object('Authorization', 'Bearer ' || (select token from public.cron_tokens where name = 'billing')),
+--     timeout_milliseconds := 60000
+--   );
+-- $$);

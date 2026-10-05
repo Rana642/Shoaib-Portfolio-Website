@@ -230,6 +230,34 @@ export function postChangesRequestEmail(data: {
   `);
 }
 
+/** To Shoaib: the 1st-of-month billing run made drafts that need a look. */
+export function retainerDraftsReadyEmail(data: {
+  url: string;
+  created: { retainer: string; month: string; invoice: string }[];
+  failed: { retainer: string; month: string; error: string }[];
+}) {
+  const rows = data.created
+    .map(
+      (r) =>
+        `<tr><td style="padding: 6px 0;">${escapeHtml(r.retainer)}</td><td style="padding: 6px 0; color: #666;">${escapeHtml(r.month)}</td><td style="padding: 6px 0; text-align: right;">${escapeHtml(r.invoice)}</td></tr>`
+    )
+    .join("");
+  const failed = data.failed
+    .map((r) => `<li>${escapeHtml(r.retainer)} (${escapeHtml(r.month)}): ${escapeHtml(r.error)}</li>`)
+    .join("");
+  return wrapper(`
+    <h2 style="font-size: 18px; margin: 0 0 12px;">Monthly invoices ready for review</h2>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 16px;">
+      These retainer invoices were created as drafts. Nothing has gone to the client — review each one and send it.
+    </p>
+    ${rows ? `<table style="width: 100%; border-collapse: collapse; font-size: 14px;">${rows}</table>` : ""}
+    ${failed ? `<p style="font-size: 14px; margin: 16px 0 4px; color: #b42318;">Couldn't create:</p><ul style="font-size: 14px; margin: 0; padding-left: 18px;">${failed}</ul>` : ""}
+    <p style="margin: 24px 0 0;">
+      <a href="${data.url}" style="display: inline-block; background: #0F0F14; color: #FAFAFA; padding: 10px 18px; border-radius: 8px; text-decoration: none; font-size: 14px;">Open invoices</a>
+    </p>
+  `);
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")

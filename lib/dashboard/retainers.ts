@@ -320,3 +320,45 @@ export async function generateRetainerInvoice(
 
   return { id: invoice.id, number, created: true };
 }
+
+export type BillingRunResult = {
+  retainer: string;
+  period: string;
+  invoice?: string;
+  created?: boolean;
+  error?: string;
+};
+
+/**
+ * The daily billing run (/api/billing/cron). Every ACTIVE retainer whose
+ * next_invoice_date has arrived (PKT) gets its DRAFT invoice for that month,
+ * then next_invoice_date moves to the following 1st. If the run was missed
+ * for a while it catches up month by month (capped, so a stale date can't
+ * spray a year of drafts). Idempotent: re-running a day changes nothing.
+ */
+export async function runRetainerBilling(today = todayPkt()): Promise<BillingRunResult[]> {
+  const { data: due } = await db
+    .from("retainers")
+    .select("id, name, next_invoice_date, end_date")
+    .eq("status", "active")
+    .not("next_invoice_date", "is", null)
+    .lte("next_invoice_date", today);
+
+  const results: BillingRunResult[] = [];
+  for (const r of due ?? []) {
+    let next: string = r.next_invoice_date;
+    for (let guard = 0; guard < 3 && next <= today; guard++) {
+      if (r.end_date && next > r.end_date) break;
+      const period = next.slice(0, 7);
+      const res = await generateRetainerInvoice(r.id, period, { issueDate: today });
+      if ("error" in res) {
+        results.push({ retainer: r.name, period, error: res.error });
+        break;
+      }
+      results.push({ retainer: r.name, period, invoice: res.number, created: res.created });
+      next = firstOfNextMonth(next);
+      await db.from("retainers").update({ next_invoice_date: next, updated_at: new Date().toISOString() }).eq("id", r.id);
+    }
+  }
+  return results;
+}
