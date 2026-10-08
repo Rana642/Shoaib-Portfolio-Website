@@ -113,7 +113,7 @@ type AuthArea = {
   login: string;
   /** Reachable without the area's role (login, password setup…). */
   publicPaths: string[];
-  allows: (user: User | null) => boolean;
+  allows: (user: Pick<User, "app_metadata"> | null) => boolean;
 };
 
 const AUTH_AREAS: Record<"dashboard" | "portal", AuthArea> = {
@@ -163,9 +163,11 @@ export async function proxy(request: NextRequest) {
       }
     );
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // Verified locally against the project's ES256 public key (JWKS is
+    // cached) — no Supabase Auth round-trip on every navigation. Expired
+    // sessions are refreshed and the new cookies written below.
+    const { data } = await supabase.auth.getClaims();
+    const user = data?.claims ? ({ app_metadata: data.claims.app_metadata ?? {} } as Pick<User, "app_metadata">) : null;
 
     // Signed in isn't enough — each area needs its own role
     // (lib/dashboard/roles.ts): admin for the dashboard, client for the

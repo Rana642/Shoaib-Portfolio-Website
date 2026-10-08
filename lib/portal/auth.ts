@@ -1,13 +1,13 @@
 import "server-only";
+import { cache } from "react";
 import { redirect } from "next/navigation";
-import type { User } from "@supabase/supabase-js";
-import { createAuthClient } from "@/lib/dashboard/auth";
+import { getSessionUser, type SessionUser } from "@/lib/dashboard/auth";
 import { portalClientId } from "@/lib/dashboard/roles";
 import { getClientFeatures, loadPortalMember } from "@/lib/dashboard/portal-users";
 import { effectiveFeatures, type PortalFeature, type PortalRole } from "./features";
 
 export type PortalContext = {
-  user: User;
+  user: SessionUser;
   clientId: string;
   memberId: string;
   role: PortalRole;
@@ -23,17 +23,13 @@ export type PortalContext = {
  * and checks `features` / `projectIds` from here, never anything sent by
  * the browser. A login without a membership row gets nothing.
  */
-export async function getPortalUser(): Promise<PortalContext | null> {
-  const supabase = await createAuthClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export const getPortalUser = cache(async (): Promise<PortalContext | null> => {
+  const user = await getSessionUser();
   const clientId = portalClientId(user);
   if (!user || !clientId) return null;
 
-  const member = await loadPortalMember(user.id);
+  const [member, clientFeatures] = await Promise.all([loadPortalMember(user.id), getClientFeatures(clientId)]);
   if (!member) return null;
-  const clientFeatures = await getClientFeatures(clientId);
   return {
     user,
     clientId,
@@ -42,7 +38,7 @@ export async function getPortalUser(): Promise<PortalContext | null> {
     features: effectiveFeatures(member.role, clientFeatures, member.permissions),
     projectIds: member.role === "owner" ? null : member.projectIds,
   };
-}
+});
 
 /** For portal pages/actions: the portal user, or off to the portal login. */
 export async function requirePortalUser(): Promise<PortalContext> {
