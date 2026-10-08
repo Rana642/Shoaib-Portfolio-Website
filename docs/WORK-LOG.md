@@ -20,7 +20,12 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - Bookings = each hotel website's own bookings, read live and read-only, + WhatsApp "Mark as booked".
   - Dashboard has **Bookings** and **WhatsApp → Numbers & businesses** pages.
   - Hotel DB keys are pasted by Shoaib at /dashboard/bookings and stored encrypted.
-- **Next:** connect the hotels' booking sources, then App Review, then hotel numbers via coexistence.
+- Both hotels' booking sources are connected. Silver Sand bookings now save their ad source (its migration-phase17 was run).
+- **WhatsApp phase 3:**
+  - Source picker for code-less bookings.
+  - A WhatsApp booking links to its hotel booking ref, so it's counted once.
+  - The monthly report gets Bookings + Bookings by source.
+- **Next:** phase 4 automation (auto-reply), then App Review, then hotel numbers via coexistence.
 
 ## 2026-10-06 (night) — Retainer billing phase 1: Retainers
 - **New:**
