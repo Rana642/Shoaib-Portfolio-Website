@@ -56,7 +56,12 @@ export default async function PortalBookingsPage({ searchParams }: { searchParam
           ))}
         </nav>
       )}
-      <BookingsView projectId={selected.id as string} setSource={portalSetBookingSource} />
+      <BookingsView
+        projectId={selected.id as string}
+        detailBase={`/portal/bookings/${selected.id}`}
+        chatBase={`/portal/whatsapp?project=${selected.id}&chat=`}
+        setSource={portalSetBookingSource}
+      />
     </>
   );
 }

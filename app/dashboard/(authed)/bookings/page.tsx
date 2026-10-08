@@ -71,7 +71,12 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
               onRemove={remove}
             />
           </Card>
-          <BookingsView projectId={selected.id} setSource={setBookingSource} />
+          <BookingsView
+            projectId={selected.id}
+            detailBase={`/dashboard/bookings/${selected.id}`}
+            chatBase="/dashboard/whatsapp?chat="
+            setSource={setBookingSource}
+          />
         </>
       )}
     </>

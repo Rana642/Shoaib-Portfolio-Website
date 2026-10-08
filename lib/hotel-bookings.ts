@@ -20,6 +20,12 @@ import { decryptField } from "./api-vault-crypto";
  */
 
 export type BookingRow = {
+  /** The hotel's own booking id (detail page); absent for WhatsApp rows. */
+  id?: string;
+  /** WhatsApp rows: the chat, for linking back to it. */
+  chatId?: string;
+  phone?: string | null;
+  check_out?: string | null;
   ref: string;
   channel: "website" | "whatsapp" | "phone" | "walkin" | "ota";
   guest: string;
@@ -65,13 +71,16 @@ async function websiteBookingsUncached(projectId: string, range: Range): Promise
     const { data, error } = await scoped(
       hotel
         .from("bookings")
-        .select("booking_ref, guest_name, check_in, nights, grand_total, status, source, utm_source, utm_content, gclid, fbclid, created_at, rooms(name)")
+        .select("id, booking_ref, guest_name, guest_phone, check_in, check_out, nights, grand_total, status, source, utm_source, utm_content, gclid, fbclid, created_at, rooms(name)")
     )
       .order("created_at", { ascending: false })
       .limit(500);
     if (error) return { rows: [], error: error.message };
     return {
       rows: (data ?? []).map((b) => ({
+        id: b.id,
+        phone: b.guest_phone,
+        check_out: b.check_out,
         ref: b.booking_ref,
         channel: (b.source ?? "website") as BookingRow["channel"],
         guest: b.guest_name,
@@ -88,7 +97,7 @@ async function websiteBookingsUncached(projectId: string, range: Range): Promise
 
   // silver_sand — attribution columns came with its migration-phase17;
   // keep a fallback in case a hotel DB is ever restored without them.
-  const base = "booking_ref, guest_name, room_name, check_in, nights, total, status, source, created_at";
+  const base = "id, booking_ref, guest_name, guest_phone, room_name, check_in, check_out, nights, total, status, source, created_at";
   let res = await scoped(hotel.from("bookings").select(`${base}, ref_code, utm_source, utm_content, gclid, fbclid`))
     .order("created_at", { ascending: false })
     .limit(500);
@@ -100,6 +109,9 @@ async function websiteBookingsUncached(projectId: string, range: Range): Promise
     rows: (res.data ?? []).map((b) => {
       const r = b as typeof b & { ref_code?: string | null; utm_source?: string | null; utm_content?: string | null; gclid?: string | null; fbclid?: string | null };
       return {
+        id: r.id,
+        phone: r.guest_phone,
+        check_out: r.check_out,
         ref: r.booking_ref,
         channel: (r.source ?? "website") as BookingRow["channel"],
         guest: r.guest_name,
@@ -118,7 +130,11 @@ async function websiteBookingsUncached(projectId: string, range: Range): Promise
 const websiteBookings = (projectId: string, range: Range) =>
   unstable_cache(() => websiteBookingsUncached(projectId, range), ["hotel-bookings", projectId, range.since.slice(0, 13), range.until ?? ""], {
     revalidate: 60,
+    tags: [bookingsTag(projectId)],
   })();
+
+/** Cache tag for a business's booking list — cleared when staff change a status. */
+export const bookingsTag = (projectId: string) => `hotel-bookings:${projectId}`;
 
 async function whatsappBookings(projectId: string, range: Range): Promise<(BookingRow & { hotelRef: string | null })[]> {
   const { data: accounts } = await db.from("wa_accounts").select("id").eq("project_id", projectId);
@@ -137,6 +153,8 @@ async function whatsappBookings(projectId: string, range: Range): Promise<(Booki
     .map((c) => {
       const b = (c.booking ?? {}) as { room?: string; check_in?: string; nights?: number; amount?: number; booked_at?: string; hotel_ref?: string };
       return {
+        chatId: c.id as string,
+        phone: `+${c.wa_id}`,
         ref: `WA-${String(c.id).slice(0, 6).toUpperCase()}`,
         channel: "whatsapp" as const,
         guest: c.name || `+${c.wa_id}`,
@@ -184,4 +202,143 @@ export async function projectBookings(projectId: string, range: Range = lastDays
     })
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
   return { rows, connected: site !== null, error: site && "error" in site ? site.error : undefined };
+}
+
+// ── Booking detail + status/notes (writes to the hotel's own database) ──
+
+export const HOTEL_STATUSES = ["pending", "confirmed", "checked_in", "completed", "cancelled", "no_show", "unreachable"] as const;
+export type HotelStatus = (typeof HOTEL_STATUSES)[number];
+
+export type HotelBookingDetail = {
+  id: string;
+  ref: string;
+  kind: "silver_sand" | "elegant";
+  guest: string;
+  phone: string;
+  email: string | null;
+  room: string | null;
+  check_in: string;
+  check_out: string;
+  nights: number;
+  guests: string;
+  status: string;
+  channel: string;
+  source: string | null;
+  created_at: string;
+  special_request: string | null;
+  /** Silver Sand: admin_notes. Elegant: status_note. */
+  notes: string | null;
+  /** `info` lines (e.g. a deal's saving already inside the room total) don't add up. */
+  charges: { label: string; amount: number; minus?: boolean; info?: boolean }[];
+  total: number;
+};
+
+async function hotelClient(projectId: string) {
+  const { data: src } = await db.from("project_booking_sources").select("kind, supabase_url, key_enc").eq("project_id", projectId).maybeSingle();
+  if (!src) return null;
+  return { kind: src.kind as "silver_sand" | "elegant", hotel: createClient(src.supabase_url, decryptField(src.key_enc), { auth: { persistSession: false } }) };
+}
+
+export async function getHotelBooking(projectId: string, bookingId: string): Promise<HotelBookingDetail | null> {
+  const c = await hotelClient(projectId);
+  if (!c) return null;
+  const { data: overrides } = await db.from("booking_source_overrides").select("booking_ref, source").eq("project_id", projectId);
+  const manual = new Map((overrides ?? []).map((o) => [String(o.booking_ref).toUpperCase(), o.source as string]));
+
+  if (c.kind === "elegant") {
+    const { data: b } = await c.hotel.from("bookings").select("*, rooms(name)").eq("id", bookingId).maybeSingle();
+    if (!b) return null;
+    // Elegant's room_total is already after the deal and includes GST + city tax.
+    const charges: HotelBookingDetail["charges"] = [
+      { label: `Room × ${b.nights} night${b.nights > 1 ? "s" : ""} (incl. GST & city tax)`, amount: Number(b.room_total) },
+    ];
+    if (Number(b.extra_bed_total) > 0) charges.push({ label: `Extra bed${b.extra_beds > 1 ? "s" : ""} × ${b.extra_beds}`, amount: Number(b.extra_bed_total) });
+    if (Number(b.discount_amount) > 0) {
+      charges.push({ label: `Guest saved${b.coupon_code ? ` — ${String(b.coupon_code).replace(/^DEAL:/, "")}` : ""}`, amount: Number(b.discount_amount), info: true });
+    }
+    return {
+      id: b.id,
+      ref: b.booking_ref,
+      kind: "elegant",
+      guest: b.guest_name,
+      phone: b.guest_phone,
+      email: b.guest_email,
+      room: (b.rooms as { name: string } | null)?.name ?? null,
+      check_in: b.check_in,
+      check_out: b.check_out,
+      nights: b.nights,
+      guests: `${b.adults} adult${b.adults > 1 ? "s" : ""}${b.children ? `, ${b.children} child${b.children > 1 ? "ren" : ""}` : ""}`,
+      status: b.status ?? "pending",
+      channel: b.source ?? "website",
+      source: manual.get(String(b.booking_ref).toUpperCase()) ?? adSourceFromUtm(b),
+      created_at: b.created_at,
+      special_request: b.special_request,
+      notes: b.status_note ?? null,
+      charges,
+      total: Number(b.grand_total),
+    };
+  }
+
+  const { data: b } = await c.hotel.from("bookings").select("*").eq("id", bookingId).maybeSingle();
+  if (!b) return null;
+  const roomSub = Number(b.unit_price) * b.nights * (b.rooms_count || 1);
+  const charges: HotelBookingDetail["charges"] = [
+    { label: `Rs ${Number(b.unit_price).toLocaleString("en-PK")} × ${b.nights} night${b.nights > 1 ? "s" : ""}${b.rooms_count > 1 ? ` × ${b.rooms_count} rooms` : ""}`, amount: roomSub },
+  ];
+  if (Number(b.discount) > 0) charges.push({ label: `Discount${b.coupon_code ? ` (${b.coupon_code})` : ""}`, amount: Number(b.discount), minus: true });
+  const gst = Number(b.total) - (roomSub - Number(b.discount || 0));
+  if (gst > 0.5) charges.push({ label: "GST", amount: Math.round(gst) });
+  return {
+    id: b.id,
+    ref: b.booking_ref,
+    kind: "silver_sand",
+    guest: b.guest_name,
+    phone: b.guest_phone,
+    email: b.guest_email,
+    room: b.room_name,
+    check_in: b.check_in,
+    check_out: b.check_out,
+    nights: b.nights,
+    guests: `${b.guests} guest${b.guests > 1 ? "s" : ""} · ${b.rooms_count} room${b.rooms_count > 1 ? "s" : ""}`,
+    status: b.status ?? "pending",
+    channel: b.source ?? "website",
+    source: manual.get(String(b.booking_ref).toUpperCase()) ?? (b.ref_code || adSourceFromUtm(b)),
+    created_at: b.created_at,
+    special_request: b.special_request,
+    notes: b.admin_notes ?? null,
+    charges,
+    total: Number(b.total),
+  };
+}
+
+/**
+ * Change a booking's status in the hotel's own database, with the same side
+ * effects the hotel admin has: cancelled / no-show frees the room
+ * (availability_blocks), and Silver Sand writes its Activity Log.
+ * NOT a server action — callers check access first.
+ */
+export async function setHotelBookingStatus(projectId: string, bookingId: string, status: string, by: string) {
+  if (!(HOTEL_STATUSES as readonly string[]).includes(status)) return { error: "Unknown status." };
+  const c = await hotelClient(projectId);
+  if (!c) return { error: "Bookings aren't connected for this business." };
+  const { error } = await c.hotel.from("bookings").update({ status }).eq("id", bookingId);
+  if (error) return { error: error.message };
+  const freesRoom = c.kind === "silver_sand" ? status === "cancelled" || status === "no_show" : status === "cancelled";
+  if (freesRoom) await c.hotel.from("availability_blocks").delete().eq("booking_id", bookingId);
+  if (c.kind === "silver_sand") {
+    await c.hotel.from("activity_log").insert({ user_email: by, action: "booking.status", entity: "booking", entity_id: bookingId, detail: `→ ${status} (client portal)` });
+  }
+  return { ok: true };
+}
+
+export async function saveHotelBookingNotes(projectId: string, bookingId: string, notes: string, by: string) {
+  const c = await hotelClient(projectId);
+  if (!c) return { error: "Bookings aren't connected for this business." };
+  const value = notes.trim().slice(0, 2000) || null;
+  const { error } = await c.hotel.from("bookings").update(c.kind === "elegant" ? { status_note: value } : { admin_notes: value }).eq("id", bookingId);
+  if (error) return { error: error.message };
+  if (c.kind === "silver_sand") {
+    await c.hotel.from("activity_log").insert({ user_email: by, action: "booking.notes", entity: "booking", entity_id: bookingId, detail: "(client portal)" });
+  }
+  return { ok: true };
 }
