@@ -15,6 +15,8 @@ export const PORTAL_FEATURES = [
   { key: "planner", label: "See the content planner", hint: "Their scheduled and posted content." },
   { key: "uploads", label: "Upload graphics", hint: "Final, approved images straight onto the planner." },
   { key: "credentials", label: "Send accounts / logins", hint: "Send me logins or confirm access, encrypted." },
+  { key: "whatsapp", label: "WhatsApp inbox", hint: "Their WhatsApp chats: reply to guests and mark bookings." },
+  { key: "bookings", label: "See bookings", hint: "Website + WhatsApp bookings and which ad each came from." },
   { key: "reports", label: "See reports", hint: "Ads and page performance (coming soon)." },
   { key: "team", label: "Add team members", hint: "The Owner can invite people and give them some of these." },
 ] as const;

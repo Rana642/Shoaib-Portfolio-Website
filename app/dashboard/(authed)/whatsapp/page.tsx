@@ -1,87 +1,56 @@
 import Link from "next/link";
 import { db } from "@/lib/dashboard/db";
-import { PageHeader, Card, StatusBadge } from "@/components/dashboard/ui";
-import { InboxAutoRefresh, MarkRead, ReplyBox, ScrollToBottom, StatusSelect } from "@/components/dashboard/WhatsAppChat";
-import { markWhatsAppRead, sendWhatsAppReply, setWhatsAppStatus } from "@/lib/dashboard/actions/whatsapp";
-import { replyWindowOpen, verifyTokenFrom, whatsappCredential } from "@/lib/whatsapp";
+import { PageHeader, Card, buttonStyles, inputClasses } from "@/components/dashboard/ui";
+import Inbox, { type InboxAccount } from "@/components/whatsapp/Inbox";
+import {
+  linkWhatsAppAccount,
+  markWhatsAppRead,
+  saveWhatsAppBooking,
+  sendWhatsAppReply,
+  setWhatsAppStatus,
+} from "@/lib/dashboard/actions/whatsapp";
+import { verifyTokenFrom, whatsappCredential } from "@/lib/whatsapp";
 import { siteUrl } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "WhatsApp" };
 
-type Contact = {
-  id: string;
-  wa_id: string;
-  name: string | null;
-  ref_source: string | null;
-  ref_code: string | null;
-  status: string;
-  unread: number;
-  last_message_at: string | null;
-  last_inbound_at: string | null;
-  wa_accounts: { label: string | null; display_phone: string | null } | null;
-};
+/** My inbox: every connected WhatsApp number, filterable by business. */
+export default async function WhatsAppPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ chat?: string; account?: string; numbers?: string }>;
+}) {
+  const { chat, account, numbers } = await searchParams;
 
-const SOURCE_LABEL: Record<string, string> = { FB: "Facebook/Instagram ad", GA: "Google ad", GS: "Google search", WEB: "Website" };
-
-const time = (iso: string | null) =>
-  iso
-    ? new Date(iso).toLocaleString("en-GB", { timeZone: "Asia/Karachi", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
-    : "";
-
-export default async function WhatsAppPage({ searchParams }: { searchParams: Promise<{ chat?: string }> }) {
-  const { chat } = await searchParams;
-
-  const [{ data: contactsData }, cred] = await Promise.all([
-    db
-      .from("wa_contacts")
-      .select("id, wa_id, name, ref_source, ref_code, status, unread, last_message_at, last_inbound_at, wa_accounts(label, display_phone)")
-      .order("last_message_at", { ascending: false, nullsFirst: false })
-      .limit(200),
+  const [{ data: rows }, cred] = await Promise.all([
+    db.from("wa_accounts").select("id, label, display_phone, project_id, client_projects(name)").order("created_at"),
     whatsappCredential().catch(() => null),
   ]);
-  const contacts = (contactsData ?? []) as unknown as Contact[];
-  const active = contacts.find((c) => c.id === chat) ?? null;
-
-  const { data: messages } = active
-    ? await db
-        .from("wa_messages")
-        .select("id, direction, via, type, body, status, sent_at")
-        .eq("contact_id", active.id)
-        .order("sent_at", { ascending: true })
-        .limit(500)
-    : { data: [] };
-
-  const windowOpen = replyWindowOpen(active?.last_inbound_at);
-
-  async function reply(text: string) {
-    "use server";
-    return sendWhatsAppReply(active!.id, text);
-  }
-  async function changeStatus(status: string) {
-    "use server";
-    return setWhatsAppStatus(active!.id, status);
-  }
-  async function markRead() {
-    "use server";
-    await markWhatsAppRead(active!.id);
-  }
+  const accountRows = (rows ?? []) as unknown as {
+    id: string;
+    label: string | null;
+    display_phone: string | null;
+    project_id: string | null;
+    client_projects: { name: string } | null;
+  }[];
+  const all: InboxAccount[] = accountRows.map((a) => ({ id: a.id, name: a.client_projects?.name ?? a.label ?? a.display_phone ?? "WhatsApp" }));
+  const { data: projectRows } = numbers
+    ? await db.from("client_projects").select("id, name, clients(name)").order("name")
+    : { data: null };
+  const projects = (projectRows ?? []) as unknown as { id: string; name: string; clients: { name: string } | null }[];
+  const visible = account ? all.filter((a) => a.id === account) : all;
 
   return (
     <>
-      <InboxAutoRefresh />
       <PageHeader
         title="WhatsApp"
-        description="Chats from connected WhatsApp numbers. The website's Ref code shows which ad each guest came from."
+        description="Chats from every connected WhatsApp number. The website's Ref code shows which ad each guest came from. Clients see their own numbers in their portal."
       />
 
-      {contacts.length === 0 && cred && (
+      {all.length === 0 && cred && (
         <Card className="p-6 mb-6 max-w-3xl">
-          <h2 className="text-body-lg font-medium mb-2">Connect the webhook</h2>
-          <p className="text-small text-ink-muted mb-4">
-            In the Socially Snap Meta app: WhatsApp → Configuration → Webhook → Edit. Paste these, then subscribe to the{" "}
-            <code>messages</code> field (and <code>smb_message_echoes</code> once a hotel number joins).
-          </p>
+          <h2 className="text-body-lg font-medium mb-2">Webhook</h2>
           <dl className="grid gap-2 text-small">
             <div>
               <dt className="text-ink-muted">Callback URL</dt>
@@ -95,87 +64,80 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
         </Card>
       )}
 
-      <Card className="overflow-hidden">
-        <div className="grid md:grid-cols-[320px_1fr] min-h-[560px]">
-          {/* Chat list */}
-          <ul className={`border-r border-ink/10 overflow-y-auto max-h-[70vh] ${active ? "hidden md:block" : ""}`}>
-            {contacts.length === 0 && <li className="p-6 text-small text-ink-muted">No chats yet.</li>}
-            {contacts.map((c) => (
-              <li key={c.id}>
-                <Link
-                  href={`/dashboard/whatsapp?chat=${c.id}`}
-                  className={`block px-4 py-3 border-b border-ink/5 hover:bg-ink/[0.03] ${c.id === active?.id ? "bg-ink/[0.05]" : ""}`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium text-small truncate">{c.name || `+${c.wa_id}`}</span>
-                    <span className="text-tag text-ink-subtle shrink-0">{time(c.last_message_at)}</span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    {c.ref_source && (
-                      <span className="font-mono text-tag rounded bg-citrus/20 px-1.5 py-0.5">
-                        {c.ref_source}
-                        {c.ref_code ? `-${c.ref_code}` : ""}
-                      </span>
-                    )}
-                    <StatusBadge status={c.status} />
-                    {c.unread > 0 && (
-                      <span className="ml-auto text-tag font-semibold bg-forest text-white rounded-full px-2">{c.unread}</span>
-                    )}
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
+      <div className="mb-4 text-small">
+        <Link href={numbers ? "/dashboard/whatsapp" : "/dashboard/whatsapp?numbers=1"} className="underline underline-offset-4">
+          {numbers ? "Hide numbers" : "Numbers & businesses"}
+        </Link>
+      </div>
 
-          {/* Conversation */}
-          {active ? (
-            <section className="flex flex-col max-h-[70vh]">
-              <MarkRead action={markRead} />
-              <header className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-ink/10">
-                <div>
-                  <Link href="/dashboard/whatsapp" className="md:hidden text-tag text-ink-subtle">
-                    ← All chats
-                  </Link>
-                  <p className="font-medium">{active.name || `+${active.wa_id}`}</p>
-                  <p className="text-tag text-ink-muted">
-                    +{active.wa_id}
-                    {active.wa_accounts?.label || active.wa_accounts?.display_phone
-                      ? ` · to ${active.wa_accounts?.label ?? active.wa_accounts?.display_phone}`
-                      : ""}
-                    {active.ref_source && ` · ${SOURCE_LABEL[active.ref_source] ?? active.ref_source}${active.ref_code ? ` (${active.ref_code})` : ""}`}
-                  </p>
-                </div>
-                <StatusSelect status={active.status} onChange={changeStatus} />
-              </header>
+      {numbers && (
+        <Card className="p-6 mb-6">
+          <h2 className="text-body-lg font-medium mb-1">Numbers &amp; businesses</h2>
+          <p className="text-small text-ink-muted mb-4">
+            Link each WhatsApp number to a business. Its chats then appear in that client&apos;s portal (with the WhatsApp feature on).
+          </p>
+          <div className="space-y-3">
+            {accountRows.map((a) => {
+              async function save(formData: FormData) {
+                "use server";
+                await linkWhatsAppAccount(a.id, formData);
+              }
+              return (
+                <form key={a.id} action={save} className="grid gap-3 sm:grid-cols-[180px_1fr_1fr_auto] items-end">
+                  <p className="text-small font-mono">{a.display_phone ?? a.id.slice(0, 8)}</p>
+                  <label className="text-small">
+                    <span className="block text-ink-muted mb-1">Label</span>
+                    <input name="label" defaultValue={a.label ?? ""} className={inputClasses} />
+                  </label>
+                  <label className="text-small">
+                    <span className="block text-ink-muted mb-1">Business</span>
+                    <select name="project_id" defaultValue={a.project_id ?? ""} className={inputClasses}>
+                      <option value="">Not linked (only in my dashboard)</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.clients?.name ? `${p.clients.name} — ` : ""}
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="submit" className={buttonStyles.secondary}>
+                    Save
+                  </button>
+                </form>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
-              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2 bg-cloud/60">
-                {(messages ?? []).map((m) => (
-                  <div key={m.id} className={`flex ${m.direction === "out" ? "justify-end" : "justify-start"}`}>
-                    <div
-                      className={`max-w-[75%] rounded-xl px-3.5 py-2 text-small whitespace-pre-wrap break-words ${
-                        m.direction === "out" ? "bg-forest/15" : "bg-white border border-ink/10"
-                      }`}
-                    >
-                      {m.body ?? <span className="italic text-ink-muted">[{m.type}]</span>}
-                      <span className="block text-right text-[10px] text-ink-subtle mt-1">
-                        {time(m.sent_at)}
-                        {m.direction === "out" && ` · ${m.via === "app" ? "phone" : "dashboard"}${m.status ? ` · ${m.status}` : ""}`}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                <ScrollToBottom dep={(messages ?? []).length} />
-              </div>
+      {all.length > 1 && (
+        <nav className="flex flex-wrap gap-2 mb-4 text-small">
+          <Link
+            href="/dashboard/whatsapp"
+            className={`rounded-lg border px-3 py-1.5 ${!account ? "border-ink bg-ink text-cloud" : "border-ink/15 hover:bg-ink/5"}`}
+          >
+            All businesses
+          </Link>
+          {all.map((a) => (
+            <Link
+              key={a.id}
+              href={`/dashboard/whatsapp?account=${a.id}`}
+              className={`rounded-lg border px-3 py-1.5 ${account === a.id ? "border-ink bg-ink text-cloud" : "border-ink/15 hover:bg-ink/5"}`}
+            >
+              {a.name}
+            </Link>
+          ))}
+        </nav>
+      )}
 
-              <div className="border-t border-ink/10 p-4">
-                <ReplyBox windowOpen={windowOpen} onSend={reply} />
-              </div>
-            </section>
-          ) : (
-            <div className="hidden md:flex items-center justify-center text-small text-ink-muted">Select a chat</div>
-          )}
-        </div>
-      </Card>
+      <Inbox
+        accounts={visible}
+        basePath="/dashboard/whatsapp"
+        query={account ? `account=${account}` : undefined}
+        chatId={chat}
+        actions={{ reply: sendWhatsAppReply, setStatus: setWhatsAppStatus, markRead: markWhatsAppRead, saveBooking: saveWhatsAppBooking }}
+      />
     </>
   );
 }

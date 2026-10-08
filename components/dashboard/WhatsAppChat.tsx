@@ -98,6 +98,74 @@ export function ReplyBox({
   );
 }
 
+export type BookingDetails = { room?: string | null; check_in?: string | null; nights?: number | null; amount?: number | null };
+
+/** "Mark as booked" — room, check-in, nights, amount. Feeds Bookings + reports. */
+export function BookingForm({
+  booking,
+  booked,
+  onSave,
+}: {
+  booking: BookingDetails | null;
+  booked: boolean;
+  onSave: (formData: FormData) => Promise<Result>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  const router = useRouter();
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className={`${buttonStyles.secondary} !py-1.5 text-small`}>
+        {booked ? `Booking${booking?.amount ? `: Rs ${booking.amount.toLocaleString("en-PK")}` : ""} · edit` : "Mark as booked"}
+      </button>
+    );
+  }
+  return (
+    <form
+      action={(fd) => {
+        setError(null);
+        start(async () => {
+          const r = await onSave(fd);
+          if (r?.error) setError(r.error);
+          else {
+            setOpen(false);
+            router.refresh();
+          }
+        });
+      }}
+      className="w-full grid gap-2 sm:grid-cols-[1fr_150px_90px_120px_auto] items-end"
+    >
+      <label className="text-tag">
+        Room
+        <input name="room" defaultValue={booking?.room ?? ""} className={`${inputClasses} !py-1.5`} />
+      </label>
+      <label className="text-tag">
+        Check-in
+        <input name="check_in" type="date" defaultValue={booking?.check_in ?? ""} className={`${inputClasses} !py-1.5`} />
+      </label>
+      <label className="text-tag">
+        Nights
+        <input name="nights" type="number" min={1} defaultValue={booking?.nights ?? 1} className={`${inputClasses} !py-1.5`} />
+      </label>
+      <label className="text-tag">
+        Amount (Rs)
+        <input name="amount" inputMode="numeric" defaultValue={booking?.amount ?? ""} className={`${inputClasses} !py-1.5`} />
+      </label>
+      <div className="flex gap-2">
+        <button type="submit" disabled={pending} className={`${buttonStyles.primary} !py-1.5`}>
+          {pending && <LoaderCircle className="size-4 animate-spin" aria-hidden />} Save
+        </button>
+        <button type="button" onClick={() => setOpen(false)} className={`${buttonStyles.secondary} !py-1.5`}>
+          Cancel
+        </button>
+      </div>
+      {error && <p className="sm:col-span-5 text-small text-red-700">{error}</p>}
+    </form>
+  );
+}
+
 export function StatusSelect({
   status,
   onChange,

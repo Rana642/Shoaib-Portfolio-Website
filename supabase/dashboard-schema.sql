@@ -1358,3 +1358,17 @@ create table if not exists wa_messages (
 );
 create index if not exists wa_messages_contact_idx on wa_messages (contact_id, sent_at);
 alter table wa_messages enable row level security;
+
+-- ── Hotel booking sources (2026-10-08) ─────────────────────────────
+-- Where a client project's own website bookings live (each hotel site has
+-- its own Supabase). The portal/dashboard READ them live — nothing is copied
+-- here. The key is AES-256-GCM encrypted with API_VAULT_ENCRYPTION_KEY
+-- (lib/api-vault-crypto.ts) and only ever used for SELECT queries.
+create table if not exists project_booking_sources (
+  project_id uuid primary key references client_projects (id) on delete cascade,
+  kind text not null check (kind in ('silver_sand', 'elegant')),
+  supabase_url text not null,
+  key_enc text not null,
+  updated_at timestamptz not null default now()
+);
+alter table project_booking_sources enable row level security;

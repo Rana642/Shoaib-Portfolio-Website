@@ -13,6 +13,8 @@ export default async function PortalAppLayout({ children }: { children: React.Re
   const { data: client } = await db.from("clients").select("name").eq("id", ctx.clientId).maybeSingle();
 
   const links: PortalLink[] = [
+    ...(can(ctx, "whatsapp") ? (["whatsapp"] as const) : []),
+    ...(can(ctx, "bookings") ? (["bookings"] as const) : []),
     ...(can(ctx, "planner") || can(ctx, "uploads") ? (["planner"] as const) : []),
     ...(can(ctx, "intakes") ? (["intakes"] as const) : []),
     ...(ctx.role === "owner" && can(ctx, "team") ? (["team"] as const) : []),

@@ -5,6 +5,7 @@ import { buildClientReport, previousPeriod } from "@/lib/dashboard/reports";
 import { resend, isResendConfigured, fromEmail, toEmail } from "@/lib/resend";
 import { retainerDraftsReadyEmail } from "@/lib/email-templates";
 import { siteUrl } from "@/lib/seo";
+import { db } from "@/lib/dashboard/db";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -54,6 +55,11 @@ export async function GET(request: Request) {
       console.error("[billing-cron] notify failed:", error);
     }
   }
+
+  // Daily housekeeping on the same clock: WhatsApp messages keep Meta's full
+  // payload (`raw`) for 30 days for debugging, then only the parsed fields.
+  const cutoff = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+  await db.from("wa_messages").update({ raw: null }).lt("sent_at", cutoff).not("raw", "is", null);
 
   return NextResponse.json({ ok: true, created: created.length, failed: failed.length, results, reports });
 }

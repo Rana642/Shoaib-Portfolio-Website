@@ -1,12 +1,14 @@
 "use client";
 
-import { CalendarDays, FileText, LayoutDashboard, Users } from "lucide-react";
+import { BedDouble, CalendarDays, FileText, LayoutDashboard, MessageCircle, Users } from "lucide-react";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import type { NavItem } from "@/components/dashboard/Sidebar";
 
-export type PortalLink = "planner" | "intakes" | "team";
+export type PortalLink = "whatsapp" | "bookings" | "planner" | "intakes" | "team";
 
 const ITEMS: Record<PortalLink, NavItem> = {
+  whatsapp: { href: "/portal/whatsapp", label: "WhatsApp", icon: MessageCircle },
+  bookings: { href: "/portal/bookings", label: "Bookings", icon: BedDouble },
   planner: { href: "/portal/planner", label: "Planner", icon: CalendarDays },
   intakes: { href: "/portal/intakes", label: "Intake forms", icon: FileText },
   team: { href: "/portal/team", label: "Team", icon: Users },

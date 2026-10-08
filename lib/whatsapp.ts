@@ -197,6 +197,22 @@ async function markReplied(contactId: string, at: string) {
     .eq("id", contactId);
 }
 
+/** "Mark as booked" details from a form → the jsonb stored on the chat. */
+export function bookingFromForm(formData: FormData) {
+  const num = (k: string) => {
+    const v = Number(String(formData.get(k) ?? "").replace(/,/g, ""));
+    return Number.isFinite(v) && v > 0 ? v : null;
+  };
+  const checkIn = String(formData.get("check_in") ?? "");
+  return {
+    room: String(formData.get("room") ?? "").trim().slice(0, 80) || null,
+    check_in: /^\d{4}-\d{2}-\d{2}$/.test(checkIn) ? checkIn : null,
+    nights: num("nights"),
+    amount: num("amount"),
+    booked_at: new Date().toISOString(),
+  };
+}
+
 /** Whether a free-form reply is still allowed (24h after the guest's last message). */
 export function replyWindowOpen(lastInboundAt: string | null | undefined) {
   return !!lastInboundAt && Date.now() - new Date(lastInboundAt).getTime() < 24 * 3600 * 1000;

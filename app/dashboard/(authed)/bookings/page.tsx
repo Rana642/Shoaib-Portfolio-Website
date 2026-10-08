@@ -1,0 +1,78 @@
+import Link from "next/link";
+import { db } from "@/lib/dashboard/db";
+import { Card, PageHeader } from "@/components/dashboard/ui";
+import BookingsView from "@/components/whatsapp/BookingsView";
+import BookingSourceForm from "@/components/dashboard/BookingSourceForm";
+import { removeBookingSource, saveBookingSource } from "@/lib/dashboard/actions/booking-sources";
+
+export const dynamic = "force-dynamic";
+export const metadata = { title: "Bookings" };
+
+/**
+ * Bookings for businesses that take them (hotels): their website's own
+ * bookings, read live, plus bookings marked from WhatsApp. The same view
+ * appears in each client's portal.
+ */
+export default async function BookingsPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
+  const { project } = await searchParams;
+  const [{ data: sources }, { data: waAccounts }] = await Promise.all([
+    db.from("project_booking_sources").select("project_id, kind, supabase_url"),
+    db.from("wa_accounts").select("project_id").not("project_id", "is", null),
+  ]);
+  const ids = new Set([...(sources ?? []).map((s) => s.project_id as string), ...(waAccounts ?? []).map((a) => a.project_id as string)]);
+
+  // Hotels: any project with a booking source or WhatsApp, plus any project named like a hotel so it can be connected.
+  const { data: projectRows } = await db.from("client_projects").select("id, name, clients(name)").order("name");
+  const projects = ((projectRows ?? []) as unknown as { id: string; name: string; clients: { name: string } | null }[]).filter(
+    (p) => ids.has(p.id) || /hotel/i.test(p.name)
+  );
+  const selected = projects.find((p) => p.id === project) ?? projects[0];
+  const source = (sources ?? []).find((s) => s.project_id === selected?.id);
+
+  async function save(formData: FormData) {
+    "use server";
+    return saveBookingSource(selected!.id, formData);
+  }
+  async function remove() {
+    "use server";
+    return removeBookingSource(selected!.id);
+  }
+
+  return (
+    <>
+      <PageHeader
+        title="Bookings"
+        description="Website bookings (read live from each hotel's own system) plus bookings marked from WhatsApp, with where each came from. Clients see the same in their portal."
+      />
+      {!selected ? (
+        <Card className="p-6">
+          <p className="text-small text-ink-muted">No hotel businesses yet.</p>
+        </Card>
+      ) : (
+        <>
+          <nav className="flex flex-wrap gap-2 mb-4 text-small">
+            {projects.map((p) => (
+              <Link
+                key={p.id}
+                href={`/dashboard/bookings?project=${p.id}`}
+                className={`rounded-lg border px-3 py-1.5 ${p.id === selected.id ? "border-ink bg-ink text-cloud" : "border-ink/15 hover:bg-ink/5"}`}
+              >
+                {p.name}
+              </Link>
+            ))}
+          </nav>
+          <Card className="p-5 mb-6">
+            <BookingSourceForm
+              connected={!!source}
+              kind={(source?.kind as string) ?? null}
+              url={(source?.supabase_url as string) ?? null}
+              onSave={save}
+              onRemove={remove}
+            />
+          </Card>
+          <BookingsView projectId={selected.id} />
+        </>
+      )}
+    </>
+  );
+}
