@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/dashboard/db";
 import { can, canSeeProject, requirePortalUser } from "@/lib/portal/auth";
-import { Card, PageHeader } from "@/components/dashboard/ui";
+import { Card } from "@/components/dashboard/ui";
 import HotelSectionNav from "@/components/whatsapp/HotelSectionNav";
 import { ContactsView } from "@/components/whatsapp/HotelCrmViews";
 
@@ -28,9 +28,12 @@ export default async function PortalContactsPage({ searchParams }: { searchParam
   const selected = projects.find((p) => p.id === project) ?? projects[0];
   return (
     <>
-      <PageHeader title="Contacts" description="Every guest who booked or inquired, merged by phone number." />
-      <HotelSectionNav base="/portal/contacts" projects={projects} projectId={selected.id} />
-      <ContactsView projectId={selected.id} name={selected.name} />
+      <h1 className="sr-only">Contacts</h1>
+      <ContactsView
+        projectId={selected.id}
+        name={selected.name}
+        switcher={<HotelSectionNav base="/portal/contacts" projects={projects} projectId={selected.id} />}
+      />
     </>
   );
 }

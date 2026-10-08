@@ -15,7 +15,9 @@ export default async function BookingsView({
   detailBase,
   chatBase,
   setSource,
+  switcher,
 }: {
+  switcher?: React.ReactNode;
   projectId: string;
   detailBase: string;
   chatBase: string;
@@ -53,7 +55,7 @@ export default async function BookingsView({
         <span className="text-ink-subtle">All time</span>
       </div>
 
-      <BookingsTable rows={rows} projectId={projectId} detailBase={detailBase} chatBase={chatBase} setSource={setSource} />
+      <BookingsTable rows={rows} projectId={projectId} detailBase={detailBase} chatBase={chatBase} setSource={setSource} switcher={switcher} />
     </div>
   );
 }

@@ -13,7 +13,9 @@ const notConnected = (
 export async function InquiriesView({
   projectId,
   onStatus,
+  switcher,
 }: {
+  switcher?: React.ReactNode;
   projectId: string;
   onStatus: (projectId: string, id: string, status: string) => Promise<Result>;
 }) {
@@ -21,11 +23,11 @@ export async function InquiriesView({
   if (!data) return notConnected;
   if ("error" in data && data.error) return <p className="text-small text-red-700">Couldn&apos;t read inquiries: {data.error}</p>;
   const urls = Object.fromEntries(data.siteUrl ? data.rows.map((r) => [r.id, convertUrl(data.kind, data.siteUrl!, r)]) : []);
-  return <InquiriesList rows={data.rows} statuses={INQUIRY_STATUSES[data.kind]} convertUrls={urls} onStatus={onStatus.bind(null, projectId)} />;
+  return <InquiriesList rows={data.rows} statuses={INQUIRY_STATUSES[data.kind]} convertUrls={urls} onStatus={onStatus.bind(null, projectId)} switcher={switcher} />;
 }
 
-export async function ContactsView({ projectId, name }: { projectId: string; name: string }) {
+export async function ContactsView({ projectId, name, switcher }: { projectId: string; name: string; switcher?: React.ReactNode }) {
   const rows = await listHotelContacts(projectId);
   if (!rows) return notConnected;
-  return <ContactsList rows={rows} fileName={`${name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-contacts`} />;
+  return <ContactsList rows={rows} fileName={`${name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-contacts`} switcher={switcher} />;
 }

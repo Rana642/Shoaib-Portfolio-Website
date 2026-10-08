@@ -1,5 +1,5 @@
 import { db } from "@/lib/dashboard/db";
-import { Card, PageHeader } from "@/components/dashboard/ui";
+import { Card } from "@/components/dashboard/ui";
 import BookingsView from "@/components/whatsapp/BookingsView";
 import HotelSectionNav from "@/components/whatsapp/HotelSectionNav";
 import BookingSourceForm from "@/components/dashboard/BookingSourceForm";
@@ -41,18 +41,14 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <PageHeader
-        title="Bookings"
-        description="Website bookings (read live from each hotel's own system) plus bookings marked from WhatsApp, with where each came from. Clients see the same in their portal."
-      />
+      <h1 className="sr-only">Bookings</h1>
       {!selected ? (
         <Card className="p-6">
           <p className="text-small text-ink-muted">No hotel businesses yet.</p>
         </Card>
       ) : (
         <>
-          <HotelSectionNav base="/dashboard/bookings" projects={projects.map((p) => ({ id: p.id, name: p.name }))} projectId={selected.id} />
-          <Card className="p-5 mb-6">
+          <Card className="px-5 py-3 mb-5">
             <BookingSourceForm
               connected={!!source}
               kind={(source?.kind as string) ?? null}
@@ -66,6 +62,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
             detailBase={`/dashboard/bookings/${selected.id}`}
             chatBase="/dashboard/whatsapp?chat="
             setSource={setBookingSource}
+            switcher={<HotelSectionNav base="/dashboard/bookings" projects={projects.map((p) => ({ id: p.id, name: p.name }))} projectId={selected.id} />}
           />
         </>
       )}

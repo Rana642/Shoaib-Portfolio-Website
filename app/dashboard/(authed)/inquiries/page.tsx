@@ -1,5 +1,5 @@
 import { db } from "@/lib/dashboard/db";
-import { Card, PageHeader } from "@/components/dashboard/ui";
+import { Card } from "@/components/dashboard/ui";
 import HotelSectionNav from "@/components/whatsapp/HotelSectionNav";
 import { InquiriesView } from "@/components/whatsapp/HotelCrmViews";
 import { setInquiryStatusAdmin } from "@/lib/dashboard/actions/booking-overrides";
@@ -23,9 +23,12 @@ export default async function DashboardInquiriesPage({ searchParams }: { searchP
   const selected = projects.find((p) => p.id === project) ?? projects[0];
   return (
     <>
-      <PageHeader title="Inquiries" description="Each hotel website's leads, read live. Clients see the same in their portal." />
-      <HotelSectionNav base="/dashboard/inquiries" projects={projects} projectId={selected.id} />
-      <InquiriesView projectId={selected.id} onStatus={setInquiryStatusAdmin} />
+      <h1 className="sr-only">Hotel inquiries</h1>
+      <InquiriesView
+        projectId={selected.id}
+        onStatus={setInquiryStatusAdmin}
+        switcher={<HotelSectionNav base="/dashboard/inquiries" projects={projects} projectId={selected.id} />}
+      />
     </>
   );
 }

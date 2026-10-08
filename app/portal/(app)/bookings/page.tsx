@@ -42,17 +42,19 @@ export default async function PortalBookingsPage({ searchParams }: { searchParam
 
   return (
     <>
-      <PageHeader title="Bookings" description="Every website and WhatsApp booking, and which ad each came from." />
-      <HotelSectionNav
-        base="/portal/bookings"
-        projects={withBookings.map((p) => ({ id: p.id as string, name: p.name as string }))}
-        projectId={selected.id as string}
-      />
+      <h1 className="sr-only">Bookings</h1>
       <BookingsView
         projectId={selected.id as string}
         detailBase={`/portal/bookings/${selected.id}`}
         chatBase={`/portal/whatsapp?project=${selected.id}&chat=`}
         setSource={portalSetBookingSource}
+        switcher={
+          <HotelSectionNav
+            base="/portal/bookings"
+            projects={withBookings.map((p) => ({ id: p.id as string, name: p.name as string }))}
+            projectId={selected.id as string}
+          />
+        }
       />
     </>
   );

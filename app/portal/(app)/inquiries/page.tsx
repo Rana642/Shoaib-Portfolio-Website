@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/dashboard/db";
 import { can, canSeeProject, requirePortalUser } from "@/lib/portal/auth";
-import { Card, PageHeader } from "@/components/dashboard/ui";
+import { Card } from "@/components/dashboard/ui";
 import HotelSectionNav from "@/components/whatsapp/HotelSectionNav";
 import { InquiriesView } from "@/components/whatsapp/HotelCrmViews";
 import { portalSetInquiryStatus } from "@/lib/portal/bookings";
@@ -29,9 +29,12 @@ export default async function PortalInquiriesPage({ searchParams }: { searchPara
   const selected = projects.find((p) => p.id === project) ?? projects[0];
   return (
     <>
-      <PageHeader title="Inquiries" description="Leads from the website — call, WhatsApp, or convert them into a booking." />
-      <HotelSectionNav base="/portal/inquiries" projects={projects} projectId={selected.id} />
-      <InquiriesView projectId={selected.id} onStatus={portalSetInquiryStatus} />
+      <h1 className="sr-only">Inquiries</h1>
+      <InquiriesView
+        projectId={selected.id}
+        onStatus={portalSetInquiryStatus}
+        switcher={<HotelSectionNav base="/portal/inquiries" projects={projects} projectId={selected.id} />}
+      />
     </>
   );
 }

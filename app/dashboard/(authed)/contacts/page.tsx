@@ -1,5 +1,5 @@
 import { db } from "@/lib/dashboard/db";
-import { Card, PageHeader } from "@/components/dashboard/ui";
+import { Card } from "@/components/dashboard/ui";
 import HotelSectionNav from "@/components/whatsapp/HotelSectionNav";
 import { ContactsView } from "@/components/whatsapp/HotelCrmViews";
 
@@ -22,9 +22,12 @@ export default async function DashboardContactsPage({ searchParams }: { searchPa
   const selected = projects.find((p) => p.id === project) ?? projects[0];
   return (
     <>
-      <PageHeader title="Contacts" description="Every guest who booked or inquired at each hotel, merged by phone." />
-      <HotelSectionNav base="/dashboard/contacts" projects={projects} projectId={selected.id} />
-      <ContactsView projectId={selected.id} name={selected.name} />
+      <h1 className="sr-only">Guest contacts</h1>
+      <ContactsView
+        projectId={selected.id}
+        name={selected.name}
+        switcher={<HotelSectionNav base="/dashboard/contacts" projects={projects} projectId={selected.id} />}
+      />
     </>
   );
 }

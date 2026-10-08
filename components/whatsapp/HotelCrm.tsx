@@ -28,7 +28,9 @@ function Filters({
   q,
   onQ,
   counts,
+  extra,
 }: {
+  extra?: React.ReactNode;
   tabs: string[];
   active: string;
   onTab: (t: string) => void;
@@ -51,10 +53,13 @@ function Filters({
           </button>
         ))}
       </div>
-      <label className="relative">
-        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-subtle" aria-hidden />
-        <input value={q} onChange={(e) => onQ(e.target.value)} placeholder="Search name, phone…" aria-label="Search" className={`${inputClasses} !pl-9 sm:!w-64`} />
-      </label>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <label className="relative">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-subtle" aria-hidden />
+          <input value={q} onChange={(e) => onQ(e.target.value)} placeholder="Search name, phone…" aria-label="Search" className={`${inputClasses} !pl-9 sm:!w-60`} />
+        </label>
+        {extra}
+      </div>
     </div>
   );
 }
@@ -65,7 +70,9 @@ export function InquiriesList({
   statuses,
   convertUrls,
   onStatus,
+  switcher,
 }: {
+  switcher?: React.ReactNode;
   rows: Inquiry[];
   statuses: string[];
   /** inquiry id → the hotel admin's prefilled New Booking form */
@@ -90,7 +97,7 @@ export function InquiriesList({
 
   return (
     <div>
-      <Filters tabs={["all", ...statuses]} active={tab} onTab={setTab} q={q} onQ={setQ} counts={counts} />
+      <Filters tabs={["all", ...statuses]} active={tab} onTab={setTab} q={q} onQ={setQ} counts={counts} extra={switcher} />
       {error && <p className="text-small text-red-700 mb-3">{error}</p>}
       {shown.length === 0 ? (
         <p className="rounded-xl border border-ink/10 bg-white/60 p-6 text-center text-small text-ink-muted">No inquiries match.</p>
@@ -177,7 +184,7 @@ export function InquiriesList({
 }
 
 /** Every guest who booked or inquired, merged by phone — with CSV export. */
-export function ContactsList({ rows, fileName }: { rows: Contact[]; fileName: string }) {
+export function ContactsList({ rows, fileName, switcher }: { rows: Contact[]; fileName: string; switcher?: React.ReactNode }) {
   const [tab, setTab] = useState("all");
   const [q, setQ] = useState("");
   const shown = useMemo(() => {
@@ -203,7 +210,7 @@ export function ContactsList({ rows, fileName }: { rows: Contact[]; fileName: st
 
   return (
     <div>
-      <Filters tabs={["all", "guests", "leads only"]} active={tab} onTab={setTab} q={q} onQ={setQ} />
+      <Filters tabs={["all", "guests", "leads only"]} active={tab} onTab={setTab} q={q} onQ={setQ} extra={switcher} />
       <div className="flex justify-between items-center mb-3 text-small text-ink-muted">
         <span>{shown.length} contacts</span>
         <button type="button" onClick={exportCsv} className="inline-flex items-center gap-1.5 underline underline-offset-4">

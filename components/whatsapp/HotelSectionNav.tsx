@@ -1,6 +1,8 @@
-import Link from "next/link";
+"use client";
 
-/** The hotel switcher on Bookings / Inquiries / Contacts (portal and dashboard). */
+import { useRouter } from "next/navigation";
+
+/** Hotel switcher as a compact dropdown, sitting in the list's toolbar. */
 export default function HotelSectionNav({
   base,
   projects,
@@ -11,18 +13,20 @@ export default function HotelSectionNav({
   projects: { id: string; name: string }[];
   projectId: string;
 }) {
+  const router = useRouter();
   if (projects.length < 2) return null;
   return (
-    <nav className="flex flex-wrap gap-2 text-small mb-5">
+    <select
+      aria-label="Hotel"
+      value={projectId}
+      onChange={(e) => router.push(`${base}?project=${e.target.value}`)}
+      className="rounded-lg border border-ink/15 bg-white px-3 py-2.5 text-small font-medium cursor-pointer sm:max-w-[16rem]"
+    >
       {projects.map((p) => (
-        <Link
-          key={p.id}
-          href={`${base}?project=${p.id}`}
-          className={`rounded-lg border px-3 py-1.5 ${p.id === projectId ? "border-ink bg-ink text-cloud" : "border-ink/15 hover:bg-ink/5"}`}
-        >
+        <option key={p.id} value={p.id}>
           {p.name}
-        </Link>
+        </option>
       ))}
-    </nav>
+    </select>
   );
 }

@@ -41,6 +41,7 @@ export default function BookingsTable({
   detailBase,
   chatBase,
   setSource,
+  switcher,
 }: {
   rows: BookingRow[];
   projectId: string;
@@ -49,6 +50,8 @@ export default function BookingsTable({
   /** Where a WhatsApp booking's chat opens, e.g. "/portal/whatsapp?project=…&chat=" */
   chatBase: string;
   setSource?: (projectId: string, bookingRef: string, source: string) => Promise<Result>;
+  /** The hotel switcher, shown after the search box. */
+  switcher?: React.ReactNode;
 }) {
   const [status, setStatus] = useState<string>("all");
   const [q, setQ] = useState("");
@@ -91,16 +94,19 @@ export default function BookingsTable({
             );
           })}
         </div>
-        <label className="relative">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-subtle" aria-hidden />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search name, phone, ref…"
-            aria-label="Search bookings"
-            className={`${inputClasses} !pl-9 sm:!w-64`}
-          />
-        </label>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <label className="relative">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-subtle" aria-hidden />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search name, phone, ref…"
+              aria-label="Search bookings"
+              className={`${inputClasses} !pl-9 sm:!w-60`}
+            />
+          </label>
+          {switcher}
+        </div>
       </div>
 
       {shown.length === 0 ? (
