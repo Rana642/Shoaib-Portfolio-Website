@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { db } from "@/lib/dashboard/db";
 import { Card, PageHeader } from "@/components/dashboard/ui";
 import BookingsView from "@/components/whatsapp/BookingsView";
+import HotelSectionNav from "@/components/whatsapp/HotelSectionNav";
 import BookingSourceForm from "@/components/dashboard/BookingSourceForm";
 import { removeBookingSource, saveBookingSource } from "@/lib/dashboard/actions/booking-sources";
 import { setBookingSource } from "@/lib/dashboard/actions/booking-overrides";
@@ -51,17 +51,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
         </Card>
       ) : (
         <>
-          <nav className="flex flex-wrap gap-2 mb-4 text-small">
-            {projects.map((p) => (
-              <Link
-                key={p.id}
-                href={`/dashboard/bookings?project=${p.id}`}
-                className={`rounded-lg border px-3 py-1.5 ${p.id === selected.id ? "border-ink bg-ink text-cloud" : "border-ink/15 hover:bg-ink/5"}`}
-              >
-                {p.name}
-              </Link>
-            ))}
-          </nav>
+          <HotelSectionNav base="/dashboard/bookings" section="bookings" projects={projects.map((p) => ({ id: p.id, name: p.name }))} projectId={selected.id} />
           <Card className="p-5 mb-6">
             <BookingSourceForm
               connected={!!source}

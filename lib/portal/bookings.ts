@@ -4,6 +4,7 @@ import { db } from "@/lib/dashboard/db";
 import { revalidatePath, updateTag } from "next/cache";
 import { writeOverride } from "@/lib/booking-overrides";
 import { bookingsTag, saveHotelBookingNotes, setHotelBookingStatus } from "@/lib/hotel-bookings";
+import { setHotelInquiryStatus } from "@/lib/hotel-crm";
 import { can, canSeeProject, requirePortalUser } from "./auth";
 
 /** Client portal: set a booking's source — only for the client's own, visible project. */
@@ -34,4 +35,12 @@ export async function portalSaveBookingNotes(projectId: string, bookingId: strin
   const ctx = await bookingAccess(projectId);
   if (!ctx) return { error: "You don't have access to this." };
   return saveHotelBookingNotes(projectId, bookingId, notes, ctx.user.email ?? "portal");
+}
+
+export async function portalSetInquiryStatus(projectId: string, id: string, status: string) {
+  const ctx = await bookingAccess(projectId);
+  if (!ctx) return { error: "You don't have access to this." };
+  const res = await setHotelInquiryStatus(projectId, id, status, ctx.user.email ?? "portal");
+  revalidatePath("/portal/bookings/inquiries");
+  return res;
 }

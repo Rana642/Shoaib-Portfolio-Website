@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/dashboard/db";
 import { can, canSeeProject, requirePortalUser } from "@/lib/portal/auth";
 import { Card, PageHeader } from "@/components/dashboard/ui";
 import BookingsView from "@/components/whatsapp/BookingsView";
+import HotelSectionNav from "@/components/whatsapp/HotelSectionNav";
 import { portalSetBookingSource } from "@/lib/portal/bookings";
 
 export const dynamic = "force-dynamic";
@@ -43,19 +43,12 @@ export default async function PortalBookingsPage({ searchParams }: { searchParam
   return (
     <>
       <PageHeader title="Bookings" description="Website and WhatsApp bookings from the last 60 days, and which ad each came from." />
-      {withBookings.length > 1 && (
-        <nav className="flex flex-wrap gap-2 mb-4 text-small">
-          {withBookings.map((p) => (
-            <Link
-              key={p.id}
-              href={`/portal/bookings?project=${p.id}`}
-              className={`rounded-lg border px-3 py-1.5 ${p.id === selected.id ? "border-ink bg-ink text-cloud" : "border-ink/15 hover:bg-ink/5"}`}
-            >
-              {p.name}
-            </Link>
-          ))}
-        </nav>
-      )}
+      <HotelSectionNav
+        base="/portal/bookings"
+        section="bookings"
+        projects={withBookings.map((p) => ({ id: p.id as string, name: p.name as string }))}
+        projectId={selected.id as string}
+      />
       <BookingsView
         projectId={selected.id as string}
         detailBase={`/portal/bookings/${selected.id}`}
