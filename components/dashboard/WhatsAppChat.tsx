@@ -98,7 +98,13 @@ export function ReplyBox({
   );
 }
 
-export type BookingDetails = { room?: string | null; check_in?: string | null; nights?: number | null; amount?: number | null };
+export type BookingDetails = {
+  room?: string | null;
+  check_in?: string | null;
+  nights?: number | null;
+  amount?: number | null;
+  hotel_ref?: string | null;
+};
 
 /** "Mark as booked" — room, check-in, nights, amount. Feeds Bookings + reports. */
 export function BookingForm({
@@ -135,7 +141,7 @@ export function BookingForm({
           }
         });
       }}
-      className="w-full grid gap-2 sm:grid-cols-[1fr_150px_90px_120px_auto] items-end"
+      className="w-full grid gap-2 sm:grid-cols-[1fr_150px_90px_120px_150px_auto] items-end"
     >
       <label className="text-tag">
         Room
@@ -153,6 +159,10 @@ export function BookingForm({
         Amount (Rs)
         <input name="amount" inputMode="numeric" defaultValue={booking?.amount ?? ""} className={`${inputClasses} !py-1.5`} />
       </label>
+      <label className="text-tag" title="If this booking is also entered in the hotel's admin, its ref — so it's counted once">
+        Hotel booking ref
+        <input name="hotel_ref" defaultValue={booking?.hotel_ref ?? ""} placeholder="optional" className={`${inputClasses} !py-1.5`} />
+      </label>
       <div className="flex gap-2">
         <button type="submit" disabled={pending} className={`${buttonStyles.primary} !py-1.5`}>
           {pending && <LoaderCircle className="size-4 animate-spin" aria-hidden />} Save
@@ -161,8 +171,46 @@ export function BookingForm({
           Cancel
         </button>
       </div>
-      {error && <p className="sm:col-span-5 text-small text-red-700">{error}</p>}
+      {error && <p className="sm:col-span-6 text-small text-red-700">{error}</p>}
     </form>
+  );
+}
+
+/** Pick where a code-less booking (phone, walk-in…) came from. */
+export function SourcePicker({
+  value,
+  options,
+  onChange,
+}: {
+  value: string | null;
+  options: readonly { value: string; label: string }[];
+  onChange: (source: string) => Promise<Result>;
+}) {
+  const [current, setCurrent] = useState(value ?? "");
+  const [pending, start] = useTransition();
+  const router = useRouter();
+  return (
+    <select
+      aria-label="Booking source"
+      value={current}
+      disabled={pending}
+      onChange={(e) => {
+        const next = e.target.value;
+        setCurrent(next);
+        start(async () => {
+          await onChange(next);
+          router.refresh();
+        });
+      }}
+      className={`${inputClasses} !w-auto !py-1 !px-2 text-tag`}
+    >
+      <option value="">Set source…</option>
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
   );
 }
 

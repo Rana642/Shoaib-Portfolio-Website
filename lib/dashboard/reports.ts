@@ -5,6 +5,7 @@ import { googleAdsSearch } from "../google-ads-client";
 import { metaMarketingRequest } from "../meta-marketing-client";
 import { googleApiRequest } from "../google-api-passthrough";
 import { gbpAccessToken } from "../gbp";
+import { CONFIRMED_STATUSES, LOST_STATUSES, projectBookings } from "../hotel-bookings";
 
 /**
  * Monthly client reports — billing phase 3 (docs/RETAINER-BILLING-PLAN.md).
@@ -249,6 +250,48 @@ async function socialMetrics(projectId: string, start: string, end: string): Pro
   ];
 }
 
+/**
+ * The month's bookings (hotel website + WhatsApp, counted once) and WhatsApp
+ * chats, plus confirmed/pending bookings per ad code — the numbers that show
+ * whether the ads brought guests, not just clicks.
+ */
+async function bookingMetrics(projectId: string, start: string, end: string, waAccountIds: string[]) {
+  const { rows, error } = await projectBookings(projectId, { since: `${start}T00:00:00+05:00`, until: `${end}T23:59:59+05:00` });
+  if (error) throw new Error(error);
+  const confirmed = rows.filter((r) => CONFIRMED_STATUSES.has(r.status));
+  const pending = rows.filter((r) => !CONFIRMED_STATUSES.has(r.status) && !LOST_STATUSES.has(r.status));
+  const lost = rows.filter((r) => LOST_STATUSES.has(r.status));
+
+  let chats = 0;
+  if (waAccountIds.length) {
+    const { count } = await db
+      .from("wa_contacts")
+      .select("id", { count: "exact", head: true })
+      .in("account_id", waAccountIds)
+      .gte("created_at", `${start}T00:00:00+05:00`)
+      .lte("created_at", `${end}T23:59:59+05:00`);
+    chats = count ?? 0;
+  }
+
+  const bySource = new Map<string, number>();
+  for (const r of [...confirmed, ...pending]) {
+    const key = r.source ?? (r.channel === "website" ? "Website (no code)" : r.channel === "whatsapp" ? "WhatsApp (no code)" : "Phone / walk-in");
+    bySource.set(key, (bySource.get(key) ?? 0) + 1);
+  }
+
+  return {
+    summary: [
+      { label: "Confirmed bookings", value: confirmed.length },
+      { label: "Confirmed booking value", value: Math.round(confirmed.reduce((s, r) => s + (r.amount ?? 0), 0)), kind: "money" as const, currency: "PKR" },
+      { label: "Confirmed room nights", value: confirmed.reduce((s, r) => s + (r.nights ?? 0), 0) },
+      { label: "Awaiting hotel confirmation", value: pending.length },
+      { label: "Cancelled / no-show", value: lost.length },
+      { label: "New WhatsApp chats", value: chats },
+    ] as Metric[],
+    bySource: [...bySource.entries()].sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value })) as Metric[],
+  };
+}
+
 /** Everything for one project and month. */
 export async function collectProjectSection(
   project: { id: string; name: string; report_sources: ReportSources | null },
@@ -275,6 +318,16 @@ export async function collectProjectSection(
   if (src.ga4_property_id) tasks.push(["Website (Google Analytics)", () => ga4Metrics(src, start, end)]);
   if (gbp?.selected_location) tasks.push(["Google Business Profile", () => gbpMetrics(project.id, gbp.selected_location, start, end)]);
   tasks.push(["Social media", () => socialMetrics(project.id, start, end)]);
+  // Hotels: bookings from the hotel's own system + WhatsApp, by ad code.
+  const [{ data: bookingSource }, { data: waAccounts }] = await Promise.all([
+    db.from("project_booking_sources").select("project_id").eq("project_id", project.id).maybeSingle(),
+    db.from("wa_accounts").select("id").eq("project_id", project.id),
+  ]);
+  if (bookingSource || waAccounts?.length) {
+    const booked = bookingMetrics(project.id, start, end, (waAccounts ?? []).map((a) => a.id as string));
+    tasks.push(["Bookings", () => booked.then((b) => b.summary)]);
+    tasks.push(["Bookings by source", () => booked.then((b) => b.bySource)]);
+  }
 
   // One retry for network blips ("fetch failed") — API errors repeat anyway.
   const settled = await Promise.allSettled(tasks.map(([, run]) => run().catch(() => run())));

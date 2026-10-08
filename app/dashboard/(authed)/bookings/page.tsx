@@ -4,6 +4,7 @@ import { Card, PageHeader } from "@/components/dashboard/ui";
 import BookingsView from "@/components/whatsapp/BookingsView";
 import BookingSourceForm from "@/components/dashboard/BookingSourceForm";
 import { removeBookingSource, saveBookingSource } from "@/lib/dashboard/actions/booking-sources";
+import { setBookingSource } from "@/lib/dashboard/actions/booking-overrides";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Bookings" };
@@ -70,7 +71,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
               onRemove={remove}
             />
           </Card>
-          <BookingsView projectId={selected.id} />
+          <BookingsView projectId={selected.id} setSource={setBookingSource} />
         </>
       )}
     </>

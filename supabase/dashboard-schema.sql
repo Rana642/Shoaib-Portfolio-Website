@@ -1372,3 +1372,15 @@ create table if not exists project_booking_sources (
   updated_at timestamptz not null default now()
 );
 alter table project_booking_sources enable row level security;
+
+-- Booking sources set by hand (2026-10-08): phone / walk-in bookings carry
+-- no ad code, so staff pick one in the Bookings tab (dashboard or portal).
+create table if not exists booking_source_overrides (
+  project_id uuid not null references client_projects (id) on delete cascade,
+  booking_ref text not null,
+  source text not null,
+  set_by text,
+  updated_at timestamptz not null default now(),
+  primary key (project_id, booking_ref)
+);
+alter table booking_source_overrides enable row level security;

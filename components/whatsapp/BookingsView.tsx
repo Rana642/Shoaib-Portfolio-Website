@@ -1,5 +1,7 @@
 import { Card, StatusBadge } from "@/components/dashboard/ui";
-import { projectBookings } from "@/lib/hotel-bookings";
+import { CONFIRMED_STATUSES as CONFIRMED, LOST_STATUSES as LOST, projectBookings } from "@/lib/hotel-bookings";
+import { MANUAL_SOURCES } from "@/lib/booking-source-options";
+import { SourcePicker } from "@/components/dashboard/WhatsAppChat";
 
 const CHANNEL: Record<string, string> = { website: "Website", whatsapp: "WhatsApp", phone: "Phone", walkin: "Walk-in", ota: "OTA" };
 const money = (n: number) => `Rs ${Math.round(n).toLocaleString("en-PK")}`;
@@ -12,12 +14,17 @@ const day = (d: string | null) =>
  * by-source summary. Shared by the portal and my dashboard; the caller has
  * already checked the viewer may see this project.
  */
-export default async function BookingsView({ projectId }: { projectId: string }) {
+export default async function BookingsView({
+  projectId,
+  setSource,
+}: {
+  projectId: string;
+  /** Server action (projectId, bookingRef, source) — access-checked by the caller's own action. */
+  setSource?: (projectId: string, bookingRef: string, source: string) => Promise<{ error?: string; ok?: boolean } | undefined>;
+}) {
   const { rows, connected, error } = await projectBookings(projectId);
   // Hotel statuses: confirmed / checked_in / completed count as real stays;
   // pending still needs the hotel to confirm; cancelled / no_show are lost.
-  const CONFIRMED = new Set(["confirmed", "checked_in", "completed"]);
-  const LOST = new Set(["cancelled", "no_show"]);
   const confirmed = rows.filter((r) => CONFIRMED.has(r.status));
   const pending = rows.filter((r) => !CONFIRMED.has(r.status) && !LOST.has(r.status));
   const lost = rows.filter((r) => LOST.has(r.status));
@@ -105,7 +112,13 @@ export default async function BookingsView({ projectId }: { projectId: string })
                 <td className="px-4 py-2.5 text-right">{r.nights ?? "—"}</td>
                 <td className="px-4 py-2.5 text-right whitespace-nowrap">{r.amount ? money(r.amount) : "—"}</td>
                 <td className="px-4 py-2.5">{CHANNEL[r.channel] ?? r.channel}</td>
-                <td className="px-4 py-2.5 font-mono text-tag">{r.source ?? "—"}</td>
+                <td className="px-4 py-2.5 font-mono text-tag">
+                  {setSource && r.channel !== "whatsapp" && (!r.source || r.sourceSet) ? (
+                    <SourcePicker value={r.source} options={MANUAL_SOURCES} onChange={setSource.bind(null, projectId, r.ref)} />
+                  ) : (
+                    (r.source ?? "—")
+                  )}
+                </td>
                 <td className="px-4 py-2.5">
                   <StatusBadge status={r.status} />
                 </td>

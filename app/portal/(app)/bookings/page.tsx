@@ -4,6 +4,7 @@ import { db } from "@/lib/dashboard/db";
 import { can, canSeeProject, requirePortalUser } from "@/lib/portal/auth";
 import { Card, PageHeader } from "@/components/dashboard/ui";
 import BookingsView from "@/components/whatsapp/BookingsView";
+import { portalSetBookingSource } from "@/lib/portal/bookings";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Bookings" };
@@ -55,7 +56,7 @@ export default async function PortalBookingsPage({ searchParams }: { searchParam
           ))}
         </nav>
       )}
-      <BookingsView projectId={selected.id as string} />
+      <BookingsView projectId={selected.id as string} setSource={portalSetBookingSource} />
     </>
   );
 }

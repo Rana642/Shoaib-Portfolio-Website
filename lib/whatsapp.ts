@@ -209,6 +209,8 @@ export function bookingFromForm(formData: FormData) {
     check_in: /^\d{4}-\d{2}-\d{2}$/.test(checkIn) ? checkIn : null,
     nights: num("nights"),
     amount: num("amount"),
+    // The same booking's ref in the hotel's own admin (e.g. HSS-7K2Q9P), so it's counted once.
+    hotel_ref: String(formData.get("hotel_ref") ?? "").trim().toUpperCase().slice(0, 40) || null,
     booked_at: new Date().toISOString(),
   };
 }
