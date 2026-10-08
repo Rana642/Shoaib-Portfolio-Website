@@ -27,7 +27,7 @@ export default function BookingSourceForm({
   if (!open) {
     return (
       <div className="flex flex-wrap items-center gap-3 text-small">
-        <span className="text-green-700">Website bookings connected</span>
+        <span className="text-green-700">Website bookings connected{kind ? ` (${kind === "elegant" ? "Elegant" : "Silver Sand"} system)` : ""}</span>
         <span className="text-ink-subtle font-mono">{url}</span>
         <button type="button" onClick={() => setOpen(true)} className="underline underline-offset-4">
           Change
@@ -51,15 +51,8 @@ export default function BookingSourceForm({
           if (!r?.error) setOpen(false);
         })
       }
-      className="grid gap-3 sm:grid-cols-[160px_1fr_1fr_auto] items-end"
+      className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] items-end"
     >
-      <label className="text-small">
-        <span className="block text-ink-muted mb-1">Hotel site</span>
-        <select name="kind" defaultValue={kind ?? "silver_sand"} className={inputClasses}>
-          <option value="silver_sand">Silver Sand type</option>
-          <option value="elegant">Elegant type</option>
-        </select>
-      </label>
       <label className="text-small">
         <span className="block text-ink-muted mb-1">Supabase URL</span>
         <input name="supabase_url" defaultValue={url ?? ""} placeholder="https://xxxx.supabase.co" className={inputClasses} />
@@ -71,7 +64,7 @@ export default function BookingSourceForm({
       <button type="submit" disabled={pending} className={buttonStyles.secondary}>
         {pending && <LoaderCircle className="size-4 animate-spin" aria-hidden />} Connect
       </button>
-      {msg && <p className={`sm:col-span-4 text-small ${msg.ok ? "text-green-700" : "text-red-700"}`}>{msg.text}</p>}
+      {msg && <p className={`sm:col-span-3 text-small ${msg.ok ? "text-green-700" : "text-red-700"}`}>{msg.text}</p>}
     </form>
   );
 }

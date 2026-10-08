@@ -14,15 +14,22 @@ import { encryptField } from "../../api-vault-crypto";
  */
 export async function saveBookingSource(projectId: string, formData: FormData) {
   if (!(await getAdminUser())) redirect("/dashboard/login");
-  const kind = String(formData.get("kind") ?? "");
   const url = String(formData.get("supabase_url") ?? "").trim().replace(/\/$/, "");
   const key = String(formData.get("key") ?? "").trim();
-  if (!["silver_sand", "elegant"].includes(kind)) return { error: "Pick the hotel type." };
   if (!/^https:\/\/[a-z0-9]+\.supabase\.co$/.test(url)) return { error: "The URL should look like https://xxxx.supabase.co" };
   if (key.length < 40) return { error: "Paste the hotel's service key." };
 
-  const probe = await createClient(url, key, { auth: { persistSession: false } }).from("bookings").select("booking_ref").limit(1);
+  // Which hotel system this is, from its bookings columns (Elegant has
+  // grand_total; Silver Sand has room_name) — no dropdown to get wrong.
+  const hotel = createClient(url, key, { auth: { persistSession: false } });
+  const probe = await hotel.from("bookings").select("booking_ref").limit(1);
   if (probe.error) return { error: `Couldn't read bookings with that key: ${probe.error.message}` };
+  const kind = !(await hotel.from("bookings").select("grand_total").limit(1)).error
+    ? "elegant"
+    : !(await hotel.from("bookings").select("room_name").limit(1)).error
+      ? "silver_sand"
+      : null;
+  if (!kind) return { error: "Connected, but this bookings table doesn't match a known hotel system." };
 
   const { error } = await db
     .from("project_booking_sources")
