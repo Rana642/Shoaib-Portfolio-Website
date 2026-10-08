@@ -218,6 +218,63 @@ export async function createPortalInvite(opts: {
 
 /** Deletes a portal login for good (ends any open session too). Refuses
  *  anything that isn't a portal login of this very client. */
+/**
+ * Shoaib (dashboard only) creates a portal login directly — email + a
+ * password he sets and hands over himself, no invite email. An existing
+ * portal login of the same client just gets the new password.
+ */
+export async function createPortalLoginWithPassword(opts: {
+  clientId: string;
+  email: string;
+  password: string;
+  role: PortalRole;
+  permissions: string[];
+  projectIds: string[] | null;
+}): Promise<{ ok: true } | { error: string }> {
+  const target = opts.email.trim().toLowerCase();
+  if (opts.password.length < 10) return { error: "Use a password of at least 10 characters." };
+
+  const { data: client } = await db.from("clients").select("id").eq("id", opts.clientId).maybeSingle();
+  if (!client) return { error: "Client not found." };
+
+  const existing = await findAuthUserByEmail(target);
+  let userId: string;
+  if (existing) {
+    if (isAdmin(existing)) return { error: "That's the admin login — use a different email for the portal." };
+    const owner = portalClientId(existing);
+    if (owner && owner !== client.id) return { error: "This email already has portal access for another client." };
+    if (!owner) return { error: "This email already has a login that isn't a portal login." };
+    const { error } = await db.auth.admin.updateUserById(existing.id, { password: opts.password, email_confirm: true });
+    if (error) return { error: error.message };
+    userId = existing.id;
+  } else {
+    const { data, error } = await db.auth.admin.createUser({
+      email: target,
+      password: opts.password,
+      email_confirm: true,
+      app_metadata: { role: "client", client_id: client.id },
+    });
+    if (error || !data.user) return { error: error?.message ?? "Couldn't create the login." };
+    userId = data.user.id;
+  }
+
+  const { error: rowError } = await db.from("client_portal_users").upsert(
+    {
+      client_id: client.id,
+      user_id: userId,
+      email: target,
+      last_invited_at: new Date().toISOString(),
+      role: opts.role,
+      permissions: opts.role === "owner" ? [] : opts.permissions,
+      project_ids: opts.role === "owner" ? null : opts.projectIds,
+      invited_by: null,
+    },
+    { onConflict: "user_id" }
+  );
+  if (rowError) return { error: rowError.code === "PGRST204" ? ROLES_SETUP_MESSAGE : rowError.message };
+  return { ok: true };
+}
+
 export async function deletePortalLogin(member: PortalMember, clientId: string): Promise<{ ok: true } | { error: string }> {
   const { data: auth } = await db.auth.admin.getUserById(member.userId);
   if (auth?.user) {

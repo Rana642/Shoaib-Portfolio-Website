@@ -11,6 +11,7 @@ import {
   createPortalInvite,
   deletePortalLogin,
   listPortalMembers,
+  createPortalLoginWithPassword,
 } from "../portal-users";
 import { DELEGABLE, FEATURE_KEYS, type PortalFeature } from "../../portal/features";
 
@@ -63,6 +64,26 @@ export async function inviteToPortal(
   if (probe) return { error: probe.code === "PGRST205" ? PORTAL_SETUP_MESSAGE : probe.message };
 
   const res = await createPortalInvite({ clientId, email: target.data, ...parsed.data, invitedBy: null });
+  revalidatePath(`/dashboard/clients/${clientId}`);
+  return res;
+}
+
+/** Create a portal login with a password I set (no invite email). */
+export async function createPortalLoginDirect(
+  clientId: string,
+  email: string,
+  password: string,
+  access: { role: "owner" | "member"; permissions: string[]; projectIds: string[] | null }
+) {
+  await assertAuthed();
+  const target = z.string().trim().toLowerCase().email().safeParse(email);
+  const parsed = memberSchema.safeParse(access);
+  if (!uuid.safeParse(clientId).success || !target.success) return { error: "Enter a valid email address." };
+  if (!parsed.success) return { error: "Couldn't read that access." };
+  if (typeof password !== "string" || password.length < 10 || password.length > 128) {
+    return { error: "Use a password of 10–128 characters." };
+  }
+  const res = await createPortalLoginWithPassword({ clientId, email: target.data, password, ...parsed.data });
   revalidatePath(`/dashboard/clients/${clientId}`);
   return res;
 }

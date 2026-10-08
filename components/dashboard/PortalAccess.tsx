@@ -5,7 +5,7 @@ import { Check, LoaderCircle, Mail, Pencil, RefreshCw } from "lucide-react";
 import { Card, buttonStyles, inputClasses, labelClasses } from "@/components/dashboard/ui";
 import DeleteButton from "@/components/dashboard/DeleteButton";
 import AccessPicker, { type MemberAccess } from "@/components/portal/AccessPicker";
-import { inviteToPortal, removePortalUser, setPortalFeatures, updatePortalMember } from "@/lib/dashboard/actions/portal";
+import { createPortalLoginDirect, inviteToPortal, removePortalUser, setPortalFeatures, updatePortalMember } from "@/lib/dashboard/actions/portal";
 import type { PortalMember } from "@/lib/dashboard/portal-users";
 import { PORTAL_FEATURES, featureLabel, type PortalFeature, type PortalRole } from "@/lib/portal/features";
 import { formatDate } from "@/lib/dashboard/format";
@@ -40,6 +40,7 @@ export default function PortalAccess({
   const [email, setEmail] = useState(members.some((m) => m.email === suggestedEmail) ? "" : (suggestedEmail ?? ""));
   const [inviteRole, setInviteRole] = useState<PortalRole>(members.some((m) => m.role === "owner") ? "member" : "owner");
   const [inviteAccess, setInviteAccess] = useState<MemberAccess>({ permissions: [], projectIds: null });
+  const [password, setPassword] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [draftRole, setDraftRole] = useState<PortalRole>("member");
   const [draft, setDraft] = useState<MemberAccess>({ permissions: [], projectIds: null });
@@ -219,7 +220,7 @@ export default function PortalAccess({
 
           {/* Invite */}
           <div className="mt-5 space-y-4">
-            <p className="font-medium">Invite someone</p>
+            <p className="font-medium">Add someone</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="invite-email" className={labelClasses}>
@@ -235,6 +236,20 @@ export default function PortalAccess({
                 />
               </div>
               {rolesReady && roleSelect("invite-role", inviteRole, setInviteRole)}
+              <div className="sm:col-span-2">
+                <label htmlFor="invite-password" className={labelClasses}>
+                  Password <span className="text-ink-subtle font-normal">(optional — set it now and give it to them yourself; no email is sent)</span>
+                </label>
+                <input
+                  id="invite-password"
+                  type="text"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Leave empty to email them an invite instead"
+                  className={inputClasses}
+                />
+              </div>
             </div>
             {rolesReady && inviteRole === "member" && (
               <AccessPicker idPrefix="invite" features={memberFeatures} projects={projects} value={inviteAccess} onChange={setInviteAccess} />
@@ -243,16 +258,25 @@ export default function PortalAccess({
               type="button"
               disabled={pending || !email.trim()}
               onClick={() =>
-                run(
-                  () => inviteToPortal(clientId, email.trim(), { role: rolesReady ? inviteRole : "owner", ...inviteAccess }),
-                  `Invite sent to ${email.trim()}.`,
-                  () => setEmail("")
-                )
+                password
+                  ? run(
+                      () => createPortalLoginDirect(clientId, email.trim(), password, { role: rolesReady ? inviteRole : "owner", ...inviteAccess }),
+                      `Login ready for ${email.trim()} — they can sign in at /portal/login with the password you set.`,
+                      () => {
+                        setEmail("");
+                        setPassword("");
+                      }
+                    )
+                  : run(
+                      () => inviteToPortal(clientId, email.trim(), { role: rolesReady ? inviteRole : "owner", ...inviteAccess }),
+                      `Invite sent to ${email.trim()}.`,
+                      () => setEmail("")
+                    )
               }
               className={buttonStyles.primary}
             >
               {pending ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Mail className="size-4" aria-hidden />}
-              Invite to portal
+              {password ? "Create login" : "Invite to portal"}
             </button>
           </div>
         </>
