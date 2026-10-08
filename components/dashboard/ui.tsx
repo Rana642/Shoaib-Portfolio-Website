@@ -86,6 +86,10 @@ const statusStyles: Record<string, string> = {
   active: "bg-green-500/10 text-green-700 border-green-600/25",
   paused: "bg-citrus/20 text-ink border-citrus/50",
   ended: "bg-ink/8 text-ink-subtle border-ink/15",
+  new: "bg-citrus/20 text-ink border-citrus/50",
+  replied: "bg-cobalt/10 text-ink border-cobalt/25",
+  booked: "bg-green-500/10 text-green-700 border-green-600/25",
+  lost: "bg-ink/8 text-ink-subtle border-ink/15",
 };
 
 export function StatusBadge({ status }: { status: string }) {

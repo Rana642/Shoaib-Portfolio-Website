@@ -1309,3 +1309,52 @@ alter table client_reports enable row level security;
 -- Existing invoices get their own token from the volatile default.
 alter table invoices add column if not exists access_token text not null default replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
 create unique index if not exists invoices_access_token_uniq on invoices (access_token);
+
+-- ── WhatsApp inbox (Socially Snap app, 2026-10-08) ──────────────────
+-- docs/WHATSAPP-INBOX-PLAN.md. One row per connected WhatsApp number;
+-- chats (contacts) and messages arrive through /api/whatsapp/webhook,
+-- including messages staff send from the phone app (coexistence echoes).
+create table if not exists wa_accounts (
+  id uuid primary key default gen_random_uuid(),
+  phone_number_id text not null unique,
+  waba_id text,
+  display_phone text,
+  label text,
+  project_id uuid references client_projects (id) on delete set null,
+  created_at timestamptz not null default now()
+);
+alter table wa_accounts enable row level security;
+
+create table if not exists wa_contacts (
+  id uuid primary key default gen_random_uuid(),
+  account_id uuid not null references wa_accounts (id) on delete cascade,
+  wa_id text not null,                 -- guest's WhatsApp number (digits)
+  name text,
+  ref_source text,                     -- FB / GA / GS / WEB (from "Ref:")
+  ref_code text,                       -- e.g. SFC1
+  status text not null default 'new' check (status in ('new', 'replied', 'booked', 'lost')),
+  booking jsonb,                       -- { room, check_in, nights, amount }
+  unread int not null default 0,
+  last_message_at timestamptz,
+  last_inbound_at timestamptz,         -- the free 24h reply window runs from here
+  created_at timestamptz not null default now(),
+  unique (account_id, wa_id)
+);
+create index if not exists wa_contacts_recent_idx on wa_contacts (account_id, last_message_at desc);
+alter table wa_contacts enable row level security;
+
+create table if not exists wa_messages (
+  id uuid primary key default gen_random_uuid(),
+  account_id uuid not null references wa_accounts (id) on delete cascade,
+  contact_id uuid not null references wa_contacts (id) on delete cascade,
+  wamid text unique,
+  direction text not null check (direction in ('in', 'out')),
+  via text,                            -- 'api' | 'app' (sent from the phone) | null for inbound
+  type text not null default 'text',
+  body text,
+  status text,                         -- sent / delivered / read / failed (outbound)
+  sent_at timestamptz not null default now(),
+  raw jsonb
+);
+create index if not exists wa_messages_contact_idx on wa_messages (contact_id, sent_at);
+alter table wa_messages enable row level security;
