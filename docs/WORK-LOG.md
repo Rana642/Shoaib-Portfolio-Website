@@ -4,6 +4,15 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-08 (evening) — Dashboard/portal speed
+- **Root cause:** functions ran in US East while the DB is in Sydney (~200 ms per query). Now `vercel.json` regions = `syd1`.
+- **Auth:** checked locally via `getClaims` (no Supabase Auth call per page), and once per request.
+- **Smaller fixes:**
+  - Analytics load on the public site only.
+  - Removed 3 unused home sections.
+  - All dependencies are in use.
+- **Portal:** a direct login can now be created with a password (Portal access → Password field). Muhammad Ajmal's portal now has WhatsApp + Bookings on.
+
 ## 2026-10-08 — WhatsApp inbox (Socially Snap app)
 - **Meta app:** new Meta app "Socially Snap" (WhatsApp, verified Socially Snap business). Test number +1 555-202-0163. The permanent system-user token is in the API Vault (`whatsapp`).
 - **Phase 2 built (717ce3a):**
