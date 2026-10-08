@@ -32,6 +32,6 @@ export async function setInquiryStatusAdmin(projectId: string, id: string, statu
   const user = await getAdminUser();
   if (!user) redirect("/dashboard/login");
   const res = await setHotelInquiryStatus(projectId, id, status, user.email ?? "admin");
-  revalidatePath("/dashboard/bookings/inquiries");
+  revalidatePath("/dashboard/inquiries");
   return res;
 }

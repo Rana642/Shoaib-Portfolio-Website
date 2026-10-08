@@ -1,12 +1,13 @@
 import { db } from "@/lib/dashboard/db";
 import { Card, PageHeader } from "@/components/dashboard/ui";
 import HotelSectionNav from "@/components/whatsapp/HotelSectionNav";
-import { ContactsView } from "@/components/whatsapp/HotelCrmViews";
+import { InquiriesView } from "@/components/whatsapp/HotelCrmViews";
+import { setInquiryStatusAdmin } from "@/lib/dashboard/actions/booking-overrides";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Contacts" };
+export const metadata = { title: "Inquiries" };
 
-export default async function DashboardContactsPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
+export default async function DashboardInquiriesPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
   const { project } = await searchParams;
   const { data: sources } = await db.from("project_booking_sources").select("project_id, client_projects(id, name)");
   const projects = ((sources ?? []) as unknown as { client_projects: { id: string; name: string } | null }[])
@@ -22,9 +23,9 @@ export default async function DashboardContactsPage({ searchParams }: { searchPa
   const selected = projects.find((p) => p.id === project) ?? projects[0];
   return (
     <>
-      <PageHeader title="Contacts" description="Every guest who booked or inquired at each hotel, merged by phone." />
-      <HotelSectionNav base="/dashboard/bookings" section="contacts" projects={projects} projectId={selected.id} />
-      <ContactsView projectId={selected.id} name={selected.name} />
+      <PageHeader title="Inquiries" description="Each hotel website's leads, read live. Clients see the same in their portal." />
+      <HotelSectionNav base="/dashboard/inquiries" projects={projects} projectId={selected.id} />
+      <InquiriesView projectId={selected.id} onStatus={setInquiryStatusAdmin} />
     </>
   );
 }

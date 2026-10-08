@@ -30,7 +30,7 @@ export default async function PortalInquiriesPage({ searchParams }: { searchPara
   return (
     <>
       <PageHeader title="Inquiries" description="Leads from the website — call, WhatsApp, or convert them into a booking." />
-      <HotelSectionNav base="/portal/bookings" section="inquiries" projects={projects} projectId={selected.id} />
+      <HotelSectionNav base="/portal/inquiries" projects={projects} projectId={selected.id} />
       <InquiriesView projectId={selected.id} onStatus={portalSetInquiryStatus} />
     </>
   );

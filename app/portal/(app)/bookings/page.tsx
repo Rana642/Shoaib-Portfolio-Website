@@ -42,10 +42,9 @@ export default async function PortalBookingsPage({ searchParams }: { searchParam
 
   return (
     <>
-      <PageHeader title="Bookings" description="Website and WhatsApp bookings from the last 60 days, and which ad each came from." />
+      <PageHeader title="Bookings" description="Every website and WhatsApp booking, and which ad each came from." />
       <HotelSectionNav
         base="/portal/bookings"
-        section="bookings"
         projects={withBookings.map((p) => ({ id: p.id as string, name: p.name as string }))}
         projectId={selected.id as string}
       />

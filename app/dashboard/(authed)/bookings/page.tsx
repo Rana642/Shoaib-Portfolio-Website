@@ -51,7 +51,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
         </Card>
       ) : (
         <>
-          <HotelSectionNav base="/dashboard/bookings" section="bookings" projects={projects.map((p) => ({ id: p.id, name: p.name }))} projectId={selected.id} />
+          <HotelSectionNav base="/dashboard/bookings" projects={projects.map((p) => ({ id: p.id, name: p.name }))} projectId={selected.id} />
           <Card className="p-5 mb-6">
             <BookingSourceForm
               connected={!!source}

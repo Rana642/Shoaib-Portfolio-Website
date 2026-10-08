@@ -5,7 +5,7 @@ import BookingsTable from "./BookingsTable";
 const money = (n: number) => `Rs ${Math.round(n).toLocaleString("en-PK")}`;
 
 /**
- * One business's bookings for the last 60 days — the hotel website's own
+ * One business's bookings (all of them) — the hotel website's own
  * bookings (read live) + bookings marked from WhatsApp — laid out like the
  * hotel admins (status tabs, search, table), with a small summary on top.
  * The caller has already checked the viewer may see this project.
@@ -50,7 +50,7 @@ export default async function BookingsView({
         <span>
           <strong className="text-ink">{lost.length}</strong> cancelled / no-show
         </span>
-        <span className="text-ink-subtle">Last 60 days</span>
+        <span className="text-ink-subtle">All time</span>
       </div>
 
       <BookingsTable rows={rows} projectId={projectId} detailBase={detailBase} chatBase={chatBase} setSource={setSource} />

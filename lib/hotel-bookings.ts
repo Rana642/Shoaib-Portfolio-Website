@@ -111,7 +111,7 @@ async function websiteBookingsUncached(projectId: string, range: Range): Promise
         .select("id, booking_ref, guest_name, guest_phone, check_in, check_out, nights, grand_total, status, source, utm_source, utm_medium, utm_content, gclid, fbclid, referrer, created_at, rooms(name)")
     )
       .order("created_at", { ascending: false })
-      .limit(500);
+      .limit(5000);
     if (error) return { rows: [], error: error.message };
     return {
       rows: (data ?? []).map((b) => ({
@@ -137,9 +137,9 @@ async function websiteBookingsUncached(projectId: string, range: Range): Promise
   const base = "id, booking_ref, guest_name, guest_phone, room_name, check_in, check_out, nights, total, status, source, created_at";
   let res = await scoped(hotel.from("bookings").select(`${base}, ref_code, utm_source, utm_medium, utm_content, gclid, fbclid, referrer`))
     .order("created_at", { ascending: false })
-    .limit(500);
+    .limit(5000);
   if (res.error && /column/i.test(res.error.message)) {
-    res = (await scoped(hotel.from("bookings").select(base)).order("created_at", { ascending: false }).limit(500)) as typeof res;
+    res = (await scoped(hotel.from("bookings").select(base)).order("created_at", { ascending: false }).limit(5000)) as typeof res;
   }
   if (res.error) return { rows: [], error: res.error.message };
   return {
@@ -192,7 +192,7 @@ async function whatsappBookings(projectId: string, range: Range): Promise<(Booki
     )
     .eq("status", "booked")
     .order("last_message_at", { ascending: false })
-    .limit(500);
+    .limit(5000);
   return (data ?? [])
     .map((c) => {
       const b = (c.booking ?? {}) as { room?: string; check_in?: string; nights?: number; amount?: number; booked_at?: string; hotel_ref?: string };
@@ -216,7 +216,10 @@ async function whatsappBookings(projectId: string, range: Range): Promise<(Booki
 }
 
 /** Website + WhatsApp bookings for one business, newest first. */
-export async function projectBookings(projectId: string, range: Range = lastDays(60)) {
+/** Every booking ever (the Bookings page); reports pass a month. */
+export const ALL_TIME: Range = { since: "2000-01-01T00:00:00Z" };
+
+export async function projectBookings(projectId: string, range: Range = ALL_TIME) {
   const [site, wa, { data: overrides }] = await Promise.all([
     websiteBookings(projectId, range).catch((e: unknown) => ({ rows: [] as BookingRow[], error: e instanceof Error ? e.message : String(e) })),
     whatsappBookings(projectId, range),

@@ -18,6 +18,10 @@ const WIDE_ROUTES = [
   "/portal/bookings",
   "/dashboard/whatsapp",
   "/portal/whatsapp",
+  "/dashboard/inquiries",
+  "/portal/inquiries",
+  "/dashboard/contacts",
+  "/portal/contacts",
 ];
 
 const STORAGE_KEY = "dashboard-sidebar-collapsed";

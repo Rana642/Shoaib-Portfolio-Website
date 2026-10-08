@@ -41,6 +41,6 @@ export async function portalSetInquiryStatus(projectId: string, id: string, stat
   const ctx = await bookingAccess(projectId);
   if (!ctx) return { error: "You don't have access to this." };
   const res = await setHotelInquiryStatus(projectId, id, status, ctx.user.email ?? "portal");
-  revalidatePath("/portal/bookings/inquiries");
+  revalidatePath("/portal/inquiries");
   return res;
 }

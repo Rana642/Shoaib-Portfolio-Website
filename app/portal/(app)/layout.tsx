@@ -14,7 +14,7 @@ export default async function PortalAppLayout({ children }: { children: React.Re
 
   const links: PortalLink[] = [
     ...(can(ctx, "whatsapp") ? (["whatsapp"] as const) : []),
-    ...(can(ctx, "bookings") ? (["bookings"] as const) : []),
+    ...(can(ctx, "bookings") ? (["bookings", "inquiries", "contacts"] as const) : []),
     // Passwords: Owners only, never delegable to team members.
     ...(ctx.role === "owner" && client?.vault_share ? (["passwords"] as const) : []),
     ...(can(ctx, "planner") || can(ctx, "uploads") ? (["planner"] as const) : []),

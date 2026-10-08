@@ -29,7 +29,7 @@ export default async function PortalContactsPage({ searchParams }: { searchParam
   return (
     <>
       <PageHeader title="Contacts" description="Every guest who booked or inquired, merged by phone number." />
-      <HotelSectionNav base="/portal/bookings" section="contacts" projects={projects} projectId={selected.id} />
+      <HotelSectionNav base="/portal/contacts" projects={projects} projectId={selected.id} />
       <ContactsView projectId={selected.id} name={selected.name} />
     </>
   );
