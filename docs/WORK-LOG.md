@@ -4,6 +4,18 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-08 — WhatsApp inbox (Socially Snap app)
+- **Meta app:** new Meta app "Socially Snap" (WhatsApp, verified Socially Snap business). Test number +1 555-202-0163. The permanent system-user token is in the API Vault (`whatsapp`).
+- **Phase 2 built (717ce3a):**
+  - `/api/whatsapp/webhook` (signed, deduped; guest messages, phone-app echoes, delivery receipts).
+  - The Ref code is saved per chat.
+  - `/dashboard/whatsapp` inbox with replies inside the 24h window and a chat status.
+- **Webhook:** registered with Meta via the API (messages + smb_message_echoes).
+- **Also today:**
+  - Meta ads check for the hotels: Silver Sand got 2 web bookings in 2.5 days; Elegant gets WhatsApp/call leads.
+  - Ref-code guide PDF for the hotel staff (`client-briefs/`).
+- **Next:** a real test message → phase 3 (booking details + report) → App Review → hotel numbers via coexistence. Plan: `docs/WHATSAPP-INBOX-PLAN.md`.
+
 ## 2026-10-06 (night) — Retainer billing phase 1: Retainers
 - **New:**
   - `retainers` + `retainer_items` tables (+ `invoices.retainer_id/period`, unique per month).
