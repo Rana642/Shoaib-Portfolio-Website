@@ -1423,3 +1423,26 @@ alter table vault_shares enable row level security;
 
 -- The hotel site, for hooks it exposes (Elegant: /api/portal/booking-completed).
 alter table project_booking_sources add column if not exists site_url text;
+
+-- ── WhatsApp automation (phase 4, 2026-10-08) ─────────────────────────
+-- Per number: instant reply (if staff stay silent N minutes), after-hours
+-- reply, one follow-up inside the free 24h window. All off until a message
+-- is written and switched on. Runs every minute (pg_cron 'whatsapp-auto').
+alter table wa_accounts add column if not exists automation jsonb not null default '{}'::jsonb;
+alter table wa_contacts add column if not exists auto_reply_at timestamptz;
+alter table wa_contacts add column if not exists follow_up_at timestamptz;
+
+-- Ready-made answers staff drop into the reply box (rates, location, policy…).
+create table if not exists wa_quick_replies (
+  id uuid primary key default gen_random_uuid(),
+  account_id uuid not null references wa_accounts (id) on delete cascade,
+  title text not null,
+  body text not null,
+  sort_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+alter table wa_quick_replies enable row level security;
+
+insert into cron_tokens (name, token)
+  values ('wa_auto', replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''))
+  on conflict (name) do nothing;

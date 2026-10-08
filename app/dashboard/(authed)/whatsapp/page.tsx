@@ -64,9 +64,12 @@ export default async function WhatsAppPage({
         </Card>
       )}
 
-      <div className="mb-4 text-small">
+      <div className="mb-4 flex flex-wrap gap-4 text-small">
         <Link href={numbers ? "/dashboard/whatsapp" : "/dashboard/whatsapp?numbers=1"} className="underline underline-offset-4">
           {numbers ? "Hide numbers" : "Numbers & businesses"}
+        </Link>
+        <Link href="/dashboard/whatsapp/automation" className="underline underline-offset-4">
+          Automation &amp; quick replies
         </Link>
       </div>
 

@@ -80,6 +80,9 @@ export default async function Inbox({
         .limit(500)
     : { data: [] };
   const thread = (messages ?? []).reverse();
+  const { data: quickReplies } = active
+    ? await db.from("wa_quick_replies").select("id, title, body").eq("account_id", active.account_id).order("sort_order")
+    : { data: [] };
 
   const href = (id?: string) => {
     const params = [query, id ? `chat=${id}` : ""].filter(Boolean).join("&");
@@ -157,7 +160,7 @@ export default async function Inbox({
                     {m.body ?? <span className="italic text-ink-muted">[{m.type}]</span>}
                     <span className="block text-right text-[10px] text-ink-subtle mt-1">
                       {time(m.sent_at)}
-                      {m.direction === "out" && ` · ${m.via === "app" ? "phone" : "dashboard"}${m.status ? ` · ${m.status}` : ""}`}
+                      {m.direction === "out" && ` · ${m.via === "app" ? "phone" : m.via === "auto" ? "auto-reply" : "dashboard"}${m.status ? ` · ${m.status}` : ""}`}
                     </span>
                   </div>
                 </div>
@@ -166,7 +169,12 @@ export default async function Inbox({
             </div>
 
             <div className="border-t border-ink/10 p-4">
-              <ReplyBox key={active.id} windowOpen={replyWindowOpen(active.last_inbound_at)} onSend={actions.reply.bind(null, active.id)} />
+              <ReplyBox
+                key={active.id}
+                windowOpen={replyWindowOpen(active.last_inbound_at)}
+                onSend={actions.reply.bind(null, active.id)}
+                quickReplies={quickReplies ?? []}
+              />
             </div>
           </section>
         ) : (

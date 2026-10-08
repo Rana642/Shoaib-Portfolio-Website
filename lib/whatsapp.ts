@@ -221,7 +221,9 @@ export function replyWindowOpen(lastInboundAt: string | null | undefined) {
 }
 
 /** Free-form reply — only inside the 24h window after the guest's last message. */
-export async function sendText(contactId: string, text: string) {
+/** `via` "auto" = sent by the automation: doesn't count as staff answering
+ *  (status and unread stay as they are). */
+export async function sendText(contactId: string, text: string, via: "api" | "auto" = "api") {
   const { data: contact } = await db
     .from("wa_contacts")
     .select("id, wa_id, last_inbound_at, wa_accounts(id, phone_number_id)")
@@ -248,12 +250,13 @@ export async function sendText(contactId: string, text: string) {
     contact_id: contact.id,
     wamid: json.messages[0].id,
     direction: "out",
-    via: "api",
+    via,
     type: "text",
     body: text,
     status: "sent",
     sent_at: at,
   });
-  await markReplied(contact.id, at);
+  if (via === "auto") await db.from("wa_contacts").update({ last_message_at: at }).eq("id", contact.id);
+  else await markReplied(contact.id, at);
   return { ok: true };
 }

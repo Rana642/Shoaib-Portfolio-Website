@@ -43,9 +43,11 @@ export function MarkRead({ action }: { action: () => Promise<void> }) {
 export function ReplyBox({
   windowOpen,
   onSend,
+  quickReplies = [],
 }: {
   windowOpen: boolean;
   onSend: (text: string) => Promise<Result>;
+  quickReplies?: { id: string; title: string; body: string }[];
 }) {
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +77,21 @@ export function ReplyBox({
 
   return (
     <div>
+      {quickReplies.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {quickReplies.map((q) => (
+            <button
+              key={q.id}
+              type="button"
+              onClick={() => setText((t) => (t.trim() ? `${t.trimEnd()}\n\n${q.body}` : q.body))}
+              className="rounded-full border border-ink/15 px-2.5 py-1 text-tag hover:bg-ink/5"
+              title={q.body}
+            >
+              {q.title}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex items-end gap-2">
         <textarea
           rows={2}
