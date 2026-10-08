@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/dashboard/db";
 import { bookingFromForm, sendText } from "@/lib/whatsapp";
+import { sendWhatsAppPurchase } from "@/lib/whatsapp-conversions";
 import { can, canSeeProject, requirePortalUser } from "./auth";
 
 /**
@@ -49,6 +50,7 @@ export async function portalWhatsAppBooking(contactId: string, formData: FormDat
     .update({ status: "booked", booking: bookingFromForm(formData) })
     .eq("id", contactId);
   if (error) return { error: error.message };
+  await sendWhatsAppPurchase(contactId).catch(() => {});
   revalidatePath("/portal/whatsapp");
   revalidatePath("/portal/bookings");
   return { ok: true };

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "../db";
 import { getAdminUser } from "../auth";
 import { bookingFromForm, sendText } from "../../whatsapp";
+import { sendWhatsAppPurchase } from "../../whatsapp-conversions";
 
 async function assertAuthed() {
   const user = await getAdminUser();
@@ -50,6 +51,7 @@ export async function saveWhatsAppBooking(contactId: string, formData: FormData)
     .update({ status: "booked", booking: bookingFromForm(formData) })
     .eq("id", contactId);
   if (error) return { error: error.message };
+  await sendWhatsAppPurchase(contactId).catch(() => {});
   revalidatePath("/dashboard/whatsapp");
   return { ok: true };
 }

@@ -1447,3 +1447,7 @@ insert into cron_tokens (name, token)
   values ('wa_auto', replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''))
   on conflict (name) do nothing;
 -- select cron.schedule('whatsapp-auto', '* * * * *', $$ select net.http_get(url := 'https://adsbyshoaib.com/api/whatsapp/automation', headers := jsonb_build_object('Authorization', 'Bearer ' || (select token from public.cron_tokens where name = 'wa_auto')), timeout_milliseconds := 55000); $$);
+
+-- WhatsApp phase 5 (2026-10-09): when a chat's Meta Purchase went out (once per chat).
+alter table wa_contacts add column if not exists conversion_sent_at timestamptz;
+alter table wa_contacts add column if not exists conversion_result text;
