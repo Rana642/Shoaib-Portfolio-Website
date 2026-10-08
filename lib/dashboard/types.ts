@@ -56,6 +56,8 @@ export type VaultEntry = {
   service: string | null;
   ciphertext: string;
   iv: string;
+  /** Kept out of the client portal Owner's Passwords tab. */
+  portal_hidden?: boolean;
 };
 
 export type Client = {

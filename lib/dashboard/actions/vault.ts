@@ -274,3 +274,90 @@ export async function deleteVaultRequest(id: string) {
   if (error) return { error: error.message };
   return { ok: true };
 }
+
+// ── Sharing with client portal Owners (zero-knowledge) ─────────────────
+
+/** Who should receive which entries — the unlocked vault seals the rest.
+ *  Also drops shares that no longer belong (sharing switched off, entry
+ *  hidden or moved, Owner removed) — that part needs no decryption. */
+export async function getVaultShareState() {
+  await assertAuthed();
+  const [{ data: clients }, { data: keys }, { data: owners }, { data: entries }, { data: shares }] = await Promise.all([
+    db.from("clients").select("id").eq("vault_share", true),
+    db.from("portal_vault_keys").select("user_id, client_id, public_key"),
+    db.from("client_portal_users").select("user_id, client_id, role").eq("role", "owner"),
+    db.from("vault_entries").select("id, client_id, project_id, updated_at, portal_hidden"),
+    db.from("vault_shares").select("entry_id, user_id, entry_updated_at"),
+  ]);
+  const sharing = new Set((clients ?? []).map((c) => c.id as string));
+  const ownerOf = new Map((owners ?? []).map((o) => [o.user_id as string, o.client_id as string]));
+  const targets = (keys ?? []).filter((k) => sharing.has(k.client_id) && ownerOf.get(k.user_id) === k.client_id);
+  const entryById = new Map((entries ?? []).map((e) => [e.id as string, e]));
+
+  // Prune shares that shouldn't exist any more.
+  const valid = new Set(targets.map((t) => t.user_id as string));
+  const stale = (shares ?? []).filter((sh) => {
+    const e = entryById.get(sh.entry_id);
+    const t = targets.find((x) => x.user_id === sh.user_id);
+    return !valid.has(sh.user_id) || !e || e.portal_hidden || !t || e.client_id !== t.client_id;
+  });
+  for (const sh of stale) await db.from("vault_shares").delete().eq("entry_id", sh.entry_id).eq("user_id", sh.user_id);
+
+  const have = new Map(
+    (shares ?? []).filter((sh) => !stale.includes(sh)).map((sh) => [`${sh.entry_id}:${sh.user_id}`, sh.entry_updated_at as string])
+  );
+  // Entry × Owner pairs that are missing or older than the entry.
+  const todo: { entry_id: string; user_id: string; public_key: string; client_id: string; project_id: string | null; updated_at: string }[] = [];
+  for (const t of targets) {
+    for (const e of entries ?? []) {
+      if (e.client_id !== t.client_id || e.portal_hidden) continue;
+      const at = have.get(`${e.id}:${t.user_id}`);
+      if (!at || new Date(at) < new Date(e.updated_at)) {
+        todo.push({ entry_id: e.id, user_id: t.user_id, public_key: t.public_key, client_id: t.client_id, project_id: e.project_id, updated_at: e.updated_at });
+      }
+    }
+  }
+  return { todo };
+}
+
+const shareSchema = z.object({
+  entry_id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  client_id: z.string().uuid(),
+  project_id: z.string().uuid().nullable(),
+  wrapped_key: z.string().min(1).max(4000),
+  ciphertext: z.string().min(1).max(500_000),
+  iv: z.string().min(1).max(64),
+  entry_updated_at: z.string().min(10).max(40),
+});
+
+/** Store sealed copies (ciphertext only) made by the unlocked vault. */
+export async function saveVaultShares(rows: z.infer<typeof shareSchema>[]) {
+  await assertAuthed();
+  const parsed = z.array(shareSchema).max(500).safeParse(rows);
+  if (!parsed.success) return { error: "Couldn't read the shares." };
+  if (!parsed.data.length) return { ok: true };
+  const { error } = await db
+    .from("vault_shares")
+    .upsert(parsed.data.map((r) => ({ ...r, updated_at: new Date().toISOString() })), { onConflict: "entry_id,user_id" });
+  return error ? { error: error.message } : { ok: true };
+}
+
+/** "Don't share with the client Owner" for one entry. */
+export async function setVaultEntryHidden(id: string, hidden: boolean) {
+  await assertAuthed();
+  const { error } = await db.from("vault_entries").update({ portal_hidden: hidden }).eq("id", id);
+  if (error) return { error: error.message };
+  if (hidden) await db.from("vault_shares").delete().eq("entry_id", id);
+  return { ok: true };
+}
+
+/** Client page switch: share this client's vault entries with its portal Owner(s). */
+export async function setClientVaultShare(clientId: string, on: boolean) {
+  await assertAuthed();
+  const { error } = await db.from("clients").update({ vault_share: on }).eq("id", clientId);
+  if (error) return { error: error.message };
+  if (!on) await db.from("vault_shares").delete().eq("client_id", clientId);
+  revalidatePath(`/dashboard/clients/${clientId}`);
+  return { ok: true };
+}

@@ -1384,3 +1384,39 @@ create table if not exists booking_source_overrides (
   primary key (project_id, booking_ref)
 );
 alter table booking_source_overrides enable row level security;
+
+-- ── Vault sharing with the client's portal Owner (2026-10-08) ────────
+-- Zero-knowledge stays: each portal Owner makes a keypair in their browser;
+-- the private key is wrapped with a PIN-derived key (PBKDF2) the server
+-- never sees. When Shoaib's vault is unlocked, his browser seals every
+-- shareable entry of that client to the Owner's public key (vault_shares).
+-- The server only ever holds ciphertext. Members never get this.
+alter table clients add column if not exists vault_share boolean not null default false;
+alter table vault_entries add column if not exists portal_hidden boolean not null default false;
+
+create table if not exists portal_vault_keys (
+  user_id uuid primary key,                -- auth.users.id of the portal Owner
+  client_id uuid not null references clients (id) on delete cascade,
+  public_key text not null,                -- RSA-OAEP SPKI, base64
+  wrapped_private_key text not null,       -- PKCS8, AES-GCM under PBKDF2(PIN)
+  iv text not null,
+  salt text not null,
+  iterations int not null,
+  created_at timestamptz not null default now()
+);
+alter table portal_vault_keys enable row level security;
+
+create table if not exists vault_shares (
+  entry_id uuid not null references vault_entries (id) on delete cascade,
+  user_id uuid not null references portal_vault_keys (user_id) on delete cascade,
+  client_id uuid not null references clients (id) on delete cascade,
+  project_id uuid references client_projects (id) on delete set null,
+  wrapped_key text not null,
+  ciphertext text not null,
+  iv text not null,
+  entry_updated_at timestamptz not null,
+  updated_at timestamptz not null default now(),
+  primary key (entry_id, user_id)
+);
+create index if not exists vault_shares_user_idx on vault_shares (user_id);
+alter table vault_shares enable row level security;

@@ -13,6 +13,7 @@ import {
   generateVaultKeypair,
   unwrapVaultPrivateKey,
   openVaultSeal,
+  sealForVault,
 } from "@/lib/vault-crypto";
 import {
   getVaultMeta,
@@ -25,8 +26,11 @@ import {
   listVaultSubmissions,
   listVaultRequests,
   markSubmissionImported,
+  getVaultShareState,
+  saveVaultShares,
+  setVaultEntryHidden,
 } from "@/lib/dashboard/actions/vault";
-import { normalizeSecret, platformLabel, sanitizeSubmitted, securityIssues, type VaultSecret } from "@/lib/vault-platforms";
+import { normalizeSecret, ownerShareOf, platformLabel, sanitizeSubmitted, securityIssues, type VaultSecret } from "@/lib/vault-platforms";
 import { Card, buttonStyles, inputClasses } from "@/components/dashboard/ui";
 import type { VaultEntry, VaultMeta, VaultRequest } from "@/lib/dashboard/types";
 import { formatDate } from "@/lib/dashboard/format";
@@ -61,7 +65,7 @@ type View =
 async function decryptAll(key: CryptoKey, rows: VaultEntry[]): Promise<Item[]> {
   return Promise.all(
     rows.map(async (r) => {
-      const links = { id: r.id, client_id: r.client_id, project_id: r.project_id ?? null };
+      const links = { id: r.id, client_id: r.client_id, project_id: r.project_id ?? null, portal_hidden: r.portal_hidden ?? false };
       try {
         return { ...links, secret: normalizeSecret(await decryptSecret<unknown>(key, r.ciphertext, r.iv)), broken: false };
       } catch {
@@ -69,6 +73,26 @@ async function decryptAll(key: CryptoKey, rows: VaultEntry[]): Promise<Item[]> {
       }
     })
   );
+}
+
+/**
+ * Seals every entry a client portal Owner should see but doesn't have yet
+ * (or has an older copy of) to that Owner's public key — in this unlocked
+ * browser, so the server only ever stores ciphertext. Own accounts and
+ * broken entries are never shared.
+ */
+async function syncOwnerShares(items: Item[]) {
+  const { todo } = await getVaultShareState();
+  if (!todo.length) return;
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const rows = [];
+  for (const t of todo) {
+    const item = byId.get(t.entry_id);
+    if (!item || item.broken || item.secret.own) continue;
+    const sealed = await sealForVault(t.public_key, ownerShareOf(item.secret));
+    rows.push({ entry_id: t.entry_id, user_id: t.user_id, client_id: t.client_id, project_id: t.project_id, entry_updated_at: t.updated_at, ...sealed });
+  }
+  for (let i = 0; i < rows.length; i += 100) await saveVaultShares(rows.slice(i, i + 100));
 }
 
 export default function VaultApp({
@@ -103,8 +127,11 @@ export default function VaultApp({
   const [portalReady, setPortalReady] = useState(false);
 
   // Always read entries fresh, so another tab's (or device's) changes show.
+  // Then quietly re-seal anything a client portal Owner is missing.
   const reload = useCallback(async (key: CryptoKey) => {
-    setItems(await decryptAll(key, await listVaultEntries()));
+    const fresh = await decryptAll(key, await listVaultEntries());
+    setItems(fresh);
+    void syncOwnerShares(fresh).catch(() => {});
   }, []);
 
   const lock = useCallback(() => {
@@ -280,7 +307,25 @@ export default function VaultApp({
   if (view.kind !== "list") {
     const submission = view.kind === "import" ? view.submission : null;
     const from = submission ? clients.find((c) => c.id === submission.client_id)?.name : null;
+    const editing = view.kind === "edit" ? view.item : null;
     return (
+      <>
+      {editing && editing.client_id && !editing.secret.own && (
+        <label className="flex items-center gap-2 text-small text-ink-muted mb-3">
+          <input
+            type="checkbox"
+            checked={!editing.portal_hidden}
+            onChange={async (e) => {
+              const hidden = !e.target.checked;
+              setView({ kind: "edit", item: { ...editing, portal_hidden: hidden } });
+              const res = await setVaultEntryHidden(editing.id, hidden);
+              if ("error" in res && res.error) setError(res.error);
+              await reload(dataKey).catch(() => {});
+            }}
+          />
+          Show in the client Owner&apos;s portal (when the client&apos;s vault sharing is on)
+        </label>
+      )}
       <EntryEditor
         key={view.kind === "edit" ? view.item.id : (submission?.id ?? "add")}
         item={view.kind === "edit" ? view.item : undefined}
@@ -305,6 +350,7 @@ export default function VaultApp({
           await reload(dataKey).catch(() => setError("Saved — but the list couldn't refresh. Reload the page."));
         }}
       />
+      </>
     );
   }
 

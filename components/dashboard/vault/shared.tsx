@@ -32,6 +32,8 @@ export type Item = {
   client_id: string | null;
   project_id: string | null;
   secret: VaultSecret;
+  /** Kept out of the client portal Owner's Passwords tab. */
+  portal_hidden?: boolean;
   /** Couldn't be decrypted — shown, but never opened for editing, so a save
    *  can't overwrite the real (unreadable) data with a blank form. */
   broken: boolean;

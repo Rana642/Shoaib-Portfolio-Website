@@ -235,3 +235,44 @@ export async function decryptSecret<T>(dataKey: CryptoKey, ciphertext: string, i
   const pt = await aesDecrypt(dataKey, ciphertext, iv);
   return JSON.parse(td.decode(pt)) as T;
 }
+
+// ── Sharing with a client's portal Owner ─────────────────────────────
+// The Owner's keypair is made in THEIR browser; the private key is wrapped
+// with a key derived from a PIN only they know. Shoaib's unlocked vault
+// seals entries to the public key (sealForVault); the Owner opens them
+// with openVaultSeal after unlocking with the PIN.
+
+export type OwnerKeyPayload = {
+  public_key: string;
+  wrapped_private_key: string;
+  iv: string;
+  salt: string;
+  iterations: number;
+};
+
+export async function createOwnerKeys(pin: string): Promise<OwnerKeyPayload> {
+  const pair = await crypto.subtle.generateKey(
+    { ...RSA, modulusLength: 3072, publicExponent: new Uint8Array([1, 0, 1]) },
+    true,
+    ["encrypt", "decrypt"]
+  );
+  const spki = await crypto.subtle.exportKey("spki", pair.publicKey);
+  const pkcs8 = await crypto.subtle.exportKey("pkcs8", pair.privateKey);
+  const salt = randomBytes(16);
+  const wrapKey = await deriveWrappingKey(pin, salt, PBKDF2_ITERATIONS);
+  const wrapped = await aesEncrypt(wrapKey, new Uint8Array(pkcs8));
+  return {
+    public_key: b64encode(spki),
+    wrapped_private_key: wrapped.ct,
+    iv: wrapped.iv,
+    salt: b64encode(salt),
+    iterations: PBKDF2_ITERATIONS,
+  };
+}
+
+/** The Owner's private key from their PIN — throws on a wrong PIN. */
+export async function unlockOwnerKey(pin: string, k: Omit<OwnerKeyPayload, "public_key">): Promise<CryptoKey> {
+  const wrapKey = await deriveWrappingKey(pin, b64decode(k.salt), k.iterations);
+  const pkcs8 = await aesDecrypt(wrapKey, k.wrapped_private_key, k.iv);
+  return crypto.subtle.importKey("pkcs8", pkcs8 as BufferSource, RSA, false, ["decrypt"]);
+}

@@ -9,6 +9,7 @@ import ClientForm from "@/components/dashboard/ClientForm";
 import ClientProjectsManager from "@/components/dashboard/ClientProjectsManager";
 import DeleteButton from "@/components/dashboard/DeleteButton";
 import PortalAccess from "@/components/dashboard/PortalAccess";
+import VaultShareToggle from "@/components/dashboard/VaultShareToggle";
 import { getClientFeatures, listPortalMembers } from "@/lib/dashboard/portal-users";
 import type { Client, ClientProject, Invoice, Quotation } from "@/lib/dashboard/types";
 
@@ -65,6 +66,8 @@ export default async function EditClientPage({ params }: PageProps<"/dashboard/c
         needsSetup={portal.needsSetup}
         rolesReady={portal.rolesReady}
       />
+
+      <VaultShareToggle clientId={id} initial={Boolean((typedClient as { vault_share?: boolean }).vault_share)} />
 
       {(quotes.length > 0 || bills.length > 0) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-10 max-w-4xl">

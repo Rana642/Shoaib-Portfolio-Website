@@ -802,6 +802,38 @@ export function accountLabel(secret: VaultSecret): string {
 }
 
 /** The secret fields (passwords, PINs) a platform has. */
+/** The client-facing copy of an entry shared to the portal Owner: account
+ *  name and login details only — never Shoaib's notes, password history,
+ *  access grants or internal links. */
+export type OwnerShare = {
+  title: string;
+  platform: string;
+  fields: { label: string; value: string; secret: boolean }[];
+};
+
+export function ownerShareOf(secret: VaultSecret): OwnerShare {
+  const def = getPlatform(secret.platform);
+  const fields: OwnerShare["fields"] = [];
+  for (const f of def.fields) {
+    const value = secret.fields[f.id]?.trim();
+    if (value) fields.push({ label: f.label, value, secret: f.kind === "secret" });
+  }
+  for (const c of secret.custom) if (c.value?.trim()) fields.push({ label: c.label || "Other", value: c.value.trim(), secret: c.secret });
+  const t = secret.twoStep;
+  if (t.enabled) {
+    const two: [string, string, boolean][] = [
+      ["2-step method", t.method, false],
+      ["2-step device", t.device, false],
+      ["Authenticator key", t.secretKey, true],
+      ["Backup codes", t.backupCodes, true],
+      ["Recovery email", t.recoveryEmail, false],
+      ["Recovery phone", t.recoveryPhone, false],
+    ];
+    for (const [label, value, isSecret] of two) if (value?.trim()) fields.push({ label, value: value.trim(), secret: isSecret });
+  }
+  return { title: secret.title || platformLabel(secret), platform: platformLabel(secret), fields };
+}
+
 export function secretFieldIds(platform: PlatformId): string[] {
   return getPlatform(platform)
     .fields.filter((f) => f.kind === "secret")
