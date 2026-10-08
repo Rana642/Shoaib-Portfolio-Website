@@ -35,8 +35,11 @@ export type BookingRow = {
   nights: number | null;
   amount: number | null;
   status: string;
-  /** Ad source when known: "FB-SFC1", "GA-SGN", "GS", "WEB" … */
+  /** Where the guest came from, labelled like the Elegant admin:
+   *  "Facebook Ads", "Google Ads", "Google Organic", "Meta Organic", "Direct"… */
   source: string | null;
+  /** The ad / Ref code when known (utm_content or the WhatsApp Ref), e.g. "SFC1". */
+  code?: string | null;
   /** True when staff set the source by hand. */
   sourceSet?: boolean;
   created_at: string;
@@ -49,6 +52,39 @@ export const LOST_STATUSES = new Set(["cancelled", "no_show"]);
 
 /** Last `days` days, for the Bookings tab. */
 export const lastDays = (days: number): Range => ({ since: new Date(Date.now() - days * 24 * 3600 * 1000).toISOString() });
+
+type Attribution = {
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  utm_content?: string | null;
+  gclid?: string | null;
+  fbclid?: string | null;
+  referrer?: string | null;
+  ref_code?: string | null;
+};
+
+/**
+ * The Elegant admin's own source label (app/admin/bookings/page.tsx
+ * attributionLabel): ad click ids first (most reliable), then utm_source,
+ * then the referrer host, else "Direct". Plus the ad code when there is one.
+ */
+export function sourceLabel(b: Attribution): { label: string; code: string | null } {
+  const code = b.utm_content || (b.ref_code && b.ref_code.includes("-") ? b.ref_code.split("-").slice(1).join("-") : null) || null;
+  const refSrc = b.ref_code?.split("-")[0];
+  if (b.fbclid || refSrc === "FB") return { label: "Facebook Ads", code };
+  if (b.gclid || refSrc === "GA") return { label: "Google Ads", code };
+  const src = (b.utm_source || "").toLowerCase();
+  if (src) {
+    if (/facebook|instagram|meta|^fb$|^ig$/.test(src)) return { label: `Meta (${b.utm_medium || "unknown"})`, code };
+    if (src.includes("google")) return { label: `Google (${b.utm_medium || "unknown"})`, code };
+    return { label: `${b.utm_source}${b.utm_medium ? ` / ${b.utm_medium}` : ""}`, code };
+  }
+  const ref = (b.referrer || "").toLowerCase();
+  if (ref.includes("google") || refSrc === "GS") return { label: "Google Organic", code };
+  if (/facebook|fb\.com|instagram/.test(ref)) return { label: "Meta Organic", code };
+  if (ref) return { label: ref, code };
+  return { label: "Direct", code };
+}
 
 export function adSourceFromUtm(r: { utm_source?: string | null; utm_content?: string | null; gclid?: string | null; fbclid?: string | null }) {
   if (r.gclid || /google/i.test(r.utm_source ?? "")) return `GA${r.utm_content ? `-${r.utm_content}` : ""}`;
@@ -72,7 +108,7 @@ async function websiteBookingsUncached(projectId: string, range: Range): Promise
     const { data, error } = await scoped(
       hotel
         .from("bookings")
-        .select("id, booking_ref, guest_name, guest_phone, check_in, check_out, nights, grand_total, status, source, utm_source, utm_content, gclid, fbclid, created_at, rooms(name)")
+        .select("id, booking_ref, guest_name, guest_phone, check_in, check_out, nights, grand_total, status, source, utm_source, utm_medium, utm_content, gclid, fbclid, referrer, created_at, rooms(name)")
     )
       .order("created_at", { ascending: false })
       .limit(500);
@@ -90,7 +126,7 @@ async function websiteBookingsUncached(projectId: string, range: Range): Promise
         nights: b.nights,
         amount: Number(b.grand_total),
         status: b.status ?? "pending",
-        source: adSourceFromUtm(b),
+        ...attributed(b),
         created_at: b.created_at,
       })),
     };
@@ -99,7 +135,7 @@ async function websiteBookingsUncached(projectId: string, range: Range): Promise
   // silver_sand — attribution columns came with its migration-phase17;
   // keep a fallback in case a hotel DB is ever restored without them.
   const base = "id, booking_ref, guest_name, guest_phone, room_name, check_in, check_out, nights, total, status, source, created_at";
-  let res = await scoped(hotel.from("bookings").select(`${base}, ref_code, utm_source, utm_content, gclid, fbclid`))
+  let res = await scoped(hotel.from("bookings").select(`${base}, ref_code, utm_source, utm_medium, utm_content, gclid, fbclid, referrer`))
     .order("created_at", { ascending: false })
     .limit(500);
   if (res.error && /column/i.test(res.error.message)) {
@@ -121,12 +157,19 @@ async function websiteBookingsUncached(projectId: string, range: Range): Promise
         nights: r.nights,
         amount: Number(r.total),
         status: r.status ?? "pending",
-        source: r.ref_code || adSourceFromUtm(r),
+        // Silver Sand saves its source only since migration-phase17 (8 Oct 2026).
+        ...(r.created_at < SILVER_SAND_TRACKING_SINCE && !r.ref_code ? { source: "Not tracked", code: null } : attributed(r)),
         created_at: r.created_at,
       };
     }),
   };
 }
+
+const SILVER_SAND_TRACKING_SINCE = "2026-10-08T12:00:00Z";
+const attributed = (b: Attribution) => {
+  const s = sourceLabel(b);
+  return { source: s.label, code: s.code };
+};
 
 const websiteBookings = (projectId: string, range: Range) =>
   unstable_cache(() => websiteBookingsUncached(projectId, range), ["hotel-bookings", projectId, range.since.slice(0, 13), range.until ?? ""], {
@@ -164,7 +207,7 @@ async function whatsappBookings(projectId: string, range: Range): Promise<(Booki
         nights: b.nights ?? null,
         amount: b.amount ?? null,
         status: "confirmed",
-        source: c.ref_source ? `${c.ref_source}${c.ref_code ? `-${c.ref_code}` : ""}` : null,
+        ...(c.ref_source ? attributed({ ref_code: `${c.ref_source}${c.ref_code ? `-${c.ref_code}` : ""}` }) : { source: "WhatsApp (no code)", code: null }),
         created_at: (b.booked_at ?? c.last_message_at ?? c.created_at) as string,
         hotelRef: b.hotel_ref?.trim().toUpperCase() || null,
       };
@@ -187,7 +230,10 @@ export async function projectBookings(projectId: string, range: Range = lastDays
   for (const w of wa) {
     const match = w.hotelRef ? byRef.get(w.hotelRef) : undefined;
     if (match) {
-      if (!match.source && w.source) match.source = w.source;
+      if ((!match.source || match.source === "Direct" || match.source === "Not tracked") && w.source) {
+        match.source = w.source;
+        match.code = w.code;
+      }
       continue;
     }
     const { hotelRef: _drop, ...row } = w;
@@ -233,6 +279,8 @@ export type HotelBookingDetail = {
   charges: { label: string; amount: number; minus?: boolean; info?: boolean }[];
   total: number;
 };
+
+const withCode = (s: { label: string; code: string | null }) => (s.code ? `${s.label} · ${s.code}` : s.label);
 
 async function hotelClient(projectId: string) {
   const { data: src } = await db
@@ -303,7 +351,7 @@ export async function getHotelBooking(projectId: string, bookingId: string): Pro
       guests: `${b.adults} adult${b.adults > 1 ? "s" : ""}${b.children ? `, ${b.children} child${b.children > 1 ? "ren" : ""}` : ""}`,
       status: b.status ?? "pending",
       channel: b.source ?? "website",
-      source: manual.get(String(b.booking_ref).toUpperCase()) ?? adSourceFromUtm(b),
+      source: manual.get(String(b.booking_ref).toUpperCase()) ?? withCode(sourceLabel(b)),
       created_at: b.created_at,
       special_request: b.special_request,
       notes: b.status_note ?? null,
@@ -335,7 +383,9 @@ export async function getHotelBooking(projectId: string, bookingId: string): Pro
     guests: `${b.guests} guest${b.guests > 1 ? "s" : ""} · ${b.rooms_count} room${b.rooms_count > 1 ? "s" : ""}`,
     status: b.status ?? "pending",
     channel: b.source ?? "website",
-    source: manual.get(String(b.booking_ref).toUpperCase()) ?? (b.ref_code || adSourceFromUtm(b)),
+    source:
+      manual.get(String(b.booking_ref).toUpperCase()) ??
+      (b.created_at < SILVER_SAND_TRACKING_SINCE && !b.ref_code ? "Not tracked" : withCode(sourceLabel(b))),
     created_at: b.created_at,
     special_request: b.special_request,
     notes: b.admin_notes ?? null,

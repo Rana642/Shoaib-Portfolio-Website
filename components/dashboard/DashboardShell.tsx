@@ -10,7 +10,15 @@ import { cn } from "@/lib/utils";
 // width. The Planner's week columns and the Insights charts want the
 // opposite — they should use whatever horizontal space is actually there
 // instead of scrolling sideways or leaving the right side empty.
-const WIDE_ROUTES = ["/dashboard/social/planner", "/dashboard/social/insights", "/portal/planner"];
+const WIDE_ROUTES = [
+  "/dashboard/social/planner",
+  "/dashboard/social/insights",
+  "/portal/planner",
+  "/dashboard/bookings",
+  "/portal/bookings",
+  "/dashboard/whatsapp",
+  "/portal/whatsapp",
+];
 
 const STORAGE_KEY = "dashboard-sidebar-collapsed";
 

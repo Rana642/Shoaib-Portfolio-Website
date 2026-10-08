@@ -275,7 +275,7 @@ async function bookingMetrics(projectId: string, start: string, end: string, waA
 
   const bySource = new Map<string, number>();
   for (const r of [...confirmed, ...pending]) {
-    const key = r.source ?? (r.channel === "website" ? "Website (no code)" : r.channel === "whatsapp" ? "WhatsApp (no code)" : "Phone / walk-in");
+    const key = r.source ? `${r.source}${r.code ? ` · ${r.code}` : ""}` : r.channel === "whatsapp" ? "WhatsApp (no code)" : "Phone / walk-in";
     bySource.set(key, (bySource.get(key) ?? 0) + 1);
   }
 

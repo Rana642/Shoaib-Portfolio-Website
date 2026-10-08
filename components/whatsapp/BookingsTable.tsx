@@ -16,6 +16,24 @@ const money = (n: number | null) => (n ? `Rs ${Math.round(n).toLocaleString("en-
 const day = (d?: string | null) =>
   d ? new Date(d.length === 10 ? `${d}T00:00:00+05:00` : d).toLocaleDateString("en-GB", { timeZone: "Asia/Karachi", day: "numeric", month: "short" }) : "—";
 
+const CHIP: [RegExp, string][] = [
+  [/^facebook ads|^meta/i, "bg-cobalt/10 text-ink border-cobalt/25"],
+  [/^google ads|^google \(/i, "bg-forest/10 text-ink border-forest/25"],
+  [/^direct|^not tracked/i, "bg-ink/5 text-ink-subtle border-ink/10"],
+];
+
+/** The source as a chip (like the hotel admin), with the ad code under it. */
+function SourceChip({ source, code }: { source: string | null; code?: string | null }) {
+  if (!source) return <span className="text-ink-subtle">—</span>;
+  const cls = CHIP.find(([re]) => re.test(source))?.[1] ?? "bg-ink/5 text-ink-muted border-ink/10";
+  return (
+    <span className="inline-flex flex-col items-start gap-0.5">
+      <span className={`rounded border px-2 py-0.5 text-tag whitespace-nowrap ${cls}`}>{source}</span>
+      {code && <span className="font-mono text-[10px] text-ink-subtle max-w-[9rem] truncate" title={code}>{code}</span>}
+    </span>
+  );
+}
+
 /** The hotel-admin-style bookings list: status tabs, search, one row per booking. */
 export default function BookingsTable({
   rows,
@@ -105,7 +123,7 @@ export default function BookingsTable({
                     {day(r.check_in)} → {day(r.check_out)} · {r.phone ?? ""}
                   </p>
                   <p className="text-tag mt-1">
-                    <span className="font-mono">{r.ref}</span> · {money(r.amount)} {r.source && <span className="font-mono">· {r.source}</span>}
+                    <span className="font-mono">{r.ref}</span> · {money(r.amount)} {r.source && <span>· {r.source}</span>}
                   </p>
                 </>
               );
@@ -152,18 +170,18 @@ export default function BookingsTable({
                         )}
                         <span className="block text-tag text-ink-subtle">{CHANNEL[r.channel] ?? r.channel}</span>
                       </td>
-                      <td className="px-4 py-3">{r.guest}</td>
+                      <td className="px-4 py-3 min-w-[8rem]">{r.guest}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-ink-muted">{r.phone ?? "—"}</td>
                       <td className="px-4 py-3 text-ink-muted">{r.room ?? "—"}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-ink-muted">
                         {day(r.check_in)} → {day(r.check_out)}
                       </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">{money(r.amount)}</td>
-                      <td className="px-4 py-3 font-mono text-tag">
-                        {setSource && r.channel !== "whatsapp" && (!r.source || r.sourceSet) ? (
-                          <SourcePicker value={r.source} options={MANUAL_SOURCES} onChange={(v) => setSource(projectId, r.ref, v)} />
+                      <td className="px-4 py-3">
+                        {setSource && (r.channel === "phone" || r.channel === "walkin") && (r.sourceSet || !r.source || r.source === "Direct" || r.source === "Not tracked") ? (
+                          <SourcePicker value={r.sourceSet ? r.source : null} options={MANUAL_SOURCES} onChange={(v) => setSource(projectId, r.ref, v)} />
                         ) : (
-                          (r.source ?? "—")
+                          <SourceChip source={r.source} code={r.code} />
                         )}
                       </td>
                       <td className="px-4 py-3">

@@ -219,7 +219,7 @@ export function SourcePicker({
           router.refresh();
         });
       }}
-      className={`${inputClasses} !w-auto !py-1 !px-2 text-tag`}
+      className="rounded-md border border-ink/15 bg-white px-1.5 py-1 text-tag font-sans tracking-normal max-w-[10rem]"
     >
       <option value="">Set source…</option>
       {options.map((o) => (
