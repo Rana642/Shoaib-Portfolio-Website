@@ -4,6 +4,15 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-08 (night) — Bookings like the hotel admins, Portal Passwords, WhatsApp automation
+- **Bookings (portal + dashboard):** a hotel-admin-style list (status tabs, search) and a detail page.
+  - Status and notes are written to each hotel's own DB, with its side effects.
+  - Elegant "Completed" fires its Meta/GA4 signal through a signed hook (Elegant repo 118d145).
+- **Portal Passwords (Owners only):** zero-knowledge sharing of a client's vault entries.
+  - The Owner's PIN keypair is made in their browser; Shoaib's unlocked vault seals the copies.
+  - Switch: client page → "Share passwords with the portal Owner".
+- **WhatsApp phase 4:** automation (instant / after-hours / follow-up, all off until written) and quick replies. Runs every minute on pg_cron `whatsapp-auto`.
+
 ## 2026-10-08 (evening) — Dashboard/portal speed
 - **Root cause:** functions ran in US East while the DB is in Sydney (~200 ms per query). Now `vercel.json` regions = `syd1`.
 - **Auth:** checked locally via `getClaims` (no Supabase Auth call per page), and once per request.
