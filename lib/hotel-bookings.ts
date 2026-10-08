@@ -69,27 +69,36 @@ async function websiteBookingsUncached(projectId: string): Promise<{ rows: Booki
     };
   }
 
-  // silver_sand
-  const { data, error } = await hotel
+  // silver_sand — attribution columns arrive with its migration-phase17;
+  // until that has run, fall back to the plain columns.
+  const base = "booking_ref, guest_name, room_name, check_in, nights, total, status, source, created_at";
+  let res = await hotel
     .from("bookings")
-    .select("booking_ref, guest_name, room_name, check_in, nights, total, status, source, created_at")
+    .select(`${base}, ref_code, utm_source, utm_content, gclid, fbclid`)
     .gte("created_at", since)
     .order("created_at", { ascending: false })
     .limit(300);
-  if (error) return { rows: [], error: error.message };
+  if (res.error && /column/i.test(res.error.message)) {
+    res = (await hotel.from("bookings").select(base).gte("created_at", since).order("created_at", { ascending: false }).limit(300)) as typeof res;
+  }
+  if (res.error) return { rows: [], error: res.error.message };
   return {
-    rows: (data ?? []).map((b) => ({
-      ref: b.booking_ref,
-      channel: (b.source ?? "website") as BookingRow["channel"],
-      guest: b.guest_name,
-      room: b.room_name,
-      check_in: b.check_in,
-      nights: b.nights,
-      amount: Number(b.total),
-      status: b.status ?? "pending",
-      source: null, // Silver Sand bookings don't store UTM; WhatsApp Ref codes cover attribution
-      created_at: b.created_at,
-    })),
+    rows: (res.data ?? []).map((b) => {
+      const r = b as typeof b & { ref_code?: string | null; utm_source?: string | null; utm_content?: string | null; gclid?: string | null; fbclid?: string | null };
+      const ref = r.ref_code && !/^WEB$/.test(r.ref_code) ? r.ref_code : null;
+      return {
+        ref: r.booking_ref,
+        channel: (r.source ?? "website") as BookingRow["channel"],
+        guest: r.guest_name,
+        room: r.room_name,
+        check_in: r.check_in,
+        nights: r.nights,
+        amount: Number(r.total),
+        status: r.status ?? "pending",
+        source: ref ?? adSourceFromUtm(r),
+        created_at: r.created_at,
+      };
+    }),
   };
 }
 
