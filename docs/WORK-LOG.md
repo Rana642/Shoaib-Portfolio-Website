@@ -14,7 +14,13 @@ context (decisions, gotchas, rules) is in the second-brain vault:
 - **Also today:**
   - Meta ads check for the hotels: Silver Sand got 2 web bookings in 2.5 days; Elegant gets WhatsApp/call leads.
   - Ref-code guide PDF for the hotel staff (`client-briefs/`).
-- **Next:** a real test message → phase 3 (booking details + report) → App Review → hotel numbers via coexistence. Plan: `docs/WHATSAPP-INBOX-PLAN.md`.
+- **Live test passed:** a real phone message arrived (Ref captured), and the dashboard reply was delivered.
+- **One portal for clients (32259db):**
+  - Portal **WhatsApp** + **Bookings** tabs (features `whatsapp` / `bookings`).
+  - Bookings = each hotel website's own bookings, read live and read-only, + WhatsApp "Mark as booked".
+  - Dashboard has **Bookings** and **WhatsApp → Numbers & businesses** pages.
+  - Hotel DB keys are pasted by Shoaib at /dashboard/bookings and stored encrypted.
+- **Next:** connect the hotels' booking sources, then App Review, then hotel numbers via coexistence.
 
 ## 2026-10-06 (night) — Retainer billing phase 1: Retainers
 - **New:**
