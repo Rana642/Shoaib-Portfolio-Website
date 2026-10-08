@@ -2,6 +2,7 @@ import "server-only";
 import { createClient } from "@supabase/supabase-js";
 import { unstable_cache } from "next/cache";
 import { db } from "./dashboard/db";
+import { createHmac } from "node:crypto";
 import { decryptField } from "./api-vault-crypto";
 
 /**
@@ -234,9 +235,41 @@ export type HotelBookingDetail = {
 };
 
 async function hotelClient(projectId: string) {
-  const { data: src } = await db.from("project_booking_sources").select("kind, supabase_url, key_enc").eq("project_id", projectId).maybeSingle();
+  const { data: src } = await db
+    .from("project_booking_sources")
+    .select("kind, supabase_url, key_enc, site_url")
+    .eq("project_id", projectId)
+    .maybeSingle();
   if (!src) return null;
-  return { kind: src.kind as "silver_sand" | "elegant", hotel: createClient(src.supabase_url, decryptField(src.key_enc), { auth: { persistSession: false } }) };
+  const key = decryptField(src.key_enc);
+  return {
+    kind: src.kind as "silver_sand" | "elegant",
+    hotel: createClient(src.supabase_url, key, { auth: { persistSession: false } }),
+    key,
+    siteUrl: (src.site_url as string | null) ?? null,
+  };
+}
+
+/**
+ * Elegant only: a booking newly marked Completed → its site fires the Meta
+ * StayCompleted CAPI + GA4 event, exactly like its own admin does
+ * (Elegant repo: app/api/portal/booking-completed). Signed with the hotel's
+ * service key, which both sides already hold. Best-effort.
+ */
+async function notifyCompleted(siteUrl: string, key: string, bookingId: string) {
+  const ts = String(Date.now());
+  const sig = createHmac("sha256", key).update(`${bookingId}.${ts}`).digest("hex");
+  try {
+    const res = await fetch(`${siteUrl.replace(/\/$/, "")}/api/portal/booking-completed`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-portal-ts": ts, "x-portal-signature": sig },
+      body: JSON.stringify({ bookingId }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) console.error("[hotel-bookings] completed hook:", res.status, await res.text().catch(() => ""));
+  } catch (error) {
+    console.error("[hotel-bookings] completed hook failed:", error);
+  }
 }
 
 export async function getHotelBooking(projectId: string, bookingId: string): Promise<HotelBookingDetail | null> {
@@ -321,8 +354,12 @@ export async function setHotelBookingStatus(projectId: string, bookingId: string
   if (!(HOTEL_STATUSES as readonly string[]).includes(status)) return { error: "Unknown status." };
   const c = await hotelClient(projectId);
   if (!c) return { error: "Bookings aren't connected for this business." };
+  const { data: before } = await c.hotel.from("bookings").select("status").eq("id", bookingId).maybeSingle();
   const { error } = await c.hotel.from("bookings").update({ status }).eq("id", bookingId);
   if (error) return { error: error.message };
+  if (c.kind === "elegant" && status === "completed" && before?.status !== "completed" && c.siteUrl) {
+    await notifyCompleted(c.siteUrl, c.key, bookingId);
+  }
   const freesRoom = c.kind === "silver_sand" ? status === "cancelled" || status === "no_show" : status === "cancelled";
   if (freesRoom) await c.hotel.from("availability_blocks").delete().eq("booking_id", bookingId);
   if (c.kind === "silver_sand") {

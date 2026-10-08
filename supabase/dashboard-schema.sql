@@ -1420,3 +1420,6 @@ create table if not exists vault_shares (
 );
 create index if not exists vault_shares_user_idx on vault_shares (user_id);
 alter table vault_shares enable row level security;
+
+-- The hotel site, for hooks it exposes (Elegant: /api/portal/booking-completed).
+alter table project_booking_sources add column if not exists site_url text;
