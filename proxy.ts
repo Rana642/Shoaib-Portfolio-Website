@@ -76,7 +76,9 @@ function buildCsp(pathname: string): string {
     // Locks where fetch/XHR/WebSocket (and analytics beacons) may go — the
     // main guard against an injected script exfiltrating a vault secret.
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.r2.cloudflarestorage.com https://cdn.sanity.io https://*.sanity.io https://*.apicdn.sanity.io https://www.googletagmanager.com https://www.google-analytics.com https://region1.google-analytics.com https://connect.facebook.net https://*.facebook.com https://vitals.vercel-insights.com",
-    "frame-src 'self' https://www.googletagmanager.com",
+    pathname.startsWith("/dashboard/whatsapp")
+      ? "frame-src 'self' https://www.googletagmanager.com https://www.facebook.com https://*.facebook.com"
+      : "frame-src 'self' https://www.googletagmanager.com",
     "frame-ancestors 'none'",
     "object-src 'none'",
     "base-uri 'self'",

@@ -7,6 +7,7 @@ import { db } from "../db";
 import { getAdminUser } from "../auth";
 import { bookingFromForm, sendText } from "../../whatsapp";
 import { sendWhatsAppPurchase } from "../../whatsapp-conversions";
+import { completeEmbeddedSignup } from "../../whatsapp-onboarding";
 
 async function assertAuthed() {
   const user = await getAdminUser();
@@ -105,4 +106,23 @@ export async function deleteQuickReply(id: string) {
   await db.from("wa_quick_replies").delete().eq("id", id);
   revalidatePath("/dashboard/whatsapp/automation");
   return { ok: true };
+}
+
+/** Embedded Signup finished in the browser — connect the number. */
+export async function finishWhatsAppSignup(input: { code: string; wabaId: string; phoneNumberId: string; event: string }) {
+  await assertAuthed();
+  const ok = /^[A-Za-z0-9_\-.]{10,1000}$/.test(input.code) && /^\d{5,25}$/.test(input.wabaId) && /^\d{5,25}$/.test(input.phoneNumberId);
+  if (!ok) return { error: "Sign-up data looked wrong — try again." };
+  try {
+    const r = await completeEmbeddedSignup({
+      code: input.code,
+      wabaId: input.wabaId,
+      phoneNumberId: input.phoneNumberId,
+      coexistence: input.event === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING",
+    });
+    revalidatePath("/dashboard/whatsapp");
+    return { ok: true, display: r.display };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Couldn't connect the number." };
+  }
 }

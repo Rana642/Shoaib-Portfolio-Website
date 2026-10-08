@@ -1451,3 +1451,9 @@ insert into cron_tokens (name, token)
 -- WhatsApp phase 5 (2026-10-09): when a chat's Meta Purchase went out (once per chat).
 alter table wa_contacts add column if not exists conversion_sent_at timestamptz;
 alter table wa_contacts add column if not exists conversion_result text;
+
+-- Numbers connected via Embedded Signup (coexistence, 2026-10-09): each has its own
+-- business token (AES-GCM, API_VAULT_ENCRYPTION_KEY) and the contacts/history sync request ids.
+alter table wa_accounts add column if not exists access_token_enc text;
+alter table wa_accounts add column if not exists onboarded_at timestamptz;
+alter table wa_accounts add column if not exists sync_requests jsonb;

@@ -2,6 +2,7 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "./dashboard/db";
 import { getVaultCredential } from "./marketing-vault";
+import { decryptField } from "./api-vault-crypto";
 
 /**
  * WhatsApp Cloud API on the "Socially Snap" Meta app — docs/WHATSAPP-INBOX-PLAN.md.
@@ -14,6 +15,15 @@ import { getVaultCredential } from "./marketing-vault";
  */
 
 const GRAPH = "https://graph.facebook.com/v23.0";
+
+/** The token for a number: its own business token (Embedded Signup /
+ *  coexistence) or, for the Socially Snap test number, the vault's
+ *  system-user token. */
+export async function tokenForAccount(accountId: string): Promise<string> {
+  const { data } = await db.from("wa_accounts").select("access_token_enc").eq("id", accountId).maybeSingle();
+  if (data?.access_token_enc) return decryptField(data.access_token_enc as string);
+  return (await whatsappCredential()).access_token;
+}
 
 export async function whatsappCredential() {
   return getVaultCredential("whatsapp");
@@ -114,6 +124,10 @@ type Change = {
     messages?: WaMessage[];
     message_echoes?: WaMessage[];
     statuses?: { id: string; status: string; timestamp: string }[];
+    /** Coexistence: past chats from the WhatsApp Business app (up to 6 months). */
+    history?: { metadata?: { phase?: number; progress?: number }; threads?: { id: string; messages?: WaMessage[] }[] }[];
+    /** Coexistence: the phone's contact list (adds / edits). */
+    state_sync?: { type?: string; action?: string; contact?: { full_name?: string; phone_number?: string } }[];
   };
 };
 
@@ -185,6 +199,56 @@ export async function ingestWebhook(payload: { entry?: { changes?: Change[] }[] 
       for (const s of v.statuses ?? []) {
         await db.from("wa_messages").update({ status: s.status }).eq("wamid", s.id);
       }
+
+      // History sync (coexistence): old chats, imported quietly — no unread,
+      // no automation, no Ref re-parsing beyond the first touch.
+      for (const chunk of v.history ?? []) {
+        for (const thread of chunk.threads ?? []) {
+          if (!thread.id) continue;
+          const contact = await contactFor(accountId, thread.id);
+          let latest = 0;
+          let latestIn = 0;
+          for (const m of thread.messages ?? []) {
+            const inbound = m.from === thread.id;
+            const at = tsToIso(m.timestamp);
+            const t = Number(m.timestamp) * 1000;
+            latest = Math.max(latest, t);
+            if (inbound) latestIn = Math.max(latestIn, t);
+            await db.from("wa_messages").insert({
+              account_id: accountId,
+              contact_id: contact.id,
+              wamid: m.id,
+              direction: inbound ? "in" : "out",
+              via: inbound ? null : "app",
+              type: m.type,
+              body: messageText(m),
+              sent_at: at,
+            }); // duplicate wamid → ignored
+            if (inbound && !contact.ref_source) {
+              const ref = parseRef(messageText(m));
+              if (ref) {
+                await db.from("wa_contacts").update({ ref_source: ref.source, ref_code: ref.code }).eq("id", contact.id);
+                contact.ref_source = ref.source;
+              }
+            }
+          }
+          if (latest) {
+            const { data: cur } = await db.from("wa_contacts").select("last_message_at, last_inbound_at").eq("id", contact.id).single();
+            const upd: Record<string, string> = {};
+            if (!cur?.last_message_at || new Date(cur.last_message_at).getTime() < latest) upd.last_message_at = new Date(latest).toISOString();
+            if (latestIn && (!cur?.last_inbound_at || new Date(cur.last_inbound_at).getTime() < latestIn)) upd.last_inbound_at = new Date(latestIn).toISOString();
+            if (Object.keys(upd).length) await db.from("wa_contacts").update(upd).eq("id", contact.id);
+          }
+        }
+      }
+
+      // Contact sync (coexistence): names from the phone's address book.
+      for (const s of v.state_sync ?? []) {
+        const phone = s.contact?.phone_number?.replace(/\D/g, "");
+        if (s.type !== "contact" || !phone || s.action === "remove") continue;
+        const c = await contactFor(accountId, phone, s.contact?.full_name);
+        if (s.contact?.full_name) await db.from("wa_contacts").update({ name: s.contact.full_name }).eq("id", c.id);
+      }
     }
   }
 }
@@ -235,10 +299,10 @@ export async function sendText(contactId: string, text: string, via: "api" | "au
     return { error: "The 24-hour reply window has closed — the guest has to message first (or send an approved template)." };
   }
 
-  const cred = await whatsappCredential();
+  const token = await tokenForAccount(account.id);
   const res = await fetch(`${GRAPH}/${account.phone_number_id}/messages`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${cred.access_token}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ messaging_product: "whatsapp", to: contact.wa_id, type: "text", text: { body: text } }),
   });
   const json = (await res.json()) as { messages?: { id: string }[]; error?: { message?: string } };

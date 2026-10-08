@@ -553,7 +553,7 @@ export const API_SERVICE_PRESETS: ApiServicePreset[] = [
   {
     value: "whatsapp",
     label: "WhatsApp Cloud API (Socially Snap app)",
-    suggestedFields: ["app_id", "app_secret", "access_token", "waba_id", "phone_number_id"],
+    suggestedFields: ["app_id", "app_secret", "access_token", "waba_id", "phone_number_id", "config_id"],
   },
   { value: "custom", label: "Custom / other", suggestedFields: ["api_key"] },
 ];
