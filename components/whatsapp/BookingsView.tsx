@@ -14,9 +14,16 @@ const day = (d: string | null) =>
  */
 export default async function BookingsView({ projectId }: { projectId: string }) {
   const { rows, connected, error } = await projectBookings(projectId);
-  const live = rows.filter((r) => r.status !== "cancelled" && r.status !== "no_show");
-  const revenue = live.reduce((s, r) => s + (r.amount ?? 0), 0);
-  const nights = live.reduce((s, r) => s + (r.nights ?? 0), 0);
+  // Hotel statuses: confirmed / checked_in / completed count as real stays;
+  // pending still needs the hotel to confirm; cancelled / no_show are lost.
+  const CONFIRMED = new Set(["confirmed", "checked_in", "completed"]);
+  const LOST = new Set(["cancelled", "no_show"]);
+  const confirmed = rows.filter((r) => CONFIRMED.has(r.status));
+  const pending = rows.filter((r) => !CONFIRMED.has(r.status) && !LOST.has(r.status));
+  const lost = rows.filter((r) => LOST.has(r.status));
+  const live = [...confirmed, ...pending];
+  const confirmedValue = confirmed.reduce((s, r) => s + (r.amount ?? 0), 0);
+  const pendingValue = pending.reduce((s, r) => s + (r.amount ?? 0), 0);
 
   const bySource = new Map<string, number>();
   for (const r of live) {
@@ -37,11 +44,12 @@ export default async function BookingsView({ projectId }: { projectId: string })
         </Card>
       )}
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          [String(live.length), "Bookings (60 days)"],
-          [String(nights), "Room nights"],
-          [money(revenue), "Booking value"],
+          [String(confirmed.length), `Confirmed / stayed · ${money(confirmedValue)}`],
+          [String(pending.length), `Waiting for hotel to confirm · ${money(pendingValue)}`],
+          [String(lost.length), "Cancelled / no-show"],
+          [String(confirmed.reduce((s, r) => s + (r.nights ?? 0), 0)), "Confirmed room nights"],
         ].map(([v, l]) => (
           <Card key={l} className="px-4 py-3">
             <p className="text-h3 font-semibold leading-none tabular-nums">{v}</p>
