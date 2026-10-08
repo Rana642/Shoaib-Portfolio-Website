@@ -548,6 +548,11 @@ export const API_SERVICE_PRESETS: ApiServicePreset[] = [
     label: "Google Business Profile (GBP/GMB)",
     suggestedFields: ["client_id", "client_secret", "refresh_token"],
   },
+  {
+    value: "whatsapp",
+    label: "WhatsApp Cloud API (Socially Snap app)",
+    suggestedFields: ["app_id", "app_secret", "access_token", "waba_id", "phone_number_id"],
+  },
   { value: "custom", label: "Custom / other", suggestedFields: ["api_key"] },
 ];
 
