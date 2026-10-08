@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
 import { instrumentSerif, geist, geistMono } from "./fonts";
 import JsonLd from "@/components/shared/JsonLd";
-import Analytics from "@/components/shared/Analytics";
 import { organizationSchema } from "@/lib/schema";
 import { SITE_IS_LIVE } from "@/lib/seo";
 import "./globals.css";
@@ -28,7 +27,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col noise-overlay">
         <JsonLd data={organizationSchema()} />
-        <Analytics />
         {/* display:contents, so layout is unchanged; print uses it to leave
             out anything a browser extension injects into the page. */}
         <div data-app-root className="contents">
