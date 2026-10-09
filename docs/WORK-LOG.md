@@ -14,6 +14,7 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - KB global rules `design-glass-light` and `text-readability` were rewritten.
   - An override note was appended to the REEFCO, Tad and Meezab design locks and DESIGN.md.
   - Readability now comes from scenes that are generated with real empty, light space, plus the size floor and contrast gate.
+
 ## 2026-10-09 — WhatsApp Numbers popover
 - **Popover:** shows "Linked to <client — project>" or "Not linked — free". It has **Unlink** and **Delete number**.
   - Delete removes the number's chats, messages and broadcasts.
