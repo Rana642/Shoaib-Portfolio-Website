@@ -223,7 +223,9 @@ export async function getReview(token: string, loc: GbpLocation, reviewId: strin
 // and a daily cap per location. Never bypass or loosen this to "catch up".
 
 export const GBP_MIN_GAP_SECONDS = 300;
-export const GBP_DAILY_CAP_PER_LOCATION = 20;
+// 20 → 25 on 2026-10-09 (Shoaib, after research): Google publishes no daily
+// reply/post limit; the API's own ceiling is 10 edits per minute per profile.
+export const GBP_DAILY_CAP_PER_LOCATION = 25;
 
 /** Reserves a write slot or throws a plain-language "wait" error. Reserve
  *  first, then check, so two requests arriving together can't both pass. */

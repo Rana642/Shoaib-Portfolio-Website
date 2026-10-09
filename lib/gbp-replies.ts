@@ -16,16 +16,18 @@ import { GBP_DAILY_CAP_PER_LOCATION, findLocation, gbpAccessToken, getGbpConnect
  *   - sometimes skips a turn (HUMAN_SKIP_CHANCE), so the rhythm isn't a clock,
  *   - re-reads the review first and never overwrites a reply someone already gave.
  * No bursts, whatever the backlog (Shoaib, 2026-10-09: GBP policy, no
- * suspension risk).
+ * suspension risk). Same day, after research (no official daily limit; Google
+ * screens each reply's content, and every one so far is APPROVED) he asked for
+ * more per day: 15–35 min apart, 09:00–23:00, up to 18 a day.
  */
 
-export const HUMAN_HOURS_PKT = { from: 10, to: 22 };
-export const HUMAN_MIN_GAP_MINUTES = 20;
-export const HUMAN_GAP_JITTER_MINUTES = 25;
-export const HUMAN_MAX_REPLIES_PER_DAY = 12;
-export const HUMAN_SKIP_CHANCE = 0.3;
+export const HUMAN_HOURS_PKT = { from: 9, to: 23 };
+export const HUMAN_MIN_GAP_MINUTES = 15;
+export const HUMAN_GAP_JITTER_MINUTES = 20;
+export const HUMAN_MAX_REPLIES_PER_DAY = 18;
+export const HUMAN_SKIP_CHANCE = 0.2;
 
-/** Minutes to wait after the reply sent at `sentAt`: 20–45, fixed per reply
+/** Minutes to wait after the reply sent at `sentAt`: 15–35, fixed per reply
  *  (seeded by its time, so the cron re-checking every 10 minutes doesn't
  *  re-roll it and drift toward the minimum). */
 function requiredGapMinutes(sentAt: string): number {
