@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calculator, FileText, Settings2, Zap } from "lucide-react";
+import { Calculator, FileText, Megaphone, Settings2, Zap } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
 import { Card, buttonStyles, inputClasses } from "@/components/dashboard/ui";
 import Inbox, { type InboxAccount } from "@/components/whatsapp/Inbox";
@@ -102,6 +102,12 @@ export default async function WhatsAppPage({
         className="inline-flex items-center gap-1.5 rounded-lg border border-ink/15 px-3 py-2 text-small hover:bg-ink/5"
       >
         <Zap className="size-4" aria-hidden /> Automation
+      </Link>
+      <Link
+        href="/dashboard/whatsapp/broadcasts"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-ink/15 px-3 py-2 text-small hover:bg-ink/5"
+      >
+        <Megaphone className="size-4" aria-hidden /> Broadcast
       </Link>
       <Link
         href="/dashboard/whatsapp/templates"

@@ -4,6 +4,18 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-09 — WhatsApp broadcasts
+- **Page:** `/dashboard/whatsapp/broadcasts` ("Broadcast" in the toolbar). Pick an approved template; variables can use `{name}` (first name, with a fallback).
+  - Audience filters: status, tag, source, last-message window. STOP contacts are always excluded.
+  - Shows a live count and an estimated cost (Meta rate by country code, plus ~4.5% bank fee and advance tax).
+  - Marketing templates require an opt-in tick. Send now or schedule (PKT). Stop button.
+  - Past broadcasts show sent / delivered / read / replied / failed (SQL fn `wa_broadcast_stats`).
+- **Sending:** tables `wa_broadcasts` + `wa_broadcast_recipients` (SQL run). The every-minute `whatsapp-auto` cron sends 60 per run.
+  - Rows are claimed (queued → sent) before sending, so overlapping runs can't double-send.
+  - Webhook receipts update recipients by wamid and never move a status backwards.
+  - Broadcast messages land in each chat as via `broadcast`. They don't mark the chat Intervened and don't trigger follow-up nudges.
+- **Limit:** 5,000 contacts per broadcast.
+
 ## 2026-10-09 — WhatsApp message templates
 - **Templates page:** `/dashboard/whatsapp/templates` ("Templates" in the toolbar). It lists templates live from Meta per number (approved / pending / rejected, with the rejection reason).
   - Builder: name, Utility/Marketing, language, header, body with `{{n}}` and example values, footer, up to 3 quick replies and 1 link button, with a live preview. Submits to Meta for review.

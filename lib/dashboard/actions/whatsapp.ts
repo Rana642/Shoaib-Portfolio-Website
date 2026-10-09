@@ -10,6 +10,7 @@ import { sendWhatsAppPurchase } from "../../whatsapp-conversions";
 import { completeEmbeddedSignup } from "../../whatsapp-onboarding";
 import { accountOfChat, createTemplate, deleteTemplate, listTemplates, sendTemplate } from "../../whatsapp-templates";
 import type { TemplateInput } from "../../whatsapp-template-shared";
+import { cancelBroadcast, createBroadcast, previewAudience, type Audience } from "../../whatsapp-broadcasts";
 
 async function assertAuthed() {
   const user = await getAdminUser();
@@ -169,5 +170,34 @@ export async function deleteWhatsAppTemplate(accountId: string, name: string) {
   await assertAuthed();
   const result = await deleteTemplate(accountId, name);
   revalidatePath("/dashboard/whatsapp/templates");
+  return result;
+}
+
+// ── Broadcasts ──────────────────────────────────────────────────────
+
+export async function previewWhatsAppBroadcast(accountId: string, audience: Audience, category: string) {
+  await assertAuthed();
+  return previewAudience(accountId, audience, String(category));
+}
+
+export async function createWhatsAppBroadcast(input: {
+  accountId: string;
+  name: string;
+  templateName: string;
+  templateLanguage: string;
+  params: string[];
+  audience: Audience;
+  scheduledAt: string | null;
+}) {
+  await assertAuthed();
+  const result = await createBroadcast({ ...input, params: Array.isArray(input.params) ? input.params.map(String) : [] });
+  revalidatePath("/dashboard/whatsapp/broadcasts");
+  return result;
+}
+
+export async function cancelWhatsAppBroadcast(id: string) {
+  await assertAuthed();
+  const result = await cancelBroadcast(id);
+  revalidatePath("/dashboard/whatsapp/broadcasts");
   return result;
 }

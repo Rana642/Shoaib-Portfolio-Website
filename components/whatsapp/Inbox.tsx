@@ -324,7 +324,7 @@ export default async function Inbox({
                     <span className="block text-right text-[10px] text-ink-subtle mt-1">
                       {time(m.sent_at)}
                       {m.direction === "out" &&
-                        ` · ${m.via === "app" ? "phone" : m.via === "auto" ? "auto-reply" : "dashboard"}${m.status ? ` · ${m.status}` : ""}`}
+                        ` · ${m.via === "app" ? "phone" : m.via === "auto" ? "auto-reply" : m.via === "broadcast" ? "broadcast" : "dashboard"}${m.status ? ` · ${m.status}` : ""}`}
                     </span>
                   </div>
                 </div>

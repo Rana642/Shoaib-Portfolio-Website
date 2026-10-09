@@ -69,6 +69,7 @@ export async function runAutomation(now = new Date()) {
         contacts.map((c) => c.id)
       )
       .eq("direction", "out")
+      .neq("via", "broadcast")
       .gte("sent_at", new Date(now.getTime() - 2 * WINDOW).toISOString())
       .order("sent_at", { ascending: false });
     const lastOut = new Map<string, number>();

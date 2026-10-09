@@ -123,20 +123,38 @@ export async function deleteTemplate(accountId: string, name: string) {
 
 /** Send an approved template in a chat — works whether or not the 24 h window is open. */
 export async function sendTemplate(contactId: string, name: string, language: string, params: string[]) {
-  const { data: contact } = await db
-    .from("wa_contacts")
-    .select("id, wa_id, opted_out_at, wa_accounts(id, phone_number_id)")
-    .eq("id", contactId)
-    .single();
+  const { data: contact } = await db.from("wa_contacts").select("id, account_id, opted_out_at").eq("id", contactId).single();
   if (!contact) return { error: "Chat not found." };
   if (contact.opted_out_at) return { error: "This customer sent STOP — don't send them templates unless they message again." };
-  const account = contact.wa_accounts as unknown as { id: string; phone_number_id: string };
 
   // Re-read the template from Meta so the stored text matches what was sent.
-  const template = (await listTemplates(account.id, true)).find((t) => t.name === name && t.language === language);
+  const template = (await listTemplates(contact.account_id as string, true)).find((t) => t.name === name && t.language === language);
   if (!template) return { error: "That template isn't approved (or was deleted)." };
   const values = params.slice(0, template.vars).map((p) => p.trim().slice(0, 500));
   if (values.length < template.vars || values.some((v) => !v)) return { error: "Fill in every variable." };
+
+  const r = await deliverTemplate(contactId, template, values);
+  return "error" in r ? { error: r.error } : { ok: true };
+}
+
+/**
+ * Send one template message and store it in the chat. A broadcast send only
+ * moves the chat's last-message time; a staff send also marks the chat
+ * replied / Intervened.
+ */
+export async function deliverTemplate(
+  contactId: string,
+  template: Pick<WaTemplate, "name" | "language" | "category" | "header" | "body" | "footer">,
+  values: string[],
+  opts: { broadcast?: boolean } = {}
+): Promise<{ wamid: string } | { error: string }> {
+  const { data: contact } = await db
+    .from("wa_contacts")
+    .select("id, wa_id, wa_accounts(id, phone_number_id)")
+    .eq("id", contactId)
+    .single();
+  if (!contact) return { error: "Chat not found." };
+  const account = contact.wa_accounts as unknown as { id: string; phone_number_id: string };
 
   const token = await tokenForAccount(account.id);
   const res = await fetch(`${GRAPH}/${account.phone_number_id}/messages`, {
@@ -147,31 +165,33 @@ export async function sendTemplate(contactId: string, name: string, language: st
       to: contact.wa_id,
       type: "template",
       template: {
-        name,
-        language: { code: language },
+        name: template.name,
+        language: { code: template.language },
         ...(values.length ? { components: [{ type: "body", parameters: values.map((text) => ({ type: "text", text })) }] } : {}),
       },
     }),
   });
-  const json = (await res.json()) as { messages?: { id: string }[]; error?: { message?: string } };
-  if (!res.ok || !json.messages?.[0]?.id) return { error: json.error?.message ?? `WhatsApp API error (${res.status})` };
+  const json = (await res.json().catch(() => ({}))) as { messages?: { id: string }[]; error?: { message?: string } };
+  const wamid = json.messages?.[0]?.id;
+  if (!res.ok || !wamid) return { error: json.error?.message ?? `WhatsApp API error (${res.status})` };
 
   const body = [template.header, fillVars(template.body, values), template.footer].filter(Boolean).join("\n\n");
   const at = new Date().toISOString();
   await db.from("wa_messages").insert({
     account_id: account.id,
     contact_id: contact.id,
-    wamid: json.messages[0].id,
+    wamid,
     direction: "out",
-    via: "api",
+    via: opts.broadcast ? "broadcast" : "api",
     type: "template",
     body,
     status: "sent",
     sent_at: at,
-    raw: { template: name, language, category: template.category },
+    raw: { template: template.name, language: template.language, category: template.category },
   });
-  await markReplied(contact.id, at);
-  return { ok: true };
+  if (opts.broadcast) await db.from("wa_contacts").update({ last_message_at: at }).eq("id", contact.id);
+  else await markReplied(contact.id, at);
+  return { wamid };
 }
 
 /** The WhatsApp account a chat belongs to (for listing its templates). */

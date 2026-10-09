@@ -123,7 +123,7 @@ type Change = {
     contacts?: { wa_id: string; profile?: { name?: string } }[];
     messages?: WaMessage[];
     message_echoes?: WaMessage[];
-    statuses?: { id: string; status: string; timestamp: string }[];
+    statuses?: { id: string; status: string; timestamp: string; errors?: { title?: string; message?: string }[] }[];
     /** Coexistence: past chats from the WhatsApp Business app (up to 6 months). */
     history?: { metadata?: { phase?: number; progress?: number }; threads?: { id: string; messages?: WaMessage[] }[] }[];
     /** Coexistence: the phone's contact list (adds / edits). */
@@ -202,6 +202,7 @@ export async function ingestWebhook(payload: { entry?: { changes?: Change[] }[] 
       // Delivery / read receipts for messages we sent
       for (const s of v.statuses ?? []) {
         await db.from("wa_messages").update({ status: s.status }).eq("wamid", s.id);
+        await broadcastReceipt(s.id, s.status, s.errors?.[0]?.message ?? s.errors?.[0]?.title);
       }
 
       // History sync (coexistence): old chats, imported quietly — no unread,
@@ -255,6 +256,14 @@ export async function ingestWebhook(payload: { entry?: { changes?: Change[] }[] 
       }
     }
   }
+}
+
+/** A delivery/read/failed receipt for a broadcast message — never moves a status backwards. */
+async function broadcastReceipt(wamid: string, status: string, error?: string) {
+  const rows = db.from("wa_broadcast_recipients");
+  if (status === "read") await rows.update({ status: "read" }).eq("wamid", wamid).in("status", ["sent", "delivered"]);
+  else if (status === "delivered") await rows.update({ status: "delivered" }).eq("wamid", wamid).eq("status", "sent");
+  else if (status === "failed") await rows.update({ status: "failed", error: (error ?? "Not delivered").slice(0, 300) }).eq("wamid", wamid);
 }
 
 /** Staff answered (dashboard, portal or the phone app) → the chat is Intervened. */

@@ -1477,3 +1477,57 @@ from (
 ) m
 where m.contact_id = c.id and c.intervened_at is null
   and (c.last_inbound_at is null or m.at >= c.last_inbound_at);
+-- ── WhatsApp broadcasts (2026-10-09) ──────────────────────────────────
+-- One approved template to a filtered list of a number's contacts. Rows are
+-- queued at creation and sent a batch per minute by the 'whatsapp-auto' cron
+-- (keeps the number's quality rating safe); delivery/read come back on the
+-- webhook by wamid. Opted-out (STOP) contacts are never queued.
+create table if not exists wa_broadcasts (
+  id uuid primary key default gen_random_uuid(),
+  account_id uuid not null references wa_accounts (id) on delete cascade,
+  name text not null,
+  template jsonb not null,             -- snapshot: name, language, category, header, body, footer, vars
+  params jsonb not null default '[]',  -- one value per {{n}}; "{name}" = the contact's first name
+  audience jsonb not null default '{}',
+  status text not null default 'scheduled' check (status in ('scheduled', 'sending', 'done', 'cancelled')),
+  scheduled_at timestamptz not null default now(),
+  total int not null default 0,
+  created_at timestamptz not null default now(),
+  finished_at timestamptz
+);
+create index if not exists wa_broadcasts_account_idx on wa_broadcasts (account_id, created_at desc);
+alter table wa_broadcasts enable row level security;
+
+create table if not exists wa_broadcast_recipients (
+  id uuid primary key default gen_random_uuid(),
+  broadcast_id uuid not null references wa_broadcasts (id) on delete cascade,
+  contact_id uuid not null references wa_contacts (id) on delete cascade,
+  status text not null default 'queued' check (status in ('queued', 'sent', 'delivered', 'read', 'failed', 'skipped')),
+  wamid text,
+  error text,
+  sent_at timestamptz,
+  unique (broadcast_id, contact_id)
+);
+create index if not exists wa_broadcast_recipients_queue_idx on wa_broadcast_recipients (broadcast_id) where status = 'queued';
+create index if not exists wa_broadcast_recipients_wamid_idx on wa_broadcast_recipients (wamid);
+alter table wa_broadcast_recipients enable row level security;
+-- Per-broadcast counts for the Broadcasts page (one query instead of one per status).
+create or replace function wa_broadcast_stats(ids uuid[])
+returns table (broadcast_id uuid, queued int, sent int, delivered int, read int, failed int, skipped int, replied int)
+language sql stable
+set search_path = public
+as $$
+  select r.broadcast_id,
+    count(*) filter (where r.status = 'queued')::int,
+    count(*) filter (where r.status in ('sent', 'delivered', 'read'))::int,
+    count(*) filter (where r.status in ('delivered', 'read'))::int,
+    count(*) filter (where r.status = 'read')::int,
+    count(*) filter (where r.status = 'failed')::int,
+    count(*) filter (where r.status = 'skipped')::int,
+    count(*) filter (where r.sent_at is not null and c.last_inbound_at > r.sent_at)::int
+  from wa_broadcast_recipients r
+  join wa_contacts c on c.id = r.contact_id
+  where r.broadcast_id = any (ids)
+  group by r.broadcast_id
+$$;
+revoke all on function wa_broadcast_stats(uuid[]) from public, anon, authenticated;
