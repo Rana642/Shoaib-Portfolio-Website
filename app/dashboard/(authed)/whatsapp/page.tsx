@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Calculator, FileText, Megaphone, Settings2, Zap } from "lucide-react";
+import { Calculator, FileText, Megaphone, Zap } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
-import { Card, buttonStyles, inputClasses } from "@/components/dashboard/ui";
+import { Card } from "@/components/dashboard/ui";
 import Inbox, { type InboxAccount } from "@/components/whatsapp/Inbox";
 import ConnectWhatsApp from "@/components/whatsapp/ConnectWhatsApp";
+import NumbersPopover from "@/components/whatsapp/NumbersPopover";
 import {
   finishWhatsAppSignup,
   linkWhatsAppAccount,
@@ -54,49 +55,11 @@ export default async function WhatsAppPage({
 
   const toolbar = (
     <>
-      <details className="relative">
-        <summary className="list-none cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-ink/15 px-3 py-2 text-small hover:bg-ink/5">
-          <Settings2 className="size-4" aria-hidden /> Numbers
-        </summary>
-        <Card variant="solid" className="absolute right-0 top-full mt-2 z-30 w-[min(760px,90vw)] p-5 shadow-xl">
-          <p className="text-small text-ink-muted mb-4">
-            Link each WhatsApp number to a business. Its chats then appear in that client&apos;s portal (with the WhatsApp feature on).
-          </p>
-          <div className="space-y-3">
-            {accountRows.map((a) => {
-              async function save(formData: FormData) {
-                "use server";
-                await linkWhatsAppAccount(a.id, formData);
-              }
-              return (
-                <form key={a.id} action={save} className="grid gap-3 sm:grid-cols-[140px_1fr_1fr_auto] items-end">
-                  <p className="text-small font-mono">{a.display_phone ?? a.id.slice(0, 8)}</p>
-                  <label className="text-small">
-                    <span className="block text-ink-muted mb-1">Label</span>
-                    <input name="label" defaultValue={a.label ?? ""} className={inputClasses} />
-                  </label>
-                  <label className="text-small">
-                    <span className="block text-ink-muted mb-1">Business</span>
-                    <select name="project_id" defaultValue={a.project_id ?? ""} className={inputClasses}>
-                      <option value="">Not linked (only in my dashboard)</option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.clients?.name ? `${p.clients.name} — ` : ""}
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button type="submit" className={buttonStyles.secondary}>
-                    Save
-                  </button>
-                </form>
-              );
-            })}
-            {accountRows.length === 0 && <p className="text-small text-ink-muted">No numbers connected yet.</p>}
-          </div>
-        </Card>
-      </details>
+      <NumbersPopover
+        rows={accountRows.map((a) => ({ id: a.id, display_phone: a.display_phone, label: a.label, project_id: a.project_id }))}
+        projects={projects.map((p) => ({ id: p.id, label: `${p.clients?.name ? `${p.clients.name} — ` : ""}${p.name}` }))}
+        onSave={linkWhatsAppAccount}
+      />
       <Link
         href="/dashboard/whatsapp/automation"
         className="inline-flex items-center gap-1.5 rounded-lg border border-ink/15 px-3 py-2 text-small hover:bg-ink/5"
