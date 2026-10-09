@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/dashboard/db";
 import { can, canSeeProject, requirePortalUser } from "@/lib/portal/auth";
@@ -77,22 +76,6 @@ export default async function PortalWhatsAppPage({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-4">
-        <h1 className="font-serif italic text-h3">WhatsApp</h1>
-        {withWhatsApp.length > 1 && (
-          <nav className="flex flex-wrap gap-2 text-small">
-            {withWhatsApp.map((p) => (
-              <Link
-                key={p.id}
-                href={`/portal/whatsapp?project=${p.id}`}
-                className={`rounded-lg border px-3 py-1.5 ${p.id === selected.id ? "border-ink bg-ink text-cloud" : "border-ink/15 hover:bg-ink/5"}`}
-              >
-                {p.name}
-              </Link>
-            ))}
-          </nav>
-        )}
-      </div>
       <Inbox
         accounts={accounts}
         basePath="/portal/whatsapp"
@@ -101,6 +84,17 @@ export default async function PortalWhatsAppPage({
         tab={tab}
         search={q}
         source={src}
+        scope={
+          withWhatsApp.length > 1
+            ? {
+                param: "project",
+                options: withWhatsApp.map((p) => ({
+                  value: p.id as string,
+                  label: p.name as string,
+                })),
+              }
+            : undefined
+        }
         actions={{
           reply: portalWhatsAppReply,
           setStatus: portalWhatsAppStatus,

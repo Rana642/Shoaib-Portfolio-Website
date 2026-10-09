@@ -366,8 +366,10 @@ export function NotesBox({ notes, onUpdate }: { notes: string | null; onUpdate: 
   );
 }
 
-/** Search by name/number + filter by where the guest came from; keeps the other URL params. */
-export function InboxFilters({ sources }: { sources: { value: string; label: string }[] }) {
+export type Scope = { param: string; allLabel?: string; options: { value: string; label: string }[] };
+
+/** Business switcher + search by name/number + filter by where the guest came from; keeps the other URL params. */
+export function InboxFilters({ sources, scope }: { sources: { value: string; label: string }[]; scope?: Scope }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -381,6 +383,25 @@ export function InboxFilters({ sources }: { sources: { value: string; label: str
   };
   return (
     <div className="flex items-center gap-2 w-full">
+      {scope && (
+        <select
+          aria-label="Business"
+          value={params.get(scope.param) ?? (scope.allLabel ? "" : scope.options[0]?.value)}
+          onChange={(e) => {
+            const next = new URLSearchParams();
+            if (e.target.value) next.set(scope.param, e.target.value);
+            router.push(next.size ? `${pathname}?${next.toString()}` : pathname);
+          }}
+          className={`${inputClasses} !w-40 sm:!w-52 shrink-0 !py-2 text-small font-medium`}
+        >
+          {scope.allLabel && <option value="">{scope.allLabel}</option>}
+          {scope.options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      )}
       <form
         className="relative flex-1 min-w-0 max-w-sm"
         onSubmit={(e) => {

@@ -14,6 +14,7 @@ import {
   StatusSelect,
   TagEditor,
   type BookingDetails,
+  type Scope,
 } from "@/components/dashboard/WhatsAppChat";
 import { chatStage, replyWindowOpen, type ChatPatch, type ChatStage } from "@/lib/whatsapp";
 
@@ -92,6 +93,8 @@ export default async function Inbox({
   tab,
   search,
   source,
+  scope,
+  toolbar,
   actions,
 }: {
   /** The WhatsApp numbers this viewer may see (already access-checked). */
@@ -104,6 +107,10 @@ export default async function Inbox({
   tab?: string;
   search?: string;
   source?: string;
+  /** Business switcher in the toolbar (dashboard: ?account=, portal: ?project=). */
+  scope?: Scope;
+  /** Page-specific buttons on the right of the toolbar (Numbers, Automation, Connect…). */
+  toolbar?: React.ReactNode;
   actions: {
     reply: (contactId: string, text: string) => Promise<Result>;
     setStatus: (contactId: string, status: string) => Promise<Result>;
@@ -186,11 +193,14 @@ export default async function Inbox({
   );
 
   return (
-    <Card className="overflow-hidden flex flex-col h-[calc(100dvh-7rem)] min-h-[560px]">
+    <Card className="overflow-hidden flex flex-col h-[calc(100dvh-4rem)] min-h-[560px]">
       <InboxAutoRefresh />
       {/* Top bar: search + source filter */}
-      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-ink/10">
-        <InboxFilters sources={SOURCES} />
+      <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-ink/10">
+        <div className="flex-1 min-w-[260px]">
+          <InboxFilters sources={SOURCES} scope={scope} />
+        </div>
+        {toolbar && <div className="flex flex-wrap items-center gap-2">{toolbar}</div>}
       </div>
 
       {/* Tabs band */}
