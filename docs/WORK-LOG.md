@@ -4,6 +4,13 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-09 — WhatsApp Numbers popover
+- **Popover:** shows "Linked to <client — project>" or "Not linked — free". It has **Unlink** and **Delete number**.
+  - Delete removes the number's chats, messages and broadcasts.
+  - Our app is unsubscribed from the client's WABA when no other number uses it. It never touches the Socially Snap test WABA.
+- **Behaviour:** closes on outside click / Esc / after saving. The dropdown re-mounts so it shows the saved link. Full-width on phones.
+- The test number +1 555-202-0163 was unlinked from Silver Sand.
+
 ## 2026-10-09 — WhatsApp broadcasts
 - **Page:** `/dashboard/whatsapp/broadcasts` ("Broadcast" in the toolbar). Pick an approved template; variables can use `{name}` (first name, with a fallback).
   - Audience filters: status, tag, source, last-message window. STOP contacts are always excluded.

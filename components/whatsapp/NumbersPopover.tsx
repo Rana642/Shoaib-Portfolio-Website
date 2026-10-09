@@ -45,7 +45,7 @@ export default function NumbersPopover({ rows, projects, ...actions }: { rows: R
         <Settings2 className="size-4" aria-hidden /> Numbers
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-2 z-30 w-[min(760px,90vw)] rounded-xl border border-ink/10 bg-white p-5 shadow-xl">
+        <div className="fixed inset-x-4 top-20 max-h-[80vh] overflow-y-auto sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 z-30 sm:w-[min(760px,90vw)] rounded-xl border border-ink/10 bg-white p-5 shadow-xl">
           <p className="text-small text-ink-muted mb-4">
             Link each WhatsApp number to a business. Its chats then appear in that client&apos;s portal (with the WhatsApp feature on).
           </p>
