@@ -1531,3 +1531,6 @@ as $$
   group by r.broadcast_id
 $$;
 revoke all on function wa_broadcast_stats(uuid[]) from public, anon, authenticated;
+
+-- City per project (2026-10-09): the Planner shows that city's weather (Open-Meteo) on upcoming days.
+alter table client_projects add column if not exists city text;

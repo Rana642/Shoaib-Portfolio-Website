@@ -148,6 +148,8 @@ export type ClientProject = {
    *  do's and don'ts. Read by the social MCP tools so caption-writing
    *  follows each business's voice without being told every time. */
   posting_instructions: string | null;
+  /** Where the business is — the Planner shows this city's weather. */
+  city?: string | null;
   sort_order: number;
 };
 

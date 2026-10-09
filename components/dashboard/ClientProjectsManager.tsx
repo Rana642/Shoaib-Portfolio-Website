@@ -6,6 +6,7 @@ import { Plus, Trash2, LoaderCircle, Pencil } from "lucide-react";
 import {
   createClientProject,
   deleteClientProject,
+  updateProjectCity,
   updateProjectPostingInstructions,
 } from "@/lib/dashboard/actions/client-projects";
 import { inputClasses, buttonStyles, Card } from "@/components/dashboard/ui";
@@ -34,6 +35,7 @@ function ProjectRow({ project }: { project: ClientProject }) {
         </div>
         <DeleteButton projectId={project.id} />
       </div>
+      <CityField projectId={project.id} city={project.city ?? null} />
 
       <div className="mt-2">
         {editing ? (
@@ -84,6 +86,32 @@ function ProjectRow({ project }: { project: ClientProject }) {
         )}
       </div>
     </li>
+  );
+}
+
+/** City for the Planner's weather — saved when the box loses focus. */
+function CityField({ projectId, city }: { projectId: string; city: string | null }) {
+  const router = useRouter();
+  const [value, setValue] = useState(city ?? "");
+  const [pending, start] = useTransition();
+  return (
+    <label className="mt-2 flex items-center gap-2 text-small">
+      <span className="text-tag font-mono uppercase tracking-widest text-ink-subtle">City</span>
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => {
+          if (value.trim() === (city ?? "")) return;
+          start(async () => {
+            await updateProjectCity(projectId, value);
+            router.refresh();
+          });
+        }}
+        placeholder="e.g. Multan — shows weather in the Planner"
+        className={`${inputClasses} !py-1 !w-64 text-small`}
+      />
+      {pending && <LoaderCircle className="size-3.5 animate-spin text-ink-subtle" aria-hidden />}
+    </label>
   );
 }
 

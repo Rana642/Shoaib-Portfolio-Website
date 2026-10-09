@@ -4,6 +4,7 @@ import { GBP_PLATFORM, gbpPlannerLocation } from "@/lib/gbp";
 import { listProjectOptions } from "@/lib/dashboard/projects";
 import { PageHeader, EmptyState, LinkButton } from "@/components/dashboard/ui";
 import PlannerCalendar from "@/components/dashboard/social/PlannerCalendar";
+import { plannerDayNotes } from "@/lib/planner-day-notes";
 import type { ScheduledPost } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
@@ -32,13 +33,14 @@ export default async function PlannerPage({
 
   const selectedProjectId = projects.some((p) => p.id === projectParam) ? projectParam! : projects[0].id;
 
-  const [{ data: posts }, { data: accounts }] = await Promise.all([
+  const [{ data: posts }, { data: accounts }, day] = await Promise.all([
     db
       .from("scheduled_posts")
       .select("*")
       .eq("project_id", selectedProjectId)
       .order("scheduled_at", { ascending: true, nullsFirst: true }),
     db.from("client_social_accounts").select("platform").eq("project_id", selectedProjectId).eq("is_active", true),
+    plannerDayNotes(selectedProjectId),
   ]);
   const connectedPlatforms = [...new Set((accounts ?? []).map((a) => a.platform as string))];
   // Google Business counts as connected once the project has a chosen
@@ -65,6 +67,8 @@ export default async function PlannerPage({
         selectedProjectId={selectedProjectId}
         posts={postsWithUrls}
         connectedPlatforms={connectedPlatforms}
+        dayNotes={day.notes}
+        weatherCity={day.city}
       />
     </>
   );

@@ -76,3 +76,14 @@ export async function updateProjectPostingInstructions(id: string, text: string)
   revalidatePath(`/dashboard/clients/${project.client_id}`);
   return { ok: true };
 }
+
+/** The project's city (for the Planner's weather). */
+export async function updateProjectCity(id: string, city: string) {
+  await assertAuthed();
+  const clean = city.trim().slice(0, 80) || null;
+  const { data: project, error } = await db.from("client_projects").update({ city: clean }).eq("id", id).select("client_id").single();
+  if (error) return { error: error.message };
+  revalidatePath(`/dashboard/clients/${project.client_id}`);
+  revalidatePath("/dashboard/social/planner");
+  return { ok: true };
+}

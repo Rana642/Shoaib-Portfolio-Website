@@ -4,6 +4,16 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-09 — Holidays + weather in the Planner, email domain check
+- **Holidays:** Pakistan public holidays from caldays.com (`lib/holidays.ts`; current year only; moon-sighted days marked `*`). They show as a citrus chip in the Planner week and month views.
+- **Weather:** Open-Meteo (`lib/weather.ts`, geocodes the city). Planner days show `emoji max°/min°` and rain ≥40%, for the next 16 days.
+  - Each project has a new `client_projects.city` (SQL run), editable on the client page.
+  - The three Multan projects (Silver Sand, Elegant, Toni and Guy) are pre-filled with Multan.
+- **Email domain check:** Settings → "Email domain check" (`lib/domain-email-check.ts`, Node DNS). The AGPC API from the fork didn't respond.
+  - Checks MX / SPF / DKIM (common selectors incl. resend) / DMARC with a score and a fix for each.
+  - adsbyshoaib.com = 75/100: only DMARC is p=none.
+- **MCP:** `pk_holidays`, `weather_forecast`, `domain_email_check` (`lib/mcp-utility-tools.ts`, registered next to the content tools — local + remote).
+
 ## 2026-10-09 — Free APIs from the public-apis fork: live USD→PKR + email check
 - **Live rate:** `lib/fx-rate.ts` fetches USD→PKR from fawazahmed0 currency-api (jsDelivr, with a pages.dev mirror; cached 6h; Rs 280 fallback).
   - Used by the WhatsApp pricing calculator (prefilled with a "today's rate" note and reset) and the broadcast cost estimate.

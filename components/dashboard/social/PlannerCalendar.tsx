@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import type { DayNote } from "@/lib/planner-day-notes";
 import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard, CircleDashed, AlertTriangle } from "lucide-react";
 import { clearPostChanges, createPlannerPost, deletePost, movePost, reorderDay } from "@/lib/dashboard/actions/social";
 import { ReplaceImageButton } from "@/components/portal/NeedsChangesAlert";
@@ -129,6 +130,8 @@ export default function PlannerCalendar({
   mode = "admin",
   canUpload = true,
   plannerPath = "/dashboard/social/planner",
+  dayNotes = {},
+  weatherCity = null,
 }: {
   projects: ProjectOption[];
   selectedProjectId: string;
@@ -144,6 +147,10 @@ export default function PlannerCalendar({
   canUpload?: boolean;
   /** Where switching project navigates. */
   plannerPath?: string;
+  /** Pakistan holidays + the project's city weather, by YYYY-MM-DD. */
+  dayNotes?: Record<string, DayNote>;
+  /** The city the weather is for (null = no city set on the project). */
+  weatherCity?: string | null;
 }) {
   const isClient = mode === "client";
   const canAdd = !isClient || canUpload;
@@ -377,6 +384,7 @@ export default function PlannerCalendar({
                   >
                     <p className="font-mono uppercase text-tag tracking-widest">{WEEKDAYS[d.getUTCDay()]}</p>
                     <p className="text-body-lg">{d.getUTCDate()}</p>
+                    <DayNoteBadges note={dayNotes[key]} />
                   </div>
                   <div className="flex-1 p-2 space-y-2">
                     {dayPosts.map((p) => (
@@ -430,8 +438,13 @@ export default function PlannerCalendar({
                         : "border-ink/10"
                   )}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-1">
                     <span className="text-small text-ink-subtle">{dayNum}</span>
+                    {dayNotes[key]?.weather && (
+                      <span className="text-[10px] text-ink-subtle tabular-nums" title={`${dayNotes[key]!.weather!.label}${weatherCity ? ` · ${weatherCity}` : ""}`}>
+                        {dayNotes[key]!.weather!.emoji} {dayNotes[key]!.weather!.max}°
+                      </span>
+                    )}
                     {canAdd && (
                       <button
                         type="button"
@@ -443,6 +456,15 @@ export default function PlannerCalendar({
                       </button>
                     )}
                   </div>
+                  {dayNotes[key]?.holiday && (
+                    <span
+                      className="self-start rounded bg-citrus/25 px-1.5 py-0.5 text-[10px] leading-tight"
+                      title={dayNotes[key]!.holiday!.moon ? "Expected date — depends on the moon sighting" : undefined}
+                    >
+                      {dayNotes[key]!.holiday!.name}
+                      {dayNotes[key]!.holiday!.moon ? " *" : ""}
+                    </span>
+                  )}
                   <div className="flex flex-wrap gap-1">
                     {dayPosts.map((p) => (
                       <DayPostThumb key={p.id} post={p} client={isClient} />
@@ -1326,6 +1348,29 @@ function BulkUploadModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Under a week-view date: the holiday (citrus chip) and the city weather. */
+function DayNoteBadges({ note }: { note?: DayNote }) {
+  if (!note) return null;
+  return (
+    <div className="mt-1 flex flex-col items-center gap-1">
+      {note.holiday && (
+        <span
+          className="rounded bg-citrus/25 px-1.5 py-0.5 text-[10px] leading-tight font-normal text-ink"
+          title={note.holiday.moon ? "Expected date — depends on the moon sighting" : undefined}
+        >
+          {note.holiday.name}
+          {note.holiday.moon ? " *" : ""}
+        </span>
+      )}
+      {note.weather && (
+        <span className="text-[11px] font-normal text-ink-muted tabular-nums" title={note.weather.label}>
+          {note.weather.emoji} {note.weather.max}° / {note.weather.min}°{note.weather.rain >= 40 ? ` · ${note.weather.rain}% rain` : ""}
+        </span>
+      )}
     </div>
   );
 }

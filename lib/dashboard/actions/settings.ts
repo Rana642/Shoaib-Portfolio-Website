@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "../db";
 import { getAdminUser } from "../auth";
 import { IDENTITY_KEYS } from "../../access-identities";
+import { checkDomainEmail } from "../../domain-email-check";
 
 const settingsSchema = z.object({
   business_name: z.string().min(1).max(200),
@@ -85,4 +86,15 @@ export async function updateAccessIdentities(values: Record<string, string>) {
   }
   revalidatePath("/dashboard/settings");
   return { ok: true };
+}
+
+/** Settings → Email domain check (MX / SPF / DKIM / DMARC). */
+export async function checkEmailDomain(domain: string) {
+  const user = await getAdminUser();
+  if (!user) redirect("/dashboard/login");
+  try {
+    return await checkDomainEmail(String(domain));
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Couldn't check that domain." };
+  }
 }

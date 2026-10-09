@@ -4,6 +4,7 @@ import { can, canSeeProject, requirePortalUser } from "@/lib/portal/auth";
 import { presignDownload, isStorageConfigured } from "@/lib/storage";
 import { Card, PageHeader } from "@/components/dashboard/ui";
 import PlannerCalendar from "@/components/dashboard/social/PlannerCalendar";
+import { plannerDayNotes } from "@/lib/planner-day-notes";
 import NeedsChangesAlert, { type FlaggedPost } from "@/components/portal/NeedsChangesAlert";
 import { plannerDayLabel } from "@/lib/post-review";
 import type { ScheduledPost } from "@/lib/dashboard/types";
@@ -43,12 +44,15 @@ export default async function PortalPlannerPage({ searchParams }: { searchParams
   }
   const selected = projects.find((p) => p.id === project) ?? projects[0];
 
-  const { data } = await db
-    .from("scheduled_posts")
-    .select("*")
-    .eq("project_id", selected.id)
-    .neq("status", "failed")
-    .order("scheduled_at", { ascending: true });
+  const [{ data }, day] = await Promise.all([
+    db
+      .from("scheduled_posts")
+      .select("*")
+      .eq("project_id", selected.id)
+      .neq("status", "failed")
+      .order("scheduled_at", { ascending: true }),
+    plannerDayNotes(selected.id as string),
+  ]);
   const posts = ((data ?? []) as ScheduledPost[])
     .filter((p) => canView || p.uploaded_by_email)
     // A post I uploaded and held back is mine to fix — to the client it's
@@ -98,6 +102,8 @@ export default async function PortalPlannerPage({ searchParams }: { searchParams
         selectedProjectId={selected.id as string}
         posts={withUrls}
         connectedPlatforms={[]}
+        dayNotes={day.notes}
+        weatherCity={day.city}
       />
     </>
   );

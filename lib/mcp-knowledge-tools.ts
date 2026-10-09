@@ -12,6 +12,7 @@ import { fetchObject, uploadObject, deleteObject, presignUpload } from "./storag
 import { kbDirectFinishUrl, kbFileUrl, kbUploadUrl, registerAsset, signDirectUploadToken, signUploadToken, sniff } from "./kb-files";
 import { CDN_REPO, cdnUrlMap, publishToCdn, slugifyName } from "./kb-cdn";
 import { registerContentTools } from "./mcp-content-tools";
+import { registerUtilityTools } from "./mcp-utility-tools";
 
 /**
  * Per-project knowledge base — brand docs (NAP, positioning, ICP, pain points,
@@ -454,6 +455,8 @@ export function registerKnowledgeTools(server: McpServer, opts: { allowLocalFile
   const allowLocalFiles = opts.allowLocalFiles === true;
   // Quran Cloud + Iconify (quran_get_ayah, quran_search, kb_add_verified_ayah, icon_search, icon_get_svg)
   registerContentTools(server);
+  // Pakistan holidays, city weather, domain email check (pk_holidays, weather_forecast, domain_email_check)
+  registerUtilityTools(server);
   const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
   const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false };
   const DELETE = { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false };

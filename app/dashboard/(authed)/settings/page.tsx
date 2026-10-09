@@ -2,6 +2,8 @@ import { PageHeader } from "@/components/dashboard/ui";
 import SettingsForm from "@/components/dashboard/SettingsForm";
 import AccessIdentitiesForm from "@/components/dashboard/AccessIdentitiesForm";
 import { getAccessIdentities, getSettings } from "@/lib/dashboard/settings";
+import DomainEmailCheck from "@/components/dashboard/DomainEmailCheck";
+import { checkEmailDomain } from "@/lib/dashboard/actions/settings";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings" };
@@ -17,6 +19,7 @@ export default async function SettingsPage() {
       />
       <SettingsForm settings={settings} />
       <AccessIdentitiesForm identities={identities} />
+      <DomainEmailCheck initialDomain="adsbyshoaib.com" onCheck={checkEmailDomain} />
     </>
   );
 }
