@@ -11,6 +11,7 @@ import { db } from "./dashboard/db";
 import { fetchObject, uploadObject, deleteObject, presignUpload } from "./storage";
 import { kbDirectFinishUrl, kbFileUrl, kbUploadUrl, registerAsset, signDirectUploadToken, signUploadToken, sniff } from "./kb-files";
 import { CDN_REPO, cdnUrlMap, publishToCdn, slugifyName } from "./kb-cdn";
+import { registerContentTools } from "./mcp-content-tools";
 
 /**
  * Per-project knowledge base — brand docs (NAP, positioning, ICP, pain points,
@@ -40,7 +41,8 @@ export const KB_SERVER_INSTRUCTIONS = [
   "Never write the word \"dealer\" (or \"dealers\", \"dealership\") in any post, caption, headline or copy, for any project (Shoaib, 2026-10-05) — always \"distributor\" / \"distributors\", and \"Become a Distributor\" for recruitment posts (global rule `no-dealer-word`).",
   "Content is OURS for every project (Shoaib, 2026-10-03): every word on a post and its caption is written in the knowledge base and approved by the user before design. Design tools (image models, ChatGPT while designing) never write, add, shorten or rewrite words; if a post has no approved words, stop, draft them for approval, save them, then design.",
   "Occasion words: kb_list_occasion_copy shows what is approved / pending per project; kb_save_occasion_copy saves drafts in the right format; kb_approve_occasion_copy approves them — only after the user says so. Jummah gets a new verified verse, hadith or dua and a new Islamic layout every Friday. Each project's full design system is its DESIGN.md (KB doc design_system/main), shown in kb_get_brief.",
-  "Jummah / Friday and occasion posts for any project (\"Jumma post banao\", Eid, Ramadan, 14 August, 23 March, Kashmir day…): call kb_get_occasion_post — brand items stay fixed, the background and words are made for the day (Arabic/Urdu only from its verified texts), never a product or call to action.",
+  "Jummah / Friday and occasion posts for any project (\"Jumma post banao\", Eid, Ramadan, 14 August, 23 March, Kashmir day…): call kb_get_occasion_post — brand items stay fixed, the background and words are made for the day (Arabic/Urdu only from its verified texts), never a product or call to action. Need a new ayah? Find it with quran_search / quran_get_ayah (Quran Cloud, exact Tanzil text) and save it with kb_add_verified_ayah — never type Arabic yourself.",
+  "Icons: never hand-draw icon paths. Find a correct SVG with icon_search and fetch it with icon_get_svg (Iconify, 200+ open sets; brand logos such as WhatsApp are in simple-icons).",
   "Event posts (expo stall, seminar, distributor meet, product launch, new partner, anniversary…): follow the global rule `event-posts` — only real facts from the user/client (ask for name, date, venue, stall, photos; never invent), up to 4 posts per event (announcement, reminder, live, thank-you). A project's dated posts (Jummah, Islamic/national/international days, events) are listed in its marketing doc `dated-posts-plan` when it has one.",
   "The kb_* write tools (kb_upsert_doc, kb_upsert_product, kb_add_asset, kb_add_memory, kb_upsert_global_rule…) let you maintain the knowledge base; deletes need confirm=true.",
 ].join("\n");
@@ -450,6 +452,8 @@ function mergeContent(existing: string | undefined, incoming: string, mode: "rep
 
 export function registerKnowledgeTools(server: McpServer, opts: { allowLocalFiles?: boolean } = {}): void {
   const allowLocalFiles = opts.allowLocalFiles === true;
+  // Quran Cloud + Iconify (quran_get_ayah, quran_search, kb_add_verified_ayah, icon_search, icon_get_svg)
+  registerContentTools(server);
   const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
   const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false };
   const DELETE = { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false };

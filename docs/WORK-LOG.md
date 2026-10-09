@@ -4,6 +4,16 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-09 — Quran Cloud + Iconify MCP tools; glass effect dropped for good
+- **New MCP tools** (`lib/mcp-content-tools.ts`), registered with the KB tools, so they are on both the local and remote servers. Both APIs are free and need no key; Shoaib picked them from his public-apis fork.
+  - `quran_get_ayah`: the exact Tanzil quran-simple Arabic, numbered words, and translations (en.sahih and ur.jalandhry by default; the translations are for meaning only).
+  - `quran_search`: finds ayat by keyword.
+  - `kb_add_verified_ayah`: saves an ayah, or a word-range excerpt, into the global rule `occasion-posts` → `verified_texts`. The Arabic is copied from the API and never typed. It has a preview/confirm gate and can list the text under an occasion.
+  - `icon_search` / `icon_get_svg`: Iconify, 200+ open icon sets, with the licence per set. Brand glyphs such as WhatsApp are in simple-icons.
+- **Glass effect banned** (Shoaib: "Glass effect 1 dafa k liye bilkul khatam ker do", 57d9236):
+  - KB global rules `design-glass-light` and `text-readability` were rewritten.
+  - An override note was appended to the REEFCO, Tad and Meezab design locks and DESIGN.md.
+  - Readability now comes from scenes that are generated with real empty, light space, plus the size floor and contrast gate.
 ## 2026-10-09 — WhatsApp Numbers popover
 - **Popover:** shows "Linked to <client — project>" or "Not linked — free". It has **Unlink** and **Delete number**.
   - Delete removes the number's chats, messages and broadcasts.
