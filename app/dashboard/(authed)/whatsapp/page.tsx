@@ -66,6 +66,12 @@ export default async function WhatsAppPage({
         </Card>
       )}
 
+      {cred && (
+        <div className="mb-4">
+          <ConnectWhatsApp appId={cred.app_id} configId={cred.config_id ?? null} onFinish={finishWhatsAppSignup} />
+        </div>
+      )}
+
       <div className="mb-4 flex flex-wrap gap-4 text-small">
         <Link href={numbers ? "/dashboard/whatsapp" : "/dashboard/whatsapp?numbers=1"} className="underline underline-offset-4">
           {numbers ? "Hide numbers" : "Numbers & businesses"}
@@ -81,11 +87,6 @@ export default async function WhatsAppPage({
           <p className="text-small text-ink-muted mb-4">
             Link each WhatsApp number to a business. Its chats then appear in that client&apos;s portal (with the WhatsApp feature on).
           </p>
-          {cred && (
-            <div className="mb-5">
-              <ConnectWhatsApp appId={cred.app_id} configId={cred.config_id ?? null} onFinish={finishWhatsAppSignup} />
-            </div>
-          )}
           <div className="space-y-3">
             {accountRows.map((a) => {
               async function save(formData: FormData) {
