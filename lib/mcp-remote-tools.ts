@@ -6,6 +6,7 @@ import { listPendingCaptionPosts, getScheduledPost, setCaptionAndSchedule, count
 import { registerPostReviewTools } from "./post-review-tools";
 import { fetchObject } from "./storage";
 import { rescheduleNativePosts, submitNativeScheduleForPost } from "./social-post";
+import { registerBestTimeTool } from "./social-best-times";
 
 /**
  * The remote (Claude web/mobile/desktop) counterpart to mcp/tools/social.ts
@@ -173,4 +174,5 @@ Returns: confirmation text.`,
   );
 
   registerPostReviewTools(server);
+  registerBestTimeTool(server);
 }
