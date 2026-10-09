@@ -10,14 +10,29 @@ import { GBP_DAILY_CAP_PER_LOCATION, findLocation, gbpAccessToken, getGbpConnect
  * manually"). On top of the Google-friendly pacing rule in lib/gbp.ts (5 min
  * gap, 20 per location per day), the sender:
  *   - only works during the day in Pakistan (HUMAN_HOURS_PKT),
- *   - leaves at least HUMAN_MIN_GAP_MINUTES between two replies,
+ *   - leaves a varied gap between two replies (HUMAN_MIN_GAP_MINUTES plus up
+ *     to HUMAN_GAP_JITTER_MINUTES, different after every reply),
+ *   - sends at most HUMAN_MAX_REPLIES_PER_DAY per location in any 24 hours,
  *   - sometimes skips a turn (HUMAN_SKIP_CHANCE), so the rhythm isn't a clock,
  *   - re-reads the review first and never overwrites a reply someone already gave.
+ * No bursts, whatever the backlog (Shoaib, 2026-10-09: GBP policy, no
+ * suspension risk).
  */
 
 export const HUMAN_HOURS_PKT = { from: 10, to: 22 };
-export const HUMAN_MIN_GAP_MINUTES = 12;
+export const HUMAN_MIN_GAP_MINUTES = 20;
+export const HUMAN_GAP_JITTER_MINUTES = 25;
+export const HUMAN_MAX_REPLIES_PER_DAY = 12;
 export const HUMAN_SKIP_CHANCE = 0.3;
+
+/** Minutes to wait after the reply sent at `sentAt`: 20–45, fixed per reply
+ *  (seeded by its time, so the cron re-checking every 10 minutes doesn't
+ *  re-roll it and drift toward the minimum). */
+function requiredGapMinutes(sentAt: string): number {
+  let h = 0;
+  for (const c of sentAt) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return HUMAN_MIN_GAP_MINUTES + (h % (HUMAN_GAP_JITTER_MINUTES + 1));
+}
 /** Replies leave this many of a location's daily Google writes for posts —
  *  the day's planner post and any backfilled ones (lib/gbp-backfill.ts). */
 export const REPLY_RESERVED_FOR_POSTS = 5;
@@ -133,15 +148,24 @@ export async function listQueuedReplies(opts: { projectId?: string; status?: Que
   return (data ?? []) as QueuedReply[];
 }
 
-/** Locations whose replies for today are used up (see REPLY_RESERVED_FOR_POSTS). */
+/** Locations whose replies for today are used up: all Google writes past
+ *  the posts' reserve (REPLY_RESERVED_FOR_POSTS), or HUMAN_MAX_REPLIES_PER_DAY
+ *  replies in the last 24 hours. */
 async function locationsAtReplyLimit(): Promise<string[]> {
-  const { data } = await db
-    .from("gbp_write_log")
-    .select("location")
-    .gte("created_at", new Date(Date.now() - 24 * 3600 * 1000).toISOString());
-  const counts = new Map<string, number>();
-  for (const r of (data ?? []) as { location: string }[]) counts.set(r.location, (counts.get(r.location) ?? 0) + 1);
-  return [...counts].filter(([, n]) => n >= GBP_DAILY_CAP_PER_LOCATION - REPLY_RESERVED_FOR_POSTS).map(([l]) => l);
+  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const [{ data: writes }, { data: replies }] = await Promise.all([
+    db.from("gbp_write_log").select("location").gte("created_at", since),
+    db.from("gbp_reply_queue").select("location").eq("status", "sent").gte("sent_at", since),
+  ]);
+  const tally = (rows: { location: string }[] | null) => {
+    const m = new Map<string, number>();
+    for (const r of rows ?? []) m.set(r.location, (m.get(r.location) ?? 0) + 1);
+    return m;
+  };
+  const full = new Set<string>();
+  for (const [l, n] of tally(writes as { location: string }[] | null)) if (n >= GBP_DAILY_CAP_PER_LOCATION - REPLY_RESERVED_FOR_POSTS) full.add(l);
+  for (const [l, n] of tally(replies as { location: string }[] | null)) if (n >= HUMAN_MAX_REPLIES_PER_DAY) full.add(l);
+  return [...full];
 }
 
 /** The reply a person would pick next: complaints first (oldest first),
@@ -176,7 +200,8 @@ export async function sendNextReply(now = new Date()): Promise<SendResult> {
   const lastSent = ((last ?? [])[0] as { sent_at: string } | undefined)?.sent_at;
   if (lastSent) {
     const minutes = (now.getTime() - new Date(lastSent).getTime()) / 60000;
-    if (minutes < HUMAN_MIN_GAP_MINUTES) return { status: "gap", detail: `${Math.round(minutes)} min since the last reply` };
+    const needed = requiredGapMinutes(lastSent);
+    if (minutes < needed) return { status: "gap", detail: `${Math.round(minutes)} of ${needed} min since the last reply` };
   }
 
   const full = await locationsAtReplyLimit();

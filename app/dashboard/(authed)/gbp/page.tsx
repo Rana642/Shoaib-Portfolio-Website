@@ -5,7 +5,7 @@ import { formatDate } from "@/lib/dashboard/format";
 import { PageHeader, Card, EmptyState, buttonStyles, inputClasses, labelClasses } from "@/components/dashboard/ui";
 import { STARS, existingGrants, findLocation, gbpAccessToken, getGbpConnection, listReviews, type GbpReview } from "@/lib/gbp";
 import { deleteGbpReply, disconnectGbp, linkAllGbpProjects, linkGbpFromExisting, replyGbpReview, selectGbpLocation, skipQueuedReply, updateQueuedReply } from "@/lib/dashboard/actions/gbp";
-import { HUMAN_HOURS_PKT, HUMAN_MIN_GAP_MINUTES, listQueuedReplies, replyQueueStats, type QueuedReply } from "@/lib/gbp-replies";
+import { HUMAN_HOURS_PKT, HUMAN_MIN_GAP_MINUTES, HUMAN_GAP_JITTER_MINUTES, HUMAN_MAX_REPLIES_PER_DAY, listQueuedReplies, replyQueueStats, type QueuedReply } from "@/lib/gbp-replies";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -233,7 +233,7 @@ export default async function GbpPage({
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <p className="text-body-lg font-semibold">Reply queue</p>
                   <p className="text-small text-ink-muted">
-                    Sent one at a time, {HUMAN_HOURS_PKT.from}:00–{HUMAN_HOURS_PKT.to}:00 PKT, {HUMAN_MIN_GAP_MINUTES}+ minutes apart, complaints first.
+                    Sent one at a time, {HUMAN_HOURS_PKT.from}:00–{HUMAN_HOURS_PKT.to}:00 PKT, {HUMAN_MIN_GAP_MINUTES}–{HUMAN_MIN_GAP_MINUTES + HUMAN_GAP_JITTER_MINUTES} minutes apart, at most {HUMAN_MAX_REPLIES_PER_DAY} a day, complaints first.
                   </p>
                 </div>
                 {!queue ? (
