@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/dashboard/auth";
 import { GRAPH_BASE } from "@/lib/social-fb";
-import { connectFacebookAccount } from "@/lib/social-accounts";
+import { connectFacebookAccount, refreshFacebookPageTokens } from "@/lib/social-accounts";
 
 /** Redirect target for the Planner's Facebook Login for Business flow (the
  *  Valid OAuth Redirect URI to register on the "Ads by Shoaib" app). Trades
@@ -47,6 +47,8 @@ export async function GET(request: Request) {
     }
 
     await connectFacebookAccount(body.access_token, slot);
+    // Pages already on projects get fresh tokens too (dead ones otherwise linger).
+    await refreshFacebookPageTokens().catch(() => {});
   } catch (error) {
     return fail(error instanceof Error ? error.message : "Connect failed.");
   }

@@ -343,3 +343,47 @@ export async function saveLinkedInOrgMappings(mappings: { org: DiscoveredOrganiz
   const { error } = await db.from("client_social_accounts").insert(rows);
   if (error) throw new Error(error.message);
 }
+
+/**
+ * Re-derive the Page token of every Facebook Page (and its linked Instagram
+ * account) that's already on a project, from both stored Facebook logins.
+ * Page tokens die with the user session that produced them — e.g. after a
+ * password change or "log out of all sessions" — and reconnecting only
+ * refreshed the user token, leaving projects on dead Page tokens (Instagram
+ * posts for both hotels failed for days, 2026-10). Runs after every
+ * Facebook (re)connect. Instagram Login accounts (their own tokens) are
+ * left alone.
+ */
+export async function refreshFacebookPageTokens(): Promise<{ updated: number; missing: string[] }> {
+  const { data: logins } = await db.from("social_connections").select("fb_user_token_encrypted").not("fb_user_token_encrypted", "is", null);
+  const byPage = new Map<string, string>();
+  const byIg = new Map<string, string>();
+  for (const l of logins ?? []) {
+    try {
+      for (const p of await listManagedPages(decryptToken(l.fb_user_token_encrypted as string))) {
+        byPage.set(p.page_id, p.page_access_token);
+        if (p.instagram_business_account_id) byIg.set(p.instagram_business_account_id, p.page_access_token);
+      }
+    } catch {
+      /* a dead login just contributes nothing */
+    }
+  }
+  const { data: accounts } = await db
+    .from("client_social_accounts")
+    .select("id, platform, label, external_id, token_expires_at")
+    .in("platform", ["facebook", "instagram"])
+    .eq("is_active", true);
+  let updated = 0;
+  const missing: string[] = [];
+  for (const a of accounts ?? []) {
+    if (a.platform === "instagram" && a.token_expires_at) continue; // Instagram Login account
+    const token = a.platform === "facebook" ? byPage.get(a.external_id) : byIg.get(a.external_id);
+    if (!token) {
+      missing.push(a.label);
+      continue;
+    }
+    await db.from("client_social_accounts").update({ access_token_encrypted: encryptToken(token) }).eq("id", a.id);
+    updated++;
+  }
+  return { updated, missing };
+}
