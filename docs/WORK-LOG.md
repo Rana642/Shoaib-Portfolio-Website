@@ -8,6 +8,8 @@ context (decisions, gotchas, rules) is in the second-brain vault:
 - **Calculator:** `/dashboard/whatsapp/pricing` ("Pricing" in the WhatsApp toolbar) uses **Meta's official USD rate card, effective 1 Oct 2026** (`lib/whatsapp-rates.ts`, 47 markets — not AiSensy's resale list).
   - Inputs: number count, PKR rate and margin %.
   - Pakistan: marketing $0.0473; utility, authentication and service $0.015 each.
+- **After-tax pricing (Pakistan):** the calculator adds the bank's foreign transaction fee (default 4%, HBL standard) and s.236Y advance tax: 0.5% filer, 1% non-filer (Finance Act 2026, from 1 Jul 2026). The advance tax is adjustable against the yearly income tax. There is also an optional "other tax %".
+  - Pakistan after tax for a filer: utility/service ≈ Rs 4.39 and marketing ≈ Rs 13.84 per message at Rs 280/$.
 - **Meta billing from 1 Oct 2026:** service messages are charged again, with 1,000 free per number per month.
   - A WABA with **no payment method stops delivering service messages** once the free 1,000 are used.
   - Messages sent from the WhatsApp Business app (coexistence) stay free.
