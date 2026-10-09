@@ -8,6 +8,8 @@ import { getAdminUser } from "../auth";
 import { bookingFromForm, sendText, updateChat, type ChatPatch } from "../../whatsapp";
 import { sendWhatsAppPurchase } from "../../whatsapp-conversions";
 import { completeEmbeddedSignup } from "../../whatsapp-onboarding";
+import { accountOfChat, createTemplate, deleteTemplate, listTemplates, sendTemplate } from "../../whatsapp-templates";
+import type { TemplateInput } from "../../whatsapp-template-shared";
 
 async function assertAuthed() {
   const user = await getAdminUser();
@@ -133,4 +135,39 @@ export async function finishWhatsAppSignup(input: { code: string; wabaId: string
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Couldn't connect the number." };
   }
+}
+
+// ── Message templates ───────────────────────────────────────────────
+
+/** Approved templates for the chat's number (the inbox's template picker). */
+export async function whatsAppChatTemplates(contactId: string) {
+  await assertAuthed();
+  const accountId = await accountOfChat(contactId);
+  if (!accountId) return { error: "Chat not found." };
+  try {
+    return { templates: await listTemplates(accountId, true) };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Couldn't load templates." };
+  }
+}
+
+export async function sendWhatsAppTemplate(contactId: string, name: string, language: string, params: string[]) {
+  await assertAuthed();
+  const result = await sendTemplate(contactId, String(name), String(language), Array.isArray(params) ? params.map(String) : []);
+  revalidatePath("/dashboard/whatsapp");
+  return result;
+}
+
+export async function createWhatsAppTemplate(accountId: string, input: TemplateInput) {
+  await assertAuthed();
+  const result = await createTemplate(accountId, input);
+  revalidatePath("/dashboard/whatsapp/templates");
+  return result;
+}
+
+export async function deleteWhatsAppTemplate(accountId: string, name: string) {
+  await assertAuthed();
+  const result = await deleteTemplate(accountId, name);
+  revalidatePath("/dashboard/whatsapp/templates");
+  return result;
 }

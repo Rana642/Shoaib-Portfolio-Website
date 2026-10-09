@@ -258,7 +258,7 @@ export async function ingestWebhook(payload: { entry?: { changes?: Change[] }[] 
 }
 
 /** Staff answered (dashboard, portal or the phone app) → the chat is Intervened. */
-async function markReplied(contactId: string, at: string) {
+export async function markReplied(contactId: string, at: string) {
   const { data } = await db.from("wa_contacts").select("status, intervened_at").eq("id", contactId).single();
   await db
     .from("wa_contacts")

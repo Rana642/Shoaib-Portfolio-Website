@@ -17,6 +17,7 @@ import {
   type Scope,
 } from "@/components/dashboard/WhatsAppChat";
 import { DEAL_WORDS, type BusinessKind } from "@/lib/whatsapp-words";
+import type { WaTemplate } from "@/lib/whatsapp-template-shared";
 import { chatStage, replyWindowOpen, type ChatPatch, type ChatStage } from "@/lib/whatsapp";
 
 /**
@@ -118,6 +119,8 @@ export default async function Inbox({
     markRead: (contactId: string) => Promise<void>;
     saveBooking: (contactId: string, formData: FormData) => Promise<Result>;
     update: (contactId: string, patch: ChatPatch) => Promise<Result>;
+    templates: (contactId: string) => Promise<{ templates?: WaTemplate[]; error?: string }>;
+    sendTemplate: (contactId: string, name: string, language: string, params: string[]) => Promise<Result>;
   };
 }) {
   const accountIds = accounts.map((a) => a.id);
@@ -346,6 +349,11 @@ export default async function Inbox({
                 windowOpen={replyWindowOpen(active.last_inbound_at)}
                 onSend={actions.reply.bind(null, active.id)}
                 quickReplies={quickReplies ?? []}
+                templates={
+                  active.opted_out_at
+                    ? undefined
+                    : { load: actions.templates.bind(null, active.id), send: actions.sendTemplate.bind(null, active.id) }
+                }
               />
             </div>
           </section>

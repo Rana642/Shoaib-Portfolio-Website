@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calculator, Settings2, Zap } from "lucide-react";
+import { Calculator, FileText, Settings2, Zap } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
 import { Card, buttonStyles, inputClasses } from "@/components/dashboard/ui";
 import Inbox, { type InboxAccount } from "@/components/whatsapp/Inbox";
@@ -12,6 +12,8 @@ import {
   sendWhatsAppReply,
   setWhatsAppStatus,
   updateWhatsAppChat,
+  whatsAppChatTemplates,
+  sendWhatsAppTemplate,
 } from "@/lib/dashboard/actions/whatsapp";
 import { verifyTokenFrom, whatsappCredential } from "@/lib/whatsapp";
 import { siteUrl } from "@/lib/seo";
@@ -102,6 +104,12 @@ export default async function WhatsAppPage({
         <Zap className="size-4" aria-hidden /> Automation
       </Link>
       <Link
+        href="/dashboard/whatsapp/templates"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-ink/15 px-3 py-2 text-small hover:bg-ink/5"
+      >
+        <FileText className="size-4" aria-hidden /> Templates
+      </Link>
+      <Link
         href="/dashboard/whatsapp/pricing"
         className="inline-flex items-center gap-1.5 rounded-lg border border-ink/15 px-3 py-2 text-small hover:bg-ink/5"
       >
@@ -149,6 +157,8 @@ export default async function WhatsAppPage({
           markRead: markWhatsAppRead,
           saveBooking: saveWhatsAppBooking,
           update: updateWhatsAppChat,
+          templates: whatsAppChatTemplates,
+          sendTemplate: sendWhatsAppTemplate,
         }}
       />
     </>

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/dashboard/db";
 import { bookingFromForm, sendText, updateChat, type ChatPatch } from "@/lib/whatsapp";
 import { sendWhatsAppPurchase } from "@/lib/whatsapp-conversions";
+import { accountOfChat, listTemplates, sendTemplate } from "@/lib/whatsapp-templates";
 import { can, canSeeProject, requirePortalUser } from "./auth";
 
 /**
@@ -66,4 +67,22 @@ export async function portalWhatsAppUpdate(contactId: string, patch: ChatPatch) 
 export async function portalWhatsAppRead(contactId: string) {
   if (!(await assertChatAccess(contactId))) return;
   await db.from("wa_contacts").update({ unread: 0 }).eq("id", contactId);
+}
+
+export async function portalChatTemplates(contactId: string) {
+  if (!(await assertChatAccess(contactId))) return { error: "You don't have access to this chat." };
+  const accountId = await accountOfChat(contactId);
+  if (!accountId) return { error: "Chat not found." };
+  try {
+    return { templates: await listTemplates(accountId, true) };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Couldn't load templates." };
+  }
+}
+
+export async function portalSendTemplate(contactId: string, name: string, language: string, params: string[]) {
+  if (!(await assertChatAccess(contactId))) return { error: "You don't have access to this chat." };
+  const result = await sendTemplate(contactId, String(name), String(language), Array.isArray(params) ? params.map(String) : []);
+  revalidatePath("/portal/whatsapp");
+  return result;
 }

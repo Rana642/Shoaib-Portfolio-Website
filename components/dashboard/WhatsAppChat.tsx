@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CheckCheck, Hand, LoaderCircle, Search, Send, X } from "lucide-react";
 import { buttonStyles, inputClasses } from "@/components/dashboard/ui";
 import { DEAL_WORDS, type BusinessKind } from "@/lib/whatsapp-words";
+import { TemplatePicker, type TemplateActions } from "@/components/whatsapp/Templates";
 
 type Result = { error?: string; ok?: boolean } | undefined;
 type ChatPatch = { handoff?: "intervene" | "resolve"; tags?: string[]; notes?: string };
@@ -46,10 +47,13 @@ export function ReplyBox({
   windowOpen,
   onSend,
   quickReplies = [],
+  templates,
 }: {
   windowOpen: boolean;
   onSend: (text: string) => Promise<Result>;
   quickReplies?: { id: string; title: string; body: string }[];
+  /** Approved message templates — the only way to write after the 24 h window. */
+  templates?: TemplateActions;
 }) {
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -71,14 +75,27 @@ export function ReplyBox({
 
   if (!windowOpen) {
     return (
-      <p className="text-small text-ink-muted">
-        The free 24-hour reply window has closed. The customer needs to message again before a normal reply can be sent.
-      </p>
+      <div className="grid gap-2">
+        <p className="text-small text-ink-muted">
+          The 24-hour reply window has closed — a normal reply can&apos;t be sent until the customer messages again.
+          {templates && " You can still send an approved template."}
+        </p>
+        {templates && (
+          <div>
+            <TemplatePicker actions={templates} />
+          </div>
+        )}
+      </div>
     );
   }
 
   return (
     <div>
+      {templates && (
+        <div className="mb-2">
+          <TemplatePicker actions={templates} label="Template" />
+        </div>
+      )}
       {quickReplies.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-2">
           {quickReplies.map((q) => (

@@ -4,6 +4,16 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-09 — WhatsApp message templates
+- **Templates page:** `/dashboard/whatsapp/templates` ("Templates" in the toolbar). It lists templates live from Meta per number (approved / pending / rejected, with the rejection reason).
+  - Builder: name, Utility/Marketing, language, header, body with `{{n}}` and example values, footer, up to 3 quick replies and 1 link button, with a live preview. Submits to Meta for review.
+  - Delete: Meta blocks reusing a deleted name for 30 days.
+- **Inbox:** "Send a template" when the 24h window is closed, and a "Template" button while it is open. Pick a template, fill its variables, preview, send.
+  - The message is stored as type `template` with the rendered text and counts as a staff reply (Intervened).
+  - Works in the client portal too.
+- **Not sendable from the inbox:** media/carousel templates and links with variables (hidden from the picker). Authentication templates are also hidden. Opted-out (STOP) customers can't be sent templates.
+- **Code:** `lib/whatsapp-templates.ts` (Graph calls), `lib/whatsapp-template-shared.ts` (types, validation, preview), `components/whatsapp/Templates.tsx`.
+
 ## 2026-10-09 — WhatsApp pricing calculator + general-business wording
 - **Calculator:** `/dashboard/whatsapp/pricing` ("Pricing" in the WhatsApp toolbar) uses **Meta's official USD rate card, effective 1 Oct 2026** (`lib/whatsapp-rates.ts`, 47 markets — not AiSensy's resale list).
   - Inputs: number count, PKR rate and margin %.

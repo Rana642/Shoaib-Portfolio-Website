@@ -9,6 +9,8 @@ import {
   portalWhatsAppReply,
   portalWhatsAppStatus,
   portalWhatsAppUpdate,
+  portalChatTemplates,
+  portalSendTemplate,
 } from "@/lib/portal/whatsapp";
 
 export const dynamic = "force-dynamic";
@@ -101,6 +103,8 @@ export default async function PortalWhatsAppPage({
           markRead: portalWhatsAppRead,
           saveBooking: portalWhatsAppBooking,
           update: portalWhatsAppUpdate,
+          templates: portalChatTemplates,
+          sendTemplate: portalSendTemplate,
         }}
       />
     </>
