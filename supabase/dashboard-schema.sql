@@ -1457,3 +1457,23 @@ alter table wa_contacts add column if not exists conversion_result text;
 alter table wa_accounts add column if not exists access_token_enc text;
 alter table wa_accounts add column if not exists onboarded_at timestamptz;
 alter table wa_accounts add column if not exists sync_requests jsonb;
+
+-- ── WhatsApp live chat, AiSensy-style (2026-10-09) ──────────────────
+-- Active (automation handles it) / Requesting (guest waiting ≥15 min, or a
+-- Ref-code booking request) / Intervened (staff took over — automation's
+-- instant/after-hours replies pause until "Resolve"). Tags + notes live in
+-- the Guest Profile panel. A guest who sends STOP is opted out: automation
+-- never messages them again until they send START.
+alter table wa_contacts add column if not exists intervened_at timestamptz;
+alter table wa_contacts add column if not exists resolved_at timestamptz;
+alter table wa_contacts add column if not exists tags text[] not null default '{}';
+alter table wa_contacts add column if not exists notes text;
+alter table wa_contacts add column if not exists opted_out_at timestamptz;
+-- Existing chats: staff already answered the guest's latest message → Intervened.
+update wa_contacts c set intervened_at = m.at
+from (
+  select contact_id, max(sent_at) as at from wa_messages
+  where direction = 'out' and via in ('api', 'app') group by contact_id
+) m
+where m.contact_id = c.id and c.intervened_at is null
+  and (c.last_inbound_at is null or m.at >= c.last_inbound_at);

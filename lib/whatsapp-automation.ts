@@ -13,7 +13,9 @@ import { sendText } from "./whatsapp";
  * Never talks over staff: any reply from the phone app or dashboard after the
  * guest's message cancels the instant reply. At most one auto reply per chat
  * per 12 h, and one follow-up per guest message. Booked / not-booked chats
- * are left alone.
+ * are left alone, and so is a guest who sent STOP. An Intervened chat (staff
+ * took over in the live chat) gets no instant/after-hours reply until it is
+ * Resolved; the follow-up nudge still runs — it follows up staff's own answer.
  */
 
 export type Automation = {
@@ -50,10 +52,11 @@ export async function runAutomation(now = new Date()) {
 
     const { data: contacts } = await db
       .from("wa_contacts")
-      .select("id, name, status, last_inbound_at, auto_reply_at, follow_up_at")
+      .select("id, name, status, last_inbound_at, auto_reply_at, follow_up_at, intervened_at")
       .eq("account_id", acc.id)
       .gte("last_inbound_at", new Date(now.getTime() - WINDOW).toISOString())
       .not("status", "in", "(booked,lost)")
+      .is("opted_out_at", null)
       .limit(300);
     if (!contacts?.length) continue;
 
@@ -78,6 +81,7 @@ export async function runAutomation(now = new Date()) {
 
       // Instant / after-hours: guest waiting, nobody answered yet.
       if (!answered && (instantOn || nightOn)) {
+        if (c.intervened_at) continue;
         const recentAuto = c.auto_reply_at && now.getTime() - new Date(c.auto_reply_at).getTime() < 12 * HOUR;
         const night = nightOn && inNightWindow(new Date(inAt), a.afterHours?.from, a.afterHours?.to);
         const delay = (night ? 1 : Math.max(1, Number(a.instant?.delayMin) || 2)) * 60 * 1000;

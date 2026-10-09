@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "../db";
 import { getAdminUser } from "../auth";
-import { bookingFromForm, sendText } from "../../whatsapp";
+import { bookingFromForm, sendText, updateChat, type ChatPatch } from "../../whatsapp";
 import { sendWhatsAppPurchase } from "../../whatsapp-conversions";
 import { completeEmbeddedSignup } from "../../whatsapp-onboarding";
 
@@ -55,6 +55,14 @@ export async function saveWhatsAppBooking(contactId: string, formData: FormData)
   await sendWhatsAppPurchase(contactId).catch(() => {});
   revalidatePath("/dashboard/whatsapp");
   return { ok: true };
+}
+
+/** Intervene / Resolve, tags and notes from the Guest Profile. */
+export async function updateWhatsAppChat(contactId: string, patch: ChatPatch) {
+  await assertAuthed();
+  const result = await updateChat(contactId, patch);
+  revalidatePath("/dashboard/whatsapp");
+  return result;
 }
 
 /** Opening a chat clears its unread badge. */

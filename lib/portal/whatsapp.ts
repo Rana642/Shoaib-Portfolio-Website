@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/dashboard/db";
-import { bookingFromForm, sendText } from "@/lib/whatsapp";
+import { bookingFromForm, sendText, updateChat, type ChatPatch } from "@/lib/whatsapp";
 import { sendWhatsAppPurchase } from "@/lib/whatsapp-conversions";
 import { can, canSeeProject, requirePortalUser } from "./auth";
 
@@ -54,6 +54,13 @@ export async function portalWhatsAppBooking(contactId: string, formData: FormDat
   revalidatePath("/portal/whatsapp");
   revalidatePath("/portal/bookings");
   return { ok: true };
+}
+
+export async function portalWhatsAppUpdate(contactId: string, patch: ChatPatch) {
+  if (!(await assertChatAccess(contactId))) return { error: "You don't have access to this chat." };
+  const result = await updateChat(contactId, patch);
+  revalidatePath("/portal/whatsapp");
+  return result;
 }
 
 export async function portalWhatsAppRead(contactId: string) {

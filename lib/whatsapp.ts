@@ -170,6 +170,10 @@ export async function ingestWebhook(payload: { entry?: { changes?: Change[] }[] 
             update.ref_code = `AD${m.referral.source_id ?? ""}`.slice(0, 32);
           }
         }
+        // STOP / START: the guest's own opt-out — automation never writes to an opted-out guest.
+        const word = body?.trim().toUpperCase();
+        if (word === "STOP" || word === "UNSUBSCRIBE") update.opted_out_at = at;
+        else if (word === "START") update.opted_out_at = null;
         const { data: cur } = await db.from("wa_contacts").select("unread").eq("id", contact.id).single();
         update.unread = (cur?.unread ?? 0) + 1;
         await db.from("wa_contacts").update(update).eq("id", contact.id);
@@ -253,12 +257,44 @@ export async function ingestWebhook(payload: { entry?: { changes?: Change[] }[] 
   }
 }
 
+/** Staff answered (dashboard, portal or the phone app) → the chat is Intervened. */
 async function markReplied(contactId: string, at: string) {
-  const { data } = await db.from("wa_contacts").select("status").eq("id", contactId).single();
+  const { data } = await db.from("wa_contacts").select("status, intervened_at").eq("id", contactId).single();
   await db
     .from("wa_contacts")
-    .update({ last_message_at: at, unread: 0, ...(data?.status === "new" ? { status: "replied" } : {}) })
+    .update({
+      last_message_at: at,
+      unread: 0,
+      ...(data?.status === "new" ? { status: "replied" } : {}),
+      ...(data?.intervened_at ? {} : { intervened_at: at }),
+    })
     .eq("id", contactId);
+}
+
+/** Minutes a guest waits unanswered before the chat moves to Requesting. */
+export const REQUEST_AFTER_MIN = 15;
+
+export type ChatStage = "active" | "requesting" | "intervened";
+
+/**
+ * AiSensy-style live-chat stage:
+ *  - intervened: staff took over (replied, or pressed Intervene) — automation's
+ *    instant/after-hours replies are paused until Resolve
+ *  - requesting: the guest's latest message (inside the 24h reply window, after
+ *    the last Resolve) is still unanswered for REQUEST_AFTER_MIN, or it carries a
+ *    website Ref code — a booking request, so it can't wait
+ *  - active: everything else — automation handles it
+ */
+export function chatStage(
+  c: { intervened_at: string | null; resolved_at: string | null; last_inbound_at: string | null; ref_source: string | null; status: string },
+  now = Date.now()
+): ChatStage {
+  if (c.intervened_at) return "intervened";
+  if (!c.last_inbound_at || c.status === "booked" || c.status === "lost") return "active";
+  const inAt = new Date(c.last_inbound_at).getTime();
+  if (c.resolved_at && new Date(c.resolved_at).getTime() >= inAt) return "active";
+  if (!replyWindowOpen(c.last_inbound_at)) return "active";
+  return c.ref_source || now - inAt >= REQUEST_AFTER_MIN * 60 * 1000 ? "requesting" : "active";
 }
 
 /** "Mark as booked" details from a form → the jsonb stored on the chat. */
@@ -290,10 +326,11 @@ export function replyWindowOpen(lastInboundAt: string | null | undefined) {
 export async function sendText(contactId: string, text: string, via: "api" | "auto" = "api") {
   const { data: contact } = await db
     .from("wa_contacts")
-    .select("id, wa_id, last_inbound_at, wa_accounts(id, phone_number_id)")
+    .select("id, wa_id, last_inbound_at, opted_out_at, wa_accounts(id, phone_number_id)")
     .eq("id", contactId)
     .single();
   if (!contact) return { error: "Chat not found." };
+  if (via === "auto" && contact.opted_out_at) return { error: "Guest opted out (STOP)." };
   const account = contact.wa_accounts as unknown as { id: string; phone_number_id: string };
   if (!replyWindowOpen(contact.last_inbound_at)) {
     return { error: "The 24-hour reply window has closed — the guest has to message first (or send an approved template)." };
@@ -323,4 +360,22 @@ export async function sendText(contactId: string, text: string, via: "api" | "au
   if (via === "auto") await db.from("wa_contacts").update({ last_message_at: at }).eq("id", contact.id);
   else await markReplied(contact.id, at);
   return { ok: true };
+}
+
+export type ChatPatch = { handoff?: "intervene" | "resolve"; tags?: string[]; notes?: string };
+
+/** Live-chat edits from the Guest Profile (callers check access first). */
+export async function updateChat(contactId: string, patch: ChatPatch) {
+  const update: Record<string, unknown> = {};
+  const now = new Date().toISOString();
+  if (patch.handoff === "intervene") update.intervened_at = now;
+  if (patch.handoff === "resolve") Object.assign(update, { intervened_at: null, resolved_at: now });
+  if (Array.isArray(patch.tags)) {
+    const clean = patch.tags.filter((t): t is string => typeof t === "string").map((t) => t.trim().slice(0, 30));
+    update.tags = [...new Set(clean.filter(Boolean))].slice(0, 20);
+  }
+  if (typeof patch.notes === "string") update.notes = patch.notes.slice(0, 4000) || null;
+  if (!Object.keys(update).length) return { ok: true };
+  const { error } = await db.from("wa_contacts").update(update).eq("id", contactId);
+  return error ? { error: error.message } : { ok: true };
 }

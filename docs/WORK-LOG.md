@@ -4,6 +4,23 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-09 — WhatsApp live chat, AiSensy-style
+- **Layout:** three panes (chat list / chat / Guest Profile), with search and a source filter on top. One component (`components/whatsapp/Inbox.tsx`) serves both the dashboard and the portal.
+- **Tabs:**
+  - **Active** — automation handles it.
+  - **Requesting** — guest unanswered 15+ min, or a Ref-code booking request.
+  - **Intervened** — staff replied or pressed Intervene. Auto-replies pause until **Resolve**.
+- **Guest Profile:** came-from, status, booking, tags, notes, reply-window timer.
+- **STOP / START** opt-out is respected by the automation.
+- **DB:** new wa_contacts columns `intervened_at, resolved_at, tags, notes, opted_out_at`. The SQL has been run.
+- **Next:** template messages for chats past the 24h window.
+
+## 2026-10-09 — Planner Instagram fix
+- **Cause:** hotel FB/IG page tokens died after the 6 Oct "revoke all", and reconnecting did not refresh them. Facebook (re)connect now refreshes every project's page tokens (187dad7).
+- **Friday-4:** today's post went out on Instagram for both hotels at ~13:15 PKT.
+- **Rule:** Friday posts always go at **10:00 AM PKT**. Best-time is advice only and is never applied to Friday posts.
+- **Still open:** the missed IG posts 27/28/29 (6–8 Oct) are waiting on Shoaib's call.
+
 ## 2026-10-08 (night) — Bookings like the hotel admins, Portal Passwords, WhatsApp automation
 - **Bookings (portal + dashboard):** a hotel-admin-style list (status tabs, search) and a detail page.
   - Status and notes are written to each hotel's own DB, with its side effects.
