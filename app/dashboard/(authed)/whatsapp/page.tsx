@@ -8,6 +8,8 @@ import NumbersPopover from "@/components/whatsapp/NumbersPopover";
 import {
   finishWhatsAppSignup,
   linkWhatsAppAccount,
+  unlinkWhatsAppAccount,
+  deleteWhatsAppAccount,
   markWhatsAppRead,
   saveWhatsAppBooking,
   sendWhatsAppReply,
@@ -51,14 +53,30 @@ export default async function WhatsAppPage({
     name: a.client_projects?.name ?? a.label ?? a.display_phone ?? "WhatsApp",
   }));
   const projects = (projectRows ?? []) as unknown as { id: string; name: string; clients: { name: string } | null }[];
+  // Chats per number (for the delete warning).
+  const chatCounts = new Map<string, number>();
+  await Promise.all(
+    accountRows.map(async (a) => {
+      const { count } = await db.from("wa_contacts").select("id", { count: "exact", head: true }).eq("account_id", a.id);
+      chatCounts.set(a.id, count ?? 0);
+    })
+  );
   const visible = account ? all.filter((a) => a.id === account) : all;
 
   const toolbar = (
     <>
       <NumbersPopover
-        rows={accountRows.map((a) => ({ id: a.id, display_phone: a.display_phone, label: a.label, project_id: a.project_id }))}
+        rows={accountRows.map((a) => ({
+          id: a.id,
+          display_phone: a.display_phone,
+          label: a.label,
+          project_id: a.project_id,
+          chats: chatCounts.get(a.id) ?? 0,
+        }))}
         projects={projects.map((p) => ({ id: p.id, label: `${p.clients?.name ? `${p.clients.name} — ` : ""}${p.name}` }))}
         onSave={linkWhatsAppAccount}
+        onUnlink={unlinkWhatsAppAccount}
+        onDelete={deleteWhatsAppAccount}
       />
       <Link
         href="/dashboard/whatsapp/automation"

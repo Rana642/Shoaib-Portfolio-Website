@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "./dashboard/db";
-import { encryptField } from "./api-vault-crypto";
+import { decryptField, encryptField } from "./api-vault-crypto";
 import { whatsappCredential } from "./whatsapp";
 
 /**
@@ -69,4 +69,35 @@ export async function completeEmbeddedSignup(input: { code: string; wabaId: stri
     await db.from("wa_accounts").update({ sync_requests: sync }).eq("id", account.id);
   }
   return { accountId: account.id as string, display: phone.display_phone_number ?? input.phoneNumberId, sync };
+}
+
+/**
+ * Remove a number from the dashboard: its chats, messages, quick replies and
+ * broadcasts go with it (cascade). If no other number of ours uses the same
+ * WhatsApp Business Account — and it isn't the Socially Snap test WABA — our
+ * app is unsubscribed from it, so its messages stop arriving (otherwise the
+ * next incoming message would re-create the number).
+ */
+export async function removeWhatsAppNumber(accountId: string) {
+  const { data: acc } = await db.from("wa_accounts").select("id, waba_id, access_token_enc").eq("id", accountId).maybeSingle();
+  if (!acc) return { error: "Number not found." };
+  let unsubscribed = false;
+  const cred = await whatsappCredential().catch(() => null);
+  if (acc.waba_id && acc.waba_id !== cred?.waba_id) {
+    const { count } = await db.from("wa_accounts").select("id", { count: "exact", head: true }).eq("waba_id", acc.waba_id).neq("id", acc.id);
+    if (!count) {
+      try {
+        const token = acc.access_token_enc ? decryptField(acc.access_token_enc as string) : cred?.access_token;
+        if (token) {
+          await graph(`${acc.waba_id}/subscribed_apps`, token, { method: "DELETE" });
+          unsubscribed = true;
+        }
+      } catch {
+        // Already gone on Meta's side — still remove it here.
+      }
+    }
+  }
+  const { error } = await db.from("wa_accounts").delete().eq("id", accountId);
+  if (error) return { error: error.message };
+  return { ok: true, unsubscribed };
 }

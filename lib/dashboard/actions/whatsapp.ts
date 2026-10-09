@@ -7,7 +7,7 @@ import { db } from "../db";
 import { getAdminUser } from "../auth";
 import { bookingFromForm, sendText, updateChat, type ChatPatch } from "../../whatsapp";
 import { sendWhatsAppPurchase } from "../../whatsapp-conversions";
-import { completeEmbeddedSignup } from "../../whatsapp-onboarding";
+import { completeEmbeddedSignup, removeWhatsAppNumber } from "../../whatsapp-onboarding";
 import { accountOfChat, createTemplate, deleteTemplate, listTemplates, sendTemplate } from "../../whatsapp-templates";
 import type { TemplateInput } from "../../whatsapp-template-shared";
 import { cancelBroadcast, createBroadcast, previewAudience, type Audience } from "../../whatsapp-broadcasts";
@@ -45,6 +45,23 @@ export async function linkWhatsAppAccount(accountId: string, formData: FormData)
   if (error) return { error: error.message };
   revalidatePath("/dashboard/whatsapp");
   return { ok: true };
+}
+
+/** Free a number from its business (its chats leave that client's portal). */
+export async function unlinkWhatsAppAccount(accountId: string) {
+  await assertAuthed();
+  const { error } = await db.from("wa_accounts").update({ project_id: null }).eq("id", accountId);
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/whatsapp");
+  return { ok: true };
+}
+
+/** Remove a number and all its chats from the dashboard. */
+export async function deleteWhatsAppAccount(accountId: string) {
+  await assertAuthed();
+  const result = await removeWhatsAppNumber(accountId);
+  revalidatePath("/dashboard/whatsapp");
+  return result;
 }
 
 /** Booking details for a chat; marks it Booked. */
