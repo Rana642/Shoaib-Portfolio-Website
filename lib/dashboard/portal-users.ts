@@ -6,6 +6,7 @@ import { siteUrl } from "../seo";
 import { resend, isResendConfigured, fromEmail } from "../resend";
 import { portalInviteEmail } from "../email-templates";
 import { DEFAULT_CLIENT_FEATURES, isFeature, type PortalFeature, type PortalRole } from "../portal/features";
+import { checkEmail } from "../email-check";
 
 export const PORTAL_SETUP_MESSAGE =
   "The client portal needs a one-time database update — run the “Client portal” section of supabase/dashboard-schema.sql in the Supabase SQL Editor.";
@@ -233,6 +234,8 @@ export async function createPortalLoginWithPassword(opts: {
 }): Promise<{ ok: true } | { error: string }> {
   const target = opts.email.trim().toLowerCase();
   if (opts.password.length < 10) return { error: "Use a password of at least 10 characters." };
+  const emailCheck = await checkEmail(target);
+  if (!emailCheck.ok) return { error: emailCheck.message };
 
   const { data: client } = await db.from("clients").select("id").eq("id", opts.clientId).maybeSingle();
   if (!client) return { error: "Client not found." };

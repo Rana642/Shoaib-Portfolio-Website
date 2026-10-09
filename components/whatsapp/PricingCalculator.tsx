@@ -18,10 +18,10 @@ type Category = (typeof CATEGORIES)[number]["key"];
  * Monthly WhatsApp bill at Meta's own rates (any business, any market), with
  * the 1,000-free-service-messages-per-number tier and an optional resale margin.
  */
-export default function PricingCalculator() {
+export default function PricingCalculator({ fx }: { fx: { rate: number; date: string | null; live: boolean } }) {
   const [market, setMarket] = useState("Pakistan");
   const [currency, setCurrency] = useState<Currency>("PKR");
-  const [usdToPkr, setUsdToPkr] = useState(280);
+  const [usdToPkr, setUsdToPkr] = useState(fx.rate);
   const [numbers, setNumbers] = useState(1);
   const [margin, setMargin] = useState(0);
   // Paying Meta by a Pakistani card (FY 2026-27): bank's foreign transaction fee + s.236Y advance tax.
@@ -89,6 +89,14 @@ export default function PricingCalculator() {
                 onChange={(e) => setUsdToPkr(Math.max(1, Number(e.target.value) || 0))}
                 className={inputClasses}
               />
+              <span className="block text-tag text-ink-subtle mt-1">
+                {fx.live ? `Today's open-market rate${fx.date ? ` (${fx.date})` : ""}` : "Live rate unavailable — default"}
+                {usdToPkr !== fx.rate && (
+                  <button type="button" onClick={() => setUsdToPkr(fx.rate)} className="ml-1 underline">
+                    reset
+                  </button>
+                )}
+              </span>
             </label>
           ) : null}
           <label className="text-small">

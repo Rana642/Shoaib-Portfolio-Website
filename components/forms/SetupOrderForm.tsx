@@ -29,6 +29,7 @@ export default function SetupOrderForm({ setupName }: { setupName: string }) {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors },
   } = useForm<FormData>({ resolver: zodResolver(schema) });
 
@@ -40,6 +41,15 @@ export default function SetupOrderForm({ setupName }: { setupName: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...data, budget: "Setup order", setup: setupName }),
       });
+      if (res.status === 422) {
+        // The server found a fake / mistyped email — show it under the field.
+        const body = (await res.json().catch(() => ({}))) as { field?: string; error?: string };
+        if (body.field === "email") {
+          setError("email", { message: body.error ?? "That email doesn't look right" });
+          setStatus("idle");
+          return;
+        }
+      }
       if (!res.ok) throw new Error("Request failed");
       setStatus("sent");
     } catch {

@@ -4,6 +4,7 @@ import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { resend, isResendConfigured, fromEmail } from "@/lib/resend";
 import { newsletterWelcomeEmail } from "@/lib/email-templates";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { checkEmail } from "@/lib/email-check";
 
 const schema = z.object({ email: z.string().email().max(320) });
 
@@ -25,6 +26,12 @@ export async function POST(request: Request) {
   }
 
   const { email } = parsed.data;
+
+  // Fake / mistyped email → tell the visitor instead of saving a dead lead.
+  const emailCheck = await checkEmail(email);
+  if (!emailCheck.ok) {
+    return NextResponse.json({ error: emailCheck.message, field: "email", suggestion: emailCheck.suggestion }, { status: 422 });
+  }
 
   if (isSupabaseConfigured) {
     const { error } = await supabaseAdmin

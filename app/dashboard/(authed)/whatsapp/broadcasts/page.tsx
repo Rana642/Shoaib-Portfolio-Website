@@ -6,6 +6,7 @@ import BroadcastForm, { CancelBroadcastButton } from "@/components/whatsapp/Broa
 import { cancelWhatsAppBroadcast, createWhatsAppBroadcast, previewWhatsAppBroadcast } from "@/lib/dashboard/actions/whatsapp";
 import { listTemplates } from "@/lib/whatsapp-templates";
 import type { Audience } from "@/lib/whatsapp-broadcasts";
+import { usdToPkr } from "@/lib/fx-rate";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "WhatsApp broadcasts" };
@@ -48,6 +49,7 @@ export default async function WhatsAppBroadcastsPage({ searchParams }: { searchP
       loadError = e instanceof Error ? e.message : "Couldn't load templates.";
     }
   }
+  const fx = await usdToPkr();
   const tags = [...new Set((tagRows ?? []).flatMap((r) => (r.tags as string[]) ?? []))].sort();
   const ids = (broadcasts ?? []).map((b) => b.id as string);
   const { data: statRows } = ids.length ? await db.rpc("wa_broadcast_stats", { ids }) : { data: [] };
@@ -105,7 +107,7 @@ export default async function WhatsAppBroadcastsPage({ searchParams }: { searchP
             {loadError ? (
               <p className="text-small text-red-700">{loadError}</p>
             ) : (
-              <BroadcastForm key={selected.id} templates={templates} tags={tags} onPreview={preview} onCreate={create} />
+              <BroadcastForm key={selected.id} templates={templates} tags={tags} pkrRate={fx.rate} onPreview={preview} onCreate={create} />
             )}
           </Card>
 

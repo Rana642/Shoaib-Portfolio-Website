@@ -4,6 +4,14 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-09 — Free APIs from the public-apis fork: live USD→PKR + email check
+- **Live rate:** `lib/fx-rate.ts` fetches USD→PKR from fawazahmed0 currency-api (jsDelivr, with a pages.dev mirror; cached 6h; Rs 280 fallback).
+  - Used by the WhatsApp pricing calculator (prefilled with a "today's rate" note and reset) and the broadcast cost estimate.
+- **Email check:** `lib/email-check.ts` uses Disify (no key). It rejects temporary inboxes and domains with no mail server, and suggests typo fixes (gmial → gmail).
+  - Fail-open on timeout (2.5s).
+  - Wired into `/api/contact` (contact + setup order forms), `/api/newsletter` and portal-login creation.
+  - The forms show the message under the email field (422 + `field: "email"`).
+
 ## 2026-10-09 — Quran Cloud + Iconify MCP tools; glass effect dropped for good
 - **New MCP tools** (`lib/mcp-content-tools.ts`), registered with the KB tools, so they are on both the local and remote servers. Both APIs are free and need no key; Shoaib picked them from his public-apis fork.
   - `quran_get_ayah`: the exact Tanzil quran-simple Arabic, numbered words, and translations (en.sahih and ur.jalandhry by default; the translations are for meaning only).

@@ -5,6 +5,7 @@ import { resend, isResendConfigured, fromEmail, toEmail } from "@/lib/resend";
 import { contactNotificationEmail, contactAutoReplyEmail } from "@/lib/email-templates";
 import { sendMetaCapiEvent } from "@/lib/meta-capi";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { checkEmail } from "@/lib/email-check";
 
 const schema = z.object({
   name: z.string().min(2).max(200),
@@ -36,6 +37,12 @@ export async function POST(request: Request) {
   }
 
   const { name, email, business, budget, message, setup } = parsed.data;
+
+  // Fake / mistyped email → tell the visitor instead of saving a dead lead.
+  const emailCheck = await checkEmail(email);
+  if (!emailCheck.ok) {
+    return NextResponse.json({ error: emailCheck.message, field: "email", suggestion: emailCheck.suggestion }, { status: 422 });
+  }
 
   // Each integration is independent: a downstream hiccup (Supabase network
   // blip, a misconfigured key) must never make a real lead's message vanish

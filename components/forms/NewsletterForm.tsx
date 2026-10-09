@@ -6,16 +6,26 @@ import { LoaderCircle, Check } from "lucide-react";
 export default function NewsletterForm() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus("sending");
+    setEmailError(null);
     try {
       const res = await fetch("/api/newsletter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
+      if (res.status === 422) {
+        const body = (await res.json().catch(() => ({}))) as { field?: string; error?: string };
+        if (body.field === "email") {
+          setEmailError(body.error ?? "That email doesn't look right");
+          setStatus("idle");
+          return;
+        }
+      }
       if (!res.ok) throw new Error("Request failed");
       setStatus("sent");
     } catch {
@@ -50,6 +60,7 @@ export default function NewsletterForm() {
       >
         {status === "sending" ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : "Join"}
       </button>
+      {emailError && <p className="text-small text-red-300 absolute mt-12">{emailError}</p>}
       {status === "error" && (
         <p className="text-small text-red-300 absolute mt-12">Something broke — try again.</p>
       )}

@@ -36,11 +36,14 @@ const ACTIVE = [
 export default function BroadcastForm({
   templates,
   tags,
+  pkrRate,
   onPreview,
   onCreate,
 }: {
   templates: WaTemplate[];
   tags: string[];
+  /** Today's USD → PKR rate. */
+  pkrRate: number;
   onPreview: (audience: Audience, category: string) => Promise<{ count: number; capped: boolean; usd: number }>;
   onCreate: (input: {
     name: string;
@@ -277,7 +280,7 @@ export default function BroadcastForm({
           <p className="text-small text-ink-muted">contacts{preview?.capped ? " (first 5,000 will be sent)" : ""}</p>
           {preview && preview.count > 0 && (
             <p className="text-small mt-2">
-              Est. Meta cost ≈ <strong>Rs {Math.round(preview.usd * 280 * 1.045).toLocaleString("en-US")}</strong>
+              Est. Meta cost ≈ <strong>Rs {Math.round(preview.usd * pkrRate * 1.045).toLocaleString("en-US")}</strong>
               <span className="block text-tag text-ink-subtle">
                 ${preview.usd.toFixed(3)} at {category.toLowerCase()} rates, incl. ~4.5% bank fee + advance tax. Contacts inside a free window cost less.
               </span>
