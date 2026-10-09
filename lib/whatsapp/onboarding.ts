@@ -1,7 +1,7 @@
 import "server-only";
-import { db } from "./dashboard/db";
-import { decryptField, encryptField } from "./api-vault-crypto";
-import { whatsappCredential } from "./whatsapp";
+import { db } from "../dashboard/db";
+import { decryptField, encryptField } from "../api-vault-crypto";
+import { whatsappCredential } from "./index";
 
 /**
  * Embedded Signup (incl. coexistence: a number that stays on the WhatsApp

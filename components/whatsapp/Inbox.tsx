@@ -16,8 +16,8 @@ import {
   type BookingDetails,
   type Scope,
 } from "@/components/dashboard/WhatsAppChat";
-import { DEAL_WORDS, type BusinessKind } from "@/lib/whatsapp-words";
-import type { WaTemplate } from "@/lib/whatsapp-template-shared";
+import { DEAL_WORDS, type BusinessKind } from "@/lib/whatsapp/words";
+import type { WaTemplate } from "@/lib/whatsapp/template-shared";
 import { chatStage, replyWindowOpen, type ChatPatch, type ChatStage } from "@/lib/whatsapp";
 
 /**

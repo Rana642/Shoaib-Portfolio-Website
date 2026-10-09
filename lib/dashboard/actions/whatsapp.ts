@@ -6,11 +6,11 @@ import { z } from "zod";
 import { db } from "../db";
 import { getAdminUser } from "../auth";
 import { bookingFromForm, sendText, updateChat, type ChatPatch } from "../../whatsapp";
-import { sendWhatsAppPurchase } from "../../whatsapp-conversions";
-import { completeEmbeddedSignup, removeWhatsAppNumber } from "../../whatsapp-onboarding";
-import { accountOfChat, createTemplate, deleteTemplate, listTemplates, sendTemplate } from "../../whatsapp-templates";
-import type { TemplateInput } from "../../whatsapp-template-shared";
-import { cancelBroadcast, createBroadcast, previewAudience, type Audience } from "../../whatsapp-broadcasts";
+import { sendWhatsAppPurchase } from "../../whatsapp/conversions";
+import { completeEmbeddedSignup, removeWhatsAppNumber } from "../../whatsapp/onboarding";
+import { accountOfChat, createTemplate, deleteTemplate, listTemplates, sendTemplate } from "../../whatsapp/templates";
+import type { TemplateInput } from "../../whatsapp/template-shared";
+import { cancelBroadcast, createBroadcast, previewAudience, type Audience } from "../../whatsapp/broadcasts";
 
 async function assertAuthed() {
   const user = await getAdminUser();

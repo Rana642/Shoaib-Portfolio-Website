@@ -1,8 +1,8 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { db } from "./dashboard/db";
-import { getVaultCredential } from "./marketing-vault";
-import { decryptField } from "./api-vault-crypto";
+import { db } from "../dashboard/db";
+import { getVaultCredential } from "../marketing-vault";
+import { decryptField } from "../api-vault-crypto";
 
 /**
  * WhatsApp Cloud API on the "Socially Snap" Meta app — docs/WHATSAPP-INBOX-PLAN.md.

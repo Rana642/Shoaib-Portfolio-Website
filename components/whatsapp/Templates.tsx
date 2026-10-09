@@ -11,7 +11,7 @@ import {
   validateTemplate,
   type TemplateInput,
   type WaTemplate,
-} from "@/lib/whatsapp-template-shared";
+} from "@/lib/whatsapp/template-shared";
 
 type Result = { error?: string; ok?: boolean } | undefined;
 export type TemplateActions = {

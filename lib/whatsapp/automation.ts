@@ -1,6 +1,6 @@
 import "server-only";
-import { db } from "./dashboard/db";
-import { sendText } from "./whatsapp";
+import { db } from "../dashboard/db";
+import { sendText } from "./index";
 
 /**
  * WhatsApp automation (phase 4) — run every minute by pg_cron

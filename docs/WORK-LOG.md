@@ -4,6 +4,15 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-09 — WhatsApp section menu + code in one place (Socially Snap-ready)
+- **Menu:** `/dashboard/whatsapp/*` has its own section menu (`components/whatsapp/WhatsAppNav.tsx`, `whatsapp/layout.tsx`): Inbox · Broadcasts · Templates · Automation · Numbers · Pricing.
+  - The main sidebar drops to its icon rail there (`DashboardShell` `RAIL_ROUTES`); its toggle opens it for that visit only.
+  - Phones get a row of tabs instead.
+- **Numbers:** now a page (`/dashboard/whatsapp/numbers`) with Connect, link/unlink/delete and the webhook details. The inbox toolbar buttons are gone.
+- **Code:** all WhatsApp logic moved into `lib/whatsapp/` (`index.ts` = the old `lib/whatsapp.ts`, plus automation / broadcasts / conversions / onboarding / rates / template-shared / templates / words).
+  - Imports updated. `@/lib/whatsapp` still resolves.
+  - **To move WhatsApp to Socially Snap, take:** `lib/whatsapp/`, `components/whatsapp/`, `app/dashboard/(authed)/whatsapp/`, `app/api/whatsapp/`, the `wa_*` tables, and the actions in `lib/dashboard/actions/whatsapp.ts` + `lib/portal/whatsapp.ts`.
+
 ## 2026-10-09 — Holidays + weather in the Planner, email domain check
 - **Holidays:** Pakistan public holidays from caldays.com (`lib/holidays.ts`; current year only; moon-sighted days marked `*`). They show as a citrus chip in the Planner week and month views.
 - **Weather:** Open-Meteo (`lib/weather.ts`, geocodes the city). Planner days show `emoji max°/min°` and rain ≥40%, for the next 16 days.

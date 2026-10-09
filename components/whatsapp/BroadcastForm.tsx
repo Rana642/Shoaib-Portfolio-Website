@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { LoaderCircle, Megaphone, X } from "lucide-react";
 import { buttonStyles, inputClasses } from "@/components/dashboard/ui";
 import { TemplatePreview } from "@/components/whatsapp/Templates";
-import { fillVars, type WaTemplate } from "@/lib/whatsapp-template-shared";
+import { fillVars, type WaTemplate } from "@/lib/whatsapp/template-shared";
 
 type Audience = { statuses?: string[]; tag?: string; source?: string; activeDays?: number; nameFallback?: string };
 type Result = { error?: string; ok?: boolean; total?: number } | undefined;

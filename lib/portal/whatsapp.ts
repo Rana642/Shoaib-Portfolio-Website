@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/dashboard/db";
 import { bookingFromForm, sendText, updateChat, type ChatPatch } from "@/lib/whatsapp";
-import { sendWhatsAppPurchase } from "@/lib/whatsapp-conversions";
-import { accountOfChat, listTemplates, sendTemplate } from "@/lib/whatsapp-templates";
+import { sendWhatsAppPurchase } from "@/lib/whatsapp/conversions";
+import { accountOfChat, listTemplates, sendTemplate } from "@/lib/whatsapp/templates";
 import { can, canSeeProject, requirePortalUser } from "./auth";
 
 /**

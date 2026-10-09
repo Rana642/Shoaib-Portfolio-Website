@@ -1,7 +1,7 @@
 import "server-only";
-import { db } from "./dashboard/db";
-import { markReplied, tokenForAccount } from "./whatsapp";
-import { countVars, fillVars, validateTemplate, type TemplateInput, type WaTemplate } from "./whatsapp-template-shared";
+import { db } from "../dashboard/db";
+import { markReplied, tokenForAccount } from "./index";
+import { countVars, fillVars, validateTemplate, type TemplateInput, type WaTemplate } from "./template-shared";
 
 /**
  * WhatsApp message templates — the only way to message a customer outside

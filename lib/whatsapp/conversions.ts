@@ -1,7 +1,7 @@
 import "server-only";
 import { createHmac } from "node:crypto";
-import { db } from "./dashboard/db";
-import { decryptField } from "./api-vault-crypto";
+import { db } from "../dashboard/db";
+import { decryptField } from "../api-vault-crypto";
 
 /**
  * WhatsApp phase 5 — feed real WhatsApp bookings back to Meta.

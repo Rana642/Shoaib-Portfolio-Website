@@ -3,8 +3,8 @@ import { db } from "@/lib/dashboard/db";
 import { Card, PageHeader } from "@/components/dashboard/ui";
 import BroadcastForm, { CancelBroadcastButton } from "@/components/whatsapp/BroadcastForm";
 import { cancelWhatsAppBroadcast, createWhatsAppBroadcast, previewWhatsAppBroadcast } from "@/lib/dashboard/actions/whatsapp";
-import { listTemplates } from "@/lib/whatsapp-templates";
-import type { Audience } from "@/lib/whatsapp-broadcasts";
+import { listTemplates } from "@/lib/whatsapp/templates";
+import type { Audience } from "@/lib/whatsapp/broadcasts";
 import { usdToPkr } from "@/lib/fx-rate";
 
 export const dynamic = "force-dynamic";

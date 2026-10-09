@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CheckCheck, Hand, LoaderCircle, Search, Send, X } from "lucide-react";
 import { buttonStyles, inputClasses } from "@/components/dashboard/ui";
-import { DEAL_WORDS, type BusinessKind } from "@/lib/whatsapp-words";
+import { DEAL_WORDS, type BusinessKind } from "@/lib/whatsapp/words";
 import { TemplatePicker, type TemplateActions } from "@/components/whatsapp/Templates";
 
 type Result = { error?: string; ok?: boolean } | undefined;

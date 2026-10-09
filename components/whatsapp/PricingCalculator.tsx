@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Card, inputClasses } from "@/components/dashboard/ui";
-import { FREE_SERVICE_PER_NUMBER, RATE_SOURCE, WHATSAPP_RATES } from "@/lib/whatsapp-rates";
+import { FREE_SERVICE_PER_NUMBER, RATE_SOURCE, WHATSAPP_RATES } from "@/lib/whatsapp/rates";
 
 type Currency = "PKR" | "USD";
 

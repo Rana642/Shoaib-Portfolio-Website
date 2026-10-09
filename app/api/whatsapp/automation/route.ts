@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isCronRequest } from "@/lib/cron-auth";
-import { runAutomation } from "@/lib/whatsapp-automation";
-import { runBroadcasts } from "@/lib/whatsapp-broadcasts";
+import { runAutomation } from "@/lib/whatsapp/automation";
+import { runBroadcasts } from "@/lib/whatsapp/broadcasts";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;

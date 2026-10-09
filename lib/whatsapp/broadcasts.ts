@@ -1,8 +1,8 @@
 import "server-only";
-import { db } from "./dashboard/db";
-import { deliverTemplate, listTemplates } from "./whatsapp-templates";
-import { WHATSAPP_RATES } from "./whatsapp-rates";
-import type { WaTemplate } from "./whatsapp-template-shared";
+import { db } from "../dashboard/db";
+import { deliverTemplate, listTemplates } from "./templates";
+import { WHATSAPP_RATES } from "./rates";
+import type { WaTemplate } from "./template-shared";
 
 /**
  * WhatsApp broadcasts: one approved template to a filtered list of a number's

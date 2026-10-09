@@ -3,8 +3,8 @@ import { db } from "@/lib/dashboard/db";
 import { Card, PageHeader } from "@/components/dashboard/ui";
 import { DeleteTemplateButton, TemplateBuilder, TemplatePreview } from "@/components/whatsapp/Templates";
 import { createWhatsAppTemplate, deleteWhatsAppTemplate } from "@/lib/dashboard/actions/whatsapp";
-import { listTemplates } from "@/lib/whatsapp-templates";
-import type { TemplateInput } from "@/lib/whatsapp-template-shared";
+import { listTemplates } from "@/lib/whatsapp/templates";
+import type { TemplateInput } from "@/lib/whatsapp/template-shared";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "WhatsApp templates" };
