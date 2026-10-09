@@ -4,6 +4,14 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-09 — WhatsApp Overview dashboard + collapsible section menu
+- **Overview:** `/dashboard/whatsapp/overview` (first item in the WhatsApp menu). Filters: 7/30/90 days and per number.
+  - **Right now:** waiting for a person (Requesting), unread, chats inside the free 24h window.
+  - **Period:** conversations / new contacts, received, sent (team · auto · template), median reply time, % answered within 24h, won/booked + Rs.
+  - Messages-per-day stacked chart (cobalt received / forest sent; palette validated; hover tooltip + table view), sources bars, broadcast delivered/read %.
+  - All from one SQL fn `wa_overview_stats(account_ids, since)` (run).
+- **Collapsible menu:** a "Collapse" button at the bottom shrinks the WhatsApp menu to icons, remembered in localStorage (`whatsapp-nav-collapsed`).
+
 ## 2026-10-09 — WhatsApp section menu + code in one place (Socially Snap-ready)
 - **Menu:** `/dashboard/whatsapp/*` has its own section menu (`components/whatsapp/WhatsAppNav.tsx`, `whatsapp/layout.tsx`): Inbox · Broadcasts · Templates · Automation · Numbers · Pricing.
   - The main sidebar drops to its icon rail there (`DashboardShell` `RAIL_ROUTES`); its toggle opens it for that visit only.

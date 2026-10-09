@@ -1534,3 +1534,65 @@ revoke all on function wa_broadcast_stats(uuid[]) from public, anon, authenticat
 
 -- City per project (2026-10-09): the Planner shows that city's weather (Open-Meteo) on upcoming days.
 alter table client_projects add column if not exists city text;
+
+-- WhatsApp Overview page (2026-10-09): every number in one query, for the chosen accounts and period.
+create or replace function wa_overview_stats(account_ids uuid[], since timestamptz)
+returns jsonb
+language sql stable
+set search_path = public
+as $$
+with msgs as (
+  select m.contact_id, m.direction, m.via, m.type, m.sent_at
+  from wa_messages m
+  where m.account_id = any (account_ids) and m.sent_at >= since
+),
+ordered as (
+  select contact_id, direction, via, sent_at,
+         lag(direction) over (partition by contact_id order by sent_at) as prev_dir
+  from wa_messages
+  where account_id = any (account_ids) and sent_at >= since - interval '1 day'
+),
+-- The first message of each customer "turn", and how long until a person answered it.
+turns as (
+  select o.contact_id, o.sent_at,
+    (select min(r.sent_at) from wa_messages r
+      where r.contact_id = o.contact_id and r.direction = 'out' and r.via in ('api', 'app')
+        and r.sent_at > o.sent_at and r.sent_at < o.sent_at + interval '24 hours') as answered_at
+  from ordered o
+  where o.direction = 'in' and (o.prev_dir is distinct from 'in') and o.sent_at >= since
+)
+select jsonb_build_object(
+  'conversations', (select count(distinct contact_id) from msgs where direction = 'in'),
+  'new_contacts', (select count(*) from wa_contacts where account_id = any (account_ids) and created_at >= since),
+  'received', (select count(*) from msgs where direction = 'in'),
+  'sent_staff', (select count(*) from msgs where direction = 'out' and via in ('api', 'app') and type <> 'template'),
+  'sent_auto', (select count(*) from msgs where direction = 'out' and via = 'auto'),
+  'sent_template', (select count(*) from msgs where direction = 'out' and type = 'template' and via is distinct from 'broadcast'),
+  'sent_broadcast', (select count(*) from msgs where direction = 'out' and via = 'broadcast'),
+  'turns', (select count(*) from turns),
+  'turns_answered', (select count(*) from turns where answered_at is not null),
+  'median_reply_min', (select round((percentile_cont(0.5) within group (order by extract(epoch from answered_at - sent_at)) / 60)::numeric, 1)
+                       from turns where answered_at is not null),
+  'won', (select count(*) from wa_contacts where account_id = any (account_ids) and status = 'booked'
+            and (booking ->> 'booked_at')::timestamptz >= since),
+  'revenue', (select coalesce(sum(nullif(booking ->> 'amount', '')::numeric), 0) from wa_contacts
+            where account_id = any (account_ids) and status = 'booked' and (booking ->> 'booked_at')::timestamptz >= since),
+  'sources', (select coalesce(jsonb_object_agg(src, n), '{}'::jsonb) from (
+      select coalesce(ref_source, 'none') as src, count(*) as n from wa_contacts
+      where account_id = any (account_ids) and created_at >= since group by 1) s),
+  'daily', (select coalesce(jsonb_agg(jsonb_build_object('day', d, 'in', i, 'out', o) order by d), '[]'::jsonb) from (
+      select (sent_at at time zone 'Asia/Karachi')::date as d,
+             count(*) filter (where direction = 'in') as i,
+             count(*) filter (where direction = 'out') as o
+      from msgs group by 1) x),
+  'broadcasts', (select jsonb_build_object(
+      'count', count(distinct b.id),
+      'sent', count(r.id) filter (where r.status in ('sent', 'delivered', 'read')),
+      'delivered', count(r.id) filter (where r.status in ('delivered', 'read')),
+      'read', count(r.id) filter (where r.status = 'read'),
+      'failed', count(r.id) filter (where r.status = 'failed'))
+    from wa_broadcasts b left join wa_broadcast_recipients r on r.broadcast_id = b.id
+    where b.account_id = any (account_ids) and b.created_at >= since)
+);
+$$;
+revoke all on function wa_overview_stats(uuid[], timestamptz) from public, anon, authenticated;
