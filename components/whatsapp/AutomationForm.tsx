@@ -27,14 +27,14 @@ export function AutomationForm({ initial, onSave }: { initial: AutomationSetting
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, start] = useTransition();
   const set = <K extends keyof AutomationSettings>(k: K, patch: Partial<AutomationSettings[K]>) => setS((x) => ({ ...x, [k]: { ...x[k], ...patch } }));
-  const hint = <p className="text-tag text-ink-subtle mt-1">Use {"{name}"} for the guest&apos;s first name.</p>;
+  const hint = <p className="text-tag text-ink-subtle mt-1">Use {"{name}"} for the customer&apos;s first name.</p>;
 
   return (
     <div className="space-y-4">
       <Card className="p-5 space-y-3">
         <Toggle on={s.instant.on} onChange={(on) => set("instant", { on })} label="Instant reply" />
         <p className="text-small text-ink-muted">
-          When a guest writes and nobody answers within{" "}
+          When a customer writes and nobody answers within{" "}
           <input
             type="number"
             min={1}
@@ -65,7 +65,7 @@ export function AutomationForm({ initial, onSave }: { initial: AutomationSetting
       <Card className="p-5 space-y-3">
         <Toggle on={s.followUp.on} onChange={(on) => set("followUp", { on })} label="Follow-up" />
         <p className="text-small text-ink-muted">
-          After we answer, if the guest goes quiet for{" "}
+          After we answer, if the customer goes quiet for{" "}
           <input
             type="number"
             min={1}
@@ -74,9 +74,9 @@ export function AutomationForm({ initial, onSave }: { initial: AutomationSetting
             onChange={(e) => set("followUp", { afterHours: Number(e.target.value) })}
             className={`${inputClasses} !w-16 !inline-block !py-1 !px-2`}
           />{" "}
-          hours — once per guest message, only within the free 24-hour window. Booked and not-booked chats are skipped.
+          hours — once per customer message, only within the 24-hour window. Won / booked and lost chats are skipped, and so is anyone who sent STOP.
         </p>
-        <textarea rows={3} value={s.followUp.text} onChange={(e) => set("followUp", { text: e.target.value })} className={inputClasses} placeholder="e.g. Hi {name}, shall I hold the room for you? The offer is valid today." />
+        <textarea rows={3} value={s.followUp.text} onChange={(e) => set("followUp", { text: e.target.value })} className={inputClasses} placeholder="e.g. Hi {name}, shall I reserve this for you? The offer is valid today." />
         {hint}
       </Card>
 

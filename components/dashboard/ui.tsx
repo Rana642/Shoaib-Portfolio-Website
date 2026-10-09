@@ -92,7 +92,7 @@ const statusStyles: Record<string, string> = {
   lost: "bg-ink/8 text-ink-subtle border-ink/15",
 };
 
-export function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ status, label }: { status: string; /** Text to show instead of the raw status. */ label?: string }) {
   return (
     <span
       className={cn(
@@ -100,7 +100,7 @@ export function StatusBadge({ status }: { status: string }) {
         statusStyles[status] ?? statusStyles.draft
       )}
     >
-      {status.replace(/_/g, " ")}
+      {label ?? status.replace(/_/g, " ")}
     </span>
   );
 }

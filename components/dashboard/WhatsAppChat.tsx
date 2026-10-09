@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CheckCheck, Hand, LoaderCircle, Search, Send, X } from "lucide-react";
 import { buttonStyles, inputClasses } from "@/components/dashboard/ui";
+import { DEAL_WORDS, type BusinessKind } from "@/lib/whatsapp-words";
 
 type Result = { error?: string; ok?: boolean } | undefined;
 type ChatPatch = { handoff?: "intervene" | "resolve"; tags?: string[]; notes?: string };
@@ -71,7 +72,7 @@ export function ReplyBox({
   if (!windowOpen) {
     return (
       <p className="text-small text-ink-muted">
-        The free 24-hour reply window has closed. The guest needs to message again before a normal reply can be sent.
+        The free 24-hour reply window has closed. The customer needs to message again before a normal reply can be sent.
       </p>
     );
   }
@@ -124,19 +125,23 @@ export type BookingDetails = {
   hotel_ref?: string | null;
 };
 
-/** "Mark as booked" — room, check-in, nights, amount. Feeds Bookings + reports. */
+
+/** "Mark as booked / won" — item, date, quantity, amount. Feeds Bookings + reports. */
 export function BookingForm({
   booking,
   booked,
   onSave,
   compact = false,
+  kind = "general",
 }: {
   booking: BookingDetails | null;
   booked: boolean;
   onSave: (formData: FormData) => Promise<Result>;
-  /** Narrow column (the Guest Profile panel): fields stack two per row. */
+  /** Narrow column (the Contact Profile panel): fields stack two per row. */
   compact?: boolean;
+  kind?: BusinessKind;
 }) {
+  const w = DEAL_WORDS[kind];
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -145,7 +150,7 @@ export function BookingForm({
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className={`${buttonStyles.secondary} !py-1.5 text-small`}>
-        {booked ? `Booking${booking?.amount ? `: Rs ${booking.amount.toLocaleString("en-PK")}` : ""} · edit` : "Mark as booked"}
+        {booked ? `${w.done}${booking?.amount ? `: Rs ${booking.amount.toLocaleString("en-PK")}` : ""} · edit` : w.mark}
       </button>
     );
   }
@@ -165,23 +170,23 @@ export function BookingForm({
       className={`w-full grid gap-2 items-end ${compact ? "grid-cols-2 [&>label:first-child]:col-span-2 [&>label:nth-child(5)]:col-span-2 [&>div]:col-span-2" : "sm:grid-cols-[1fr_150px_90px_120px_150px_auto]"}`}
     >
       <label className="text-tag">
-        Room
+        {w.item}
         <input name="room" defaultValue={booking?.room ?? ""} className={`${inputClasses} !py-1.5`} />
       </label>
       <label className="text-tag">
-        Check-in
+        {w.date}
         <input name="check_in" type="date" defaultValue={booking?.check_in ?? ""} className={`${inputClasses} !py-1.5`} />
       </label>
       <label className="text-tag">
-        Nights
+        {w.qty}
         <input name="nights" type="number" min={1} defaultValue={booking?.nights ?? 1} className={`${inputClasses} !py-1.5`} />
       </label>
       <label className="text-tag">
         Amount (Rs)
         <input name="amount" inputMode="numeric" defaultValue={booking?.amount ?? ""} className={`${inputClasses} !py-1.5`} />
       </label>
-      <label className="text-tag" title="If this booking is also entered in the hotel's admin, its ref — so it's counted once">
-        Hotel booking ref
+      <label className="text-tag" title={w.refTitle}>
+        {w.ref}
         <input name="hotel_ref" defaultValue={booking?.hotel_ref ?? ""} placeholder="optional" className={`${inputClasses} !py-1.5`} />
       </label>
       <div className="flex gap-2">
@@ -238,9 +243,11 @@ export function SourcePicker({
 export function StatusSelect({
   status,
   onChange,
+  kind = "general",
 }: {
   status: string;
   onChange: (status: string) => Promise<Result>;
+  kind?: BusinessKind;
 }) {
   const [value, setValue] = useState(status);
   const [pending, start] = useTransition();
@@ -260,8 +267,8 @@ export function StatusSelect({
     >
       <option value="new">New</option>
       <option value="replied">Replied</option>
-      <option value="booked">Booked</option>
-      <option value="lost">Not booked</option>
+      <option value="booked">{DEAL_WORDS[kind].won}</option>
+      <option value="lost">{DEAL_WORDS[kind].lost}</option>
     </select>
   );
 }
@@ -340,7 +347,7 @@ export function TagEditor({ tags, onUpdate }: { tags: string[]; onUpdate: (patch
   );
 }
 
-/** Private notes about the guest — saved when the box loses focus. */
+/** Private notes about the customer — saved when the box loses focus. */
 export function NotesBox({ notes, onUpdate }: { notes: string | null; onUpdate: (patch: ChatPatch) => Promise<Result> }) {
   const [value, setValue] = useState(notes ?? "");
   const [saved, setSaved] = useState(notes ?? "");
@@ -368,7 +375,7 @@ export function NotesBox({ notes, onUpdate }: { notes: string | null; onUpdate: 
 
 export type Scope = { param: string; allLabel?: string; options: { value: string; label: string }[] };
 
-/** Business switcher + search by name/number + filter by where the guest came from; keeps the other URL params. */
+/** Business switcher + search by name/number + filter by where the customer came from; keeps the other URL params. */
 export function InboxFilters({ sources, scope }: { sources: { value: string; label: string }[]; scope?: Scope }) {
   const router = useRouter();
   const pathname = usePathname();

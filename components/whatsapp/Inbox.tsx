@@ -16,13 +16,14 @@ import {
   type BookingDetails,
   type Scope,
 } from "@/components/dashboard/WhatsAppChat";
+import { DEAL_WORDS, type BusinessKind } from "@/lib/whatsapp-words";
 import { chatStage, replyWindowOpen, type ChatPatch, type ChatStage } from "@/lib/whatsapp";
 
 /**
  * The WhatsApp live chat — one component for my dashboard (every business)
  * and the client portal (only the signed-in client's numbers). Laid out like
  * AiSensy's Live Chat: chat list with Active / Requesting / Intervened tabs,
- * the conversation, and a Guest Profile panel (source, status, booking, tags,
+ * the conversation, and a Contact Profile panel (source, status, sale/booking, tags,
  * notes). The caller decides which WhatsApp accounts are visible and passes
  * server actions that re-check access themselves; nothing here trusts the URL.
  */
@@ -56,7 +57,7 @@ const SOURCES = [...Object.entries(SOURCE_LABEL).map(([value, label]) => ({ valu
 
 const TABS: { stage: ChatStage; label: string; hint: string }[] = [
   { stage: "active", label: "Active", hint: "Automation is handling these" },
-  { stage: "requesting", label: "Requesting", hint: "Guest waiting 15+ min, or a booking request" },
+  { stage: "requesting", label: "Requesting", hint: "Customer waiting 15+ min, or a Ref-code lead" },
   { stage: "intervened", label: "Intervened", hint: "Your team took over — automation paused" },
 ];
 
@@ -139,6 +140,23 @@ export default async function Inbox({
   const { data } = list ? await list.order("last_message_at", { ascending: false, nullsFirst: false }).limit(300) : { data: [] };
 
   const contacts = (data ?? []) as Contact[];
+
+  // Hotel words only for numbers whose business has a hotel booking source; everyone else gets general sales words.
+  const { data: accRows } = accountIds.length
+    ? await db.from("wa_accounts").select("id, project_id").in("id", accountIds)
+    : { data: [] };
+  const projectIds = (accRows ?? []).map((a) => a.project_id as string | null).filter((x): x is string => !!x);
+  const { data: hotelRows } = projectIds.length
+    ? await db.from("project_booking_sources").select("project_id").in("project_id", projectIds)
+    : { data: [] };
+  const hotelProjects = new Set((hotelRows ?? []).map((h) => h.project_id as string));
+  const kindOf = new Map<string, BusinessKind>(
+    (accRows ?? []).map((a) => [a.id as string, a.project_id && hotelProjects.has(a.project_id as string) ? "hotel" : "general"])
+  );
+  const statusLabel = (c: Contact) => {
+    const w = DEAL_WORDS[kindOf.get(c.account_id) ?? "general"];
+    return c.status === "booked" ? w.won : c.status === "lost" ? w.lost : undefined;
+  };
   const staged = contacts.map((c) => ({ ...c, stage: chatStage(c) }));
   const counts = { active: 0, requesting: 0, intervened: 0 } as Record<ChatStage, number>;
   for (const c of staged) counts[c.stage]++;
@@ -185,9 +203,10 @@ export default async function Inbox({
   const showBusiness = accounts.length > 1;
 
   const profile = active && (
-    <GuestProfile
+    <ContactProfile
       contact={active}
       business={showBusiness ? accountName.get(active.account_id) : undefined}
+      kind={kindOf.get(active.account_id) ?? "general"}
       actions={actions}
     />
   );
@@ -220,7 +239,7 @@ export default async function Inbox({
           ))}
         </nav>
         <div className="hidden md:block" />
-        <p className="hidden xl:flex items-center justify-center text-small font-medium">Guest Profile</p>
+        <p className="hidden xl:flex items-center justify-center text-small font-medium">Contact Profile</p>
       </div>
 
       <div className="flex-1 min-h-0 grid md:grid-cols-[320px_1fr] xl:grid-cols-[320px_1fr_300px]">
@@ -254,7 +273,7 @@ export default async function Inbox({
                         {c.ref_code ? `-${c.ref_code}` : ""}
                       </span>
                     )}
-                    <StatusBadge status={c.status} />
+                    <StatusBadge status={c.status} label={statusLabel(c)} />
                     {c.stage === "requesting" && <span className="text-tag text-red-700">waiting {waiting(c.last_inbound_at)}</span>}
                     {c.unread > 0 && <span className="ml-auto text-tag font-semibold bg-forest text-white rounded-full px-2">{c.unread}</span>}
                   </span>
@@ -310,16 +329,16 @@ export default async function Inbox({
               <ScrollToBottom dep={thread.length} />
             </div>
 
-            {/* Guest details on screens without the side panel */}
+            {/* Contact details on screens without the side panel */}
             <details className="xl:hidden border-t border-ink/10">
-              <summary className="px-5 py-2 text-small cursor-pointer">Guest profile</summary>
+              <summary className="px-5 py-2 text-small cursor-pointer">Contact profile</summary>
               <div className="max-h-[45vh] overflow-y-auto">{profile}</div>
             </details>
 
             <div className="border-t border-ink/10 p-4">
               {active.opted_out_at && (
                 <p className="text-small text-red-700 mb-2">
-                  This guest sent STOP on {time(active.opted_out_at)} — automation won&apos;t message them. Only reply if they ask something.
+                  This customer sent STOP on {time(active.opted_out_at)} — automation won&apos;t message them. Only reply if they ask something.
                 </p>
               )}
               <ReplyBox
@@ -337,10 +356,10 @@ export default async function Inbox({
           </div>
         )}
 
-        {/* Guest Profile */}
+        {/* Contact Profile */}
         <aside className="hidden xl:block border-l border-ink/10 overflow-y-auto min-h-0">
           {profile ?? (
-            <p className="p-6 text-small text-ink-muted text-center">Open a chat to see the guest&apos;s details.</p>
+            <p className="p-6 text-small text-ink-muted text-center">Open a chat to see the customer&apos;s details.</p>
           )}
         </aside>
       </div>
@@ -348,13 +367,15 @@ export default async function Inbox({
   );
 }
 
-function GuestProfile({
+function ContactProfile({
   contact: c,
   business,
+  kind,
   actions,
 }: {
   contact: Contact & { stage: ChatStage };
   business?: string;
+  kind: BusinessKind;
   actions: {
     setStatus: (contactId: string, status: string) => Promise<Result>;
     saveBooking: (contactId: string, formData: FormData) => Promise<Result>;
@@ -386,13 +407,14 @@ function GuestProfile({
       </Section>
 
       <Section title="Status">
-        <StatusSelect key={c.id} status={c.status} onChange={actions.setStatus.bind(null, c.id)} />
+        <StatusSelect key={c.id} kind={kind} status={c.status} onChange={actions.setStatus.bind(null, c.id)} />
       </Section>
 
-      <Section title="Booking">
+      <Section title={DEAL_WORDS[kind].section}>
         <BookingForm
           key={`b-${c.id}`}
           compact
+          kind={kind}
           booking={c.booking}
           booked={c.status === "booked"}
           onSave={actions.saveBooking.bind(null, c.id)}
@@ -408,7 +430,7 @@ function GuestProfile({
       </Section>
 
       <Section title="Reply window">
-        <p className="text-small">{left ? `${left} left for free replies` : "Closed — the guest has to message first"}</p>
+        <p className="text-small">{left ? `${left} left for free replies` : "Closed — the customer has to message first"}</p>
         {c.opted_out_at && <p className="text-small text-red-700 mt-1">Opted out (STOP)</p>}
       </Section>
     </div>

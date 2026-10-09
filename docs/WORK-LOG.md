@@ -4,6 +4,15 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-09 — WhatsApp pricing calculator + general-business wording
+- **Calculator:** `/dashboard/whatsapp/pricing` ("Pricing" in the WhatsApp toolbar) uses **Meta's official USD rate card, effective 1 Oct 2026** (`lib/whatsapp-rates.ts`, 47 markets — not AiSensy's resale list).
+  - Inputs: number count, PKR rate and margin %.
+  - Pakistan: marketing $0.0473; utility, authentication and service $0.015 each.
+- **Meta billing from 1 Oct 2026:** service messages are charged again, with 1,000 free per number per month.
+  - A WABA with **no payment method stops delivering service messages** once the free 1,000 are used.
+  - Messages sent from the WhatsApp Business app (coexistence) stay free.
+- **General business, not hotel-only:** a number whose project has a hotel booking source gets hotel words (Room / Check-in / Nights / Booked). Every other business gets Sale / Product / Date / Quantity / Won / Lost (`lib/whatsapp-words.ts`). "Guest" became "customer" and the panel is now "Contact Profile".
+
 ## 2026-10-09 — WhatsApp live chat, AiSensy-style
 - **Layout:** three panes (chat list / chat / Guest Profile), with search and a source filter on top. One component (`components/whatsapp/Inbox.tsx`) serves both the dashboard and the portal.
 - **Tabs:**

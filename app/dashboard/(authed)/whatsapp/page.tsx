@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Settings2, Zap } from "lucide-react";
+import { Calculator, Settings2, Zap } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
 import { Card, buttonStyles, inputClasses } from "@/components/dashboard/ui";
 import Inbox, { type InboxAccount } from "@/components/whatsapp/Inbox";
@@ -100,6 +100,12 @@ export default async function WhatsAppPage({
         className="inline-flex items-center gap-1.5 rounded-lg border border-ink/15 px-3 py-2 text-small hover:bg-ink/5"
       >
         <Zap className="size-4" aria-hidden /> Automation
+      </Link>
+      <Link
+        href="/dashboard/whatsapp/pricing"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-ink/15 px-3 py-2 text-small hover:bg-ink/5"
+      >
+        <Calculator className="size-4" aria-hidden /> Pricing
       </Link>
       {cred && <ConnectWhatsApp appId={cred.app_id} configId={cred.config_id ?? null} onFinish={finishWhatsAppSignup} />}
     </>
