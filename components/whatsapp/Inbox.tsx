@@ -163,7 +163,10 @@ export default async function Inbox({
   const staged = contacts.map((c) => ({ ...c, stage: chatStage(c) }));
   const counts = { active: 0, requesting: 0, intervened: 0 } as Record<ChatStage, number>;
   for (const c of staged) counts[c.stage]++;
-  const currentTab: ChatStage = TABS.some((t) => t.stage === tab) ? (tab as ChatStage) : "active";
+  // No tab in the URL → open the first one that has chats (Requesting first: those need a person).
+  const currentTab: ChatStage = TABS.some((t) => t.stage === tab)
+    ? (tab as ChatStage)
+    : ((["requesting", "active", "intervened"] as ChatStage[]).find((s) => counts[s] > 0) ?? "active");
   const shown = staged.filter((c) => c.stage === currentTab);
 
   // The open chat (may sit in another tab, or outside the search).
@@ -198,7 +201,7 @@ export default async function Inbox({
     if (search) p.set("q", search);
     if (source) p.set("src", source);
     const t = opts.tab ?? currentTab;
-    if (t !== "active") p.set("tab", t);
+    p.set("tab", t);
     if (opts.chat) p.set("chat", opts.chat);
     const s = p.toString();
     return s ? `${basePath}?${s}` : basePath;
