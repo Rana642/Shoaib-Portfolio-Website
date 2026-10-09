@@ -423,15 +423,39 @@ export async function instagramContainerStatus(containerId: string, token: strin
   return { code: r.status_code ?? "IN_PROGRESS", detail: r.status ?? null };
 }
 
+/** Instagram sometimes refuses media_publish even after the container reports
+ *  FINISHED — "Media ID is not available" (code 9007) or a generic
+ *  "unexpected error" (codes 1/2) — and the same call works seconds later
+ *  (Hotel Avalon, 2026-10-06: Facebook and Google went out, Instagram didn't).
+ *  These are retried; anything else fails straight away. */
+const IG_PUBLISH_RETRIES = 2; // kept small: the cron run (maxDuration 60s) may already have spent ~20s
+const IG_PUBLISH_RETRY_MS = 3000;
+function isTransientPublishError(error: GraphError["error"]): boolean {
+  if (!error) return false;
+  if (error.code === 9007 || error.code === 1 || error.code === 2) return true;
+  return /media id is not available|not ready|try again|unexpected error/i.test(error.message ?? "");
+}
+
 export async function publishInstagramContainer(igUserId: string, token: string, containerId: string, base = GRAPH_BASE): Promise<FacebookPostResult> {
-  const res = await fetch(`${base}/${igUserId}/media_publish`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ creation_id: containerId, access_token: token }),
-  });
-  const body = (await res.json()) as { id?: string } & GraphError;
-  if (!res.ok || body.error) throw new Error(body.error?.message || "Instagram publish failed");
-  return { post_id: body.id || "", usagePercent: peakUsagePercent(res) };
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`${base}/${igUserId}/media_publish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ creation_id: containerId, access_token: token }),
+    });
+    const body = (await res.json()) as { id?: string } & GraphError;
+    if (res.ok && !body.error) return { post_id: body.id || "", usagePercent: peakUsagePercent(res) };
+    if (attempt >= IG_PUBLISH_RETRIES || !isTransientPublishError(body.error)) {
+      throw new Error(body.error?.message || "Instagram publish failed");
+    }
+    await new Promise((resolve) => setTimeout(resolve, IG_PUBLISH_RETRY_MS));
+    // The failed call may still have gone through — never publish twice.
+    const status = await instagramContainerStatus(containerId, token, base).catch(() => null);
+    if (status?.code === "PUBLISHED") return { post_id: "", usagePercent: peakUsagePercent(res) };
+    if (status?.code === "ERROR" || status?.code === "EXPIRED") {
+      throw new Error(`Instagram media container ${status.code.toLowerCase()} before it could be published.`);
+    }
+  }
 }
 
 /** Two-step Instagram publish: create a media container, then publish it.
@@ -461,15 +485,5 @@ export async function postInstagramPhoto(
   }
 
   await waitForContainerFinished(created.id, pageAccessToken, base);
-
-  const publishRes = await fetch(`${base}/${igUserId}/media_publish`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ creation_id: created.id, access_token: pageAccessToken }),
-  });
-  const published = (await publishRes.json()) as { id?: string } & GraphError;
-  if (!publishRes.ok || published.error) {
-    throw new Error(published.error?.message || "Instagram publish failed");
-  }
-  return { post_id: published.id || "", usagePercent: peakUsagePercent(publishRes) };
+  return publishInstagramContainer(igUserId, pageAccessToken, created.id, base);
 }
