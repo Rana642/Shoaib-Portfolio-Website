@@ -28,7 +28,7 @@ import { CDN_REPO, cdnUrlMap, publishToCdn, slugifyName } from "./kb-cdn";
 export const KB_SERVER_INSTRUCTIONS = [
   "Knowledge base tools (kb_*): before writing captions, ad copy, creatives or image-generation prompts for a client project, call kb_get_brief with the project name — it returns global rules, the project's brand docs and the product list. For any product claim (composition, dosage, indications) call kb_get_product and quote it verbatim; never approximate.",
   "Plain English by default for EVERY project (global rule `plain-english`): short sentences, everyday words a Pakistani reader knows, trade terms/product names/doses kept exact, meaning never changed. Only a project whose docs say english_level: advanced or native gets more complex English.",
-  "Design for EVERY project is light and glassy, never dark (global rule `design-glass-light`): no dark backgrounds/panels/overlays, frosted-glass cards, brand colours as accents, the design drawn from the post's topic. Educational posts teach (global rule `educational-posts`) — the product is optional. Each post prompt also carries one presentation idea (global rule `presentation-ideas`: frames, shapes, backgrounds) to blend into its style.",
+  "Design for EVERY project is light and clean, never dark, and has NO glass effect (global rule `design-glass-light`, 2026-10-09): no dark backgrounds/panels/overlays, no frosted/glass cards, transparent shades or blur behind text — text sits straight on the photo, in a calm, light, empty area generated into the scene, and must pass the global rule `text-readability` (size floor, contrast check); brand colours as accents, the design drawn from the post's topic. Educational posts teach (global rule `educational-posts`) — the product is optional. Each post prompt also carries one presentation idea (global rule `presentation-ideas`: frames, shapes, backgrounds) to blend into its style.",
   "Layout for EVERY project (global rule `layout-alignment`): think first (audience, one purpose, one clear message, a REAL psychology trigger — never invented reviews or ratings), rule-of-thirds composition, one shared left edge (or one centre line), equal cards, no empty cards, headline at most 2 lines, every element earns its place, a wide wordmark logo about 30% of the width. Self-check every generated image against that rule's list (score 0–100, pass 70+ with every word correct); if it fails, make it again once with \"fix only: …\" and show the better one.",
   "NAP (name/address/phone/email) always comes from the brand's official website (the project's `nap` doc), never from product PDFs, labels or old posts, and is never part of branding docs.",
   "CLAUDE WEB WIDGETS/ARTIFACTS: the sandbox blocks every image origin except a few CDNs — only the `Widget-safe (jsDelivr)` / cdn_url links load there; adsbyshoaib.com URLs show as broken images. If a file has no widget-safe URL yet, ask the user before calling kb_publish_to_cdn (it publishes to a PUBLIC repo).",
@@ -280,7 +280,7 @@ const VET_CAPTION_LINE = /^\s*vet\s*[—–-]\s*not for human.*$\n?/gim;
 /** The global design rules ride inside every post prompt for every project — with
  *  or without its own design lock, today's projects and future ones (Shoaib,
  *  2026-10-03: "sb projects ka mtlb hai global rule jitny projects hon gy sab"):
- *  `design-glass-light` (light and glass, never dark) and `layout-alignment`
+ *  `design-glass-light` (light, never dark, no glass effect since 2026-10-09) and `layout-alignment`
  *  (grid, logo size, self-check). */
 async function globalRule(slug: string): Promise<string | null> {
   const { data } = await db.from("kb_global_docs").select("content").eq("slug", slug).maybeSingle();
@@ -296,7 +296,7 @@ function layoutPlan(text: unknown): string[] {
   for (const [k, v] of Object.entries(text as Record<string, unknown>)) {
     const name = k.replace(/_/g, " ");
     if (typeof v === "string") plan.push(k === "headline" ? "headline: the largest text, at most 2 lines, broken at a natural phrase." : `${name}: one block.`);
-    else if (Array.isArray(v) && /chip/i.test(k)) plan.push(`${name}: exactly ${v.length} — in ONE row (or one glass bar with ${v.length} parts and thin dividers); each as wide as its own text, all the same height; a long one stays on 1–2 lines; no extra or empty chip.`);
+    else if (Array.isArray(v) && /chip/i.test(k)) plan.push(`${name}: exactly ${v.length} — in ONE clean row of text with icons and thin dividers (no glass bar, no pills); each as wide as its own text, all the same height; a long one stays on 1–2 lines; no extra or empty chip.`);
     else if (Array.isArray(v)) plan.push(`${name}: exactly ${v.length} item${v.length === 1 ? "" : "s"} — ${v.length} row${v.length === 1 ? "" : "s"} / card${v.length === 1 ? "" : "s"} in the same style and font size, equal gaps, aligned; no extra or empty card.`);
     else if (v && typeof v === "object") plan.push(`${name}: one group of ${Object.keys(v).length} parts, aligned together.`);
   }
@@ -345,7 +345,7 @@ async function presentationIdea(entry: Record<string, unknown>, series: Record<s
   if (!pick) return null;
   const type = contentType(entry);
   return {
-    how_to_use: "Inspiration for HOW to present this post (frames, shapes, list treatment, background) — blend it into this post's style. The locked items, the lock's do_not, design_rule_every_project and layout_rule_every_project win. It never adds words: any question, tag, pill or label it mentions uses only words from text_on_image. Never copy another brand's words or exact layout; dark bands in the idea become white or frosted glass.",
+    how_to_use: "Inspiration for HOW to present this post (frames, shapes, list treatment, background) — blend it into this post's style. The locked items, the lock's do_not, design_rule_every_project and layout_rule_every_project win. It never adds words: any question, tag, pill or label it mentions uses only words from text_on_image. Never copy another brand's words or exact layout; dark bands, glass bars or frosted cards in the idea become text straight on a calm, light area of the photo (no glass effect).",
     content_type: type,
     idea: pick.name,
     structure: pick.structure,
@@ -354,7 +354,7 @@ async function presentationIdea(entry: Record<string, unknown>, series: Record<s
   };
 }
 
-const SELF_CHECK = "Self-check the finished image against the global rule `layout-alignment` (score 0–100: exact words, logo, product, alignment, light/glass, footer and caution line, nothing cramped, one clear message, hero on the grid, every element earns its place). Pass = 70+ with every word correct; otherwise make it again ONCE with \"Keep everything that was right; fix only: …\" and show the better one, with its score.";
+const SELF_CHECK = "Self-check the finished image against the global rule `layout-alignment` (score 0–100: exact words, logo, product, alignment, light and no glass effect, text readable on a phone, footer and caution line, nothing cramped, one clear message, hero on the grid, every element earns its place). Pass = 70+ with every word correct; otherwise make it again ONCE with \"Keep everything that was right; fix only: …\" and show the better one, with its score.";
 
 /** Product-related = names a product, attaches a product photo, or its image text
  *  mentions one of the project's products. Only these carry the vet/caution line. */
