@@ -24,6 +24,10 @@ const WIDE_ROUTES = [
   "/portal/contacts",
 ];
 
+// Sections with their own second-level menu (Meta Business Suite style):
+// the main sidebar drops to its icon rail there so the section menu fits.
+const RAIL_ROUTES = ["/dashboard/whatsapp"];
+
 const STORAGE_KEY = "dashboard-sidebar-collapsed";
 
 /**
@@ -45,7 +49,11 @@ export default function DashboardShell({
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  // On a rail route the toggle only opens the sidebar for this visit (not saved).
+  const [railOpen, setRailOpen] = useState(false);
   const pathname = usePathname();
+  const forcedRail = !portal && RAIL_ROUTES.some((route) => pathname.startsWith(route));
+  const isCollapsed = forcedRail ? !railOpen : collapsed;
   const isWide = WIDE_ROUTES.some((route) => pathname.startsWith(route));
   const storageKey = portal ? `portal-${STORAGE_KEY}` : STORAGE_KEY;
 
@@ -66,7 +74,8 @@ export default function DashboardShell({
     setHydrated(true);
   }, [storageKey]);
 
-  const toggle = () =>
+  const toggle = () => {
+    if (forcedRail) return setRailOpen((o) => !o);
     setCollapsed((prev) => {
       const next = !prev;
       try {
@@ -76,6 +85,7 @@ export default function DashboardShell({
       }
       return next;
     });
+  };
 
   return (
     <div className="relative min-h-screen bg-cloud print:bg-white">
@@ -92,7 +102,7 @@ export default function DashboardShell({
       {portal ? (
         <Sidebar
           email={email}
-          collapsed={collapsed}
+          collapsed={isCollapsed}
           onToggle={toggle}
           nav={portal.nav}
           homeHref="/portal"
@@ -101,7 +111,7 @@ export default function DashboardShell({
           showStudio={false}
         />
       ) : (
-        <Sidebar email={email} collapsed={collapsed} onToggle={toggle} />
+        <Sidebar email={email} collapsed={isCollapsed} onToggle={toggle} />
       )}
 
       <main
@@ -111,7 +121,7 @@ export default function DashboardShell({
           // endpoints break the transition.
           "relative z-10 pt-14 lg:pt-0",
           hydrated && "transition-[padding] duration-300 ease-out",
-          collapsed ? "lg:pl-[5rem]" : "lg:pl-[16rem]"
+          isCollapsed ? "lg:pl-[5rem]" : "lg:pl-[16rem]"
         )}
       >
         <div className={cn("px-5 py-8 md:px-8 md:py-10 print:p-0 print:max-w-none", isWide ? "max-w-none" : "max-w-6xl")}>

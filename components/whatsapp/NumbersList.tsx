@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Link2Off, LoaderCircle, Settings2, Trash2 } from "lucide-react";
+import { Check, Link2Off, LoaderCircle, Trash2 } from "lucide-react";
 import { buttonStyles, inputClasses } from "@/components/dashboard/ui";
 
 type Result = { error?: string; ok?: boolean } | undefined;
@@ -16,48 +16,15 @@ type Actions = {
   onDelete: (accountId: string) => Promise<Result>;
 };
 
-export default function NumbersPopover({ rows, projects, ...actions }: { rows: Row[]; projects: Project[] } & Actions) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
+/** Numbers page: link each number to a business, unlink it, or delete it. */
+export default function NumbersList({ rows, projects, ...actions }: { rows: Row[]; projects: Project[] } & Actions) {
+  if (!rows.length) return <p className="text-small text-ink-muted">No numbers connected yet.</p>;
   return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-ink/15 px-3 py-2 text-small hover:bg-ink/5"
-      >
-        <Settings2 className="size-4" aria-hidden /> Numbers
-      </button>
-      {open && (
-        <div className="fixed inset-x-4 top-20 max-h-[80vh] overflow-y-auto sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 z-30 sm:w-[min(760px,90vw)] rounded-xl border border-ink/10 bg-white p-5 shadow-xl">
-          <p className="text-small text-ink-muted mb-4">
-            Link each WhatsApp number to a business. Its chats then appear in that client&apos;s portal (with the WhatsApp feature on).
-          </p>
-          <div className="space-y-3">
-            {rows.map((r) => (
-              // Re-mount when the saved link changes, so the dropdown shows what's really saved.
-              <NumberRow key={`${r.id}-${r.project_id}-${r.label}`} row={r} projects={projects} {...actions} onDone={() => setOpen(false)} />
-            ))}
-            {rows.length === 0 && <p className="text-small text-ink-muted">No numbers connected yet.</p>}
-          </div>
-        </div>
-      )}
+    <div className="space-y-4">
+      {rows.map((r) => (
+        // Re-mount when the saved link changes, so the dropdown shows what's really saved.
+        <NumberRow key={`${r.id}-${r.project_id}-${r.label}`} row={r} projects={projects} {...actions} />
+      ))}
     </div>
   );
 }
@@ -68,8 +35,7 @@ function NumberRow({
   onSave,
   onUnlink,
   onDelete,
-  onDone,
-}: { row: Row; projects: Project[]; onDone: () => void } & Actions) {
+}: { row: Row; projects: Project[] } & Actions) {
   const [pending, start] = useTransition();
   const [busy, startBusy] = useTransition();
   const linked = projects.find((p) => p.id === row.project_id);
@@ -85,7 +51,6 @@ function NumberRow({
           if (r?.error) return setError(r.error);
           setSaved(true);
           router.refresh();
-          setTimeout(onDone, 900);
         });
       }}
       className="grid gap-3 sm:grid-cols-[140px_1fr_1fr_auto] items-end"

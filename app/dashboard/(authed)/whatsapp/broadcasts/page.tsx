@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
 import { Card, PageHeader } from "@/components/dashboard/ui";
 import BroadcastForm, { CancelBroadcastButton } from "@/components/whatsapp/BroadcastForm";
@@ -73,9 +72,6 @@ export default async function WhatsAppBroadcastsPage({ searchParams }: { searchP
 
   return (
     <>
-      <Link href="/dashboard/whatsapp" className="inline-flex items-center gap-1.5 text-small text-ink-subtle hover:text-ink mb-4">
-        <ArrowLeft className="size-4" aria-hidden /> Inbox
-      </Link>
       <PageHeader
         title="WhatsApp broadcasts"
         description="Send one approved template to many customers. It goes out in small batches every minute to keep the number's quality safe."

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
 import { Card, PageHeader } from "@/components/dashboard/ui";
 import { DeleteTemplateButton, TemplateBuilder, TemplatePreview } from "@/components/whatsapp/Templates";
@@ -50,9 +49,6 @@ export default async function WhatsAppTemplatesPage({ searchParams }: { searchPa
 
   return (
     <>
-      <Link href="/dashboard/whatsapp" className="inline-flex items-center gap-1.5 text-small text-ink-subtle hover:text-ink mb-4">
-        <ArrowLeft className="size-4" aria-hidden /> Inbox
-      </Link>
       <PageHeader
         title="WhatsApp templates"
         description="Pre-approved messages — the only way to message a customer after the 24-hour reply window closes. Meta reviews each one before it can be sent."

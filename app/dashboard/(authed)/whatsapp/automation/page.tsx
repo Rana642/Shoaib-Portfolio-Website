@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
 import { Card, PageHeader } from "@/components/dashboard/ui";
 import { AutomationForm, QuickRepliesManager, type AutomationSettings } from "@/components/whatsapp/AutomationForm";
@@ -46,9 +45,6 @@ export default async function WhatsAppAutomationPage({ searchParams }: { searchP
 
   return (
     <>
-      <Link href="/dashboard/whatsapp" className="inline-flex items-center gap-1.5 text-small text-ink-subtle hover:text-ink mb-4">
-        <ArrowLeft className="size-4" aria-hidden /> Inbox
-      </Link>
       <PageHeader title="WhatsApp automation" description="Automatic replies per number. Everything is off until you write the message and switch it on." />
       {!selected ? (
         <Card className="p-6">
