@@ -6,30 +6,6 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  Users,
-  Package,
-  FileText,
-  Receipt,
-  Inbox,
-  Send,
-  FileSignature,
-  ClipboardList,
-  FolderInput,
-  KeyRound,
-  Plug,
-  CalendarDays,
-  Repeat,
-  FileBarChart,
-  BarChart3,
-  Megaphone,
-  MessageCircle,
-  BedDouble,
-  MessageSquareText,
-  Contact,
-  MapPin,
-  Link2,
-  ScrollText,
-  Settings as SettingsIcon,
   PenSquare,
   LogOut,
   Menu,
@@ -42,52 +18,24 @@ import {
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { SECTIONS } from "@/lib/dashboard/sections";
 
 export type NavItem =
   /** A small heading that starts a group (a thin divider on the icon rail). */
   | { section: string }
-  | { href: string; label: string; icon: LucideIcon; exact?: boolean }
+  | { href: string; label: string; icon: LucideIcon; exact?: boolean; /** Active on any of these path prefixes (a whole section). */ match?: string[] }
   | { label: string; icon: LucideIcon; children: { href: string; label: string }[] };
 
-// Ordered to match the actual funnel: a lead comes in, gets a proposal,
-// accepts, signs an agreement, onboards, then becomes a billed client.
+// Overview, then one entry per section (lib/dashboard/sections.ts). Inside a
+// section its own menu shows the pages; this sidebar drops to its icon rail.
 const DASHBOARD_NAV: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
-  { section: "Sales" },
-  { href: "/dashboard/leads", label: "Leads", icon: Inbox },
-  { href: "/dashboard/proposals", label: "Proposals", icon: Send },
-  { href: "/dashboard/agreements", label: "Agreements", icon: FileSignature },
-  { href: "/dashboard/onboarding", label: "Onboarding", icon: ClipboardList },
-  { href: "/dashboard/intakes", label: "Intakes", icon: FolderInput },
-  { section: "Clients & billing" },
-  { href: "/dashboard/clients", label: "Clients", icon: Users },
-  {
-    label: "Services Catalog",
-    icon: Package,
-    children: [
-      { href: "/dashboard/catalog", label: "Single Services" },
-      { href: "/dashboard/catalog/bundles", label: "Bundle Services" },
-    ],
-  },
-  { href: "/dashboard/quotations", label: "Quotations", icon: FileText },
-  { href: "/dashboard/invoices", label: "Invoices", icon: Receipt },
-  { href: "/dashboard/retainers", label: "Retainers", icon: Repeat },
-  { href: "/dashboard/reports", label: "Reports", icon: FileBarChart },
-  { href: "/dashboard/letterhead", label: "Letterhead", icon: ScrollText },
-  { section: "Marketing" },
-  { href: "/dashboard/social/planner", label: "Planner", icon: CalendarDays },
-  { href: "/dashboard/social/insights", label: "Insights", icon: BarChart3 },
-  { href: "/dashboard/whatsapp", label: "WhatsApp", icon: MessageCircle },
-  { href: "/dashboard/bookings", label: "Bookings", icon: BedDouble },
-  { href: "/dashboard/inquiries", label: "Hotel inquiries", icon: MessageSquareText },
-  { href: "/dashboard/contacts", label: "Guest contacts", icon: Contact },
-  { href: "/dashboard/ads", label: "Meta Ads", icon: Megaphone },
-  { href: "/dashboard/gbp", label: "Google Business", icon: MapPin },
-  { href: "/dashboard/social", label: "Connections", icon: Link2, exact: true },
-  { section: "Admin" },
-  { href: "/dashboard/vault", label: "Password Vault", icon: KeyRound },
-  { href: "/dashboard/api-vault", label: "API Vault", icon: Plug },
-  { href: "/dashboard/settings", label: "Settings", icon: SettingsIcon },
+  ...SECTIONS.map((sec) => ({
+    href: sec.groups[0].items[0].href,
+    label: sec.label,
+    icon: sec.icon,
+    match: sec.match,
+  })),
 ];
 
 export default function Sidebar({
@@ -265,7 +213,11 @@ export default function Sidebar({
               );
             }
 
-            const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
+            const active = item.match
+              ? item.match.some((m) => pathname === m || pathname.startsWith(`${m}/`))
+              : item.exact
+                ? pathname === item.href
+                : pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}

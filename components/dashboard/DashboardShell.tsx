@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Sidebar, { type NavItem } from "@/components/dashboard/Sidebar";
 import PwaRegister from "@/components/dashboard/PwaRegister";
+import SectionNav from "@/components/dashboard/SectionNav";
+import { sectionFor } from "@/lib/dashboard/sections";
 import { cn } from "@/lib/utils";
 
 // Most dashboard pages (forms, line-item tables) read best at a contained
@@ -23,10 +25,6 @@ const WIDE_ROUTES = [
   "/dashboard/contacts",
   "/portal/contacts",
 ];
-
-// Sections with their own second-level menu (Meta Business Suite style):
-// the main sidebar drops to its icon rail there so the section menu fits.
-const RAIL_ROUTES = ["/dashboard/whatsapp"];
 
 const STORAGE_KEY = "dashboard-sidebar-collapsed";
 
@@ -52,7 +50,10 @@ export default function DashboardShell({
   // On a rail route the toggle only opens the sidebar for this visit (not saved).
   const [railOpen, setRailOpen] = useState(false);
   const pathname = usePathname();
-  const forcedRail = !portal && RAIL_ROUTES.some((route) => pathname.startsWith(route));
+  // Inside a section (lib/dashboard/sections.ts) the section's own menu sits
+  // next to the main sidebar, which drops to its icon rail to make room.
+  const section = portal ? null : sectionFor(pathname);
+  const forcedRail = !!section;
   const isCollapsed = forcedRail ? !railOpen : collapsed;
   const isWide = WIDE_ROUTES.some((route) => pathname.startsWith(route));
   const storageKey = portal ? `portal-${STORAGE_KEY}` : STORAGE_KEY;
@@ -124,9 +125,25 @@ export default function DashboardShell({
           isCollapsed ? "lg:pl-[5rem]" : "lg:pl-[16rem]"
         )}
       >
-        <div className={cn("px-5 py-8 md:px-8 md:py-10 print:p-0 print:max-w-none", isWide ? "max-w-none" : "max-w-6xl")}>
-          {children}
-        </div>
+        {section ? (
+          <div className="lg:flex">
+            <div className="print:hidden">
+              <SectionNav section={section} />
+            </div>
+            <div
+              className={cn(
+                "flex-1 min-w-0 px-5 py-6 md:px-8 lg:py-8 lg:pl-6 print:p-0 print:max-w-none",
+                isWide ? "max-w-none" : "max-w-6xl"
+              )}
+            >
+              {children}
+            </div>
+          </div>
+        ) : (
+          <div className={cn("px-5 py-8 md:px-8 md:py-10 print:p-0 print:max-w-none", isWide ? "max-w-none" : "max-w-6xl")}>
+            {children}
+          </div>
+        )}
       </main>
     </div>
   );

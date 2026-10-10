@@ -4,6 +4,17 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-10 — Dashboard sections (Meta Business Suite style) everywhere
+- **Main sidebar:** now 7 entries: Overview · Sales · Clients & Billing · Marketing · WhatsApp · Hotels · Admin.
+- **Inside a section:** the main sidebar drops to its icon rail, and the section's own menu sits next to it.
+  - The menu collapses to icons, remembered per section (`section-nav-collapsed-<key>`).
+  - Phones get a row of tabs.
+- **One config:** `lib/dashboard/sections.ts` (`SECTIONS`, `sectionFor`, `isItemActive`), rendered by `components/dashboard/SectionNav.tsx` from `DashboardShell`.
+  - The WhatsApp-only menu and its layout were folded into it.
+  - URLs are unchanged.
+- **Verified:** each section's menu + active item on localhost (catalog vs bundles, Connections exact, WhatsApp Inbox vs Overview).
+- **Not done:** the client portal sidebar is unchanged.
+
 ## 2026-10-09 — WhatsApp Overview dashboard + collapsible section menu
 - **Overview:** `/dashboard/whatsapp/overview` (first item in the WhatsApp menu). Filters: 7/30/90 days and per number.
   - **Right now:** waiting for a person (Requesting), unread, chats inside the free 24h window.
