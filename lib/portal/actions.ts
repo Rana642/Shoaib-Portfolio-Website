@@ -69,7 +69,7 @@ export async function completePortalWelcome(token: string, type: string, passwor
     return { error: "Too many attempts — try again in a few minutes." };
   }
 
-  const supabase = await createAuthClient();
+  const supabase = await createAuthClient("portal");
   const { data, error } = await supabase.auth.verifyOtp({ token_hash: parsed.data.token, type: parsed.data.type });
   if (error || !data.user) {
     return {
@@ -81,7 +81,7 @@ export async function completePortalWelcome(token: string, type: string, passwor
     };
   }
   if (!portalClientId(data.user)) {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: "local" });
     return { error: "This link isn't for the client portal." };
   }
 

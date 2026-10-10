@@ -7,6 +7,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import { LoaderCircle } from "lucide-react";
 import { Field, buttonStyles, inputClasses } from "@/components/dashboard/ui";
 import { isAdmin, portalClientId } from "@/lib/dashboard/roles";
+import { authCookieOptions } from "@/lib/auth-cookies";
 
 export default function PortalLoginForm() {
   const router = useRouter();
@@ -20,7 +21,7 @@ export default function PortalLoginForm() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const supabase = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+    const supabase = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, authCookieOptions("portal"));
 
     const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
     if (signInError) {
@@ -31,7 +32,9 @@ export default function PortalLoginForm() {
     // Only client-portal logins belong here — anything else is signed back out.
     // The admin login is the usual culprit: the browser autofills it here.
     if (!portalClientId(data.user)) {
-      await supabase.auth.signOut();
+      // Only this browser's new session — signing out globally here used to log
+      // the admin out on every device when the browser autofilled the admin login.
+      await supabase.auth.signOut({ scope: "local" });
       setError(
         isAdmin(data.user)
           ? "That's the admin login — it opens the dashboard, not a client portal. Sign in with the email your portal invite was sent to."

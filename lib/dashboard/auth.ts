@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { User } from "@supabase/supabase-js";
 import { isAdmin } from "./roles";
+import { authCookieOptions, type AuthArea } from "../auth-cookies";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -13,10 +14,11 @@ const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
  * client authenticates the user; all dashboard data access goes through
  * the service-role client in db.ts, gated by requireUser().
  */
-export async function createAuthClient() {
+export async function createAuthClient(area: AuthArea = "dashboard") {
   const cookieStore = await cookies();
 
   return createServerClient(url, anonKey, {
+    ...authCookieOptions(area),
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: (cookiesToSet) => {
@@ -53,8 +55,8 @@ export type SessionUser = Pick<User, "id" | "email" | "app_metadata">;
  * portal lag. Expired tokens are still refreshed. Memoised per request, so
  * a layout, its page and their actions check once.
  */
-export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
-  const supabase = await createAuthClient();
+export const getSessionUser = cache(async (area: AuthArea = "dashboard"): Promise<SessionUser | null> => {
+  const supabase = await createAuthClient(area);
   const { data, error } = await supabase.auth.getClaims();
   const claims = data?.claims;
   if (error || !claims?.sub) return null;

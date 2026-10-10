@@ -19,6 +19,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { SECTIONS } from "@/lib/dashboard/sections";
+import { authCookieOptions } from "@/lib/auth-cookies";
 
 export type NavItem =
   /** A small heading that starts a group (a thin divider on the icon rail). */
@@ -70,9 +71,11 @@ export default function Sidebar({
   const signOut = async () => {
     const supabase = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      authCookieOptions(loginHref.startsWith("/portal") ? "portal" : "dashboard")
     );
-    await supabase.auth.signOut();
+    // This browser only — other devices (phone, other PCs) stay signed in.
+    await supabase.auth.signOut({ scope: "local" });
     router.push(loginHref);
     router.refresh();
   };

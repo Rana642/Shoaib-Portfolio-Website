@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { LoaderCircle } from "lucide-react";
 import { isAdmin, portalClientId } from "@/lib/dashboard/roles";
+import { authCookieOptions } from "@/lib/auth-cookies";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -21,7 +22,8 @@ export default function LoginForm() {
 
     const supabase = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      authCookieOptions("dashboard")
     );
 
     const { data, error: signInError } = await supabase.auth.signInWithPassword({
@@ -39,7 +41,8 @@ export default function LoginForm() {
     // no dashboard — sign it straight back out rather than leave a session
     // that every dashboard route would reject anyway.
     if (!isAdmin(data.user)) {
-      await supabase.auth.signOut();
+      // Only this browser's new session — never sign the account out on other devices.
+      await supabase.auth.signOut({ scope: "local" });
       setError(
         portalClientId(data.user)
           ? "This is a client-portal login — sign in at adsbyshoaib.com/portal/login instead."

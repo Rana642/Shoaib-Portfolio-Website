@@ -4,6 +4,18 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-10 — Stay signed in (login kept asking every time)
+- **Cause:** both login forms signed a wrong-role account back out with the default **global** `signOut()`.
+  - When the browser autofilled the ADMIN login on /portal/login, that killed the admin's session on every device. That day the admin had 0 sessions in `auth.sessions`.
+  - The sidebar "Sign out" was global too.
+- **Fix 1:** every `signOut` is now `{ scope: "local" }` (this browser only).
+- **Fix 2:** dashboard and portal now use separate session cookies (`lib/auth-cookies.ts`).
+  - The dashboard uses `sb-adsbyshoaib-dashboard-auth`; the portal keeps Supabase's default, so client sessions stayed valid.
+  - Applied in the proxy, `createAuthClient(area)` / `getSessionUser(area)`, both login forms and the sidebar.
+  - `isSingleton: false` on browser clients (@supabase/ssr otherwise reuses the first client and ignores the cookie name).
+- **Verified on localhost:** the admin and a portal login stay signed in together in one browser (two `auth.sessions` rows).
+- The admin has to log in once after deploy (new cookie name).
+
 ## 2026-10-10 — WhatsApp App Review pack
 - **`docs/WHATSAPP-APP-REVIEW.md`:** the two screencast scripts (messaging = inbox reply received on WhatsApp Web; management = create a template), the copy-paste English permission descriptions, the reviewer note, and what to do after approval.
 - **No QR needed:** Embedded Signup/QR does NOT need to be shown — it only works after approval.

@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import { isAdmin, portalClientId } from "@/lib/dashboard/roles";
+import { authCookieOptions } from "@/lib/auth-cookies";
 
 /**
  * Two jobs on every request:
@@ -111,6 +112,7 @@ function applySecurityHeaders(res: NextResponse, applyCsp: boolean, pathname: st
 }
 
 type AuthArea = {
+  key: "dashboard" | "portal";
   home: string;
   login: string;
   /** Reachable without the area's role (login, password setup…). */
@@ -120,12 +122,14 @@ type AuthArea = {
 
 const AUTH_AREAS: Record<"dashboard" | "portal", AuthArea> = {
   dashboard: {
+    key: "dashboard",
     home: "/dashboard",
     login: "/dashboard/login",
     publicPaths: ["/dashboard/login"],
     allows: isAdmin,
   },
   portal: {
+    key: "portal",
     home: "/portal",
     login: "/portal/login",
     publicPaths: ["/portal/login", "/portal/forgot", "/portal/welcome"],
@@ -152,6 +156,8 @@ export async function proxy(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_URL || "",
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
       {
+        // Each area reads/refreshes its own session cookie (lib/auth-cookies.ts).
+        ...authCookieOptions(area.key),
         cookies: {
           getAll: () => request.cookies.getAll(),
           setAll: (cookiesToSet) => {

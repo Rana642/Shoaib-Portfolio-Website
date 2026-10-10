@@ -24,7 +24,7 @@ export type PortalContext = {
  * the browser. A login without a membership row gets nothing.
  */
 export const getPortalUser = cache(async (): Promise<PortalContext | null> => {
-  const user = await getSessionUser();
+  const user = await getSessionUser("portal");
   const clientId = portalClientId(user);
   if (!user || !clientId) return null;
 
