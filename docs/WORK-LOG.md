@@ -4,6 +4,12 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-10 — WhatsApp App Review pack
+- **`docs/WHATSAPP-APP-REVIEW.md`:** the two screencast scripts (messaging = inbox reply received on WhatsApp Web; management = create a template), the copy-paste English permission descriptions, the reviewer note, and what to do after approval.
+- **No QR needed:** Embedded Signup/QR does NOT need to be shown — it only works after approval.
+- **Live URLs checked:** the privacy (`#whatsapp`) and data-deletion URLs are up.
+- **Waiting on:** Shoaib to record + submit.
+
 ## 2026-10-10 — Dashboard sections (Meta Business Suite style) everywhere
 - **Main sidebar:** now 7 entries: Overview · Sales · Clients & Billing · Marketing · WhatsApp · Hotels · Admin.
 - **Inside a section:** the main sidebar drops to its icon rail, and the section's own menu sits next to it.
