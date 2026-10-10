@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import Sidebar, { type NavItem } from "@/components/dashboard/Sidebar";
 import PwaRegister from "@/components/dashboard/PwaRegister";
 import SectionNav from "@/components/dashboard/SectionNav";
-import { sectionFor } from "@/lib/dashboard/sections";
+import { sectionFor, type Section } from "@/lib/dashboard/sections";
 import { cn } from "@/lib/utils";
 
 // Most dashboard pages (forms, line-item tables) read best at a contained
@@ -42,8 +42,8 @@ export default function DashboardShell({
 }: {
   email: string;
   children: React.ReactNode;
-  /** The client portal: same shell, its own sidebar items, no PWA. */
-  portal?: { nav: NavItem[] };
+  /** The client portal: same shell, its own sidebar items + sections, no PWA. */
+  portal?: { nav: NavItem[]; sections?: Section[] };
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [hydrated, setHydrated] = useState(false);
@@ -52,7 +52,7 @@ export default function DashboardShell({
   const pathname = usePathname();
   // Inside a section (lib/dashboard/sections.ts) the section's own menu sits
   // next to the main sidebar, which drops to its icon rail to make room.
-  const section = portal ? null : sectionFor(pathname);
+  const section = portal ? (portal.sections ? sectionFor(pathname, portal.sections) : null) : sectionFor(pathname);
   const forcedRail = !!section;
   const isCollapsed = forcedRail ? !railOpen : collapsed;
   const isWide = WIDE_ROUTES.some((route) => pathname.startsWith(route));

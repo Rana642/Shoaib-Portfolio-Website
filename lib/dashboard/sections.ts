@@ -197,9 +197,12 @@ export const SECTIONS: Section[] = [
 
 const under = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
 
-/** The section a dashboard path belongs to (none for Overview and unknown pages). */
-export function sectionFor(pathname: string): Section | null {
-  return SECTIONS.find((s) => s.match.some((m) => under(pathname, m))) ?? null;
+/** The section a path belongs to (none for Overview / Home and unknown pages). A section
+ *  with a single page gets no menu of its own — it's just a link in the main sidebar. */
+export function sectionFor(pathname: string, sections: Section[] = SECTIONS): Section | null {
+  return (
+    sections.find((s) => s.groups.flatMap((g) => g.items).length > 1 && s.match.some((m) => under(pathname, m))) ?? null
+  );
 }
 
 /** Is this menu item the current page? The most specific matching item wins (Bundle services over Single services). */
