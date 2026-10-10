@@ -12,6 +12,7 @@ import {
   countPostsNeedingChanges,
 } from "../../lib/scheduled-posts.js";
 import { registerPostReviewTools } from "../../lib/post-review-tools.js";
+import { registerPostListingTools } from "../../lib/post-listing-tools.js";
 import { uploadObject, fetchObject, presignDownload } from "../../lib/storage.js";
 import { postToAllProjectAccounts, rescheduleNativePosts, submitNativeScheduleForPost } from "../../lib/social-post.js";
 
@@ -81,7 +82,7 @@ export function registerSocialTools(server: McpServer): void {
 
 For each, use social_get_post_image to view the image (which also returns that project's posting style guide, if one is set — follow it when writing the caption). Check every post first: anything with a mistake goes to social_request_changes; the rest get social_set_caption_and_schedule.
 
-Posts held with 'needs_changes' are not listed — they come back here once the uploader replaces the image.
+Posts held with 'needs_changes' are not listed — they come back here once the uploader replaces the image. To see posts of ANY status (held, scheduled, posted) or to count posts per client, use social_list_posts.
 
 Returns (JSON): { count, posts: [{ id, project_label, original_filename, scheduled_at, posting_instructions }] }`,
       inputSchema: {},
@@ -125,7 +126,9 @@ Returns (JSON): { count, posts: [{ id, project_label, original_filename, schedul
 Args:
   - postId (string, UUID): from social_list_pending_posts.
 
-Returns: the image itself (view it directly), plus the post's original filename and posting style guide as text.`,
+Returns: the image itself (view it directly), plus the post's original filename and posting style guide as text.
+
+This preview is for your captioning work. To give the USER the file or a link (open/download), or to show a held/scheduled/posted post, use social_get_post_image_url.`,
       inputSchema: { postId: z.string().uuid() },
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
@@ -207,6 +210,7 @@ Returns: confirmation text.`,
   );
 
   registerPostReviewTools(server);
+  registerPostListingTools(server);
 
   server.registerTool(
     "social_list_queue",

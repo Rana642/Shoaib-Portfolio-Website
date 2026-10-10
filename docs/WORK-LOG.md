@@ -4,6 +4,14 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-11 — MCP: social_get_post_image_url + social_list_posts
+- **`lib/post-listing-tools.ts`:** registered on both the local (`mcp/tools/social.ts`) and remote (`lib/mcp-remote-tools.ts`) servers. Read-only.
+  - `social_get_post_image_url`: any status. Returns the image inline (sharp shrinks >1.5 MB / >1600 px for the preview only), filename, project, status, scheduled_at, caption, needs-changes note, and the uploader as a name ("<Client> (client portal)" / "Shoaib (dashboard)" — never an email), plus 15-minute open/download links.
+  - `social_list_posts`: project fuzzy match, status(es), from/to on created_at or scheduled_at, limit ≤200, newest first. Summary per project/status + "added in last 7 days".
+- **Links:** `lib/post-image-links.ts` (HMAC with MCP_OAUTH_SIGNING_KEY, post id + expiry only — no storage key). Served by `/api/social/post-image/[name]`, which streams from private R2 (`streamObject`).
+- **Descriptions:** `social_get_post_image` / `social_list_pending_posts` now point to the new tools.
+- **Test:** `npx tsx --conditions=react-server --env-file=.env.local scripts/test-post-tools.mts` — 16/16 pass (incl. tampered/expired link refused, no emails, no storage path). The local server lists 68 tools including both.
+
 ## 2026-10-10 — Stay signed in (login kept asking every time)
 - **Cause:** both login forms signed a wrong-role account back out with the default **global** `signOut()`.
   - When the browser autofilled the ADMIN login on /portal/login, that killed the admin's session on every device. That day the admin had 0 sessions in `auth.sessions`.

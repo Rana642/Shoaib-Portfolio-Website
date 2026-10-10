@@ -101,3 +101,16 @@ export async function deleteObject(key: string) {
   if (!client) throw new Error("Object storage is not configured.");
   await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
 }
+
+/** Stream an object (no size cap, unlike buffering it into a serverless
+ *  response) — used by the signed post-image download route. */
+export async function streamObject(key: string): Promise<{ body: ReadableStream; contentType: string; size: number | null }> {
+  if (!client) throw new Error("Object storage is not configured.");
+  const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  if (!res.Body) throw new Error("Object not found.");
+  return {
+    body: res.Body.transformToWebStream(),
+    contentType: res.ContentType || "application/octet-stream",
+    size: typeof res.ContentLength === "number" ? res.ContentLength : null,
+  };
+}
