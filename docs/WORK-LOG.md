@@ -15,7 +15,7 @@ context (decisions, gotchas, rules) is in the second-brain vault:
 - **Verified:** each section's menu + active item on localhost (catalog vs bundles, Connections exact, WhatsApp Inbox vs Overview).
 - **Client portal too** (`lib/portal/sections.ts`): Home · WhatsApp · Bookings (Bookings / Inquiries / Contacts) · Planner · Account (Passwords / Intake forms / Team).
   - Built from each person's features: empty sections hide, and a one-page section is just a link with no menu (`sectionFor` needs 2+ items).
-  - Grouping logic tested with a script. NOT seen in a browser — that needs a portal login.
+  - Verified in the browser with the Muhammad Ajmal Owner login (2026-10-10): Home · WhatsApp · Bookings · Account. The Bookings and Account menus highlight correctly; Passwords is hidden for this login (it redirects).
 
 ## 2026-10-09 — WhatsApp Overview dashboard + collapsible section menu
 - **Overview:** `/dashboard/whatsapp/overview` (first item in the WhatsApp menu). Filters: 7/30/90 days and per number.
