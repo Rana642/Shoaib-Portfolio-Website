@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { MessageCircle } from "lucide-react";
+import InboxFrame from "@/components/whatsapp/InboxFrame";
 import { db } from "@/lib/dashboard/db";
 import { Card, StatusBadge } from "@/components/dashboard/ui";
 import {
@@ -18,7 +19,12 @@ import {
 } from "@/components/dashboard/WhatsAppChat";
 import { DEAL_WORDS, type BusinessKind } from "@/lib/whatsapp/words";
 import type { WaTemplate } from "@/lib/whatsapp/template-shared";
-import { chatStage, replyWindowOpen, type ChatPatch, type ChatStage } from "@/lib/whatsapp";
+import {
+  chatStage,
+  replyWindowOpen,
+  type ChatPatch,
+  type ChatStage,
+} from "@/lib/whatsapp";
 
 /**
  * The WhatsApp live chat — one component for my dashboard (every business)
@@ -53,18 +59,40 @@ export type InboxAccount = { id: string; name: string };
 
 type Result = { error?: string; ok?: boolean } | undefined;
 
-const SOURCE_LABEL: Record<string, string> = { FB: "Facebook/Instagram ad", GA: "Google ad", GS: "Google search", WEB: "Website" };
-const SOURCES = [...Object.entries(SOURCE_LABEL).map(([value, label]) => ({ value, label })), { value: "none", label: "No code" }];
+const SOURCE_LABEL: Record<string, string> = {
+  FB: "Facebook/Instagram ad",
+  GA: "Google ad",
+  GS: "Google search",
+  WEB: "Website",
+};
+const SOURCES = [
+  ...Object.entries(SOURCE_LABEL).map(([value, label]) => ({ value, label })),
+  { value: "none", label: "No code" },
+];
 
 const TABS: { stage: ChatStage; label: string; hint: string }[] = [
   { stage: "active", label: "Active", hint: "Automation is handling these" },
-  { stage: "requesting", label: "Requesting", hint: "Customer waiting 15+ min, or a Ref-code lead" },
-  { stage: "intervened", label: "Intervened", hint: "Your team took over — automation paused" },
+  {
+    stage: "requesting",
+    label: "Requesting",
+    hint: "Customer waiting 15+ min, or a Ref-code lead",
+  },
+  {
+    stage: "intervened",
+    label: "Intervened",
+    hint: "Your team took over — automation paused",
+  },
 ];
 
 const time = (iso: string | null) =>
   iso
-    ? new Date(iso).toLocaleString("en-GB", { timeZone: "Asia/Karachi", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+    ? new Date(iso).toLocaleString("en-GB", {
+        timeZone: "Asia/Karachi",
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
     : "";
 
 const initials = (c: Contact) =>
@@ -119,8 +147,15 @@ export default async function Inbox({
     markRead: (contactId: string) => Promise<void>;
     saveBooking: (contactId: string, formData: FormData) => Promise<Result>;
     update: (contactId: string, patch: ChatPatch) => Promise<Result>;
-    templates: (contactId: string) => Promise<{ templates?: WaTemplate[]; error?: string }>;
-    sendTemplate: (contactId: string, name: string, language: string, params: string[]) => Promise<Result>;
+    templates: (
+      contactId: string,
+    ) => Promise<{ templates?: WaTemplate[]; error?: string }>;
+    sendTemplate: (
+      contactId: string,
+      name: string,
+      language: string,
+      params: string[],
+    ) => Promise<Result>;
   };
 }) {
   const accountIds = accounts.map((a) => a.id);
@@ -130,17 +165,29 @@ export default async function Inbox({
     ? db
         .from("wa_contacts")
         .select(
-          "id, account_id, wa_id, name, ref_source, ref_code, status, unread, last_message_at, last_inbound_at, booking, intervened_at, resolved_at, opted_out_at, tags, notes, created_at"
+          "id, account_id, wa_id, name, ref_source, ref_code, status, unread, last_message_at, last_inbound_at, booking, intervened_at, resolved_at, opted_out_at, tags, notes, created_at",
         )
         .in("account_id", accountIds)
     : null;
   const q = search?.replace(/[^\p{L}\p{N} +]/gu, "").trim();
   if (list && q) {
     const digits = q.replace(/\D/g, "");
-    list = list.or(digits.length >= 3 ? `name.ilike.%${q}%,wa_id.ilike.%${digits}%` : `name.ilike.%${q}%`);
+    list = list.or(
+      digits.length >= 3
+        ? `name.ilike.%${q}%,wa_id.ilike.%${digits}%`
+        : `name.ilike.%${q}%`,
+    );
   }
-  if (list && source) list = source === "none" ? list.is("ref_source", null) : list.eq("ref_source", source);
-  const { data } = list ? await list.order("last_message_at", { ascending: false, nullsFirst: false }).limit(300) : { data: [] };
+  if (list && source)
+    list =
+      source === "none"
+        ? list.is("ref_source", null)
+        : list.eq("ref_source", source);
+  const { data } = list
+    ? await list
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .limit(300)
+    : { data: [] };
 
   const contacts = (data ?? []) as Contact[];
 
@@ -148,25 +195,46 @@ export default async function Inbox({
   const { data: accRows } = accountIds.length
     ? await db.from("wa_accounts").select("id, project_id").in("id", accountIds)
     : { data: [] };
-  const projectIds = (accRows ?? []).map((a) => a.project_id as string | null).filter((x): x is string => !!x);
+  const projectIds = (accRows ?? [])
+    .map((a) => a.project_id as string | null)
+    .filter((x): x is string => !!x);
   const { data: hotelRows } = projectIds.length
-    ? await db.from("project_booking_sources").select("project_id").in("project_id", projectIds)
+    ? await db
+        .from("project_booking_sources")
+        .select("project_id")
+        .in("project_id", projectIds)
     : { data: [] };
-  const hotelProjects = new Set((hotelRows ?? []).map((h) => h.project_id as string));
+  const hotelProjects = new Set(
+    (hotelRows ?? []).map((h) => h.project_id as string),
+  );
   const kindOf = new Map<string, BusinessKind>(
-    (accRows ?? []).map((a) => [a.id as string, a.project_id && hotelProjects.has(a.project_id as string) ? "hotel" : "general"])
+    (accRows ?? []).map((a) => [
+      a.id as string,
+      a.project_id && hotelProjects.has(a.project_id as string)
+        ? "hotel"
+        : "general",
+    ]),
   );
   const statusLabel = (c: Contact) => {
     const w = DEAL_WORDS[kindOf.get(c.account_id) ?? "general"];
-    return c.status === "booked" ? w.won : c.status === "lost" ? w.lost : undefined;
+    return c.status === "booked"
+      ? w.won
+      : c.status === "lost"
+        ? w.lost
+        : undefined;
   };
   const staged = contacts.map((c) => ({ ...c, stage: chatStage(c) }));
-  const counts = { active: 0, requesting: 0, intervened: 0 } as Record<ChatStage, number>;
+  const counts = { active: 0, requesting: 0, intervened: 0 } as Record<
+    ChatStage,
+    number
+  >;
   for (const c of staged) counts[c.stage]++;
   // No tab in the URL → open the first one that has chats (Requesting first: those need a person).
   const currentTab: ChatStage = TABS.some((t) => t.stage === tab)
     ? (tab as ChatStage)
-    : ((["requesting", "active", "intervened"] as ChatStage[]).find((s) => counts[s] > 0) ?? "active");
+    : ((["requesting", "active", "intervened"] as ChatStage[]).find(
+        (s) => counts[s] > 0,
+      ) ?? "active");
   const shown = staged.filter((c) => c.stage === currentTab);
 
   // The open chat (may sit in another tab, or outside the search).
@@ -175,7 +243,7 @@ export default async function Inbox({
     const { data: one } = await db
       .from("wa_contacts")
       .select(
-        "id, account_id, wa_id, name, ref_source, ref_code, status, unread, last_message_at, last_inbound_at, booking, intervened_at, resolved_at, opted_out_at, tags, notes, created_at"
+        "id, account_id, wa_id, name, ref_source, ref_code, status, unread, last_message_at, last_inbound_at, booking, intervened_at, resolved_at, opted_out_at, tags, notes, created_at",
       )
       .eq("id", chatId)
       .in("account_id", accountIds)
@@ -191,7 +259,11 @@ export default async function Inbox({
           .eq("contact_id", active.id)
           .order("sent_at", { ascending: false })
           .limit(500),
-        db.from("wa_quick_replies").select("id, title, body").eq("account_id", active.account_id).order("sort_order"),
+        db
+          .from("wa_quick_replies")
+          .select("id, title, body")
+          .eq("account_id", active.account_id)
+          .order("sort_order"),
       ])
     : [{ data: [] }, { data: [] }];
   const thread = (messages ?? []).reverse();
@@ -218,163 +290,225 @@ export default async function Inbox({
   );
 
   return (
-    <Card className="overflow-hidden flex flex-col h-[calc(100dvh-4rem)] min-h-[560px]">
-      <InboxAutoRefresh />
-      {/* Top bar: search + source filter */}
-      <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-ink/10">
-        <div className="flex-1 min-w-[260px]">
-          <InboxFilters sources={SOURCES} scope={scope} />
-        </div>
-        {toolbar && <div className="flex flex-wrap items-center gap-2">{toolbar}</div>}
-      </div>
-
-      {/* Tabs band */}
-      <div className="grid md:grid-cols-[320px_1fr] xl:grid-cols-[320px_1fr_300px] bg-ink text-cloud">
-        <nav className="flex" aria-label="Chat stages">
-          {TABS.map((t) => (
-            <Link
-              key={t.stage}
-              href={href({ tab: t.stage, chat: active?.id })}
-              title={t.hint}
-              className={`flex-1 text-center whitespace-nowrap px-1 py-3 font-mono uppercase text-[11px] tracking-wide border-b-2 ${
-                currentTab === t.stage ? "border-citrus text-cloud" : "border-transparent text-cloud/60 hover:text-cloud"
-              }`}
-            >
-              {t.label} ({counts[t.stage]})
-            </Link>
-          ))}
-        </nav>
-        <div className="hidden md:block" />
-        <p className="hidden xl:flex items-center justify-center text-small font-medium">Contact Profile</p>
-      </div>
-
-      <div className="flex-1 min-h-0 grid md:grid-cols-[320px_1fr] xl:grid-cols-[320px_1fr_300px]">
-        {/* Chat list */}
-        <ul className={`border-r border-ink/10 overflow-y-auto min-h-0 ${active ? "hidden md:block" : ""}`}>
-          {shown.length === 0 && (
-            <li className="p-8 text-center text-small text-ink-muted">
-              <MessageCircle className="size-10 mx-auto mb-3 text-forest/60" aria-hidden />
-              {q || source ? "No chats match." : "Seems clear!"}
-            </li>
+    <InboxFrame>
+      <Card className="overflow-hidden flex flex-col h-[calc(100dvh-4rem)] min-h-[560px]">
+        <InboxAutoRefresh />
+        {/* Top bar: search + source filter */}
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-ink/10">
+          <div className="flex-1 min-w-[260px]">
+            <InboxFilters sources={SOURCES} scope={scope} />
+          </div>
+          {toolbar && (
+            <div className="flex flex-wrap items-center gap-2">{toolbar}</div>
           )}
-          {shown.map((c) => (
-            <li key={c.id}>
+        </div>
+
+        {/* Tabs band */}
+        <div className="grid md:grid-cols-[var(--list-w)_1fr] xl:grid-cols-[var(--list-w)_1fr_var(--profile-w)] bg-ink text-cloud">
+          <nav className="flex" aria-label="Chat stages">
+            {TABS.map((t) => (
               <Link
-                href={href({ chat: c.id })}
-                className={`flex gap-3 px-4 py-3 border-b border-ink/5 hover:bg-ink/[0.03] ${c.id === active?.id ? "bg-ink/[0.05]" : ""}`}
+                key={t.stage}
+                href={href({ tab: t.stage, chat: active?.id })}
+                title={t.hint}
+                className={`flex-1 text-center whitespace-nowrap px-1 py-3 font-mono uppercase text-[11px] tracking-wide border-b-2 ${
+                  currentTab === t.stage
+                    ? "border-citrus text-cloud"
+                    : "border-transparent text-cloud/60 hover:text-cloud"
+                }`}
               >
-                <span className="size-9 shrink-0 rounded-full bg-forest/15 text-forest font-medium text-small flex items-center justify-center">
-                  {initials(c)}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="font-medium text-small truncate">{c.name || `+${c.wa_id}`}</span>
-                    <span className="text-tag text-ink-subtle shrink-0">{time(c.last_message_at)}</span>
+                {t.label} ({counts[t.stage]})
+              </Link>
+            ))}
+          </nav>
+          <div className="hidden md:block" />
+          <p className="hidden xl:flex items-center justify-center text-small font-medium overflow-hidden whitespace-nowrap">
+            Contact Profile
+          </p>
+        </div>
+
+        <div className="flex-1 min-h-0 grid md:grid-cols-[var(--list-w)_1fr] xl:grid-cols-[var(--list-w)_1fr_var(--profile-w)]">
+          {/* Chat list */}
+          <ul
+            className={`border-r border-ink/10 overflow-y-auto min-h-0 ${active ? "hidden md:block" : ""}`}
+          >
+            {shown.length === 0 && (
+              <li className="p-8 text-center text-small text-ink-muted">
+                <MessageCircle
+                  className="size-10 mx-auto mb-3 text-forest/60"
+                  aria-hidden
+                />
+                {q || source ? "No chats match." : "Seems clear!"}
+              </li>
+            )}
+            {shown.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={href({ chat: c.id })}
+                  className={`flex gap-3 px-4 py-3 border-b border-ink/5 hover:bg-ink/[0.03] ${c.id === active?.id ? "bg-ink/[0.05]" : ""}`}
+                >
+                  <span className="size-9 shrink-0 rounded-full bg-forest/15 text-forest font-medium text-small flex items-center justify-center">
+                    {initials(c)}
                   </span>
-                  {showBusiness && <span className="block text-tag text-ink-subtle truncate">{accountName.get(c.account_id)}</span>}
-                  <span className="flex flex-wrap items-center gap-1.5 mt-1">
-                    {c.ref_source && (
-                      <span className="font-mono text-tag rounded bg-citrus/20 px-1.5 py-0.5">
-                        {c.ref_source}
-                        {c.ref_code ? `-${c.ref_code}` : ""}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-small truncate">
+                        {c.name || `+${c.wa_id}`}
+                      </span>
+                      <span className="text-tag text-ink-subtle shrink-0">
+                        {time(c.last_message_at)}
+                      </span>
+                    </span>
+                    {showBusiness && (
+                      <span className="block text-tag text-ink-subtle truncate">
+                        {accountName.get(c.account_id)}
                       </span>
                     )}
-                    <StatusBadge status={c.status} label={statusLabel(c)} />
-                    {c.stage === "requesting" && <span className="text-tag text-red-700">waiting {waiting(c.last_inbound_at)}</span>}
-                    {c.unread > 0 && <span className="ml-auto text-tag font-semibold bg-forest text-white rounded-full px-2">{c.unread}</span>}
-                  </span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-
-        {/* Conversation */}
-        {active ? (
-          <section className="flex flex-col min-h-0">
-            <MarkRead key={active.id} action={actions.markRead.bind(null, active.id)} />
-            <header className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-ink/10">
-              <div className="flex items-center gap-3 min-w-0">
-                <Link href={href({})} className="md:hidden text-small text-ink-subtle" aria-label="All chats">
-                  ←
-                </Link>
-                <span className="size-9 shrink-0 rounded-full bg-forest/15 text-forest font-medium text-small flex items-center justify-center">
-                  {initials(active)}
-                </span>
-                <div className="min-w-0">
-                  <p className="font-medium truncate">{active.name || `+${active.wa_id}`}</p>
-                  <p className="text-tag text-ink-muted truncate">
-                    +{active.wa_id}
-                    {showBusiness && ` · ${accountName.get(active.account_id)}`}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">{active.stage}</span>
-                <HandoffButton intervened={active.stage === "intervened"} onUpdate={actions.update.bind(null, active.id)} />
-              </div>
-            </header>
-
-            <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-2 bg-citrus/[0.06]">
-              {thread.map((m) => (
-                <div key={m.id} className={`flex ${m.direction === "out" ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className={`max-w-[75%] rounded-xl px-3.5 py-2 text-small whitespace-pre-wrap break-words ${
-                      m.direction === "out" ? "bg-forest/15" : "bg-white border border-ink/10"
-                    }`}
-                  >
-                    {m.body ?? <span className="italic text-ink-muted">[{m.type}]</span>}
-                    <span className="block text-right text-[10px] text-ink-subtle mt-1">
-                      {time(m.sent_at)}
-                      {m.direction === "out" &&
-                        ` · ${m.via === "app" ? "phone" : m.via === "auto" ? "auto-reply" : m.via === "broadcast" ? "broadcast" : "dashboard"}${m.status ? ` · ${m.status}` : ""}`}
+                    <span className="flex flex-wrap items-center gap-1.5 mt-1">
+                      {c.ref_source && (
+                        <span className="font-mono text-tag rounded bg-citrus/20 px-1.5 py-0.5">
+                          {c.ref_source}
+                          {c.ref_code ? `-${c.ref_code}` : ""}
+                        </span>
+                      )}
+                      <StatusBadge status={c.status} label={statusLabel(c)} />
+                      {c.stage === "requesting" && (
+                        <span className="text-tag text-red-700">
+                          waiting {waiting(c.last_inbound_at)}
+                        </span>
+                      )}
+                      {c.unread > 0 && (
+                        <span className="ml-auto text-tag font-semibold bg-forest text-white rounded-full px-2">
+                          {c.unread}
+                        </span>
+                      )}
                     </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          {/* Conversation */}
+          {active ? (
+            <section className="flex flex-col min-h-0">
+              <MarkRead
+                key={active.id}
+                action={actions.markRead.bind(null, active.id)}
+              />
+              <header className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-ink/10">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Link
+                    href={href({})}
+                    className="md:hidden text-small text-ink-subtle"
+                    aria-label="All chats"
+                  >
+                    ←
+                  </Link>
+                  <span className="size-9 shrink-0 rounded-full bg-forest/15 text-forest font-medium text-small flex items-center justify-center">
+                    {initials(active)}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">
+                      {active.name || `+${active.wa_id}`}
+                    </p>
+                    <p className="text-tag text-ink-muted truncate">
+                      +{active.wa_id}
+                      {showBusiness &&
+                        ` · ${accountName.get(active.account_id)}`}
+                    </p>
                   </div>
                 </div>
-              ))}
-              <ScrollToBottom dep={thread.length} />
+                <div className="flex items-center gap-2">
+                  <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                    {active.stage}
+                  </span>
+                  <HandoffButton
+                    intervened={active.stage === "intervened"}
+                    onUpdate={actions.update.bind(null, active.id)}
+                  />
+                </div>
+              </header>
+
+              <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-2 bg-citrus/[0.06]">
+                {thread.map((m) => (
+                  <div
+                    key={m.id}
+                    className={`flex ${m.direction === "out" ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`max-w-[75%] rounded-xl px-3.5 py-2 text-small whitespace-pre-wrap break-words ${
+                        m.direction === "out"
+                          ? "bg-forest/15"
+                          : "bg-white border border-ink/10"
+                      }`}
+                    >
+                      {m.body ?? (
+                        <span className="italic text-ink-muted">
+                          [{m.type}]
+                        </span>
+                      )}
+                      <span className="block text-right text-[10px] text-ink-subtle mt-1">
+                        {time(m.sent_at)}
+                        {m.direction === "out" &&
+                          ` · ${m.via === "app" ? "phone" : m.via === "auto" ? "auto-reply" : m.via === "broadcast" ? "broadcast" : "dashboard"}${m.status ? ` · ${m.status}` : ""}`}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                <ScrollToBottom dep={thread.length} />
+              </div>
+
+              {/* Contact details on screens without the side panel */}
+              <details className="xl:hidden border-t border-ink/10">
+                <summary className="px-5 py-2 text-small cursor-pointer">
+                  Contact profile
+                </summary>
+                <div className="max-h-[45vh] overflow-y-auto">{profile}</div>
+              </details>
+
+              <div className="border-t border-ink/10 p-4">
+                {active.opted_out_at && (
+                  <p className="text-small text-red-700 mb-2">
+                    This customer sent STOP on {time(active.opted_out_at)} —
+                    automation won&apos;t message them. Only reply if they ask
+                    something.
+                  </p>
+                )}
+                <ReplyBox
+                  key={active.id}
+                  windowOpen={replyWindowOpen(active.last_inbound_at)}
+                  onSend={actions.reply.bind(null, active.id)}
+                  quickReplies={quickReplies ?? []}
+                  templates={
+                    active.opted_out_at
+                      ? undefined
+                      : {
+                          load: actions.templates.bind(null, active.id),
+                          send: actions.sendTemplate.bind(null, active.id),
+                        }
+                  }
+                />
+              </div>
+            </section>
+          ) : (
+            <div className="hidden md:flex flex-col items-center justify-center gap-3 bg-citrus/[0.06] text-ink-muted">
+              <MessageCircle className="size-12 text-forest/50" aria-hidden />
+              <p className="text-body">Select a chat to continue</p>
             </div>
-
-            {/* Contact details on screens without the side panel */}
-            <details className="xl:hidden border-t border-ink/10">
-              <summary className="px-5 py-2 text-small cursor-pointer">Contact profile</summary>
-              <div className="max-h-[45vh] overflow-y-auto">{profile}</div>
-            </details>
-
-            <div className="border-t border-ink/10 p-4">
-              {active.opted_out_at && (
-                <p className="text-small text-red-700 mb-2">
-                  This customer sent STOP on {time(active.opted_out_at)} — automation won&apos;t message them. Only reply if they ask something.
-                </p>
-              )}
-              <ReplyBox
-                key={active.id}
-                windowOpen={replyWindowOpen(active.last_inbound_at)}
-                onSend={actions.reply.bind(null, active.id)}
-                quickReplies={quickReplies ?? []}
-                templates={
-                  active.opted_out_at
-                    ? undefined
-                    : { load: actions.templates.bind(null, active.id), send: actions.sendTemplate.bind(null, active.id) }
-                }
-              />
-            </div>
-          </section>
-        ) : (
-          <div className="hidden md:flex flex-col items-center justify-center gap-3 bg-citrus/[0.06] text-ink-muted">
-            <MessageCircle className="size-12 text-forest/50" aria-hidden />
-            <p className="text-body">Select a chat to continue</p>
-          </div>
-        )}
-
-        {/* Contact Profile */}
-        <aside className="hidden xl:block border-l border-ink/10 overflow-y-auto min-h-0">
-          {profile ?? (
-            <p className="p-6 text-small text-ink-muted text-center">Open a chat to see the customer&apos;s details.</p>
           )}
-        </aside>
-      </div>
-    </Card>
+
+          {/* Contact Profile */}
+          <aside className="hidden xl:block border-l border-ink/10 overflow-y-auto overflow-x-hidden min-h-0">
+            {profile ?? (
+              <p className="p-6 text-small text-ink-muted text-center">
+                Open a chat to see the customer&apos;s details.
+              </p>
+            )}
+          </aside>
+        </div>
+      </Card>
+    </InboxFrame>
   );
 }
 
@@ -402,23 +536,38 @@ function ContactProfile({
         </span>
         <p className="font-medium mt-2">{c.name || "Unknown name"}</p>
         <p className="text-small text-ink-muted">+{c.wa_id}</p>
-        {business && <p className="text-tag text-ink-subtle mt-0.5">{business}</p>}
+        {business && (
+          <p className="text-tag text-ink-subtle mt-0.5">{business}</p>
+        )}
       </div>
 
       <Section title="Came from">
         {c.ref_source ? (
           <p className="text-small">
             {SOURCE_LABEL[c.ref_source] ?? c.ref_source}
-            {c.ref_code && <span className="ml-2 font-mono text-tag rounded bg-citrus/20 px-1.5 py-0.5">{c.ref_code}</span>}
+            {c.ref_code && (
+              <span className="ml-2 font-mono text-tag rounded bg-citrus/20 px-1.5 py-0.5">
+                {c.ref_code}
+              </span>
+            )}
           </p>
         ) : (
-          <p className="text-small text-ink-muted">No Ref code — direct message</p>
+          <p className="text-small text-ink-muted">
+            No Ref code — direct message
+          </p>
         )}
-        <p className="text-tag text-ink-subtle mt-1">First message {time(c.created_at)}</p>
+        <p className="text-tag text-ink-subtle mt-1">
+          First message {time(c.created_at)}
+        </p>
       </Section>
 
       <Section title="Status">
-        <StatusSelect key={c.id} kind={kind} status={c.status} onChange={actions.setStatus.bind(null, c.id)} />
+        <StatusSelect
+          key={c.id}
+          kind={kind}
+          status={c.status}
+          onChange={actions.setStatus.bind(null, c.id)}
+        />
       </Section>
 
       <Section title={DEAL_WORDS[kind].section}>
@@ -433,25 +582,47 @@ function ContactProfile({
       </Section>
 
       <Section title="Tags">
-        <TagEditor key={`t-${c.id}`} tags={c.tags ?? []} onUpdate={actions.update.bind(null, c.id)} />
+        <TagEditor
+          key={`t-${c.id}`}
+          tags={c.tags ?? []}
+          onUpdate={actions.update.bind(null, c.id)}
+        />
       </Section>
 
       <Section title="Notes">
-        <NotesBox key={`n-${c.id}`} notes={c.notes} onUpdate={actions.update.bind(null, c.id)} />
+        <NotesBox
+          key={`n-${c.id}`}
+          notes={c.notes}
+          onUpdate={actions.update.bind(null, c.id)}
+        />
       </Section>
 
       <Section title="Reply window">
-        <p className="text-small">{left ? `${left} left for free replies` : "Closed — the customer has to message first"}</p>
-        {c.opted_out_at && <p className="text-small text-red-700 mt-1">Opted out (STOP)</p>}
+        <p className="text-small">
+          {left
+            ? `${left} left for free replies`
+            : "Closed — the customer has to message first"}
+        </p>
+        {c.opted_out_at && (
+          <p className="text-small text-red-700 mt-1">Opted out (STOP)</p>
+        )}
       </Section>
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className="px-5 py-4 border-b border-ink/10">
-      <h3 className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-2">{title}</h3>
+      <h3 className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-2">
+        {title}
+      </h3>
       {children}
     </section>
   );
