@@ -4,6 +4,11 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-12 — WhatsApp App Review submitted + support cases
+- **Meta App Review submitted** (Socially Snap app) for whatsapp_business_messaging + whatsapp_business_management, with the two screencasts and the Data handling answers. Status: in review (~20 days).
+- **Meta Access Verification** (business-level, since 23 Sep): still in review. Advised a Business Support case.
+- **LinkedIn CM API:** Developer Support case **CAS-12128570-G6N9Q3** opened (the earlier member-support case 261012-002160 got an irrelevant canned reply).
+
 ## 2026-10-11 — MCP: social_get_post_image_url + social_list_posts
 - **`lib/post-listing-tools.ts`:** registered on both the local (`mcp/tools/social.ts`) and remote (`lib/mcp-remote-tools.ts`) servers. Read-only.
   - `social_get_post_image_url`: any status. Returns the image inline (sharp shrinks >1.5 MB / >1600 px for the preview only), filename, project, status, scheduled_at, caption, needs-changes note, and the uploader as a name ("<Client> (client portal)" / "Shoaib (dashboard)" — never an email), plus 15-minute open/download links.
