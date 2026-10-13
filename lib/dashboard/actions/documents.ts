@@ -7,6 +7,7 @@ import { db } from "../db";
 import { getAdminUser } from "../auth";
 import { calculateTotals, round2 } from "../format";
 import { generateNumber } from "../numbering";
+import { applyPaymentToInvoice } from "../payments";
 
 async function assertAuthed() {
   const user = await getAdminUser();
@@ -354,43 +355,9 @@ export async function recordPayment(invoiceId: string, formData: FormData) {
 
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
-  const { error: paymentError } = await db
-    .from("payments")
-    .insert({ invoice_id: invoiceId, ...parsed.data });
-  if (paymentError) return { error: paymentError.message };
-
-  // Recompute from the payments table rather than incrementing, so a
-  // deleted or corrected payment can't leave the invoice out of sync.
-  const { data: payments } = await db
-    .from("payments")
-    .select("amount")
-    .eq("invoice_id", invoiceId);
-
-  const amountPaid = round2(
-    (payments ?? []).reduce((sum, p) => sum + Number(p.amount), 0)
-  );
-
-  const { data: invoice } = await db
-    .from("invoices")
-    .select("total, status")
-    .eq("id", invoiceId)
-    .single();
-
-  let status = invoice?.status ?? "sent";
-  if (invoice) {
-    if (amountPaid >= Number(invoice.total)) status = "paid";
-    else if (amountPaid > 0) status = "partially_paid";
-  }
-
-  await db
-    .from("invoices")
-    .update({
-      amount_paid: amountPaid,
-      status,
-      paid_at: status === "paid" ? new Date().toISOString() : null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", invoiceId);
+  // shared with the receipt Confirm button: inserts, then re-derives amount_paid + status
+  const result = await applyPaymentToInvoice(invoiceId, parsed.data);
+  if ("error" in result) return { error: result.error };
 
   revalidatePath(`/dashboard/invoices/${invoiceId}`);
   revalidatePath("/dashboard/invoices");

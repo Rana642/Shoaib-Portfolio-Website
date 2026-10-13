@@ -4,6 +4,29 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-13 — Payments: bank details on invoices + client receipt upload + /pay
+- No gateway yet, so payments are by bank transfer and confirmed by hand.
+- **Settings → Payment accounts** (`components/dashboard/PaymentAccountsForm.tsx`, `settings.payment_accounts` jsonb):
+  - a Pakistan (PKR) account: title / bank / account no. / IBAN / branch;
+  - an international account, with "Same as Pakistan account" ticked by default (until a separate international account exists, international payers get the Pakistan IBAN + SWIFT);
+  - SWIFT / bank address and a note for payers.
+  - Shoaib types the numbers himself; nothing is hard-coded.
+- **Which account is shown:** `lib/payment-accounts.ts`. PKR invoices show Pakistan, other currencies show International, and /pay shows both. Falls back to whichever exists.
+- **Invoice link `/invoice/[token]`:**
+  - while a balance is due: a "How to pay" card with Copy buttons, the receipts sent so far (pending / confirmed / not confirmed + reason), and **Upload payment receipt**;
+  - the printed invoice lists the structured accounts (falls back to the old free-text `bank_details`).
+- **`/pay`** (noindex, not in the sitemap): bank details and the same upload form. The payer gives name, email (Disify check), optional phone, invoice number, currency + amount.
+- **Upload:**
+  - `POST /api/pay/upload-url` presigns a PUT to private R2 at `receipts/<invoice token | pay>/<uuid>-name`: images/PDF only, ≤10 MB baked into the signature, rate limit 12/10 min per IP.
+  - `POST /api/pay/receipt` validates, checks the object really exists (`headObject`), inserts `payment_receipts` and emails Shoaib. Rate limit 8/h per IP; a paid / draft / cancelled invoice refuses.
+- **Dashboard:**
+  - **Payment receipts** page (Clients & Billing): pending first, a 1-hour private "View receipt" link.
+  - **Confirm** applies it as a payment to an open invoice in the same currency (amount editable; a /pay receipt pre-selects the invoice whose number the payer typed), then emails the payer.
+  - **Reject** with a reason emails the payer a retry link.
+  - Invoice page: the receipts for that invoice. Overview: a "N payment receipts to confirm" banner.
+- **Refactor:** `lib/dashboard/payments.ts` `applyPaymentToInvoice`, shared by Record payment + Confirm (amount_paid and status are re-derived from `payments`).
+- **SQL (run once):** the "Payment accounts + client-uploaded payment receipts" block at the end of `supabase/dashboard-schema.sql`.
+
 ## 2026-10-12 — WhatsApp App Review submitted + support cases
 - **Meta App Review submitted** (Socially Snap app) for whatsapp_business_messaging + whatsapp_business_management, with the two screencasts and the Data handling answers. Status: in review (~20 days).
 - **Meta Access Verification** (business-level, since 23 Sep): still in review. Advised a Business Support case.

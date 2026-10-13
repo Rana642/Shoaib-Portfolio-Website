@@ -1,6 +1,7 @@
 import { db } from "./db";
 import type { Settings } from "./types";
 import { normalizeIdentities, type AccessIdentities } from "../access-identities";
+import { normalizePaymentAccounts, type PaymentAccounts } from "../payment-accounts";
 
 const fallback: Settings = {
   id: 1,
@@ -26,6 +27,14 @@ const fallback: Settings = {
 export async function getSettings(): Promise<Settings> {
   const { data } = await db.from("settings").select("*").eq("id", 1).single();
   return (data as Settings) ?? fallback;
+}
+
+/** Settings → Payment accounts (bank details for invoices and /pay). Empty
+ *  until set, or before its column exists. */
+export async function getPaymentAccounts(): Promise<PaymentAccounts> {
+  const { data, error } = await db.from("settings").select("payment_accounts").eq("id", 1).maybeSingle();
+  if (error || !data) return normalizePaymentAccounts(null);
+  return normalizePaymentAccounts(data.payment_accounts);
 }
 
 /** Shoaib's own accounts that clients grant access to (Settings → My

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Users, FileText, Receipt, Inbox, ArrowRight } from "lucide-react";
+import { Users, FileText, Receipt, ReceiptText, Inbox, ArrowRight } from "lucide-react";
+import { pendingReceiptCount } from "@/lib/dashboard/receipts";
 import { db } from "@/lib/dashboard/db";
 import { formatMoney, formatDate } from "@/lib/dashboard/format";
 import { PageHeader, Card, StatusBadge, EmptyState, LinkButton } from "@/components/dashboard/ui";
@@ -56,7 +57,10 @@ async function getOverview() {
 }
 
 export default async function DashboardOverview() {
-  const { counts, outstanding, recentInvoices, recentQuotations } = await getOverview();
+  const [{ counts, outstanding, recentInvoices, recentQuotations }, receiptsToConfirm] = await Promise.all([
+    getOverview(),
+    pendingReceiptCount(),
+  ]);
 
   const stats = [
     { label: "Active clients", value: counts.clients, icon: Users, href: "/dashboard/clients" },
@@ -70,6 +74,19 @@ export default async function DashboardOverview() {
   return (
     <>
       <PageHeader title="Overview" description="Where the business stands right now." />
+
+      {receiptsToConfirm > 0 && (
+        <Link
+          href="/dashboard/receipts"
+          className="flex items-center justify-between gap-4 rounded-xl border border-citrus/50 bg-citrus/15 px-5 py-4 mb-6 hover:bg-citrus/25 transition-colors"
+        >
+          <span className="flex items-center gap-3 text-small font-medium">
+            <ReceiptText className="size-4" aria-hidden />
+            {receiptsToConfirm === 1 ? "1 payment receipt to confirm" : `${receiptsToConfirm} payment receipts to confirm`}
+          </span>
+          <ArrowRight className="size-4" aria-hidden />
+        </Link>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => (

@@ -1,5 +1,6 @@
 import { formatMoney, formatDate } from "@/lib/dashboard/format";
 import type { Client, LineItem, Settings } from "@/lib/dashboard/types";
+import type { PaymentBlock } from "@/lib/payment-accounts";
 import ComplimentaryServices from "./ComplimentaryServices";
 
 type PreviewDocument = {
@@ -34,13 +35,18 @@ export default function DocumentPreview({
   client,
   items,
   settings,
+  paymentBlocks,
 }: {
   kind: "quotation" | "invoice";
   document: PreviewDocument;
   client: Client;
   items: LineItem[];
   settings: Settings;
+  /** Settings → Payment accounts for this invoice's currency; replaces the free-text bank details when set. */
+  paymentBlocks?: PaymentBlock[];
 }) {
+  const accounts = kind === "invoice" && paymentBlocks?.length ? paymentBlocks : null;
+  const showPayment = kind === "invoice" && Boolean(accounts || settings.bank_details);
   const title = kind === "invoice" ? "Invoice" : "Quotation";
   const dateLabel = kind === "invoice" ? "Due date" : "Valid until";
   const dateValue = kind === "invoice" ? document.due_date : document.valid_until;
@@ -182,7 +188,7 @@ export default function DocumentPreview({
       </div>
 
       {/* Footer blocks */}
-      {(document.notes || document.terms || (kind === "invoice" && settings.bank_details)) && (
+      {(document.notes || document.terms || showPayment) && (
         <div className="mt-10 pt-8 border-t border-ink/10 grid grid-cols-1 md:grid-cols-2 gap-8">
           {document.notes && (
             <div>
@@ -200,14 +206,25 @@ export default function DocumentPreview({
               <p className="text-small text-ink-muted whitespace-pre-line">{document.terms}</p>
             </div>
           )}
-          {kind === "invoice" && settings.bank_details && (
+          {showPayment && (
             <div>
               <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle mb-2">
                 Payment details
               </p>
-              <p className="text-small text-ink-muted whitespace-pre-line">
-                {settings.bank_details}
-              </p>
+              {accounts ? (
+                accounts.map((block) => (
+                  <div key={block.key} className="text-small text-ink-muted mb-2 last:mb-0">
+                    {accounts.length > 1 && <p className="font-medium text-ink">{block.heading}</p>}
+                    {block.rows.map((row) => (
+                      <p key={row.label}>
+                        {row.label}: <span className="text-ink">{row.value}</span>
+                      </p>
+                    ))}
+                  </div>
+                ))
+              ) : (
+                <p className="text-small text-ink-muted whitespace-pre-line">{settings.bank_details}</p>
+              )}
             </div>
           )}
         </div>

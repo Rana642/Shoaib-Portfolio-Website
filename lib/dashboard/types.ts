@@ -445,6 +445,33 @@ export type Payment = {
   notes: string | null;
 };
 
+/** A transfer receipt a client uploaded on an invoice link or /pay, waiting
+ *  for Shoaib to confirm (→ a payment on the invoice) or reject. */
+export type PaymentReceipt = {
+  id: string;
+  created_at: string;
+  source: "invoice" | "pay_page";
+  invoice_id: string | null;
+  invoice_number: string | null;
+  client_id: string | null;
+  payer_name: string | null;
+  payer_email: string | null;
+  payer_phone: string | null;
+  amount: number;
+  currency: string;
+  paid_on: string | null;
+  reference: string | null;
+  note: string | null;
+  file_key: string;
+  file_name: string | null;
+  file_type: string | null;
+  file_size: number | null;
+  status: "pending" | "confirmed" | "rejected";
+  reject_reason: string | null;
+  payment_id: string | null;
+  reviewed_at: string | null;
+};
+
 export type Settings = {
   id: number;
   business_name: string;

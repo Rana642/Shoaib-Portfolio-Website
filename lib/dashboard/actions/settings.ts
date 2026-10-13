@@ -7,6 +7,7 @@ import { db } from "../db";
 import { getAdminUser } from "../auth";
 import { IDENTITY_KEYS } from "../../access-identities";
 import { checkDomainEmail } from "../../domain-email-check";
+import { normalizePaymentAccounts } from "../../payment-accounts";
 
 const settingsSchema = z.object({
   business_name: z.string().min(1).max(200),
@@ -85,6 +86,29 @@ export async function updateAccessIdentities(values: Record<string, string>) {
     };
   }
   revalidatePath("/dashboard/settings");
+  return { ok: true };
+}
+
+/** Saves Settings → Payment accounts (shown on invoice links and /pay). */
+export async function updatePaymentAccounts(values: unknown) {
+  const user = await getAdminUser();
+  if (!user) redirect("/dashboard/login");
+
+  const cleaned = normalizePaymentAccounts(values);
+  const { error } = await db
+    .from("settings")
+    .update({ payment_accounts: cleaned, updated_at: new Date().toISOString() })
+    .eq("id", 1);
+  if (error) {
+    return {
+      error:
+        error.code === "PGRST204"
+          ? "One-time setup: run the “Payment accounts + client-uploaded payment receipts” block from supabase/dashboard-schema.sql in the Supabase SQL Editor."
+          : error.message,
+    };
+  }
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/pay");
   return { ok: true };
 }
 

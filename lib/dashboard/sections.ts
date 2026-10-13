@@ -21,6 +21,7 @@ import {
   Phone,
   Plug,
   Receipt,
+  ReceiptText,
   Repeat,
   ScrollText,
   Send,
@@ -81,8 +82,8 @@ export const SECTIONS: Section[] = [
     key: "billing",
     label: "Clients & Billing",
     icon: Wallet,
-    description: "Clients, services, quotes, invoices and monthly reports.",
-    match: [`${D}/clients`, `${D}/catalog`, `${D}/quotations`, `${D}/invoices`, `${D}/retainers`, `${D}/reports`, `${D}/letterhead`],
+    description: "Clients, services, quotes, invoices, payment receipts and monthly reports.",
+    match: [`${D}/clients`, `${D}/catalog`, `${D}/quotations`, `${D}/invoices`, `${D}/receipts`, `${D}/retainers`, `${D}/reports`, `${D}/letterhead`],
     groups: [
       {
         title: "Clients",
@@ -97,6 +98,7 @@ export const SECTIONS: Section[] = [
         items: [
           { href: `${D}/quotations`, label: "Quotations", icon: FileText },
           { href: `${D}/invoices`, label: "Invoices", icon: Receipt },
+          { href: `${D}/receipts`, label: "Payment receipts", icon: ReceiptText },
           { href: `${D}/retainers`, label: "Retainers", icon: Repeat },
           { href: `${D}/reports`, label: "Reports", icon: FileBarChart },
           { href: `${D}/letterhead`, label: "Letterhead", icon: ScrollText },

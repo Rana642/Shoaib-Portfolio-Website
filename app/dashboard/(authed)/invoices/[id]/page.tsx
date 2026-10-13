@@ -20,6 +20,10 @@ import { sendInvoiceToClient } from "@/lib/dashboard/actions/billing";
 import { billingRecipients, companionReport, invoiceUrl } from "@/lib/dashboard/billing-send";
 import { periodLabel } from "@/lib/dashboard/reports";
 import type { Client, Invoice, LineItem, Payment } from "@/lib/dashboard/types";
+import { getPaymentAccounts } from "@/lib/dashboard/settings";
+import { paymentBlocks } from "@/lib/payment-accounts";
+import { listReceipts, openInvoices } from "@/lib/dashboard/receipts";
+import ReceiptReview from "@/components/dashboard/ReceiptReview";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +57,13 @@ export default async function InvoicePage({ params }: PageProps<"/dashboard/invo
   const payments = (paymentsData ?? []) as Payment[];
   const balanceDue = Number(invoice.total) - Number(invoice.amount_paid);
 
-  const [recipients, report] = await Promise.all([billingRecipients(invoice.client_id), companionReport(invoice)]);
+  const [recipients, report, accounts, receipts, invoiceChoices] = await Promise.all([
+    billingRecipients(invoice.client_id),
+    companionReport(invoice),
+    getPaymentAccounts(),
+    listReceipts({ invoiceId: id }),
+    openInvoices(),
+  ]);
   const publicUrl = invoice.access_token ? invoiceUrl(invoice.access_token) : null;
 
   async function send(sendEmail: boolean) {
@@ -153,6 +163,15 @@ export default async function InvoicePage({ params }: PageProps<"/dashboard/invo
           />
         </div>
 
+        {receipts.length > 0 && (
+          <div className="mb-8 max-w-2xl space-y-3">
+            <h3 className="text-body-lg font-semibold">Payment receipts from the client</h3>
+            {receipts.map((r) => (
+              <ReceiptReview key={r.id} receipt={r} invoices={invoiceChoices} />
+            ))}
+          </div>
+        )}
+
         <div className="mb-8">
           {payments.length > 0 && (
             <Card className="p-6 mb-4 max-w-lg">
@@ -201,6 +220,7 @@ export default async function InvoicePage({ params }: PageProps<"/dashboard/invo
         client={invoice.clients}
         items={items}
         settings={settings}
+        paymentBlocks={paymentBlocks(accounts, invoice.currency)}
       />
 
       <div className="mt-10 pt-8 border-t border-ink/10 print:hidden">

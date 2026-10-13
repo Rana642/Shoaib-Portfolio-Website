@@ -286,6 +286,50 @@ export function billingSentEmail(data: {
   `);
 }
 
+const darkButton = (href: string, label: string) =>
+  `<a href="${href}" style="display: inline-block; background: #0F0F14; color: #FAFAFA; padding: 10px 18px; border-radius: 8px; text-decoration: none; font-size: 14px;">${label}</a>`;
+
+/** To Shoaib: a client uploaded a transfer receipt to confirm. */
+export function receiptUploadedEmail(data: {
+  payer: string;
+  amount: string;
+  invoice: string | null;
+  paidOn: string | null;
+  reference: string | null;
+  note: string | null;
+  reviewUrl: string;
+}) {
+  const row = (k: string, v: string | null) =>
+    v ? `<tr><td style="padding: 4px 16px 4px 0; color: #666;">${k}</td><td style="padding: 4px 0;"><strong>${escapeHtml(v)}</strong></td></tr>` : "";
+  return wrapper(`
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 16px;"><strong>${escapeHtml(data.payer)}</strong> uploaded a payment receipt. Check it against your bank account, then confirm or reject it.</p>
+    <table style="font-size: 14px; border-collapse: collapse; margin: 0 0 20px;">
+      ${row("Amount", data.amount)}${row("Invoice", data.invoice)}${row("Paid on", data.paidOn)}${row("Reference", data.reference)}${row("Note", data.note)}
+    </table>
+    <p style="margin: 0;">${darkButton(data.reviewUrl, "Review receipt")}</p>
+  `);
+}
+
+/** To the payer: Shoaib confirmed their transfer. */
+export function receiptConfirmedEmail(data: { name: string; amount: string; invoice: string | null; invoiceUrl: string | null }) {
+  return wrapper(`
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 16px;">Hi ${escapeHtml(data.name)},</p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 20px;">Your payment of <strong>${escapeHtml(data.amount)}</strong>${data.invoice ? ` for invoice <strong>${escapeHtml(data.invoice)}</strong>` : ""} has been received and confirmed. Thank you.</p>
+    ${data.invoiceUrl ? `<p style="margin: 0;">${darkButton(data.invoiceUrl, "View invoice")}</p>` : ""}
+  `);
+}
+
+/** To the payer: the receipt couldn't be matched, with Shoaib's reason. */
+export function receiptRejectedEmail(data: { name: string; amount: string; invoice: string | null; reason: string; retryUrl: string }) {
+  return wrapper(`
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 16px;">Hi ${escapeHtml(data.name)},</p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 12px;">I couldn't confirm the payment receipt you sent for <strong>${escapeHtml(data.amount)}</strong>${data.invoice ? ` (invoice <strong>${escapeHtml(data.invoice)}</strong>)` : ""}.</p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 20px; padding: 12px 14px; background: #f6f6f6; border-radius: 8px;">${escapeHtml(data.reason)}</p>
+    <p style="font-size: 14px; line-height: 1.6; margin: 0 0 16px;">You can upload a corrected receipt here, or simply reply to this email.</p>
+    <p style="margin: 0;">${darkButton(data.retryUrl, "Upload receipt")}</p>
+  `);
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")

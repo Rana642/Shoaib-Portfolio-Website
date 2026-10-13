@@ -1596,3 +1596,38 @@ select jsonb_build_object(
 );
 $$;
 revoke all on function wa_overview_stats(uuid[], timestamptz) from public, anon, authenticated;
+
+-- ── Payment accounts + client-uploaded payment receipts (2026-10-13) ──
+-- Settings → Payment accounts: Pakistan + international bank details shown
+-- on every invoice link and on /pay. Clients upload a transfer receipt there;
+-- Shoaib confirms it by hand (Confirm records a payment on the invoice).
+alter table settings add column if not exists payment_accounts jsonb not null default '{}'::jsonb;
+
+create table if not exists payment_receipts (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  source text not null default 'invoice' check (source in ('invoice', 'pay_page')),
+  invoice_id uuid references invoices (id) on delete cascade,
+  invoice_number text,                    -- what the payer typed on /pay (a hint only)
+  client_id uuid references clients (id) on delete set null,
+  payer_name text,
+  payer_email text,
+  payer_phone text,
+  amount numeric(12,2) not null check (amount > 0),
+  currency text not null,
+  paid_on date,
+  reference text,                         -- transaction / reference number
+  note text,
+  file_key text not null unique,          -- private object storage key (receipts/…)
+  file_name text,
+  file_type text,
+  file_size integer,
+  status text not null default 'pending' check (status in ('pending', 'confirmed', 'rejected')),
+  reject_reason text,
+  payment_id uuid references payments (id) on delete set null,
+  reviewed_at timestamptz
+);
+
+create index if not exists payment_receipts_status_idx on payment_receipts (status, created_at desc);
+create index if not exists payment_receipts_invoice_idx on payment_receipts (invoice_id);
+alter table payment_receipts enable row level security;

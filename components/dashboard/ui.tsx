@@ -76,6 +76,7 @@ const statusStyles: Record<string, string> = {
   signed: "bg-green-500/10 text-green-700 border-green-600/25",
   submitted: "bg-green-500/10 text-green-700 border-green-600/25",
   paid: "bg-green-500/10 text-green-700 border-green-600/25",
+  confirmed: "bg-green-500/10 text-green-700 border-green-600/25",
   partially_paid: "bg-citrus/20 text-ink border-citrus/50",
   pending: "bg-citrus/20 text-ink border-citrus/50",
   rejected: "bg-red-500/10 text-red-700 border-red-600/25",
