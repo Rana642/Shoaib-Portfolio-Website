@@ -4,6 +4,22 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-13 — NEXT (Saturday 2026-10-17): GoHighLevel-inspired backlog, Shoaib to pick
+Shoaib postponed this to Saturday (weekly limit), so nothing is chosen yet. Ask first and show the design before coding. Recommended order: 1, 2, 4.
+1. **Sales Pipeline board** (Kanban from existing statuses, PKR per column).
+2. **Invoices summary cards + filters**, and prefilled payment links `/pay?amount=&for=`.
+3. **Notification bell** (recent events, click through).
+4. **Planner list view** (table, status tabs, filters).
+5. **Media library** (all R2 files).
+6. **Settings**: logo upload and an audit log.
+7. **Unified Contacts** with tags (big).
+8. **Conversations**: FB/IG DMs and inquiries in one inbox. Big, and needs Meta App Review.
+9. **Review-request links** (Reputation).
+
+## 2026-10-13 — Pay page simplified (c973c67)
+- Bank details are now one card with a Pakistan / International toggle.
+- The receipt form asks only for name, amount and the receipt (on an invoice link: amount and receipt).
+
 ## 2026-10-13 — Dashboard phase 3: + New, Ctrl+K search, sidebar counts (876b48b)
 - **+ New** (under the sidebar logo, `components/dashboard/SidebarTools.tsx`): create shortcuts from `lib/dashboard/quick-actions.ts`. Finance links open their form via `?new=expense|income|bill`.
 - **Ctrl+K / Search** (`components/dashboard/CommandPalette.tsx`): every page and action, plus `/api/dashboard/search` (clients, leads, proposals, quotations, invoices, agreements, services).
