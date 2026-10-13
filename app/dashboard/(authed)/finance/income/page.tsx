@@ -9,7 +9,7 @@ import { FINANCE_CURRENCIES, monthPeriod, todayPk } from "@/lib/finance";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Income" };
 
-export default async function IncomePage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
+export default async function IncomePage({ searchParams }: { searchParams: Promise<{ month?: string; new?: string }> }) {
   const sp = await searchParams;
   const month = sp.month && /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.month) ? sp.month : todayPk().slice(0, 7);
   const period = monthPeriod(month);
@@ -35,7 +35,7 @@ export default async function IncomePage({ searchParams }: { searchParams: Promi
       </div>
 
       <div className="mb-6">
-        <NewEntry kind="income" clients={clients} rates={rates} />
+        <NewEntry key={`new-${sp.new ?? ""}`} kind="income" clients={clients} rates={rates} startOpen={sp.new === "income"} />
       </div>
 
       {income.length ? (

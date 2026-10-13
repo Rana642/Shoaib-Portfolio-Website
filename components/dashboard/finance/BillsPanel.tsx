@@ -40,17 +40,20 @@ export default function BillsPanel({
   clients,
   rates,
   compact = false,
+  startAdding = false,
 }: {
   bills: FinanceBill[];
   clients: { id: string; name: string }[];
   rates: Record<string, number>;
   /** Overview: only active bills due in the next 30 days, no add/edit. */
   compact?: boolean;
+  /** Opened from "+ New → Add a monthly bill". */
+  startAdding?: boolean;
 }) {
   const router = useRouter();
   const today = todayPk();
   const [paying, setPaying] = useState<string | null>(null);
-  const [editing, setEditing] = useState<string | "new" | null>(null);
+  const [editing, setEditing] = useState<string | "new" | null>(startAdding ? "new" : null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [, startTransition] = useTransition();

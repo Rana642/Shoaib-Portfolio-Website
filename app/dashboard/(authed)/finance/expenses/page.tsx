@@ -15,7 +15,7 @@ export const metadata = { title: "Expenses" };
 export default async function ExpensesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; category?: string; client?: string }>;
+  searchParams: Promise<{ month?: string; category?: string; client?: string; new?: string }>;
 }) {
   const sp = await searchParams;
   const month = sp.month && /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.month) ? sp.month : todayPk().slice(0, 7);
@@ -54,11 +54,11 @@ export default async function ExpensesPage({
       {!ready && <FinanceSetupNotice />}
 
       <div className="mb-6">
-        <NewEntry kind="expense" clients={clients} rates={rates} />
+        <NewEntry key={`new-${sp.new ?? ""}`} kind="expense" clients={clients} rates={rates} startOpen={sp.new === "expense"} />
       </div>
 
       <div className="mb-8">
-        <BillsPanel bills={bills} clients={clients} rates={rates} />
+        <BillsPanel key={`bill-${sp.new ?? ""}`} bills={bills} clients={clients} rates={rates} startAdding={sp.new === "bill"} />
       </div>
 
       <div className="flex flex-wrap items-end justify-between gap-4 mb-4">

@@ -19,12 +19,22 @@ import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { SECTIONS, inSection } from "@/lib/dashboard/sections";
+import { CountBadge, QuickTools, useAttentionCounts } from "@/components/dashboard/SidebarTools";
 import { authCookieOptions } from "@/lib/auth-cookies";
 
 export type NavItem =
   /** A small heading that starts a group (a thin divider on the icon rail). */
   | { section: string }
-  | { href: string; label: string; icon: LucideIcon; exact?: boolean; /** Active on any of these path prefixes (a whole section). */ match?: string[] }
+  | {
+      href: string;
+      label: string;
+      icon: LucideIcon;
+      exact?: boolean;
+      /** Active on any of these path prefixes (a whole section). */
+      match?: string[];
+      /** Which attention count (SidebarTools.useAttentionCounts) shows on it. */
+      badge?: string;
+    }
   | { label: string; icon: LucideIcon; children: { href: string; label: string }[] };
 
 // Overview, then one entry per section (lib/dashboard/sections.ts). Inside a
@@ -37,6 +47,7 @@ const DASHBOARD_NAV: NavItem[] = [
     label: sec.label,
     icon: sec.icon,
     match: sec.match,
+    badge: sec.key,
   })),
 ];
 
@@ -68,6 +79,7 @@ export default function Sidebar({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const counts = useAttentionCounts(showStudio);
 
   const signOut = async () => {
     const supabase = createBrowserClient(
@@ -136,6 +148,7 @@ export default function Sidebar({
               {areaLabel}
             </p>
           )}
+          {showStudio && <QuickTools rail={rail} onNavigate={() => setOpen(false)} />}
         </div>
 
         <nav className={cn("sidebar-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-1 pb-4", rail ? "px-2" : "px-3")}>
@@ -229,7 +242,7 @@ export default function Sidebar({
                 onClick={() => setOpen(false)}
                 title={rail ? item.label : undefined}
                 className={cn(
-                  "flex items-center rounded-lg text-small transition-colors",
+                  "relative flex items-center rounded-lg text-small transition-colors",
                   rail ? "justify-center py-2.5" : "gap-3 px-3 py-2.5",
                   active
                     ? "bg-citrus text-ink font-medium"
@@ -238,6 +251,7 @@ export default function Sidebar({
               >
                 <item.icon className="size-4 shrink-0" aria-hidden />
                 {!rail && item.label}
+                {item.badge && <CountBadge count={counts[item.badge]} rail={rail} active={active} />}
               </Link>
             );
           })}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Sidebar, { type NavItem } from "@/components/dashboard/Sidebar";
 import PwaRegister from "@/components/dashboard/PwaRegister";
+import CommandPalette from "@/components/dashboard/CommandPalette";
 import SectionNav from "@/components/dashboard/SectionNav";
 import { sectionFor, type Section } from "@/lib/dashboard/sections";
 import { cn } from "@/lib/utils";
@@ -85,6 +86,7 @@ export default function DashboardShell({
   return (
     <div className="relative min-h-screen bg-cloud print:bg-white">
       {!portal && <PwaRegister />}
+      {!portal && <CommandPalette />}
       {/* Ambient colour wash — gives the frosted-glass panels something to
           actually frost over. Purely decorative, behind everything, and
           non-interactive. */}
