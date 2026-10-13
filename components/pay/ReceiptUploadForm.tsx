@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { CheckCircle2, FileUp, LoaderCircle, Paperclip } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { PAY_CURRENCIES, RECEIPT_MAX_BYTES, RECEIPT_TYPES } from "@/lib/payment-accounts";
 
 const input =
@@ -11,8 +12,9 @@ const label = "block text-small font-medium mb-1.5";
 /**
  * "Upload payment receipt": the client picks the screenshot/PDF of their
  * transfer, it goes straight to private storage, then the details are sent
- * for Shoaib to confirm by hand. On an invoice (token) the payer and currency
- * come from the invoice; on /pay the payer fills them in.
+ * for Shoaib to confirm by hand. Kept short on purpose: on /pay just a name,
+ * the amount and the receipt; on an invoice (token) only the amount — the
+ * payer and currency come from the invoice.
  */
 export default function ReceiptUploadForm({
   token,
@@ -62,13 +64,7 @@ export default function ReceiptUploadForm({
           name: file.name,
           amount: fd.get("amount"),
           currency: fd.get("currency") ?? currency ?? "",
-          paid_on: fd.get("paid_on"),
-          reference: fd.get("reference") ?? "",
-          note: fd.get("note") ?? "",
           payer_name: fd.get("payer_name") ?? "",
-          payer_email: fd.get("payer_email") ?? "",
-          payer_phone: fd.get("payer_phone") ?? "",
-          invoice_number: fd.get("invoice_number") ?? "",
         }),
       });
       const data = await res.json();
@@ -89,20 +85,19 @@ export default function ReceiptUploadForm({
           <h2 className="text-body-lg font-semibold">Receipt received</h2>
         </div>
         <p className="text-small text-ink-muted mt-2">
-          Thank you. I&apos;ll check it against my bank account and confirm by email, usually within one working day.
+          Thank you. I&apos;ll check it against my bank account and confirm it, usually within one working day.
         </p>
       </div>
     );
   }
 
-  const today = new Date().toISOString().slice(0, 10);
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
         submit(e.currentTarget);
       }}
-      className="rounded-xl border border-ink/10 bg-white p-6 space-y-4"
+      className="min-w-0 rounded-xl border border-ink/10 bg-white p-6 space-y-4"
     >
       <div>
         <div className="flex items-center gap-2.5">
@@ -112,33 +107,18 @@ export default function ReceiptUploadForm({
         <p className="text-small text-ink-muted mt-1.5">Paid already? Send the screenshot or PDF of your transfer and I&apos;ll confirm it.</p>
       </div>
 
-      {!onInvoice && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className={cn("grid grid-cols-1 gap-4", !onInvoice && "sm:grid-cols-2")}>
+        {!onInvoice && (
           <div>
             <label htmlFor="payer_name" className={label}>Your name</label>
             <input id="payer_name" name="payer_name" required maxLength={120} className={input} autoComplete="name" />
           </div>
-          <div>
-            <label htmlFor="payer_email" className={label}>Email</label>
-            <input id="payer_email" name="payer_email" type="email" required maxLength={200} className={input} autoComplete="email" />
-          </div>
-          <div>
-            <label htmlFor="payer_phone" className={label}>Phone / WhatsApp <span className="text-ink-subtle font-normal">(optional)</span></label>
-            <input id="payer_phone" name="payer_phone" maxLength={40} className={input} autoComplete="tel" />
-          </div>
-          <div>
-            <label htmlFor="invoice_number" className={label}>Invoice number <span className="text-ink-subtle font-normal">(if any)</span></label>
-            <input id="invoice_number" name="invoice_number" maxLength={40} placeholder="INV-2026-001" className={input} />
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        )}
         <div>
           <label htmlFor="amount" className={label}>Amount sent{onInvoice && currency ? ` (${currency})` : ""}</label>
           <div className="flex gap-2">
             {!onInvoice && (
-              <select name="currency" defaultValue="PKR" className={`${input} w-28 shrink-0`} aria-label="Currency">
+              <select name="currency" defaultValue="PKR" className={cn(input, "w-24 shrink-0 px-2.5")} aria-label="Currency">
                 {PAY_CURRENCIES.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
@@ -152,19 +132,10 @@ export default function ReceiptUploadForm({
               min="0.01"
               required
               defaultValue={balance && balance > 0 ? balance : undefined}
-              className={input}
+              className={cn(input, "min-w-0 flex-1")}
             />
           </div>
         </div>
-        <div>
-          <label htmlFor="paid_on" className={label}>Payment date</label>
-          <input id="paid_on" name="paid_on" type="date" required defaultValue={today} max={today} className={input} />
-        </div>
-      </div>
-
-      <div>
-        <label htmlFor="reference" className={label}>Transaction / reference number <span className="text-ink-subtle font-normal">(optional)</span></label>
-        <input id="reference" name="reference" maxLength={120} className={input} />
       </div>
 
       <div>
@@ -186,11 +157,6 @@ export default function ReceiptUploadForm({
             {file ? file.name : "Choose a screenshot or PDF (max 10 MB)"}
           </span>
         </label>
-      </div>
-
-      <div>
-        <label htmlFor="note" className={label}>Note <span className="text-ink-subtle font-normal">(optional)</span></label>
-        <textarea id="note" name="note" rows={2} maxLength={1000} className={input} />
       </div>
 
       {error && (

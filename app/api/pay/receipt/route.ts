@@ -17,7 +17,12 @@ const schema = z.object({
   name: z.string().max(200).optional().default(""),
   amount: z.coerce.number().positive("Enter the amount you sent.").max(100_000_000),
   currency: z.string().max(10).optional().default(""),
-  paid_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick the payment date."),
+  // The form no longer asks for the date — it defaults to today in Pakistan.
+  paid_on: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick the payment date.")
+    .optional()
+    .default(() => new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10)),
   reference: z.string().max(120).optional().default(""),
   note: z.string().max(1000).optional().default(""),
   payer_name: z.string().max(120).optional().default(""),
@@ -53,11 +58,14 @@ export async function POST(request: Request) {
     if ("error" in found) return NextResponse.json({ error: found.error }, { status: found.status });
     invoice = found.invoice;
   } else {
+    // /pay asks only for a name and the amount; an email (older form, API) is still checked when given.
     if (!d.payer_name.trim()) return NextResponse.json({ error: "Enter your name." }, { status: 400 });
     const email = d.payer_email.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: "Enter a valid email so I can confirm your payment." }, { status: 400 });
-    const check = await checkEmail(email);
-    if (!check.ok) return NextResponse.json({ error: check.message + (check.suggestion ? ` Did you mean ${check.suggestion}?` : "") }, { status: 400 });
+    if (email) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: "That email doesn't look right." }, { status: 400 });
+      const check = await checkEmail(email);
+      if (!check.ok) return NextResponse.json({ error: check.message + (check.suggestion ? ` Did you mean ${check.suggestion}?` : "") }, { status: 400 });
+    }
     if (!PAY_CURRENCIES.includes(d.currency.toUpperCase())) return NextResponse.json({ error: "Pick the currency you paid in." }, { status: 400 });
   }
 

@@ -31,7 +31,7 @@ export default async function PayPage() {
             </h1>
             <p className="text-body text-ink-muted mt-4 max-w-2xl">
               Send your payment by bank transfer to the account below, then upload the receipt here. I&apos;ll check it and
-              confirm by email. If you have an invoice link, you can also pay and upload the receipt from there.
+              confirm. If you have an invoice link, you can also pay and upload the receipt from there.
             </p>
           </Reveal>
 
