@@ -4,6 +4,17 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-13 — Dashboard phase 3: + New, Ctrl+K search, sidebar counts (876b48b)
+- **+ New** (under the sidebar logo, `components/dashboard/SidebarTools.tsx`): create shortcuts from `lib/dashboard/quick-actions.ts`. Finance links open their form via `?new=expense|income|bill`.
+- **Ctrl+K / Search** (`components/dashboard/CommandPalette.tsx`): every page and action, plus `/api/dashboard/search` (clients, leads, proposals, quotations, invoices, agreements, services).
+- **Sidebar counts** (`/api/dashboard/counts`, polled every 2 min and on navigation, at most every 15 s):
+  - Sales: leads since the last visit to Leads (stored in localStorage).
+  - Clients: vault submissions not yet imported.
+  - Finance: pending receipts + late invoices + bills due.
+  - Marketing: posts pending a caption + failed posts.
+  - WhatsApp: unread chats.
+- **Client hub** (one client page with tabs Overview / Documents / Money / Work / Access / Details, and "+ Proposal / Invoice / Expense" for that client): designed and shown, but **Shoaib said wait (on hold)**. Don't build it until he asks.
+
 ## 2026-10-13 — Finance, phase 2: income, expenses, monthly bills, reports (all in PKR)
 - **Tabs:** Finance → Overview · Invoices · Quotations · Payment receipts · Retainers │ Income · Expenses · Reports │ Setup.
 - **Tables** (SQL "Finance: expenses, other income, monthly bills" run 2026-10-13):
