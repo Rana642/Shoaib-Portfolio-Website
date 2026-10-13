@@ -1,7 +1,7 @@
 /**
  * Shoaib's own accounts that clients grant access TO — his Google account,
  * Google Ads manager (MCC), Meta Business portfolio and so on. Stored once
- * in Settings (settings.access_identities); the vault prefills them on
+ * in Clients → Setup (settings.access_identities); the vault prefills them on
  * access grants, and the client portal uses them to write each platform's
  * "how to give me access" steps. None of it is secret: it's exactly what
  * a client needs to type in to add him.

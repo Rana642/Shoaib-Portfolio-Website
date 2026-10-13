@@ -1,121 +1,77 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isItemActive, type Section } from "@/lib/dashboard/sections";
 
 /**
- * A dashboard section's own menu (Meta Business Suite style), next to the
- * main sidebar's icon rail. Sections and their items live in
- * lib/dashboard/sections.ts. Collapses to icons; remembered per section.
+ * A dashboard section's pages as tabs across the top of the page
+ * (GoHighLevel style) — one sidebar only, so the page keeps its full
+ * width. Groups are split by a thin divider; the "Setup" group is pinned
+ * to the right. Sections and their items live in lib/dashboard/sections.ts.
  */
 export default function SectionNav({ section }: { section: Section }) {
-  const STORAGE_KEY = `section-nav-collapsed-${section.key}`;
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
-  // Restore the remembered state after mount (localStorage isn't available during render).
+  const groups = section.groups.filter((g) => g.title !== "Setup");
+  const setup = section.groups.find((g) => g.title === "Setup");
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  // On a phone the row scrolls sideways — bring the current tab into view
+  // (horizontally only, so the page itself doesn't jump).
   useEffect(() => {
-    try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCollapsed(localStorage.getItem(STORAGE_KEY) === "1");
-    } catch {
-      /* blocked storage — stay expanded */
-    }
-  }, [STORAGE_KEY]);
-  const toggle = () =>
-    setCollapsed((c) => {
-      try {
-        localStorage.setItem(STORAGE_KEY, c ? "0" : "1");
-      } catch {
-        /* ignore */
-      }
-      return !c;
-    });
-  const GROUPS = section.groups;
-  const active = (href: string) => {
-    const item = GROUPS.flatMap((g) => g.items).find((i) => i.href === href);
-    return item ? isItemActive(section, item, pathname) : false;
+    const row = rowRef.current;
+    const current = row?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!row || !current || row.scrollWidth <= row.clientWidth) return;
+    const r = row.getBoundingClientRect();
+    const c = current.getBoundingClientRect();
+    row.scrollTo({ left: row.scrollLeft + (c.left - r.left) - (r.width - c.width) / 2 });
+  }, [pathname]);
+
+  const tab = (i: Section["groups"][number]["items"][number]) => {
+    const active = isItemActive(section, i, pathname);
+    return (
+      <Link
+        key={i.href}
+        href={i.href}
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          "relative h-full shrink-0 inline-flex items-center gap-2 px-1 text-small whitespace-nowrap transition-colors",
+          active ? "text-ink font-medium" : "text-ink-muted hover:text-ink"
+        )}
+      >
+        <i.icon className="size-4 shrink-0" aria-hidden />
+        {i.label}
+        {active && <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-citrus" aria-hidden />}
+      </Link>
+    );
   };
 
   return (
-    <>
-      {/* Desktop: a column next to the rail — collapses to icons (remembered) */}
-      <nav
-        aria-label={section.label}
-        className={cn(
-          "hidden lg:flex flex-col shrink-0 sticky top-0 h-dvh overflow-y-auto border-r border-ink/10 bg-white/50 backdrop-blur-sm py-6 transition-[width] duration-200",
-          collapsed ? "w-16 px-2" : "w-56 px-3"
-        )}
-      >
-        {collapsed ? (
-          <p className="flex justify-center mb-5" title={section.label}>
-            <section.icon className="size-5 text-ink-muted" aria-hidden />
-          </p>
-        ) : (
-          <>
-            <p className="px-3 font-serif italic text-h3 leading-none">{section.label}</p>
-            <p className="px-3 mt-1.5 mb-5 text-tag text-ink-subtle">{section.description}</p>
-          </>
-        )}
-        {GROUPS.map((g) => (
-          <div key={g.title} className="mb-4">
-            {collapsed ? (
-              <div className="mx-2 mb-2 border-t border-ink/10" aria-hidden />
-            ) : (
-              <p className="px-3 mb-1 text-tag text-ink-subtle">{g.title}</p>
-            )}
-            <ul className="grid gap-0.5">
-              {g.items.map((i) => (
-                <li key={i.href}>
-                  <Link
-                    href={i.href}
-                    title={collapsed ? i.label : undefined}
-                    aria-label={collapsed ? i.label : undefined}
-                    className={cn(
-                      "flex items-center gap-2.5 rounded-lg py-2 text-small transition-colors",
-                      collapsed ? "justify-center px-0" : "px-3",
-                      active(i.href) ? "bg-ink text-cloud font-medium" : "text-ink hover:bg-ink/5"
-                    )}
-                  >
-                    <i.icon className="size-4 shrink-0" aria-hidden />
-                    {!collapsed && i.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+    <nav
+      aria-label={section.label}
+      className="sticky top-14 lg:top-0 z-20 bg-cloud print:hidden"
+    >
+      {/* Exactly 3.25rem tall — DashboardShell's --section-nav-h relies on it. */}
+      <div ref={rowRef} className="flex items-stretch gap-5 h-[3.25rem] border-b border-ink/10 overflow-x-auto px-5 md:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <p className="shrink-0 self-center flex items-center gap-2 pr-5 border-r border-ink/10 font-serif italic text-body-lg leading-none">
+          <section.icon className="size-4 not-italic text-ink-muted" aria-hidden />
+          {section.label}
+        </p>
+        {groups.map((g, gi) => (
+          <div key={g.title} className="flex items-center gap-5">
+            {gi > 0 && <span className="h-4 w-px bg-ink/10" aria-hidden />}
+            {g.items.map(tab)}
           </div>
         ))}
-        <button
-          type="button"
-          onClick={toggle}
-          className={cn("mt-auto flex items-center gap-2 rounded-lg py-2 text-small text-ink-subtle hover:bg-ink/5 hover:text-ink", collapsed ? "justify-center" : "px-3")}
-          aria-label={collapsed ? `Expand ${section.label} menu` : `Collapse ${section.label} menu`}
-          title={collapsed ? "Expand menu" : "Collapse menu"}
-        >
-          {collapsed ? <PanelLeftOpen className="size-4" aria-hidden /> : <PanelLeftClose className="size-4" aria-hidden />}
-          {!collapsed && "Collapse"}
-        </button>
-      </nav>
-
-      {/* Mobile / tablet: one scrollable row of tabs */}
-      <nav aria-label={section.label} className="lg:hidden flex gap-2 overflow-x-auto px-5 md:px-8 pt-4 pb-3 border-b border-ink/10">
-        {GROUPS.flatMap((g) => g.items).map((i) => (
-          <Link
-            key={i.href}
-            href={i.href}
-            className={cn(
-              "shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-small",
-              active(i.href) ? "border-ink bg-ink text-cloud" : "border-ink/15 hover:bg-ink/5"
-            )}
-          >
-            <i.icon className="size-3.5" aria-hidden />
-            {i.label}
-          </Link>
-        ))}
-      </nav>
-    </>
+        {setup && (
+          <div className="ml-auto flex items-center gap-5">
+            <span className="h-4 w-px bg-ink/10" aria-hidden />
+            {setup.items.map(tab)}
+          </div>
+        )}
+      </div>
+    </nav>
   );
 }

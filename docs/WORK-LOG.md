@@ -4,6 +4,34 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-13 — Dashboard navigation, phase 1 (GoHighLevel style)
+- **One sidebar.** A section's pages are now tabs across the top of the page (`components/dashboard/SectionNav.tsx`), with its **Setup** tab pinned to the right. There is no second sidebar any more.
+- **Sections:**
+  - **Sales:** Leads, Proposals, Agreements, Onboarding, Intakes, plus Single and Bundle services.
+  - **Clients:** Clients, Monthly reports, Password Vault, Letterhead, and Setup (My access accounts) at `/dashboard/clients/setup`.
+  - **Finance** (new name):
+    - Invoices, Quotations, Payment receipts, Retainers.
+    - Setup at `/dashboard/finance/setup`: Payment accounts, Tax, Documents (numbering, terms).
+    - `/dashboard/finance` redirects to Invoices until the Finance overview exists.
+  - **Marketing:** unchanged.
+  - **WhatsApp:** unchanged.
+  - **Websites** (was Hotels): Bookings, Inquiries, Contacts. Grouped by kind of data so salon bookings or career-page applications can be added as more tabs.
+  - **Settings** now sits at the bottom next to Sign out. It holds the Business profile (business details, email domain check) and the API Vault. The old Admin section is gone.
+- **Page URLs are unchanged.**
+- **Full width:**
+  - Pages go up to 96rem (was 72rem).
+  - Setup forms use `SettingsCard` (in `ui.tsx`): title on the left, fields on the right.
+- **Full-height pages:**
+  - `.app-height` in `globals.css` subtracts the tab bar (`--section-nav-h`).
+  - Used by the WhatsApp inbox.
+- **`updateSettings` saves by part:** `_part` = `business` | `billing`, and each form saves only its own fields.
+- **Next, phase 2 (Finance):**
+  - Expenses: category, client, receipt photo, PKR/USD rate, monthly bills.
+  - Income from confirmed payments.
+  - P&L, cash flow, profit per client, FBR tax summary.
+  - Client ad budget kept as pass-through.
+- **Next, phase 3:** a "+ New" button, Ctrl+K search, counts in the sidebar, a client hub.
+
 ## 2026-10-13 — Payments: bank details on invoices + client receipt upload + /pay
 - No gateway yet, so payments are by bank transfer and confirmed by hand.
 - **Settings → Payment accounts** (`components/dashboard/PaymentAccountsForm.tsx`, `settings.payment_accounts` jsonb):

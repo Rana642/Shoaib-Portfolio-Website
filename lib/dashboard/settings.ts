@@ -29,7 +29,7 @@ export async function getSettings(): Promise<Settings> {
   return (data as Settings) ?? fallback;
 }
 
-/** Settings → Payment accounts (bank details for invoices and /pay). Empty
+/** Finance → Setup → Payment accounts (bank details for invoices and /pay). Empty
  *  until set, or before its column exists. */
 export async function getPaymentAccounts(): Promise<PaymentAccounts> {
   const { data, error } = await db.from("settings").select("payment_accounts").eq("id", 1).maybeSingle();

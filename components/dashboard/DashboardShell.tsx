@@ -8,10 +8,9 @@ import SectionNav from "@/components/dashboard/SectionNav";
 import { sectionFor, type Section } from "@/lib/dashboard/sections";
 import { cn } from "@/lib/utils";
 
-// Most dashboard pages (forms, line-item tables) read best at a contained
-// width. The Planner's week columns and the Insights charts want the
-// opposite — they should use whatever horizontal space is actually there
-// instead of scrolling sideways or leaving the right side empty.
+// Pages fill the screen up to a generous cap (96rem) so a wide monitor isn't
+// half empty; settings forms lay out in two columns (SettingsCard). The
+// Planner's week columns, Insights charts and the inboxes use every pixel.
 const WIDE_ROUTES = [
   "/dashboard/social/planner",
   "/dashboard/social/insights",
@@ -47,14 +46,10 @@ export default function DashboardShell({
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [hydrated, setHydrated] = useState(false);
-  // On a rail route the toggle only opens the sidebar for this visit (not saved).
-  const [railOpen, setRailOpen] = useState(false);
   const pathname = usePathname();
-  // Inside a section (lib/dashboard/sections.ts) the section's own menu sits
-  // next to the main sidebar, which drops to its icon rail to make room.
+  // Inside a section (lib/dashboard/sections.ts) its pages are tabs across
+  // the top of the content — the sidebar keeps whatever width you chose.
   const section = portal ? (portal.sections ? sectionFor(pathname, portal.sections) : null) : sectionFor(pathname);
-  const forcedRail = !!section;
-  const isCollapsed = forcedRail ? !railOpen : collapsed;
   const isWide = WIDE_ROUTES.some((route) => pathname.startsWith(route));
   const storageKey = portal ? `portal-${STORAGE_KEY}` : STORAGE_KEY;
 
@@ -76,7 +71,6 @@ export default function DashboardShell({
   }, [storageKey]);
 
   const toggle = () => {
-    if (forcedRail) return setRailOpen((o) => !o);
     setCollapsed((prev) => {
       const next = !prev;
       try {
@@ -103,7 +97,7 @@ export default function DashboardShell({
       {portal ? (
         <Sidebar
           email={email}
-          collapsed={isCollapsed}
+          collapsed={collapsed}
           onToggle={toggle}
           nav={portal.nav}
           homeHref="/portal"
@@ -112,7 +106,7 @@ export default function DashboardShell({
           showStudio={false}
         />
       ) : (
-        <Sidebar email={email} collapsed={isCollapsed} onToggle={toggle} />
+        <Sidebar email={email} collapsed={collapsed} onToggle={toggle} />
       )}
 
       <main
@@ -122,28 +116,21 @@ export default function DashboardShell({
           // endpoints break the transition.
           "relative z-10 pt-14 lg:pt-0",
           hydrated && "transition-[padding] duration-300 ease-out",
-          isCollapsed ? "lg:pl-[5rem]" : "lg:pl-[16rem]"
+          collapsed ? "lg:pl-[5rem]" : "lg:pl-[16rem]"
         )}
+        // Full-height pages (.app-height) subtract the section tab bar.
+        style={{ "--section-nav-h": section ? "3.25rem" : "0px" } as React.CSSProperties}
       >
-        {section ? (
-          <div className="lg:flex">
-            <div className="print:hidden">
-              <SectionNav section={section} />
-            </div>
-            <div
-              className={cn(
-                "flex-1 min-w-0 px-5 py-6 md:px-8 lg:py-8 lg:pl-6 print:p-0 print:max-w-none",
-                isWide ? "max-w-none" : "max-w-6xl"
-              )}
-            >
-              {children}
-            </div>
-          </div>
-        ) : (
-          <div className={cn("px-5 py-8 md:px-8 md:py-10 print:p-0 print:max-w-none", isWide ? "max-w-none" : "max-w-6xl")}>
-            {children}
-          </div>
-        )}
+        {section && <SectionNav section={section} />}
+        <div
+          className={cn(
+            "px-5 md:px-8 print:p-0 print:max-w-none",
+            section ? "py-6 lg:py-8" : "py-8 md:py-10",
+            isWide ? "max-w-none" : "max-w-[96rem]"
+          )}
+        >
+          {children}
+        </div>
       </main>
     </div>
   );

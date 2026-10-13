@@ -42,7 +42,7 @@ export default function DocumentPreview({
   client: Client;
   items: LineItem[];
   settings: Settings;
-  /** Settings → Payment accounts for this invoice's currency; replaces the free-text bank details when set. */
+  /** Finance → Setup → Payment accounts for this invoice's currency; replaces the free-text bank details when set. */
   paymentBlocks?: PaymentBlock[];
 }) {
   const accounts = kind === "invoice" && paymentBlocks?.length ? paymentBlocks : null;

@@ -291,7 +291,7 @@ export default async function Inbox({
 
   return (
     <InboxFrame>
-      <Card className="overflow-hidden flex flex-col h-[calc(100dvh-4rem)] min-h-[560px]">
+      <Card className="overflow-hidden flex flex-col app-height min-h-[560px]">
         <InboxAutoRefresh />
         {/* Top bar: search + source filter */}
         <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-ink/10">

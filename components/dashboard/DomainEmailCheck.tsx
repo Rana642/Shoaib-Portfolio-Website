@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { CheckCircle2, LoaderCircle, TriangleAlert, XCircle } from "lucide-react";
-import { Card, buttonStyles, inputClasses } from "@/components/dashboard/ui";
+import { SettingsCard, buttonStyles, inputClasses } from "@/components/dashboard/ui";
 import type { CheckItem } from "@/lib/domain-email-check";
 
 type Result = { domain: string; score: number; items: CheckItem[] } | { error: string };
@@ -21,12 +21,10 @@ export default function DomainEmailCheck({
   const run = () => start(async () => setResult(await onCheck(domain)));
 
   return (
-    <Card className="p-6 mt-8 max-w-3xl">
-      <h2 className="text-body-lg font-medium mb-1">Email domain check</h2>
-      <p className="text-small text-ink-muted mb-4">
-        Checks whether a domain is set up so its emails land in the inbox, not spam — use it for adsbyshoaib.com (invoices, reports) and
-        in client audits.
-      </p>
+    <SettingsCard
+      title="Email domain check"
+      description="Checks whether a domain is set up so its emails land in the inbox, not spam — use it for adsbyshoaib.com (invoices, reports) and in client audits."
+    >
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -65,6 +63,6 @@ export default function DomainEmailCheck({
           </ul>
         </div>
       )}
-    </Card>
+    </SettingsCard>
   );
 }

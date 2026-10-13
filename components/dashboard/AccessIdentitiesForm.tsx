@@ -3,10 +3,10 @@
 import { useState, useTransition } from "react";
 import { Check, LoaderCircle } from "lucide-react";
 import { updateAccessIdentities } from "@/lib/dashboard/actions/settings";
-import { Card, Field, buttonStyles, inputClasses } from "@/components/dashboard/ui";
+import { Field, SettingsCard, buttonStyles, inputClasses } from "@/components/dashboard/ui";
 import { IDENTITIES, type AccessIdentities } from "@/lib/access-identities";
 
-/** Settings → My access accounts: what clients add when they give access. */
+/** Clients → Setup → My access accounts: what clients add when they give access. */
 export default function AccessIdentitiesForm({ identities }: { identities: AccessIdentities }) {
   const [values, setValues] = useState<Record<string, string>>({ ...identities });
   const [error, setError] = useState<string | null>(null);
@@ -24,15 +24,16 @@ export default function AccessIdentitiesForm({ identities }: { identities: Acces
   };
 
   return (
-    <Card className="p-6 space-y-5 max-w-2xl mt-6">
-      <div>
-        <h2 className="text-body-lg font-semibold">My access accounts</h2>
-        <p className="text-small text-ink-muted mt-1">
+    <SettingsCard
+      title="My access accounts"
+      description={
+        <>
           The accounts clients add when they give you access. They fill in access grants in the vault, and they&apos;re what
           the client portal tells clients to enter — so nothing here should be secret.
-        </p>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        </>
+      }
+    >
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
         {IDENTITIES.map((identity) => (
           <Field key={identity.key} label={identity.label} htmlFor={`identity-${identity.key}`} hint={identity.hint}>
             <input
@@ -61,6 +62,6 @@ export default function AccessIdentitiesForm({ identities }: { identities: Acces
           </span>
         )}
       </div>
-    </Card>
+    </SettingsCard>
   );
 }

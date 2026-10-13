@@ -50,6 +50,33 @@ export function Card({
   );
 }
 
+/**
+ * A settings block that uses the page's full width: title and description
+ * on the left, the fields on the right (stacked on small screens). Every
+ * setup page (Settings, Finance → Setup, Clients → Setup) is built from these.
+ */
+export function SettingsCard({
+  title,
+  description,
+  className,
+  children,
+}: {
+  title: string;
+  description?: React.ReactNode;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className={cn("p-6 lg:p-8 grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-10", className)}>
+      <div>
+        <h2 className="text-body-lg font-semibold">{title}</h2>
+        {description && <div className="text-small text-ink-muted mt-1.5 space-y-2">{description}</div>}
+      </div>
+      <div className="min-w-0 space-y-5">{children}</div>
+    </Card>
+  );
+}
+
 export function EmptyState({
   title,
   description,

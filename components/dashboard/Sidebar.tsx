@@ -18,7 +18,7 @@ import {
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { SECTIONS } from "@/lib/dashboard/sections";
+import { SECTIONS, inSection } from "@/lib/dashboard/sections";
 import { authCookieOptions } from "@/lib/auth-cookies";
 
 export type NavItem =
@@ -28,10 +28,11 @@ export type NavItem =
   | { label: string; icon: LucideIcon; children: { href: string; label: string }[] };
 
 // Overview, then one entry per section (lib/dashboard/sections.ts). Inside a
-// section its own menu shows the pages; this sidebar drops to its icon rail.
+// section its pages are tabs across the top. Settings sits at the bottom,
+// next to Sign out (GoHighLevel style).
 const DASHBOARD_NAV: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
-  ...SECTIONS.map((sec) => ({
+  ...SECTIONS.filter((sec) => sec.placement !== "bottom").map((sec) => ({
     href: sec.groups[0].items[0].href,
     label: sec.label,
     icon: sec.icon,
@@ -60,7 +61,7 @@ export default function Sidebar({
   areaLabel?: string;
   /** Where signing out lands. */
   loginHref?: string;
-  /** The Sanity "Website Content" link — Shoaib's dashboard only. */
+  /** The Sanity "Website Content" and Settings links — Shoaib's dashboard only. */
   showStudio?: boolean;
 }) {
   const pathname = usePathname();
@@ -270,6 +271,26 @@ export default function Sidebar({
         </nav>
 
         <div className={cn("py-4 shrink-0 border-t border-cloud/10", rail ? "px-2" : "px-3")}>
+          {showStudio &&
+            SECTIONS.filter((sec) => sec.placement === "bottom").map((sec) => {
+              const active = inSection(sec, pathname);
+              return (
+                <Link
+                  key={sec.key}
+                  href={sec.groups[0].items[0].href}
+                  onClick={() => setOpen(false)}
+                  title={rail ? sec.label : undefined}
+                  className={cn(
+                    "flex items-center rounded-lg text-small transition-colors mb-2",
+                    rail ? "justify-center py-2.5" : "gap-3 px-3 py-2.5",
+                    active ? "bg-citrus text-ink font-medium" : "text-cloud/60 hover:text-cloud hover:bg-cloud/5"
+                  )}
+                >
+                  <sec.icon className="size-4 shrink-0" aria-hidden />
+                  {!rail && sec.label}
+                </Link>
+              );
+            })}
           {!rail && <p className="px-3 text-small text-cloud/40 truncate mb-2">{email}</p>}
           <button
             onClick={signOut}

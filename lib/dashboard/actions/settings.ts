@@ -30,23 +30,33 @@ export async function updateSettings(formData: FormData) {
   const user = await getAdminUser();
   if (!user) redirect("/dashboard/login");
 
-  const parsed = settingsSchema.safeParse({
-    business_name: formData.get("business_name"),
-    business_email: formData.get("business_email") || null,
-    business_phone: formData.get("business_phone") || null,
-    business_address: formData.get("business_address") || null,
-    default_currency: formData.get("default_currency"),
-    tax_enabled: formData.get("tax_enabled") === "on",
-    tax_name: formData.get("tax_name") || "GST",
-    tax_rate: formData.get("tax_rate") || 0,
-    invoice_prefix: formData.get("invoice_prefix"),
-    quote_prefix: formData.get("quote_prefix"),
-    proposal_prefix: formData.get("proposal_prefix"),
-    agreement_prefix: formData.get("agreement_prefix"),
-    payment_terms: formData.get("payment_terms") || null,
-    bank_details: formData.get("bank_details") || null,
-  });
+  // The form comes in two parts (Settings → Business profile, Finance → Setup);
+  // each one validates and saves only its own fields.
+  const part = formData.get("_part");
+  const parsed =
+    part === "business"
+      ? settingsSchema.pick({ business_name: true, business_email: true, business_phone: true, business_address: true }).safeParse({
+          business_name: formData.get("business_name"),
+          business_email: formData.get("business_email") || null,
+          business_phone: formData.get("business_phone") || null,
+          business_address: formData.get("business_address") || null,
+        })
+      : part === "billing"
+        ? settingsSchema.omit({ business_name: true, business_email: true, business_phone: true, business_address: true }).safeParse({
+            default_currency: formData.get("default_currency"),
+            tax_enabled: formData.get("tax_enabled") === "on",
+            tax_name: formData.get("tax_name") || "GST",
+            tax_rate: formData.get("tax_rate") || 0,
+            invoice_prefix: formData.get("invoice_prefix"),
+            quote_prefix: formData.get("quote_prefix"),
+            proposal_prefix: formData.get("proposal_prefix"),
+            agreement_prefix: formData.get("agreement_prefix"),
+            payment_terms: formData.get("payment_terms") || null,
+            bank_details: formData.get("bank_details") || null,
+          })
+        : null;
 
+  if (!parsed) return { error: "Unknown settings form." };
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   // These are defaults for NEW documents only — existing quotations and
@@ -59,10 +69,11 @@ export async function updateSettings(formData: FormData) {
   if (error) return { error: error.message };
 
   revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/finance/setup");
   return { ok: true };
 }
 
-/** Saves Settings → My access accounts. */
+/** Saves Clients → Setup → My access accounts. */
 export async function updateAccessIdentities(values: Record<string, string>) {
   const user = await getAdminUser();
   if (!user) redirect("/dashboard/login");
@@ -85,11 +96,12 @@ export async function updateAccessIdentities(values: Record<string, string>) {
           : error.message,
     };
   }
-  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/clients/setup");
+  revalidatePath("/dashboard/vault");
   return { ok: true };
 }
 
-/** Saves Settings → Payment accounts (shown on invoice links and /pay). */
+/** Saves Finance → Setup → Payment accounts (shown on invoice links and /pay). */
 export async function updatePaymentAccounts(values: unknown) {
   const user = await getAdminUser();
   if (!user) redirect("/dashboard/login");
@@ -107,7 +119,7 @@ export async function updatePaymentAccounts(values: unknown) {
           : error.message,
     };
   }
-  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/finance/setup");
   revalidatePath("/pay");
   return { ok: true };
 }

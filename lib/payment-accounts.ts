@@ -1,5 +1,5 @@
 /**
- * Where clients send money (Settings → Payment accounts). Two blocks: the
+ * Where clients send money (Finance → Setup → Payment accounts). Two blocks: the
  * Pakistan (PKR) business account and an international one. Until there is a
  * separate international account, "same as Pakistan" sends international
  * payers to the Pakistan account's IBAN (+ SWIFT). Shown on every invoice

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Check, LoaderCircle } from "lucide-react";
 import { updatePaymentAccounts } from "@/lib/dashboard/actions/settings";
-import { Card, Field, buttonStyles, inputClasses } from "@/components/dashboard/ui";
+import { Field, SettingsCard, buttonStyles, inputClasses } from "@/components/dashboard/ui";
 import type { BankAccount, PaymentAccounts } from "@/lib/payment-accounts";
 
 type Key = keyof BankAccount;
@@ -21,7 +21,7 @@ const INTL_FIELDS: { key: Key; label: string; hint?: string }[] = [
   { key: "iban", label: "IBAN" },
 ];
 
-/** Settings → Payment accounts: the bank details clients see on every invoice
+/** Finance → Setup → Payment accounts: the bank details clients see on every invoice
  *  link and on /pay, where they also upload their transfer receipt. */
 export default function PaymentAccountsForm({ accounts }: { accounts: PaymentAccounts }) {
   const [pk, setPk] = useState<BankAccount>({ ...accounts.pk });
@@ -58,19 +58,20 @@ export default function PaymentAccountsForm({ accounts }: { accounts: PaymentAcc
   );
 
   return (
-    <Card className="p-6 space-y-6 max-w-2xl mt-6">
-      <div>
-        <h2 className="text-body-lg font-semibold">Payment accounts</h2>
-        <p className="text-small text-ink-muted mt-1">
+    <SettingsCard
+      title="Payment accounts"
+      description={
+        <>
           Shown on every invoice link (PKR invoices get the Pakistan account, other currencies the international one) and
           on <a href="/pay" target="_blank" rel="noreferrer" className="underline underline-offset-4">adsbyshoaib.com/pay</a>,
           where clients upload their transfer receipt for you to confirm.
-        </p>
-      </div>
+        </>
+      }
+    >
 
       <div className="space-y-4">
         <h3 className="font-mono uppercase text-tag tracking-widest text-ink-subtle">Pakistan (PKR)</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
           {PK_FIELDS.map((f) => (
             <Field key={f.key} label={f.label} htmlFor={`pk-${f.key}`} hint={f.hint}>
               {input("pk", pk[f.key], (v) => setPk((p) => ({ ...p, [f.key]: v })), f.key)}
@@ -97,7 +98,7 @@ export default function PaymentAccountsForm({ accounts }: { accounts: PaymentAcc
           </span>
         </label>
         {!intl.sameAsPk && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
             {INTL_FIELDS.map((f) => (
               <Field key={f.key} label={f.label} htmlFor={`intl-${f.key}`}>
                 {input("intl", intl[f.key], (v) => setIntl((p) => ({ ...p, [f.key]: v })), f.key)}
@@ -144,6 +145,6 @@ export default function PaymentAccountsForm({ accounts }: { accounts: PaymentAcc
           </span>
         )}
       </div>
-    </Card>
+    </SettingsCard>
   );
 }

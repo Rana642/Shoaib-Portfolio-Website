@@ -782,7 +782,7 @@ function AccessSection({
             htmlFor={`${idp}-granted`}
             hint={
               !identity && route.via !== "custom"
-                ? `Add your ${identityLabel(route.via).toLowerCase()} in Settings → My access accounts to fill this in automatically.`
+                ? `Add your ${identityLabel(route.via).toLowerCase()} in Clients → Setup (My access accounts) to fill this in automatically.`
                 : undefined
             }
           >

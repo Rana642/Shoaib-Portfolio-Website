@@ -85,6 +85,13 @@
   background: rgba(15, 15, 20, 0.82);
 }
 
+/* Full-height app pages (the WhatsApp inbox): the viewport minus the page's
+   vertical padding and, inside a section, its tab bar. DashboardShell sets
+   --section-nav-h on <main>; SectionNav is exactly that tall. */
+.app-height {
+  height: calc(100dvh - 4rem - var(--section-nav-h, 0px));
+}
+
 @layer utilities {
   .container-narrow {
     @apply max-w-5xl mx-auto px-6 md:px-12;

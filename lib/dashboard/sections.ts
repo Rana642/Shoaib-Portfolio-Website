@@ -1,6 +1,5 @@
 import {
   BarChart3,
-  BedDouble,
   Calculator,
   CalendarDays,
   ClipboardList,
@@ -9,6 +8,7 @@ import {
   FileSignature,
   FileText,
   FolderInput,
+  Globe,
   Inbox,
   KeyRound,
   LayoutDashboard,
@@ -26,7 +26,10 @@ import {
   ScrollText,
   Send,
   Settings as SettingsIcon,
+  SlidersHorizontal,
   Briefcase,
+  Building2,
+  BedDouble,
   Users,
   Wallet,
   Zap,
@@ -34,11 +37,13 @@ import {
 } from "lucide-react";
 
 /**
- * The dashboard's sections (Meta Business Suite style). The main sidebar
- * shows one entry per section; inside a section the main sidebar drops to
- * its icon rail and the section's own menu (components/dashboard/SectionNav)
- * sits next to it. Page URLs are unchanged — a section just claims the
- * paths that start with one of its `match` prefixes.
+ * The dashboard's sections (GoHighLevel style). The main sidebar shows one
+ * entry per section; inside a section its pages are tabs across the top of
+ * the page (components/dashboard/SectionNav). A section's own setup lives
+ * in its last group ("Setup"), pinned to the right of the tabs — so bank
+ * accounts sit in Finance, social connections in Marketing, and so on.
+ * Page URLs are unchanged — a section just claims the paths that start
+ * with one of its `match` prefixes.
  */
 export type SectionItem = { href: string; label: string; icon: LucideIcon; exact?: boolean };
 export type Section = {
@@ -48,6 +53,8 @@ export type Section = {
   description: string;
   match: string[];
   groups: { title: string; items: SectionItem[] }[];
+  /** "bottom" = shown next to Sign out instead of in the main list (Settings). */
+  placement?: "bottom";
 };
 
 const D = "/dashboard";
@@ -58,8 +65,8 @@ export const SECTIONS: Section[] = [
     key: "sales",
     label: "Sales",
     icon: Briefcase,
-    description: "From a new lead to an onboarded client.",
-    match: [`${D}/leads`, `${D}/proposals`, `${D}/agreements`, `${D}/onboarding`, `${D}/intakes`],
+    description: "From a new lead to an onboarded client, and the services you sell.",
+    match: [`${D}/leads`, `${D}/proposals`, `${D}/agreements`, `${D}/onboarding`, `${D}/intakes`, `${D}/catalog`],
     groups: [
       {
         title: "Pipeline",
@@ -76,34 +83,56 @@ export const SECTIONS: Section[] = [
           { href: `${D}/intakes`, label: "Intakes", icon: FolderInput },
         ],
       },
+      {
+        title: "Services",
+        items: [
+          { href: `${D}/catalog`, label: "Single services", icon: Package },
+          { href: `${D}/catalog/bundles`, label: "Bundle services", icon: Package },
+        ],
+      },
     ],
   },
   {
-    key: "billing",
-    label: "Clients & Billing",
-    icon: Wallet,
-    description: "Clients, services, quotes, invoices, payment receipts and monthly reports.",
-    match: [`${D}/clients`, `${D}/catalog`, `${D}/quotations`, `${D}/invoices`, `${D}/receipts`, `${D}/retainers`, `${D}/reports`, `${D}/letterhead`],
+    key: "clients",
+    label: "Clients",
+    icon: Users,
+    description: "Your clients, their monthly reports, logins and letters.",
+    match: [`${D}/clients`, `${D}/reports`, `${D}/vault`, `${D}/letterhead`],
     groups: [
       {
         title: "Clients",
         items: [
           { href: `${D}/clients`, label: "Clients", icon: Users },
-          { href: `${D}/catalog`, label: "Single services", icon: Package },
-          { href: `${D}/catalog/bundles`, label: "Bundle services", icon: Package },
+          { href: `${D}/reports`, label: "Monthly reports", icon: FileBarChart },
         ],
       },
       {
-        title: "Billing",
+        title: "Tools",
         items: [
-          { href: `${D}/quotations`, label: "Quotations", icon: FileText },
-          { href: `${D}/invoices`, label: "Invoices", icon: Receipt },
-          { href: `${D}/receipts`, label: "Payment receipts", icon: ReceiptText },
-          { href: `${D}/retainers`, label: "Retainers", icon: Repeat },
-          { href: `${D}/reports`, label: "Reports", icon: FileBarChart },
+          { href: `${D}/vault`, label: "Password Vault", icon: KeyRound },
           { href: `${D}/letterhead`, label: "Letterhead", icon: ScrollText },
         ],
       },
+      { title: "Setup", items: [{ href: `${D}/clients/setup`, label: "Setup", icon: SlidersHorizontal }] },
+    ],
+  },
+  {
+    key: "finance",
+    label: "Finance",
+    icon: Wallet,
+    description: "Quotations, invoices, payments, and where clients send money.",
+    match: [`${D}/invoices`, `${D}/quotations`, `${D}/receipts`, `${D}/retainers`, `${D}/finance`],
+    groups: [
+      {
+        title: "Billing",
+        items: [
+          { href: `${D}/invoices`, label: "Invoices", icon: Receipt },
+          { href: `${D}/quotations`, label: "Quotations", icon: FileText },
+          { href: `${D}/receipts`, label: "Payment receipts", icon: ReceiptText },
+          { href: `${D}/retainers`, label: "Retainers", icon: Repeat },
+        ],
+      },
+      { title: "Setup", items: [{ href: `${D}/finance/setup`, label: "Setup", icon: SlidersHorizontal }] },
     ],
   },
   {
@@ -162,35 +191,38 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
-    key: "hotels",
-    label: "Hotels",
-    icon: BedDouble,
-    description: "Bookings, inquiries and guests from the hotel websites.",
+    // Data that comes in from client websites. Grouped by kind of data, not
+    // by industry, so salon bookings or career-page applications become one
+    // more tab here (and in the portal) instead of one more section.
+    key: "websites",
+    label: "Websites",
+    icon: Globe,
+    description: "Bookings, inquiries and contacts from client websites.",
     match: [`${D}/bookings`, `${D}/inquiries`, `${D}/contacts`],
     groups: [
       {
-        title: "Hotels",
+        title: "Websites",
         items: [
           { href: `${D}/bookings`, label: "Bookings", icon: BedDouble },
           { href: `${D}/inquiries`, label: "Inquiries", icon: MessageSquareText },
-          { href: `${D}/contacts`, label: "Guest contacts", icon: Contact },
+          { href: `${D}/contacts`, label: "Contacts", icon: Contact },
         ],
       },
     ],
   },
   {
-    key: "admin",
-    label: "Admin",
+    key: "settings",
+    label: "Settings",
     icon: SettingsIcon,
-    description: "Passwords, API keys and business settings.",
-    match: [`${D}/vault`, `${D}/api-vault`, `${D}/settings`],
+    description: "Your business profile and the API keys your integrations use.",
+    match: [`${D}/settings`, `${D}/api-vault`],
+    placement: "bottom",
     groups: [
       {
-        title: "Admin",
+        title: "Settings",
         items: [
-          { href: `${D}/vault`, label: "Password Vault", icon: KeyRound },
+          { href: `${D}/settings`, label: "Business profile", icon: Building2 },
           { href: `${D}/api-vault`, label: "API Vault", icon: Plug },
-          { href: `${D}/settings`, label: "Settings", icon: SettingsIcon },
         ],
       },
     ],
@@ -199,15 +231,16 @@ export const SECTIONS: Section[] = [
 
 const under = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
 
+/** Is this path inside the section? */
+export const inSection = (section: Section, pathname: string) => section.match.some((m) => under(pathname, m));
+
 /** The section a path belongs to (none for Overview / Home and unknown pages). A section
- *  with a single page gets no menu of its own — it's just a link in the main sidebar. */
+ *  with a single page gets no tabs of its own — it's just a link in the main sidebar. */
 export function sectionFor(pathname: string, sections: Section[] = SECTIONS): Section | null {
-  return (
-    sections.find((s) => s.groups.flatMap((g) => g.items).length > 1 && s.match.some((m) => under(pathname, m))) ?? null
-  );
+  return sections.find((s) => s.groups.flatMap((g) => g.items).length > 1 && inSection(s, pathname)) ?? null;
 }
 
-/** Is this menu item the current page? The most specific matching item wins (Bundle services over Single services). */
+/** Is this tab the current page? The most specific matching item wins (Bundle services over Single services). */
 export function isItemActive(section: Section, item: SectionItem, pathname: string) {
   if (item.exact) return pathname === item.href;
   if (!under(pathname, item.href)) return false;
