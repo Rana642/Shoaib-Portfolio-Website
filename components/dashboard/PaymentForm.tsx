@@ -83,6 +83,16 @@ export default function PaymentForm({
           </Field>
         </div>
 
+        {currency !== "PKR" && (
+          <Field
+            label="PKR received (optional)"
+            htmlFor="pkr_amount"
+            hint={`What reached your bank in PKR. Leave blank to use that day's ${currency} rate — you can correct it later in Finance → Income.`}
+          >
+            <input id="pkr_amount" name="pkr_amount" type="number" step="0.01" min="0" className={inputClasses} />
+          </Field>
+        )}
+
         {error && (
           <p className="text-small text-red-700 bg-red-500/10 border border-red-600/20 rounded-lg px-4 py-3">
             {error}

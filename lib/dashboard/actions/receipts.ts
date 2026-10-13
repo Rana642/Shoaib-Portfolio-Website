@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "../db";
 import { getAdminUser } from "../auth";
 import { applyPaymentToInvoice } from "../payments";
+import { pkrRate } from "../../fx-rate";
 import { formatMoney } from "../format";
 import { invoiceUrl } from "../billing-send";
 import { resend, isResendConfigured, fromEmail, toEmail } from "../../resend";
@@ -28,6 +29,8 @@ async function loadPending(id: string) {
 function refresh(invoiceId: string | null) {
   revalidatePath("/dashboard/receipts");
   revalidatePath("/dashboard");
+  revalidatePath("/dashboard/finance");
+  revalidatePath("/dashboard/finance/income");
   if (invoiceId) {
     revalidatePath(`/dashboard/invoices/${invoiceId}`);
     revalidatePath("/dashboard/invoices");
@@ -68,6 +71,27 @@ export async function confirmReceipt(id: string, input: { invoiceId: string | nu
     });
     if ("error" in applied) return { error: applied.error };
     paymentId = applied.paymentId;
+  } else {
+    // No invoice to put it on — still money in, so it goes to Finance → Income.
+    const paidOn = r.paid_on ?? new Date().toISOString().slice(0, 10);
+    const rate = await pkrRate(r.currency, paidOn);
+    if (rate) {
+      await db.from("finance_entries").insert({
+        kind: "income",
+        entry_date: paidOn,
+        category: "client_payment",
+        party: r.payer_name,
+        description: r.invoice_number ? `Receipt on /pay (invoice ${r.invoice_number})` : "Receipt on /pay",
+        amount,
+        currency: r.currency,
+        fx_rate: rate,
+        pkr_amount: Math.round(amount * rate * 100) / 100,
+        client_id: r.client_id,
+        method: "Bank transfer (receipt)",
+        receipt_id: r.id,
+        notes: r.note,
+      }); // before the Finance SQL is run this fails quietly — the receipt is still confirmed
+    }
   }
 
   const { error } = await db

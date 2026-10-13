@@ -1631,3 +1631,63 @@ create table if not exists payment_receipts (
 create index if not exists payment_receipts_status_idx on payment_receipts (status, created_at desc);
 create index if not exists payment_receipts_invoice_idx on payment_receipts (invoice_id);
 alter table payment_receipts enable row level security;
+
+-- ── Finance: expenses, other income, monthly bills (2026-10-13) ──
+-- Money in = invoice payments (payments) + "other income" rows here; money
+-- out = expense rows here. Every amount is also kept in PKR (pkr_amount, at
+-- the rate on the day) so reports add up in one currency. pass_through = a
+-- client's own money (e.g. their ad budget) that isn't Shoaib's income or
+-- cost — reports keep it out of profit.
+create table if not exists finance_bills (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  name text not null,
+  vendor text,
+  category text not null,
+  amount numeric(12,2) not null check (amount >= 0),   -- usual amount (usage bills vary)
+  currency text not null default 'PKR',
+  frequency text not null default 'monthly' check (frequency in ('monthly', 'quarterly', 'yearly')),
+  next_due date not null,
+  client_id uuid references clients (id) on delete set null,
+  method text,
+  is_active boolean not null default true,
+  notes text
+);
+
+create table if not exists finance_entries (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  kind text not null check (kind in ('expense', 'income')),
+  entry_date date not null default current_date,
+  category text not null,
+  party text,                             -- who was paid (expense) / who paid (income)
+  description text,
+  amount numeric(12,2) not null check (amount > 0),
+  currency text not null default 'PKR',
+  fx_rate numeric(12,4) not null default 1,   -- PKR for 1 unit of `currency`
+  pkr_amount numeric(14,2) not null,
+  client_id uuid references clients (id) on delete set null,
+  pass_through boolean not null default false,
+  method text,
+  bill_id uuid references finance_bills (id) on delete set null,
+  receipt_id uuid references payment_receipts (id) on delete set null,  -- a /pay receipt confirmed without an invoice
+  file_key text unique,                   -- private object storage key (finance/…)
+  file_name text,
+  file_type text,
+  file_size integer,
+  notes text
+);
+
+create index if not exists finance_entries_date_idx on finance_entries (entry_date desc);
+create index if not exists finance_entries_kind_idx on finance_entries (kind, entry_date desc);
+create index if not exists finance_entries_client_idx on finance_entries (client_id);
+create index if not exists finance_bills_due_idx on finance_bills (is_active, next_due);
+
+-- Invoice payments in PKR too (an invoice in USD is received as PKR in the bank).
+alter table payments add column if not exists fx_rate numeric(12,4);
+alter table payments add column if not exists pkr_amount numeric(14,2);
+
+alter table finance_bills enable row level security;
+alter table finance_entries enable row level security;

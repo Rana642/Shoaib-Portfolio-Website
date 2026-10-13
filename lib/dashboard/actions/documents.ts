@@ -341,6 +341,8 @@ const paymentSchema = z.object({
   paid_at: z.string().min(1),
   method: z.string().max(100).optional().nullable(),
   reference: z.string().max(200).optional().nullable(),
+  // Invoices in another currency: the PKR that reached the bank (blank = that day's rate).
+  pkr_amount: z.coerce.number().positive().optional().nullable(),
 });
 
 export async function recordPayment(invoiceId: string, formData: FormData) {
@@ -351,6 +353,7 @@ export async function recordPayment(invoiceId: string, formData: FormData) {
     paid_at: formData.get("paid_at"),
     method: formData.get("method") || null,
     reference: formData.get("reference") || null,
+    pkr_amount: formData.get("pkr_amount") || null,
   });
 
   if (!parsed.success) return { error: parsed.error.issues[0].message };

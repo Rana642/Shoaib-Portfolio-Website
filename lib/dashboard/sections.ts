@@ -19,6 +19,7 @@ import {
   MessageSquareText,
   Package,
   Phone,
+  PieChart,
   Plug,
   Receipt,
   ReceiptText,
@@ -32,6 +33,8 @@ import {
   BedDouble,
   Users,
   Wallet,
+  TrendingDown,
+  TrendingUp,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -120,9 +123,10 @@ export const SECTIONS: Section[] = [
     key: "finance",
     label: "Finance",
     icon: Wallet,
-    description: "Quotations, invoices, payments, and where clients send money.",
+    description: "Money in and out, profit, invoices, and where clients send money.",
     match: [`${D}/invoices`, `${D}/quotations`, `${D}/receipts`, `${D}/retainers`, `${D}/finance`],
     groups: [
+      { title: "Overview", items: [{ href: `${D}/finance`, label: "Overview", icon: LayoutDashboard, exact: true }] },
       {
         title: "Billing",
         items: [
@@ -130,6 +134,14 @@ export const SECTIONS: Section[] = [
           { href: `${D}/quotations`, label: "Quotations", icon: FileText },
           { href: `${D}/receipts`, label: "Payment receipts", icon: ReceiptText },
           { href: `${D}/retainers`, label: "Retainers", icon: Repeat },
+        ],
+      },
+      {
+        title: "Books",
+        items: [
+          { href: `${D}/finance/income`, label: "Income", icon: TrendingUp },
+          { href: `${D}/finance/expenses`, label: "Expenses", icon: TrendingDown },
+          { href: `${D}/finance/reports`, label: "Reports", icon: PieChart },
         ],
       },
       { title: "Setup", items: [{ href: `${D}/finance/setup`, label: "Setup", icon: SlidersHorizontal }] },
