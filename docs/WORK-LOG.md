@@ -25,7 +25,15 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - **Reject** with a reason emails the payer a retry link.
   - Invoice page: the receipts for that invoice. Overview: a "N payment receipts to confirm" banner.
 - **Refactor:** `lib/dashboard/payments.ts` `applyPaymentToInvoice`, shared by Record payment + Confirm (amount_paid and status are re-derived from `payments`).
-- **SQL (run once):** the "Payment accounts + client-uploaded payment receipts" block at the end of `supabase/dashboard-schema.sql`.
+- **SQL (run once):** the "Payment accounts + client-uploaded payment receipts" block at the end of `supabase/dashboard-schema.sql`. **Run 2026-10-13, verified.**
+- **Payment accounts filled in by Shoaib.**
+  - UBL "Ads By Shoaib". The IBAN passes its checksum.
+  - International is ticked "same as Pakistan".
+  - **Still to do:** add the SWIFT code, and fix the bank name to "United Bank Limited (UBL)" (capital L).
+- **Live test passed on the /pay path:**
+  - upload → the "Payment receipt: PKR 1.00 · TEST - Claude" email to Shoaib → Reject in the dashboard → the rejection email with the retry link reached the payer;
+  - the test row and its R2 file were then deleted.
+- **Not tested yet:** Confirm and the invoice-link upload. Test both on the first real sent invoice (none exist yet).
 
 ## 2026-10-12 — WhatsApp App Review submitted + support cases
 - **Meta App Review submitted** (Socially Snap app) for whatsapp_business_messaging + whatsapp_business_management, with the two screencasts and the Data handling answers. Status: in review (~20 days).
