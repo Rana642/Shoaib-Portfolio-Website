@@ -124,7 +124,7 @@ export default function BillsPanel({
                   </p>
                 </div>
                 <p className="text-small font-medium whitespace-nowrap">{formatMoney(Number(b.amount), b.currency)}</p>
-                <div className="w-32">{dueBadge(b, today)}</div>
+                <div className="min-w-32 whitespace-nowrap">{dueBadge(b, today)}</div>
                 <div className="flex items-center gap-3">
                   {b.is_active && (
                     <button type="button" onClick={() => setPaying(paying === b.id ? null : b.id)} className={`${buttonStyles.secondary} py-1.5`}>

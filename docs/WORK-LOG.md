@@ -4,6 +4,19 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-13 — Finance, phase 2: income, expenses, monthly bills, reports (all in PKR)
+- **Tabs:** Finance → Overview · Invoices · Quotations · Payment receipts · Retainers │ Income · Expenses · Reports │ Setup.
+- **Tables** (SQL "Finance: expenses, other income, monthly bills" run 2026-10-13):
+  - `finance_entries`: expense or other income. Holds category, payee or payer, client tag, amount + currency + `fx_rate` + `pkr_amount`, a `pass_through` flag for client money, and a receipt in R2 under `finance/`.
+  - `finance_bills`: repeating bills. **Mark paid** records the expense with the real amount and moves `next_due` forward by the bill's frequency.
+  - `payments.fx_rate` / `pkr_amount`: invoice payments in PKR. Uses that day's rate unless "PKR received" is entered. Correctable in Income.
+- **Rates:** `lib/fx-rate.ts` `pkrRates(currencies, date)` uses the free currency-api (historical days supported).
+- **Maths:** `lib/dashboard/finance.ts` `summarize`. Client money (ad budget) is pass-through and stays out of profit. If more ad spend was recorded than client budget received, the difference comes off invoice income (budget billed inside an invoice). Checked with both cases.
+- **Reports:** P&L, month by month, expenses by category, profit per client, a tax-year (Jul–Jun) summary for the tax adviser with local vs foreign income, and a CSV export (`/api/dashboard/finance/export`).
+- **Receipts:** a `/pay` receipt confirmed without an invoice becomes an income entry.
+- **Live test passed:** expense with receipt; bill → Mark paid (USD → PKR, next due +1 month); overview, reports and CSV; delete removes the row and the R2 file. All test rows are gone.
+- **Dev gotcha again:** after an app restart, `next dev` returned 404 for dashboard pages. `rm -rf .next/dev` and a restart fixed it.
+
 ## 2026-10-13 — Dashboard navigation, phase 1 (GoHighLevel style)
 - **One sidebar.** A section's pages are now tabs across the top of the page (`components/dashboard/SectionNav.tsx`), with its **Setup** tab pinned to the right. There is no second sidebar any more.
 - **Sections:**

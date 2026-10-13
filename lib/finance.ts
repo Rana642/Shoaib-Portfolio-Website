@@ -181,5 +181,5 @@ export const round2 = (n: number) => Math.round(n * 100) / 100;
 /** Whole rupees with commas: "PKR 125,000" (and "−PKR 4,500" for a loss). */
 export function formatPkr(n: number): string {
   const sign = n < 0 ? "−" : "";
-  return `${sign}PKR ${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Math.abs(Math.round(n)))}`;
+  return `${sign}PKR ${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Math.round(Math.abs(n)))}`;
 }
