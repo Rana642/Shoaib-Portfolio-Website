@@ -375,7 +375,13 @@ export type InstagramInsights = {
   topPosts: PostRow[];
   postCount: number;
   postingTimes: PostingTimeAnalysis;
+  /** Set when Meta refused the account-level insights (usually a connection
+   *  made before instagram_manage_insights was requested): the profile and the
+   *  posts' own likes / comments still show, reach and views don't. */
+  insightsError?: string;
 };
+
+const emptyIgTotals = () => Object.fromEntries(IG_TOTAL_METRICS.map((m) => [m, null])) as IgTotals;
 
 async function igTotals(igId: string, token: string, windows: Window[], base: string): Promise<IgTotals> {
   const results = await Promise.all(
@@ -473,11 +479,19 @@ async function instagramInsights(account: ClientSocialAccount, rangeDays: Insigh
   const curWindows = windowsFor(rangeDays, 0, IG_MAX_WINDOW);
   const prevWindows = windowsFor(rangeDays, rangeDays, IG_MAX_WINDOW);
 
+  // Account insights need instagram_manage_insights; if Meta refuses them, keep
+  // the profile and the posts (their likes / comments come with the media itself).
+  let insightsError: string | undefined;
+  const orEmpty = <T,>(p: Promise<T>, empty: T) =>
+    p.catch((e: unknown) => {
+      insightsError ??= e instanceof Error ? e.message : String(e);
+      return empty;
+    });
   const [profile, current, previous, reach, media] = await Promise.all([
     graphGet<{ username?: string; followers_count?: number }>(`/${igId}`, { fields: "username,followers_count", access_token: token }, host),
-    igTotals(igId, token, curWindows, host),
-    igTotals(igId, token, prevWindows, host),
-    igReachSeries(igId, token, curWindows, host),
+    orEmpty(igTotals(igId, token, curWindows, host), emptyIgTotals()),
+    orEmpty(igTotals(igId, token, prevWindows, host), emptyIgTotals()),
+    orEmpty(igReachSeries(igId, token, curWindows, host), [] as TrendPoint[]),
     igMedia(igId, token, curWindows[0].since, host),
   ]);
 
@@ -500,9 +514,13 @@ async function instagramInsights(account: ClientSocialAccount, rangeDays: Insigh
       { label: "Link taps", value: current.profile_links_taps ?? 0 },
       { label: "Website clicks", value: current.website_clicks ?? 0 },
     ],
-    topPosts: [...media].sort((a, b) => b.views - a.views).slice(0, 10),
+    // Without insights every post's views are 0, so rank by likes + comments instead.
+    topPosts: [...media]
+      .sort((a, b) => (insightsError ? b.reactions + b.comments - (a.reactions + a.comments) : b.views - a.views))
+      .slice(0, 10),
     postCount: media.length,
     postingTimes: analyzePostingTimes(media),
+    insightsError,
   };
 }
 

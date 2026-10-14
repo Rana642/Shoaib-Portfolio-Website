@@ -109,6 +109,16 @@ function InstagramBlock({ s, range }: { s: InstagramInsights; range: InsightRang
         </span>
       </header>
 
+      {s.insightsError && (
+        <div className="bg-white border border-citrus/60 rounded-xl p-4">
+          <p className="text-small font-medium">Reach, views and profile activity aren&apos;t available for this account yet.</p>
+          <p className="text-tag text-ink-subtle mt-1">
+            Meta said: {s.insightsError}. Reconnect the Facebook Page from Connections (the connection now also asks for
+            Instagram insights). Followers and each post&apos;s likes and comments below are live.
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-4">
         <StatTile label="Followers" value={s.followers} note="Current total" />
         <StatTile

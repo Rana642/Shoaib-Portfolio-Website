@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   authorizeUrl.searchParams.set("redirect_uri", `${url.origin}/api/social/facebook-oauth-callback`);
   authorizeUrl.searchParams.set(
     "scope",
-    "pages_show_list,pages_manage_posts,pages_read_engagement,pages_manage_engagement,instagram_basic,instagram_content_publish,business_management,read_insights"
+    "pages_show_list,pages_manage_posts,pages_read_engagement,pages_manage_engagement,instagram_basic,instagram_content_publish,instagram_manage_insights,business_management,read_insights"
   );
   authorizeUrl.searchParams.set("response_type", "code");
   // ?slot=2 connects the second Facebook profile (see connectFacebookAccount).
