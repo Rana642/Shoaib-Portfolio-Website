@@ -25,10 +25,29 @@ const COLUMNS: Record<"facebook" | "instagram", Column[]> = {
   ],
 };
 
+/** Rows shown before the "Show more" fold. */
+const TOP = 10;
+
 export default function TopPostsTable({ platform, posts }: { platform: "facebook" | "instagram"; posts: PostRow[] }) {
   if (posts.length === 0) return <p className="text-small text-ink-subtle">No posts published in this period.</p>;
-  const cols = COLUMNS[platform];
+  const rest = posts.slice(TOP);
+  return (
+    <>
+      <PostsTable platform={platform} posts={posts.slice(0, TOP)} />
+      {rest.length > 0 && (
+        <details className="mt-3">
+          <summary className="cursor-pointer text-small text-ink-muted hover:text-ink">
+            Show {rest.length} more post{rest.length === 1 ? "" : "s"}
+          </summary>
+          <PostsTable platform={platform} posts={rest} />
+        </details>
+      )}
+    </>
+  );
+}
 
+function PostsTable({ platform, posts }: { platform: "facebook" | "instagram"; posts: PostRow[] }) {
+  const cols = COLUMNS[platform];
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[680px] text-small">

@@ -456,7 +456,7 @@ async function facebookInsights(account: ClientSocialAccount, rangeDays: Insight
     reactions: [...reactionTotals]
       .map(([type, value]) => ({ label: REACTION_LABELS[type] ?? type, value }))
       .sort((a, b) => b.value - a.value),
-    topPosts: [...posts].sort((a, b) => b.views - a.views).slice(0, 10),
+    topPosts: [...posts].sort((a, b) => b.views - a.views),
     postCount: posts.length,
     postingTimes: analyzePostingTimes(posts),
   };
@@ -733,9 +733,9 @@ async function instagramInsights(account: ClientSocialAccount, rangeDays: Insigh
       { label: "Website clicks", value: current.website_clicks ?? 0 },
     ],
     // Without insights every post's views are 0, so rank by likes + comments instead.
-    topPosts: [...media]
-      .sort((a, b) => (insightsError ? b.reactions + b.comments - (a.reactions + a.comments) : b.views - a.views))
-      .slice(0, 10),
+    topPosts: [...media].sort((a, b) =>
+      insightsError ? b.reactions + b.comments - (a.reactions + a.comments) : b.views - a.views
+    ),
     postCount: media.length,
     postingTimes: analyzePostingTimes(media),
     formats: summarizeFormats(media),
