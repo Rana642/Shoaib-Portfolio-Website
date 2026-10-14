@@ -164,6 +164,30 @@ function InstagramBlock({ s, range }: { s: InstagramInsights; range: InsightRang
         <TopPostsTable platform="instagram" posts={s.topPosts} />
       </div>
 
+      {s.audience && s.audience.total > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className={card}>
+            <p className="text-small font-semibold mb-4">
+              Followers by country <span className="font-normal text-ink-subtle">· top 10</span>
+            </p>
+            <BarList items={s.audience.country} />
+          </div>
+          <div className={card}>
+            <p className="text-small font-semibold mb-4">
+              Followers by city <span className="font-normal text-ink-subtle">· top 10</span>
+            </p>
+            <BarList items={s.audience.city} />
+          </div>
+          <div className={card}>
+            <p className="text-small font-semibold mb-4">Followers by age and gender</p>
+            <BarList items={s.audience.gender} />
+            <div className="mt-5">
+              <BarList items={s.audience.age} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {s.formats.length > 0 && (
         <div className={card}>
           <p className="text-small font-semibold mb-3">

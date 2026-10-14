@@ -400,7 +400,49 @@ export type InstagramInsights = {
    *  made before instagram_manage_insights was requested): the profile and the
    *  posts' own likes / comments still show, reach and views don't. */
   insightsError?: string;
+  /** Where the followers are and who they are (needs instagram_manage_insights
+   *  and 100+ followers); null when Meta doesn't return it. */
+  audience: IgAudience | null;
 };
+
+export type IgAudience = {
+  country: { label: string; value: number }[];
+  city: { label: string; value: number }[];
+  age: { label: string; value: number }[];
+  gender: { label: string; value: number }[];
+  total: number;
+};
+
+const regionName = (() => {
+  try {
+    const names = new Intl.DisplayNames(["en"], { type: "region" });
+    return (code: string) => names.of(code) ?? code;
+  } catch {
+    return (code: string) => code;
+  }
+})();
+
+/** Followers by country, city, age and gender (lifetime snapshot). */
+async function igAudience(igId: string, token: string, host: string): Promise<IgAudience> {
+  type Breakdown = { data: { total_value?: { breakdowns?: { results?: { dimension_values: string[]; value: number }[] }[] } }[] };
+  const get = (breakdown: string) =>
+    graphGet<Breakdown>(
+      `/${igId}/insights`,
+      { metric: "follower_demographics", period: "lifetime", metric_type: "total_value", breakdown, access_token: token },
+      host
+    ).then((r) => (r.data?.[0]?.total_value?.breakdowns?.[0]?.results ?? []).map((x) => ({ key: x.dimension_values[0] ?? "", value: x.value })));
+  const [country, city, age, gender] = await Promise.all([get("country"), get("city"), get("age"), get("gender")]);
+  const top = (rows: { key: string; value: number }[], label: (k: string) => string, n: number) =>
+    [...rows].sort((a, b) => b.value - a.value).slice(0, n).map((r) => ({ label: label(r.key), value: r.value }));
+  const genderName: Record<string, string> = { F: "Women", M: "Men", U: "Unknown" };
+  return {
+    country: top(country, regionName, 10),
+    city: top(city, (k) => k.split(",")[0], 10),
+    age: [...age].sort((a, b) => a.key.localeCompare(b.key)).map((r) => ({ label: r.key, value: r.value })),
+    gender: top(gender, (k) => genderName[k] ?? k, 3),
+    total: country.reduce((s, r) => s + r.value, 0),
+  };
+}
 
 const emptyIgTotals = () => Object.fromEntries(IG_TOTAL_METRICS.map((m) => [m, null])) as IgTotals;
 
@@ -517,12 +559,13 @@ async function instagramInsights(account: ClientSocialAccount, rangeDays: Insigh
       insightsError ??= e instanceof Error ? e.message : String(e);
       return empty;
     });
-  const [profile, current, previous, reach, media] = await Promise.all([
+  const [profile, current, previous, reach, media, audience] = await Promise.all([
     graphGet<{ username?: string; followers_count?: number }>(`/${igId}`, { fields: "username,followers_count", access_token: token }, host),
     orEmpty(igTotals(igId, token, curWindows, host), emptyIgTotals()),
     orEmpty(igTotals(igId, token, prevWindows, host), emptyIgTotals()),
     orEmpty(igReachSeries(igId, token, curWindows, host), [] as TrendPoint[]),
     igMedia(igId, token, curWindows[0].since, host),
+    igAudience(igId, token, host).catch(() => null),
   ]);
 
   return {
@@ -552,6 +595,7 @@ async function instagramInsights(account: ClientSocialAccount, rangeDays: Insigh
     postingTimes: analyzePostingTimes(media),
     formats: summarizeFormats(media),
     insightsError,
+    audience,
   };
 }
 
