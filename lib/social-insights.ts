@@ -163,7 +163,26 @@ export type PostRow = {
   shares: number;
   /** Facebook: link clicks. Instagram: saves. */
   extra: number;
+  /** Instagram only: what kind of post it is. */
+  format?: PostFormat;
 };
+
+export type PostFormat = "reel" | "video" | "carousel" | "image";
+
+/** Per-format totals for one account's posts in the period (Reels vs carousels vs images). */
+export type FormatSummary = { format: PostFormat; posts: number; avgLikes: number; avgComments: number; avgViews: number };
+
+function summarizeFormats(posts: PostRow[]): FormatSummary[] {
+  const order: PostFormat[] = ["reel", "video", "carousel", "image"];
+  return order
+    .map((format) => {
+      const list = posts.filter((p) => p.format === format);
+      const avg = (k: "reactions" | "comments" | "views") =>
+        list.length ? Math.round(list.reduce((s, p) => s + p[k], 0) / list.length) : 0;
+      return { format, posts: list.length, avgLikes: avg("reactions"), avgComments: avg("comments"), avgViews: avg("views") };
+    })
+    .filter((f) => f.posts > 0);
+}
 
 // ── Facebook ──────────────────────────────────────────────────
 
@@ -375,6 +394,8 @@ export type InstagramInsights = {
   topPosts: PostRow[];
   postCount: number;
   postingTimes: PostingTimeAnalysis;
+  /** Reels vs videos vs carousels vs images in the period, with average results. */
+  formats: FormatSummary[];
   /** Set when Meta refused the account-level insights (usually a connection
    *  made before instagram_manage_insights was requested): the profile and the
    *  posts' own likes / comments still show, reach and views don't. */
@@ -427,6 +448,7 @@ type IgMediaApi = {
   id: string;
   caption?: string;
   media_type?: string;
+  media_product_type?: string;
   media_url?: string;
   thumbnail_url?: string;
   permalink?: string;
@@ -437,7 +459,7 @@ type IgMediaApi = {
 };
 
 async function igMedia(igId: string, token: string, since: number, host: string): Promise<PostRow[]> {
-  const base = "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count";
+  const base = "id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count";
   let data: IgMediaApi[];
   try {
     ({ data } = await graphGet<{ data: IgMediaApi[] }>(
@@ -466,7 +488,15 @@ async function igMedia(igId: string, token: string, since: number, host: string)
         comments: m.comments_count ?? 0,
         shares: metric("shares"),
         extra: metric("saved"),
-      };
+        format:
+          m.media_product_type === "REELS"
+            ? "reel"
+            : m.media_type === "VIDEO"
+              ? "video"
+              : m.media_type === "CAROUSEL_ALBUM"
+                ? "carousel"
+                : "image",
+      } satisfies PostRow;
     });
 }
 
@@ -520,6 +550,7 @@ async function instagramInsights(account: ClientSocialAccount, rangeDays: Insigh
       .slice(0, 10),
     postCount: media.length,
     postingTimes: analyzePostingTimes(media),
+    formats: summarizeFormats(media),
     insightsError,
   };
 }

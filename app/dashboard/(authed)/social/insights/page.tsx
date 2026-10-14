@@ -12,7 +12,7 @@ import InsightsShell from "@/components/dashboard/social/insights/InsightsShell"
 import StatTile from "@/components/dashboard/social/insights/StatTile";
 import TrendChart from "@/components/dashboard/social/insights/TrendChart";
 import BarList from "@/components/dashboard/social/insights/BarList";
-import TopPostsTable from "@/components/dashboard/social/insights/TopPostsTable";
+import TopPostsTable, { FORMAT_LABEL } from "@/components/dashboard/social/insights/TopPostsTable";
 import PostingTimesPanel from "@/components/dashboard/social/insights/PostingTimesPanel";
 import type { SocialPlatform } from "@/lib/dashboard/types";
 
@@ -163,6 +163,38 @@ function InstagramBlock({ s, range }: { s: InstagramInsights; range: InsightRang
         </p>
         <TopPostsTable platform="instagram" posts={s.topPosts} />
       </div>
+
+      {s.formats.length > 0 && (
+        <div className={card}>
+          <p className="text-small font-semibold mb-3">
+            By format <span className="font-normal text-ink-subtle">· every post in the last {range} days</span>
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[420px] text-small">
+              <thead>
+                <tr className="border-b border-ink/10 text-ink-subtle">
+                  <th className="text-left font-medium py-2">Format</th>
+                  <th className="text-right font-medium py-2 px-2">Posts</th>
+                  <th className="text-right font-medium py-2 px-2">Avg. likes</th>
+                  <th className="text-right font-medium py-2 px-2">Avg. comments</th>
+                  {!s.insightsError && <th className="text-right font-medium py-2 pl-2">Avg. views</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {s.formats.map((f) => (
+                  <tr key={f.format} className="border-b border-ink/5 last:border-0">
+                    <td className="py-2">{FORMAT_LABEL[f.format]}</td>
+                    <td className="py-2 px-2 text-right tabular-nums">{f.posts}</td>
+                    <td className="py-2 px-2 text-right tabular-nums">{formatNumber(f.avgLikes)}</td>
+                    <td className="py-2 px-2 text-right tabular-nums">{formatNumber(f.avgComments)}</td>
+                    {!s.insightsError && <td className="py-2 pl-2 text-right tabular-nums">{formatNumber(f.avgViews)}</td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <PostingTimesPanel analysis={s.postingTimes} />
     </section>

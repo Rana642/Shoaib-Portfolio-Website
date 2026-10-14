@@ -1,6 +1,8 @@
 import { ExternalLink, ImageOff } from "lucide-react";
 import { formatNumber, formatDate } from "@/lib/dashboard/format";
-import type { PostRow } from "@/lib/social-insights";
+import type { PostFormat, PostRow } from "@/lib/social-insights";
+
+export const FORMAT_LABEL: Record<PostFormat, string> = { reel: "Reel", video: "Video", carousel: "Carousel", image: "Image" };
 
 type Column = { key: "views" | "reach" | "reactions" | "comments" | "shares" | "extra"; label: string };
 
@@ -57,7 +59,10 @@ export default function TopPostsTable({ platform, posts }: { platform: "facebook
                     </div>
                   )}
                   <div className="min-w-0">
-                    <p className="text-tag text-ink-subtle">{formatDate(p.date)}</p>
+                    <p className="text-tag text-ink-subtle">
+                      {formatDate(p.date)}
+                      {p.format && <span className="ml-2 uppercase tracking-wider">{FORMAT_LABEL[p.format]}</span>}
+                    </p>
                     <p className="line-clamp-2 max-w-[28rem]">
                       {p.text || <span className="text-ink-subtle">No caption</span>}
                     </p>
