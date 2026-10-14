@@ -33,7 +33,7 @@ Flag the ones with mistakes here, then schedule the rest.
 Each flagged post becomes status 'needs_changes'. The uploader sees it on their portal Planner (a popup, a banner and a badge on the post) and gets ONE email per call listing all of their flagged posts, with a copy to Shoaib. They use "Replace image" (same day, same slot), and the post comes back to social_list_pending_posts. Posts Shoaib uploaded himself only show the flag on his own Planner.
 
 Args:
-  - posts: [{ postId, issue }], 1–30, all flagged in one batch. issue is plain English for the client's designer: say what is wrong AND what to do, e.g. "The gate photo says 'DHA PESHAWAR' on the guard house, but this post is for DHA Multan. Please use a DHA Multan gate photo."
+  - posts: [{ postId, issue }], 1–30, all flagged in one batch. issue is for the client's designer: say what is wrong AND what to do, ALWAYS in two parts: plain English first, then a blank line and "Roman Urdu: " with the same explanation in simple Roman Urdu, e.g. "The gate photo says 'DHA PESHAWAR' on the guard house, but this post is for DHA Multan. Please use a DHA Multan gate photo.\\n\\nRoman Urdu: Gate ki photo par 'DHA PESHAWAR' likha hai, jabke ye post DHA Multan ki hai. DHA Multan ke gate ki photo lagayein."
   - notify (boolean, default true): false flags without emailing.
 
 Returns: the posts flagged, any skipped (and why), and the emails sent.`,

@@ -4,6 +4,17 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-14 — Avenza posts reviewed + Roman Urdu flag rule
+- Reviewed 20 new portal posts (Avalon 7, Eventia 6, Avenza Land 7).
+  - Flagged 6, with fixes explained in English + Roman Urdu and one email to the uploader:
+    - Land 60: DHA **Lahore** gate photo
+    - Avalon 87: 5-star claim + white dot
+    - Avalon 90: "Jour" script, blue blob, "special offers" with no offer
+    - Eventia 85/86/87: "our venue" claim (Eventia is a planner), "BOOKING NOW", "Apt1"
+  - Captioned and scheduled the other 14 on their planner dates (Jummah posts on Friday 16 and 23 Oct).
+- **New rule:** every `social_request_changes` issue = English + "Roman Urdu:" explanation.
+  - KB global rule `post-flag-roman-urdu`.
+  - Tool description in `lib/post-review-tools.ts`.
 ## 2026-10-13 — NEXT (Saturday 2026-10-17): GoHighLevel-inspired backlog, Shoaib to pick
 Shoaib postponed this to Saturday (weekly limit), so nothing is chosen yet. Ask first and show the design before coding. Recommended order: 1, 2, 4.
 1. **Sales Pipeline board** (Kanban from existing statuses, PKR per column).
