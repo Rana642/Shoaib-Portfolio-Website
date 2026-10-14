@@ -43,7 +43,7 @@ function AdsCard({
   range: InsightRange;
   items: { label: string; ads: number | null; organic: number | null }[];
 }) {
-  const shown = items.filter((i) => i.ads);
+  const shown = items.filter((i) => (i.ads ?? 0) > 0);
   if (shown.length === 0) return null;
   return (
     <div className={card}>

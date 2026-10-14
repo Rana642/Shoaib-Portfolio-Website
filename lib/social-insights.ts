@@ -586,10 +586,13 @@ async function igTotals(igId: string, token: string, windows: Window[], base: st
   const split = results.every((r) => r.split);
   const totalOf = (rows: IgTotalRow[], m: IgMetric) => rows.find((d) => d.name === m)?.total_value?.value ?? 0;
   // Meta leaves zero buckets out, so a missing "AD" row means no ad activity.
+  // Saves / interactions are net of un-saves and un-likes, so a window's AD
+  // share can come back negative — floor it at 0.
   const adOf = (rows: IgTotalRow[], m: IgMetric) =>
-    rows
-      .find((d) => d.name === m)
-      ?.total_value?.breakdowns?.[0]?.results?.find((x) => x.dimension_values[0] === "AD")?.value ?? 0;
+    Math.max(
+      0,
+      rows.find((d) => d.name === m)?.total_value?.breakdowns?.[0]?.results?.find((x) => x.dimension_values[0] === "AD")?.value ?? 0
+    );
   const blank = (m: IgMetric) => windows.length > 1 && IG_UNIQUE.has(m);
 
   const organic = {} as IgTotals;
