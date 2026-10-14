@@ -165,6 +165,10 @@ export type PostRow = {
   extra: number;
   /** Instagram only: what kind of post it is. */
   format?: PostFormat;
+  /** Facebook only: views that came from ads (then `views` is organic only);
+   *  null when Meta didn't split this post. Instagram post figures are
+   *  organic-only at the source. */
+  adViews?: number | null;
 };
 
 export type PostFormat = "reel" | "video" | "carousel" | "image";
@@ -208,11 +212,21 @@ const REACTION_LABELS: Record<string, string> = {
   anger: "Angry",
 };
 
+// Organic vs paid (verified against the live API, 2026-10-14): Page views
+// and video views include ads unless split. page_media_view takes
+// breakdown=is_from_ads and answers with one value per day per side
+// ({ value, end_time, is_from_ads: "0" | "1" }; zero days are left out), as
+// does post_media_view per post. Video views have their own paid/organic
+// metrics. When Meta won't split, the totals show with ads included.
 type FbTotals = {
+  /** Organic when `adViews` isn't null; otherwise organic + ads. */
   views: number;
+  adViews: number | null;
   engagements: number;
   pageVisits: number;
+  /** Organic when `adVideoViews` isn't null; otherwise organic + ads. */
   videoViews: number;
+  adVideoViews: number | null;
   /** De-duplicated viewers across the whole range — 7/28-day ranges only. */
   viewers: number | null;
   avgDailyViewers: number;
@@ -241,6 +255,71 @@ async function fbDaily(pageId: string, token: string, w: Window): Promise<Map<st
     access_token: token,
   });
   return new Map(data.filter((r) => r.period === "day").map((r) => [r.name, r.values]));
+}
+
+type SplitValue = DailyValue & { is_from_ads?: string };
+
+/** Daily Page views split into organic and ads; null when Meta won't split. */
+async function fbViewsSplit(pageId: string, token: string, w: Window): Promise<{ organic: TrendPoint[]; ads: TrendPoint[] } | null> {
+  try {
+    const { data } = await graphGet<{ data: { name: string; period: string; values: SplitValue[] }[] }>(`/${pageId}/insights`, {
+      metric: "page_media_view",
+      breakdown: "is_from_ads",
+      period: "day",
+      since: String(w.since),
+      until: String(w.until),
+      access_token: token,
+    });
+    const values = data.find((r) => r.name === "page_media_view" && r.period === "day")?.values ?? [];
+    if (values.length && !values.some((v) => v.is_from_ads !== undefined)) return null;
+    return {
+      organic: toSeries(values.filter((v) => v.is_from_ads === "0")),
+      ads: toSeries(values.filter((v) => v.is_from_ads === "1")),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Video views (3 s+) split into organic and promoted; null when unavailable. */
+async function fbVideoSplit(pageId: string, token: string, w: Window): Promise<{ organic: number; ads: number } | null> {
+  try {
+    const { data } = await graphGet<{ data: InsightRow[] }>(`/${pageId}/insights`, {
+      metric: "page_video_views_organic,page_video_views_paid",
+      period: "day",
+      since: String(w.since),
+      until: String(w.until),
+      access_token: token,
+    });
+    const total = (name: string) => sumOf(toSeries(data.find((r) => r.name === name && r.period === "day")?.values));
+    return { organic: total("page_video_views_organic"), ads: total("page_video_views_paid") };
+  } catch {
+    return null;
+  }
+}
+
+/** Per-post organic / ad views, one request per post (Meta has no bulk form
+ *  for a broken-down post metric). Posts Meta won't split are left out. */
+async function fbPostSplit(postIds: string[], token: string): Promise<Map<string, { organic: number; ads: number }>> {
+  const out = new Map<string, { organic: number; ads: number }>();
+  await Promise.all(
+    postIds.map(async (id) => {
+      try {
+        const { data } = await graphGet<{ data: { name: string; values: SplitValue[] }[] }>(`/${id}/insights`, {
+          metric: "post_media_view",
+          breakdown: "is_from_ads",
+          access_token: token,
+        });
+        const values = data.find((r) => r.name === "post_media_view")?.values ?? [];
+        if (!values.some((v) => v.is_from_ads !== undefined)) return;
+        const side = (flag: string) => values.filter((v) => v.is_from_ads === flag).reduce((s, v) => s + (typeof v.value === "number" ? v.value : 0), 0);
+        out.set(id, { organic: side("0"), ads: side("1") });
+      } catch {
+        /* this post keeps its combined total */
+      }
+    })
+  );
+  return out;
 }
 
 /** Only Meta's own week / 28-day rollups give a true de-duplicated viewer
@@ -304,14 +383,21 @@ async function fbPosts(pageId: string, token: string, w: Window): Promise<PostRo
   });
 }
 
-function fbTotals(daily: Map<string, DailyValue[]>, viewers: number | null): FbTotals {
+function fbTotals(
+  daily: Map<string, DailyValue[]>,
+  viewers: number | null,
+  views: { organic: TrendPoint[]; ads: TrendPoint[] } | null,
+  video: { organic: number; ads: number } | null
+): FbTotals {
   const s = (name: string) => toSeries(daily.get(name));
   const dailyViewers = s("page_total_media_view_unique");
   return {
-    views: sumOf(s("page_media_view")),
+    views: views ? sumOf(views.organic) : sumOf(s("page_media_view")),
+    adViews: views ? sumOf(views.ads) : null,
     engagements: sumOf(s("page_post_engagements")),
     pageVisits: sumOf(s("page_views_total")),
-    videoViews: sumOf(s("page_video_views")),
+    videoViews: video ? video.organic : sumOf(s("page_video_views")),
+    adVideoViews: video ? video.ads : null,
     viewers,
     avgDailyViewers: dailyViewers.length ? sumOf(dailyViewers) / dailyViewers.length : 0,
     netFollows: sumOf(s("page_daily_follows_unique")) - sumOf(s("page_daily_unfollows_unique")),
@@ -324,13 +410,28 @@ async function facebookInsights(account: ClientSocialAccount, rangeDays: Insight
   const [cur] = windowsFor(rangeDays, 0);
   const [prev] = windowsFor(rangeDays, rangeDays);
 
-  const [curDaily, prevDaily, curViewers, prevViewers, posts] = await Promise.all([
+  const [curDaily, prevDaily, curViewers, prevViewers, allPosts, curViews, prevViews, curVideo, prevVideo] = await Promise.all([
     fbDaily(pageId, token, cur),
     fbDaily(pageId, token, prev),
     fbUniqueViewers(pageId, token, rangeDays, cur.until),
     fbUniqueViewers(pageId, token, rangeDays, prev.until),
     fbPosts(pageId, token, cur),
+    fbViewsSplit(pageId, token, cur),
+    fbViewsSplit(pageId, token, prev),
+    fbVideoSplit(pageId, token, cur),
+    fbVideoSplit(pageId, token, prev),
   ]);
+  const postSplit = await fbPostSplit(
+    allPosts.map((p) => p.id),
+    token
+  );
+  const posts = allPosts.map((p) => {
+    const split = postSplit.get(p.id);
+    return split ? { ...p, views: split.organic, adViews: split.ads } : { ...p, adViews: null };
+  });
+  // Days with no organic views are left out of Meta's split — chart them as 0.
+  const viewDates = toSeries(curDaily.get("page_media_view")).map((p) => p.date);
+  const organicByDate = new Map((curViews?.organic ?? []).map((p) => [p.date, p.value]));
 
   const reactionTotals = new Map<string, number>();
   for (const v of curDaily.get("page_actions_post_reactions_total") ?? []) {
@@ -343,10 +444,12 @@ async function facebookInsights(account: ClientSocialAccount, rangeDays: Insight
     platform: "facebook",
     label: account.label,
     followers: followers.at(-1)?.value ?? null,
-    current: fbTotals(curDaily, curViewers),
-    previous: fbTotals(prevDaily, prevViewers),
+    current: fbTotals(curDaily, curViewers, curViews, curVideo),
+    previous: fbTotals(prevDaily, prevViewers, prevViews, prevVideo),
     series: {
-      views: toSeries(curDaily.get("page_media_view")),
+      views: curViews
+        ? viewDates.map((date) => ({ date, value: organicByDate.get(date) ?? 0 }))
+        : toSeries(curDaily.get("page_media_view")),
       engagements: toSeries(curDaily.get("page_post_engagements")),
       followers,
     },
@@ -361,20 +464,18 @@ async function facebookInsights(account: ClientSocialAccount, rangeDays: Insight
 
 // ── Instagram ─────────────────────────────────────────────────
 
-const IG_TOTAL_METRICS = [
-  "reach",
-  "views",
-  "accounts_engaged",
-  "total_interactions",
-  "likes",
-  "comments",
-  "shares",
-  "saves",
-  "profile_views",
-  "profile_links_taps",
-  "website_clicks",
-] as const;
+// Account-level Instagram totals include ads (Meta: "including in ads").
+// These metrics take breakdown=media_product_type, whose "AD" share is the
+// paid part — subtracted to leave the organic figure (verified live
+// 2026-10-14). The others can't be split and include ads. Per-post figures
+// (views, reach, likes, comments, shares, saves) are organic-only at source.
+const IG_SPLIT_METRICS = ["reach", "views", "total_interactions", "likes", "comments", "shares", "saves"] as const;
+const IG_PLAIN_METRICS = ["accounts_engaged", "profile_views", "profile_links_taps", "website_clicks"] as const;
+const IG_TOTAL_METRICS = [...IG_SPLIT_METRICS, ...IG_PLAIN_METRICS] as const;
 type IgMetric = (typeof IG_TOTAL_METRICS)[number];
+type IgSplitMetric = (typeof IG_SPLIT_METRICS)[number];
+/** What came from ads, per splittable metric; null = Meta didn't split. */
+export type IgAdTotals = Record<IgSplitMetric, number | null>;
 // Unique-person counts: a 90-day total can't be built by adding up three
 // 30-day windows (anyone active in two windows would be counted twice), so
 // those two go blank past 30 days rather than showing an inflated number.
@@ -386,8 +487,12 @@ export type InstagramInsights = {
   label: string;
   username: string | null;
   followers: number | null;
+  /** Organic for the IG_SPLIT_METRICS when `ads` isn't null (reach then is
+   *  "at least": anyone who saw both an ad and a post counts once). */
   current: IgTotals;
   previous: IgTotals;
+  /** The paid part of the current period; null when Meta didn't split. */
+  ads: IgAdTotals | null;
   series: { reach: TrendPoint[] };
   interactions: { label: string; value: number }[];
   profileActivity: { label: string; value: number }[];
@@ -446,27 +551,62 @@ async function igAudience(igId: string, token: string, host: string): Promise<Ig
 
 const emptyIgTotals = () => Object.fromEntries(IG_TOTAL_METRICS.map((m) => [m, null])) as IgTotals;
 
-async function igTotals(igId: string, token: string, windows: Window[], base: string): Promise<IgTotals> {
-  const results = await Promise.all(
-    windows.map((w) =>
-      graphGet<{ data: { name: string; total_value?: { value?: number } }[] }>(`/${igId}/insights`, {
-        metric: IG_TOTAL_METRICS.join(","),
+type IgTotalRow = {
+  name: string;
+  total_value?: { value?: number; breakdowns?: { results?: { dimension_values: string[]; value: number }[] }[] };
+};
+
+/** One window: every metric's total, plus the "AD" share of the splittable
+ *  ones (null when Meta refused the breakdown — then totals include ads). */
+async function igWindow(igId: string, token: string, w: Window, base: string): Promise<{ rows: IgTotalRow[]; split: boolean }> {
+  const ask = (metrics: readonly string[], breakdown?: string) =>
+    graphGet<{ data: IgTotalRow[] }>(
+      `/${igId}/insights`,
+      {
+        metric: metrics.join(","),
         period: "day",
         metric_type: "total_value",
+        ...(breakdown ? { breakdown } : {}),
         since: String(w.since),
         until: String(w.until),
         access_token: token,
-      }, base)
-    )
-  );
-  const out = {} as IgTotals;
+      },
+      base
+    ).then((r) => r.data);
+  const [plain, splitRows] = await Promise.all([
+    ask(IG_PLAIN_METRICS),
+    ask(IG_SPLIT_METRICS, "media_product_type").catch(() => null),
+  ]);
+  if (splitRows) return { rows: [...plain, ...splitRows], split: true };
+  return { rows: [...plain, ...(await ask(IG_SPLIT_METRICS))], split: false };
+}
+
+async function igTotals(igId: string, token: string, windows: Window[], base: string): Promise<{ organic: IgTotals; ads: IgAdTotals | null }> {
+  const results = await Promise.all(windows.map((w) => igWindow(igId, token, w, base)));
+  const split = results.every((r) => r.split);
+  const totalOf = (rows: IgTotalRow[], m: IgMetric) => rows.find((d) => d.name === m)?.total_value?.value ?? 0;
+  // Meta leaves zero buckets out, so a missing "AD" row means no ad activity.
+  const adOf = (rows: IgTotalRow[], m: IgMetric) =>
+    rows
+      .find((d) => d.name === m)
+      ?.total_value?.breakdowns?.[0]?.results?.find((x) => x.dimension_values[0] === "AD")?.value ?? 0;
+  const blank = (m: IgMetric) => windows.length > 1 && IG_UNIQUE.has(m);
+
+  const organic = {} as IgTotals;
   for (const m of IG_TOTAL_METRICS) {
-    out[m] =
-      windows.length > 1 && IG_UNIQUE.has(m)
-        ? null
-        : results.reduce((sum, r) => sum + (r.data.find((d) => d.name === m)?.total_value?.value ?? 0), 0);
+    organic[m] = blank(m)
+      ? null
+      : results.reduce(
+          (sum, r) => sum + totalOf(r.rows, m) - (split && (IG_SPLIT_METRICS as readonly string[]).includes(m) ? adOf(r.rows, m) : 0),
+          0
+        );
   }
-  return out;
+  let ads: IgAdTotals | null = null;
+  if (split) {
+    ads = {} as IgAdTotals;
+    for (const m of IG_SPLIT_METRICS) ads[m] = blank(m) ? null : results.reduce((sum, r) => sum + adOf(r.rows, m), 0);
+  }
+  return { organic, ads };
 }
 
 /** Daily reach stitches cleanly across 30-day windows — each day's value
@@ -559,10 +699,11 @@ async function instagramInsights(account: ClientSocialAccount, rangeDays: Insigh
       insightsError ??= e instanceof Error ? e.message : String(e);
       return empty;
     });
-  const [profile, current, previous, reach, media, audience] = await Promise.all([
+  const noTotals = () => ({ organic: emptyIgTotals(), ads: null });
+  const [profile, { organic: current, ads }, { organic: previous }, reach, media, audience] = await Promise.all([
     graphGet<{ username?: string; followers_count?: number }>(`/${igId}`, { fields: "username,followers_count", access_token: token }, host),
-    orEmpty(igTotals(igId, token, curWindows, host), emptyIgTotals()),
-    orEmpty(igTotals(igId, token, prevWindows, host), emptyIgTotals()),
+    orEmpty(igTotals(igId, token, curWindows, host), noTotals()),
+    orEmpty(igTotals(igId, token, prevWindows, host), noTotals()),
     orEmpty(igReachSeries(igId, token, curWindows, host), [] as TrendPoint[]),
     igMedia(igId, token, curWindows[0].since, host),
     igAudience(igId, token, host).catch(() => null),
@@ -575,6 +716,7 @@ async function instagramInsights(account: ClientSocialAccount, rangeDays: Insigh
     followers: profile.followers_count ?? null,
     current,
     previous,
+    ads,
     series: { reach },
     interactions: [
       { label: "Likes", value: current.likes ?? 0 },

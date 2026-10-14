@@ -72,6 +72,9 @@ export default function TopPostsTable({ platform, posts }: { platform: "facebook
               {cols.map((c) => (
                 <td key={c.key} className="py-2.5 px-2 text-right tabular-nums">
                   {formatNumber(p[c.key])}
+                  {c.key === "views" && p.adViews ? (
+                    <span className="block text-tag text-ink-subtle whitespace-nowrap">+{formatNumber(p.adViews)} ads</span>
+                  ) : null}
                 </td>
               ))}
               <td className="py-2.5 pl-2 text-right">

@@ -11,12 +11,15 @@ export default function StatTile({
   previous,
   comparisonLabel,
   note,
+  extra,
 }: {
   label: string;
   value: number | null;
   previous?: number | null;
   comparisonLabel?: string;
   note?: string;
+  /** A second line that always shows, e.g. what came from ads on top. */
+  extra?: string;
 }) {
   const delta = value != null && previous != null && previous > 0 ? (value - previous) / previous : null;
   const up = delta != null && delta > 0.0005;
@@ -44,6 +47,7 @@ export default function StatTile({
       ) : note ? (
         <p className="mt-2.5 text-tag text-ink-subtle">{note}</p>
       ) : null}
+      {extra && <p className="mt-1.5 text-tag text-ink-subtle">{extra}</p>}
     </div>
   );
 }

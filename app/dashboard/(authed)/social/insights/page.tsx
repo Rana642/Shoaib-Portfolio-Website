@@ -1,5 +1,5 @@
 import { listProjectOptions } from "@/lib/dashboard/projects";
-import { formatNumber } from "@/lib/dashboard/format";
+import { formatCompact, formatNumber } from "@/lib/dashboard/format";
 import {
   getProjectInsights,
   type FacebookInsights,
@@ -30,6 +30,44 @@ function postCountLabel(n: number): string {
   return `${n} post${n === 1 ? "" : "s"}`;
 }
 
+/** "+80.9K more from ads" under an organic figure; nothing when there were no ads. */
+function fromAds(n: number | null | undefined): string | undefined {
+  return n ? `+${formatCompact(n)} more from ads` : undefined;
+}
+
+/** What the paid side added in the period, beside the organic tiles above. */
+function AdsCard({
+  range,
+  items,
+}: {
+  range: InsightRange;
+  items: { label: string; ads: number | null; organic: number | null }[];
+}) {
+  const shown = items.filter((i) => i.ads);
+  if (shown.length === 0) return null;
+  return (
+    <div className={card}>
+      <p className="text-small font-semibold">
+        From ads <span className="font-normal text-ink-subtle">· paid, last {range} days · kept out of the figures above</span>
+      </p>
+      <dl className="mt-4 grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-4">
+        {shown.map((i) => {
+          const all = (i.ads ?? 0) + (i.organic ?? 0);
+          return (
+            <div key={i.label}>
+              <dt className="text-tag text-ink-subtle">{i.label}</dt>
+              <dd className="text-body-lg font-semibold tabular-nums">{formatNumber(i.ads)}</dd>
+              {i.organic != null && all > 0 && (
+                <dd className="text-tag text-ink-subtle">{Math.round(((i.ads ?? 0) / all) * 100)}% of all</dd>
+              )}
+            </div>
+          );
+        })}
+      </dl>
+    </div>
+  );
+}
+
 function PlatformTag({ platform }: { platform: SocialPlatform }) {
   return (
     <span className="font-mono uppercase text-tag tracking-widest text-ink-subtle border border-ink/15 rounded-full px-2.5 py-1">
@@ -40,6 +78,9 @@ function PlatformTag({ platform }: { platform: SocialPlatform }) {
 
 function FacebookBlock({ s, range }: { s: FacebookInsights; range: InsightRange }) {
   const cmp = `vs previous ${range} days`;
+  const split = s.current.adViews != null;
+  const hadAds = Boolean(s.current.adViews || s.current.adVideoViews);
+  const inclAds = hadAds ? "Includes ads" : undefined;
   return (
     <section className="space-y-4">
       <header className="flex flex-wrap items-center gap-3">
@@ -52,24 +93,55 @@ function FacebookBlock({ s, range }: { s: FacebookInsights; range: InsightRange 
 
       <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-4">
         <StatTile label="Followers" value={s.followers} note={`${signed(s.current.netFollows)} net in ${range} days`} />
-        <StatTile label="Views" value={s.current.views} previous={s.previous.views} comparisonLabel={cmp} />
+        <StatTile
+          label={split ? "Organic views" : "Views"}
+          value={s.current.views}
+          previous={s.previous.views}
+          comparisonLabel={cmp}
+          extra={fromAds(s.current.adViews)}
+        />
         {s.current.viewers != null ? (
-          <StatTile label="Viewers" value={s.current.viewers} previous={s.previous.viewers} comparisonLabel={cmp} />
+          <StatTile label="Viewers" value={s.current.viewers} previous={s.previous.viewers} comparisonLabel={cmp} extra={inclAds} />
         ) : (
           <StatTile
             label="Avg. daily viewers"
             value={s.current.avgDailyViewers}
             previous={s.previous.avgDailyViewers}
             comparisonLabel={cmp}
+            extra={inclAds}
           />
         )}
-        <StatTile label="Post engagements" value={s.current.engagements} previous={s.previous.engagements} comparisonLabel={cmp} />
-        <StatTile label="Page visits" value={s.current.pageVisits} previous={s.previous.pageVisits} comparisonLabel={cmp} />
-        <StatTile label="Video views" value={s.current.videoViews} previous={s.previous.videoViews} comparisonLabel={cmp} />
+        <StatTile
+          label="Post engagements"
+          value={s.current.engagements}
+          previous={s.previous.engagements}
+          comparisonLabel={cmp}
+          extra={inclAds}
+        />
+        <StatTile label="Page visits" value={s.current.pageVisits} previous={s.previous.pageVisits} comparisonLabel={cmp} extra={inclAds} />
+        <StatTile
+          label={s.current.adVideoViews != null ? "Organic video views" : "Video views"}
+          value={s.current.videoViews}
+          previous={s.previous.videoViews}
+          comparisonLabel={cmp}
+          extra={fromAds(s.current.adVideoViews)}
+        />
       </div>
 
+      <AdsCard
+        range={range}
+        items={[
+          { label: "Views", ads: s.current.adViews, organic: s.current.views },
+          { label: "Video views (3 s+)", ads: s.current.adVideoViews, organic: s.current.videoViews },
+        ]}
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <TrendChart title="Views per day" description="Times your posts and Page content were shown" points={s.series.views} />
+        <TrendChart
+          title={split ? "Organic views per day" : "Views per day"}
+          description={split ? "Times your posts and Page content were shown, ads left out" : "Times your posts and Page content were shown"}
+          points={s.series.views}
+        />
         <TrendChart
           title="Post engagements per day"
           description="Reactions, comments, shares and clicks"
@@ -85,7 +157,10 @@ function FacebookBlock({ s, range }: { s: FacebookInsights; range: InsightRange 
         </div>
         <div className={`${card} lg:col-span-2`}>
           <p className="text-small font-semibold mb-3">
-            Top posts <span className="font-normal text-ink-subtle">· by views</span>
+            Top posts{" "}
+            <span className="font-normal text-ink-subtle">
+              · by {s.topPosts.some((p) => p.adViews != null) ? "organic " : ""}views
+            </span>
           </p>
           <TopPostsTable platform="facebook" posts={s.topPosts} />
         </div>
@@ -99,6 +174,10 @@ function FacebookBlock({ s, range }: { s: FacebookInsights; range: InsightRange 
 function InstagramBlock({ s, range }: { s: InstagramInsights; range: InsightRange }) {
   const cmp = `vs previous ${range} days`;
   const uniqueNote = "Unique count — Instagram only reports it for 30 days at a time";
+  const a = s.ads;
+  const hadAds = Boolean(a && (a.views || a.reach || a.total_interactions));
+  const inclAds = hadAds ? "Includes ads" : undefined;
+  const organic = (label: string) => (a ? `Organic ${label.toLowerCase()}` : label);
   return (
     <section className="space-y-4">
       <header className="flex flex-wrap items-center gap-3">
@@ -122,44 +201,81 @@ function InstagramBlock({ s, range }: { s: InstagramInsights; range: InsightRang
       <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-4">
         <StatTile label="Followers" value={s.followers} note="Current total" />
         <StatTile
-          label="Reach"
+          label={organic("Reach")}
           value={s.current.reach}
           previous={s.previous.reach}
           comparisonLabel={cmp}
           note={s.current.reach == null ? uniqueNote : undefined}
+          extra={a?.reach ? `At least · ${formatCompact(a.reach)} reached by ads` : undefined}
         />
-        <StatTile label="Views" value={s.current.views} previous={s.previous.views} comparisonLabel={cmp} />
+        <StatTile
+          label={organic("Views")}
+          value={s.current.views}
+          previous={s.previous.views}
+          comparisonLabel={cmp}
+          extra={fromAds(a?.views)}
+        />
         <StatTile
           label="Accounts engaged"
           value={s.current.accounts_engaged}
           previous={s.previous.accounts_engaged}
           comparisonLabel={cmp}
           note={s.current.accounts_engaged == null ? uniqueNote : undefined}
+          extra={inclAds}
         />
         <StatTile
-          label="Interactions"
+          label={organic("Interactions")}
           value={s.current.total_interactions}
           previous={s.previous.total_interactions}
           comparisonLabel={cmp}
+          extra={fromAds(a?.total_interactions)}
         />
-        <StatTile label="Profile views" value={s.current.profile_views} previous={s.previous.profile_views} comparisonLabel={cmp} />
+        <StatTile
+          label="Profile views"
+          value={s.current.profile_views}
+          previous={s.previous.profile_views}
+          comparisonLabel={cmp}
+          extra={inclAds}
+        />
       </div>
 
+      {a && (
+        <AdsCard
+          range={range}
+          items={[
+            { label: "Views", ads: a.views, organic: s.current.views },
+            { label: "Accounts reached", ads: a.reach, organic: null },
+            { label: "Interactions", ads: a.total_interactions, organic: s.current.total_interactions },
+            { label: "Likes", ads: a.likes, organic: s.current.likes },
+            { label: "Comments", ads: a.comments, organic: s.current.comments },
+            { label: "Saves", ads: a.saves, organic: s.current.saves },
+          ]}
+        />
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <TrendChart title="Reach per day" description="Accounts that saw your content each day" points={s.series.reach} />
+        <TrendChart
+          title="Reach per day"
+          description={hadAds ? "Accounts that saw your content each day, ads included" : "Accounts that saw your content each day"}
+          points={s.series.reach}
+        />
         <div className={card}>
-          <p className="text-small font-semibold mb-4">Interactions</p>
+          <p className="text-small font-semibold mb-4">
+            Interactions {a && <span className="font-normal text-ink-subtle">· organic</span>}
+          </p>
           <BarList items={s.interactions} emptyText="No interactions in this period." />
         </div>
         <div className={card}>
-          <p className="text-small font-semibold mb-4">Profile activity</p>
+          <p className="text-small font-semibold mb-4">
+            Profile activity {hadAds && <span className="font-normal text-ink-subtle">· includes ads</span>}
+          </p>
           <BarList items={s.profileActivity} emptyText="No profile activity in this period." />
         </div>
       </div>
 
       <div className={card}>
         <p className="text-small font-semibold mb-3">
-          Top posts <span className="font-normal text-ink-subtle">· by views</span>
+          Top posts <span className="font-normal text-ink-subtle">· by views · organic only (Meta leaves ads out of post figures)</span>
         </p>
         <TopPostsTable platform="instagram" posts={s.topPosts} />
       </div>
