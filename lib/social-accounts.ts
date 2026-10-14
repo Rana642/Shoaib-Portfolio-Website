@@ -355,14 +355,24 @@ export async function saveLinkedInOrgMappings(mappings: { org: DiscoveredOrganiz
  * left alone.
  */
 export async function refreshFacebookPageTokens(): Promise<{ updated: number; missing: string[] }> {
-  const { data: logins } = await db.from("social_connections").select("fb_user_token_encrypted").not("fb_user_token_encrypted", "is", null);
+  // Newest login first, and the first token found for a Page wins: a Page
+  // both profiles can reach takes its token from the login just reconnected,
+  // so newly granted permissions (e.g. instagram_manage_insights) aren't
+  // overwritten by the other login's older grant.
+  const { data: logins } = await db
+    .from("social_connections")
+    .select("fb_user_token_encrypted")
+    .not("fb_user_token_encrypted", "is", null)
+    .order("connected_at", { ascending: false });
   const byPage = new Map<string, string>();
   const byIg = new Map<string, string>();
   for (const l of logins ?? []) {
     try {
       for (const p of await listManagedPages(decryptToken(l.fb_user_token_encrypted as string))) {
-        byPage.set(p.page_id, p.page_access_token);
-        if (p.instagram_business_account_id) byIg.set(p.instagram_business_account_id, p.page_access_token);
+        if (!byPage.has(p.page_id)) byPage.set(p.page_id, p.page_access_token);
+        if (p.instagram_business_account_id && !byIg.has(p.instagram_business_account_id)) {
+          byIg.set(p.instagram_business_account_id, p.page_access_token);
+        }
       }
     } catch {
       /* a dead login just contributes nothing */
