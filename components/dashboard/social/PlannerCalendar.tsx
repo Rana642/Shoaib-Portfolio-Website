@@ -3,25 +3,47 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { DayNote } from "@/lib/planner-day-notes";
-import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard, CircleDashed, AlertTriangle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard, CircleDashed, AlertTriangle, Film, ThumbsUp } from "lucide-react";
 import { clearPostChanges, createPlannerPost, deletePost, movePost, reorderDay } from "@/lib/dashboard/actions/social";
 import { ReplaceImageButton } from "@/components/portal/NeedsChangesAlert";
 import { deletePortalUpload } from "@/lib/portal/planner";
 import PlannerUploader from "@/components/portal/PlannerUploader";
 import { inputClasses, buttonStyles, Card } from "@/components/dashboard/ui";
 import { cn } from "@/lib/utils";
-import { FacebookIcon, InstagramIcon, LinkedinIcon, TikTokIcon } from "@/components/ui/SocialIcons";
-import type { ProjectOption, ScheduledPost } from "@/lib/dashboard/types";
+import { FacebookIcon, InstagramIcon, LinkedinIcon, TikTokIcon, YoutubeIcon } from "@/components/ui/SocialIcons";
+import type { PostType, ProjectOption, ScheduledPost } from "@/lib/dashboard/types";
 
 type PostWithUrl = ScheduledPost & { imageUrl: string | null; coverUrl?: string | null };
 
-/** Reels go to Facebook and Instagram (lib/social-post.ts REEL_PLATFORMS). */
-const REEL_PLATFORMS = ["facebook", "instagram"];
+/** Which platforms take each kind (matches lib/social-post.ts): a photo post
+ *  goes everywhere except YouTube; Reels to Facebook, Instagram, YouTube (as
+ *  a Short) and TikTok; Videos to YouTube, Facebook and TikTok; Stories to
+ *  Facebook and Instagram. */
+type Kind = PostType;
+const KIND_PLATFORMS: Record<Exclude<Kind, "post">, string[]> = {
+  reel: ["facebook", "instagram", "youtube", "tiktok"],
+  video: ["youtube", "facebook", "tiktok"],
+  story: ["facebook", "instagram"],
+};
+const VIDEO_ONLY_PLATFORMS = ["youtube"];
+const takes = (kind: Kind, platform: string) =>
+  kind === "post" ? !VIDEO_ONLY_PLATFORMS.includes(platform) : KIND_PLATFORMS[kind].includes(platform);
+const kindOf = (post: ScheduledPost): Kind => post.post_type ?? "post";
+
+/** The main Planner's tabs; Stories have their own Planner page. */
+type FeedTab = "all" | "post" | "reel" | "video";
+const FEED_TABS: { key: FeedTab; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "post", label: "Posts" },
+  { key: "reel", label: "Reels & Shorts" },
+  { key: "video", label: "Videos" },
+];
+const KIND_NAME: Record<Kind, string> = { post: "post", reel: "Reel / Short", video: "video", story: "story" };
 
 /** A post's picture on the calendar: the photo, or for a Reel its cover
  *  (else the video's first frame) with a small Reel badge. */
 function PostMedia({ post, className, ring, badge = true }: { post: PostWithUrl; className: string; ring: string; badge?: boolean }) {
-  const isVideo = post.post_type === "reel" || isVideoKey(post.media_key);
+  const isVideo = post.post_type === "reel" || post.post_type === "video" || isVideoKey(post.media_key);
   const still = isVideo ? post.coverUrl : post.imageUrl;
   const Kind = KIND_BADGE[post.post_type ?? "post"];
   return (
@@ -50,6 +72,7 @@ const isVideoKey = (key: string) => /\.(mp4|mov)$/i.test(key);
 const KIND_BADGE: Record<string, { label: string; Icon: typeof Clapperboard } | null> = {
   post: null,
   reel: { label: "Reel", Icon: Clapperboard },
+  video: { label: "Video", Icon: Film },
   story: { label: "Story", Icon: CircleDashed },
 };
 type ViewMode = "week" | "month";
@@ -132,6 +155,7 @@ export default function PlannerCalendar({
   plannerPath = "/dashboard/social/planner",
   dayNotes = {},
   weatherCity = null,
+  section = "feed",
 }: {
   projects: ProjectOption[];
   selectedProjectId: string;
@@ -151,9 +175,31 @@ export default function PlannerCalendar({
   dayNotes?: Record<string, DayNote>;
   /** The city the weather is for (null = no city set on the project). */
   weatherCity?: string | null;
+  /** "feed" = the main Planner (Posts, Reels & Shorts, Videos — tabs);
+   *  "stories" = the separate Stories Planner. */
+  section?: "feed" | "stories";
 }) {
   const isClient = mode === "client";
-  const canAdd = !isClient || canUpload;
+  const isStories = section === "stories";
+  // Client uploads (PlannerUploader) are photo posts, so the Stories Planner is view-only for them.
+  const canAdd = !isClient ? true : canUpload && !isStories;
+  const [tab, setTab] = useState<FeedTab>("all");
+  const visiblePosts = useMemo(
+    () => posts.filter((p) => (isStories ? kindOf(p) === "story" : kindOf(p) !== "story" && (tab === "all" || kindOf(p) === tab))),
+    [posts, isStories, tab]
+  );
+  // "Needs caption" count per tab, so waiting work shows from any tab.
+  const waitingByTab = useMemo(() => {
+    const counts: Record<FeedTab, number> = { all: 0, post: 0, reel: 0, video: 0 };
+    for (const p of posts) {
+      const k = kindOf(p);
+      if (k === "story" || p.status !== "pending_caption") continue;
+      counts.all++;
+      counts[k]++;
+    }
+    return counts;
+  }, [posts]);
+  const modalKinds: Kind[] = isStories ? ["story"] : tab === "all" ? ["post", "reel", "video"] : [tab];
   const router = useRouter();
   const [view, setView] = useState<ViewMode>("week");
   const [monthCursor, setMonthCursor] = useState(() => {
@@ -168,14 +214,14 @@ export default function PlannerCalendar({
 
   const postsByDate = useMemo(() => {
     const map = new Map<string, PostWithUrl[]>();
-    for (const p of posts) {
+    for (const p of visiblePosts) {
       if (!p.scheduled_at) continue;
       const key = dateKey(p.scheduled_at);
       map.set(key, [...(map.get(key) ?? []), p]);
     }
     for (const rows of map.values()) rows.sort((a, b) => (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""));
     return map;
-  }, [posts]);
+  }, [visiblePosts]);
 
   // Filename → the date it's already scheduled on, so a bulk upload can
   // recognize "this exact file was already added before" (e.g. Shoaib
@@ -280,6 +326,30 @@ export default function PlannerCalendar({
 
   return (
     <div className="space-y-5">
+      {!isStories && (
+        <div className="flex flex-wrap items-center gap-1 border-b border-ink/10" role="tablist" aria-label="What to show">
+          {FEED_TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.key}
+              onClick={() => setTab(t.key)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-2 -mb-px border-b-2 text-small font-medium transition-colors cursor-pointer",
+                tab === t.key ? "border-citrus text-ink" : "border-transparent text-ink-muted hover:text-ink"
+              )}
+            >
+              {t.label}
+              {!isClient && waitingByTab[t.key] > 0 && (
+                <span className="rounded-full bg-citrus/25 px-1.5 text-tag tabular-nums" title="Waiting for a caption">
+                  {waitingByTab[t.key]}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1 rounded-lg border border-ink/15 p-1 w-fit">
           {(["week", "month"] as ViewMode[]).map((v) => (
@@ -351,7 +421,7 @@ export default function PlannerCalendar({
               ))}
             </select>
           )}
-          {!isClient && (
+          {!isClient && !isStories && (tab === "all" || tab === "post") && (
             <button type="button" onClick={() => setBulkOpen(true)} className={buttonStyles.secondary}>
               <UploadCloud className="size-4" aria-hidden />
               Bulk upload
@@ -492,6 +562,7 @@ export default function PlannerCalendar({
       {uploadDate && !isClient && (
         <UploadModal
           date={uploadDate}
+          kinds={modalKinds}
           projectId={selectedProjectId}
           connectedPlatforms={connectedPlatforms}
           existingByFilename={existingByFilename}
@@ -666,6 +737,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   instagram: "Instagram",
   linkedin: "LinkedIn",
   tiktok: "TikTok",
+  youtube: "YouTube",
   google_business: "Google Business",
 };
 
@@ -674,6 +746,7 @@ const PLATFORM_ICONS: Record<string, React.ComponentType<React.SVGProps<SVGSVGEl
   instagram: InstagramIcon,
   linkedin: LinkedinIcon,
   tiktok: TikTokIcon,
+  youtube: YoutubeIcon,
   google_business: MapPin as unknown as React.ComponentType<React.SVGProps<SVGSVGElement>>,
 };
 
@@ -683,12 +756,16 @@ const PLATFORM_ICONS: Record<string, React.ComponentType<React.SVGProps<SVGSVGEl
  *  batches still go through Bulk upload; this is for a single, deliberate post. */
 function UploadModal({
   date,
+  kinds,
   projectId,
   connectedPlatforms,
   existingByFilename,
   onClose,
 }: {
   date: string;
+  /** What this Planner can create here: the open tab's kind, or (on "All")
+   *  post / Reel / video with a switcher. */
+  kinds: Kind[];
   projectId: string;
   connectedPlatforms: string[];
   /** Filename → date it's already scheduled on — warns instead of letting
@@ -697,15 +774,17 @@ function UploadModal({
   onClose: () => void;
 }) {
   const [caption, setCaption] = useState("");
-  // A photo post, a video Reel, or a Story (photo or video) — Reels and
-  // Stories go to Facebook + Instagram.
-  const [kind, setKind] = useState<"post" | "reel" | "story">("post");
-  const reelPlatforms = connectedPlatforms.filter((p) => REEL_PLATFORMS.includes(p));
+  // A photo post, a vertical Reel/Short, a landscape/long Video, or a Story.
+  const [kind, setKind] = useState<Kind>(kinds[0]);
+  const reelPlatforms = connectedPlatforms.filter((p) => takes(kind, p));
+  // YouTube's title (Videos, and Reels going up as Shorts) and a Video's privacy.
+  const [videoTitle, setVideoTitle] = useState("");
+  const [videoPrivacy, setVideoPrivacy] = useState<"public" | "unlisted" | "private">("public");
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [videoSeconds, setVideoSeconds] = useState<number | null>(null);
   // Defaults to every connected platform selected — matches the original
   // "one image goes everywhere" behavior unless something's deselected.
-  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(() => new Set(connectedPlatforms));
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(() => new Set(connectedPlatforms.filter((p) => takes(kinds[0], p))));
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -715,7 +794,7 @@ function UploadModal({
   const [duplicateDate, setDuplicateDate] = useState<string | null>(null);
 
   const togglePlatform = (platform: string) => {
-    if (kind !== "post" && !REEL_PLATFORMS.includes(platform)) return;
+    if (!takes(kind, platform)) return;
     setSelectedPlatforms((prev) => {
       const next = new Set(prev);
       if (next.has(platform)) next.delete(platform);
@@ -724,7 +803,7 @@ function UploadModal({
     });
   };
 
-  const switchKind = (next: "post" | "reel" | "story") => {
+  const switchKind = (next: Kind) => {
     if (next === kind) return;
     setKind(next);
     setFile(null);
@@ -736,15 +815,15 @@ function UploadModal({
     setVideoSeconds(null);
     setDuplicateDate(null);
     setError(null);
-    setSelectedPlatforms(new Set(next === "post" ? connectedPlatforms : reelPlatforms));
+    setSelectedPlatforms(new Set(connectedPlatforms.filter((p) => takes(next, p))));
   };
 
   const pickFile = (picked: File | null) => {
     if (!picked) return;
     setError(null);
     const pickedVideo = picked.type === "video/mp4" || picked.type === "video/quicktime";
-    if (kind === "reel" && !pickedVideo) {
-      setError("Choose an MP4 or MOV video for a Reel.");
+    if ((kind === "reel" || kind === "video") && !pickedVideo) {
+      setError(`Choose an MP4 or MOV video for a ${kind === "reel" ? "Reel" : "video"}.`);
       return;
     }
     if (kind === "story" && !pickedVideo && !["image/jpeg", "image/png", "image/webp"].includes(picked.type)) {
@@ -777,11 +856,17 @@ function UploadModal({
 
   const onSubmit = async () => {
     if (!file) {
-      setError(kind === "reel" ? "Choose a video first." : kind === "story" ? "Choose an image or a video first." : "Choose an image first.");
+      setError(kind === "reel" || kind === "video" ? "Choose a video first." : kind === "story" ? "Choose an image or a video first." : "Choose an image first.");
       return;
     }
     if (kind !== "post" && reelPlatforms.length === 0) {
-      setError(`${kind === "reel" ? "Reels" : "Stories"} go to Facebook and Instagram — connect one of them for this project first.`);
+      setError(
+        kind === "reel"
+          ? "Reels go to Facebook, Instagram, YouTube and TikTok — connect one of them for this project first."
+          : kind === "video"
+            ? "Videos go to YouTube, Facebook and TikTok — connect one of them for this project first."
+            : "Stories go to Facebook and Instagram — connect one of them for this project first."
+      );
       return;
     }
     if (connectedPlatforms.length > 0 && selectedPlatforms.size === 0) {
@@ -800,6 +885,25 @@ function UploadModal({
       }
       if (selectedPlatforms.has("instagram") && (videoSeconds < 3 || videoSeconds > 900)) {
         setError(`Instagram Reels must be 3 seconds to 15 minutes; this video is ${secs}s.`);
+        return;
+      }
+      if (selectedPlatforms.has("youtube") && videoSeconds > 180) {
+        setError(`YouTube Shorts can be up to 3 minutes; this video is ${secs}s. Untick YouTube or post it from the Videos tab.`);
+        return;
+      }
+      if (selectedPlatforms.has("tiktok") && videoSeconds > 600) {
+        setError(`TikTok takes videos up to 10 minutes; this video is ${secs}s.`);
+        return;
+      }
+    }
+    if (kind === "video" && videoSeconds != null) {
+      const secs = Math.round(videoSeconds);
+      if (selectedPlatforms.has("youtube") && videoSeconds > 900) {
+        setError(`YouTube takes videos over 15 minutes only from verified channels; this video is ${secs}s. Verify the channel at youtube.com/verify or trim it.`);
+        return;
+      }
+      if (selectedPlatforms.has("tiktok") && videoSeconds > 600) {
+        setError(`TikTok takes videos up to 10 minutes; this video is ${secs}s. Untick TikTok or trim it.`);
         return;
       }
     }
@@ -824,7 +928,7 @@ function UploadModal({
         return urlBody.key as string;
       };
       const mediaKey = await upload(file);
-      const coverKey = kind === "reel" && coverFile ? await upload(coverFile) : null;
+      const coverKey = (kind === "reel" || kind === "video") && coverFile ? await upload(coverFile) : null;
 
       const fd = new FormData();
       fd.set("project_id", projectId);
@@ -836,13 +940,15 @@ function UploadModal({
       if (kind !== "post") {
         fd.set("post_type", kind);
         if (coverKey) fd.set("cover_key", coverKey);
-        // A Reel or Story always names its platforms (Facebook and/or Instagram).
-        fd.set("platforms", JSON.stringify([...selectedPlatforms].filter((p) => REEL_PLATFORMS.includes(p))));
+        if (kind !== "story" && selectedPlatforms.has("youtube") && videoTitle.trim()) fd.set("video_title", videoTitle.trim());
+        if (kind === "video" && selectedPlatforms.has("youtube")) fd.set("video_privacy", videoPrivacy);
+        // A Reel, Video or Story always names its platforms.
+        fd.set("platforms", JSON.stringify([...selectedPlatforms].filter((p) => takes(kind, p))));
       }
       // Only send `platforms` when it's a strict subset of every connected
       // platform — otherwise omit it so the post keeps meaning "everywhere
       // this project is connected" even if a new platform gets connected later.
-      const isSubset = selectedPlatforms.size > 0 && selectedPlatforms.size < connectedPlatforms.length;
+      const isSubset = selectedPlatforms.size > 0 && selectedPlatforms.size < connectedPlatforms.filter((p) => takes("post", p)).length;
       if (kind === "post" && isSubset) fd.set("platforms", JSON.stringify([...selectedPlatforms]));
       const result = await createPlannerPost(fd);
       if (result?.error) throw new Error(result.error);
@@ -864,10 +970,11 @@ function UploadModal({
         <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-ink/10">
           <div className="flex items-center gap-4">
             <p className="font-medium">
-              Create {kind} — {date}
+              Create {KIND_NAME[kind]} — {date}
             </p>
+            {kinds.length > 1 && (
             <div className="flex items-center gap-1 rounded-lg border border-ink/15 p-1" role="tablist" aria-label="What to create">
-              {(["post", "reel", "story"] as const).map((k) => (
+              {kinds.map((k) => (
                 <button
                   key={k}
                   type="button"
@@ -880,10 +987,11 @@ function UploadModal({
                     kind === k ? "bg-citrus text-ink" : "text-ink-muted hover:text-ink"
                   )}
                 >
-                  {k}
+                  {k === "reel" ? "Reel / Short" : k}
                 </button>
               ))}
             </div>
+            )}
           </div>
           <button type="button" onClick={onClose} className="text-ink-subtle hover:text-ink text-small">
             Close
@@ -894,7 +1002,7 @@ function UploadModal({
           <div className="flex flex-wrap gap-2 px-6 pt-4">
             {connectedPlatforms.map((platform) => {
               const Icon = PLATFORM_ICONS[platform];
-              const unavailable = kind !== "post" && !REEL_PLATFORMS.includes(platform);
+              const unavailable = !takes(kind, platform);
               const active = !unavailable && selectedPlatforms.has(platform);
               return (
                 <button
@@ -902,7 +1010,17 @@ function UploadModal({
                   type="button"
                   onClick={() => togglePlatform(platform)}
                   disabled={busy || unavailable}
-                  title={unavailable ? "Reels and stories go to Facebook and Instagram for now" : undefined}
+                  title={
+                    unavailable
+                      ? kind === "post"
+                        ? "YouTube takes videos — use Reels & Shorts or Videos"
+                        : kind === "reel"
+                          ? "Reels go to Facebook, Instagram, YouTube and TikTok"
+                          : kind === "video"
+                            ? "Videos go to YouTube, Facebook and TikTok"
+                            : "Stories go to Facebook and Instagram"
+                      : undefined
+                  }
                   className={cn(
                     "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-small font-medium transition-colors",
                     unavailable ? "border-ink/10 text-ink-subtle opacity-50 cursor-not-allowed" : "cursor-pointer",
@@ -943,7 +1061,9 @@ function UploadModal({
                   ? file.name
                   : kind === "reel"
                     ? "Drag & drop or click to choose a video (MP4/MOV, 9:16)"
-                    : kind === "story"
+                    : kind === "video"
+                      ? "Drag & drop or click to choose a video (MP4/MOV, landscape or long)"
+                      : kind === "story"
                       ? "Drag & drop or click to choose a 9:16 image or video (up to 60s)"
                       : "Drag & drop or click to choose an image"}
               </p>
@@ -951,7 +1071,7 @@ function UploadModal({
                 key={kind}
                 type="file"
                 accept={
-                  kind === "reel"
+                  kind === "reel" || kind === "video"
                     ? "video/mp4,video/quicktime"
                     : kind === "story"
                       ? "image/jpeg,image/png,image/webp,video/mp4,video/quicktime"
@@ -969,16 +1089,25 @@ function UploadModal({
                 {videoSeconds != null && ` Length ${Math.round(videoSeconds)}s (3–60s allowed).`}
               </p>
             )}
-            {kind === "reel" && (
+            {kind === "video" && videoSeconds != null && (
+              <p className="text-tag text-ink-subtle">
+                Length {Math.round(videoSeconds)}s · YouTube up to 15 min (longer once the channel is verified), TikTok up to 10 min.
+              </p>
+            )}
+            {(kind === "reel" || kind === "video") && (
               <>
-                {videoSeconds != null && (
+                {kind === "reel" && videoSeconds != null && (
                   <p className="text-tag text-ink-subtle">
-                    Length {Math.round(videoSeconds)}s · Facebook takes 3–90s, Instagram up to 15 min.
+                    Length {Math.round(videoSeconds)}s · Facebook 3–90s, Instagram up to 15 min, YouTube Shorts up to 3 min, TikTok up to 10 min.
                   </p>
                 )}
                 <label className="flex items-center justify-between gap-3 rounded-lg border border-ink/10 px-3 py-2 text-small cursor-pointer">
                   <span className="text-ink-muted truncate">
-                    {coverFile ? `Cover: ${coverFile.name}` : "Cover image (optional — otherwise the first frame)"}
+                    {coverFile
+                      ? `${kind === "video" ? "Thumbnail" : "Cover"}: ${coverFile.name}`
+                      : kind === "video"
+                        ? "Thumbnail (optional, 16:9 JPG/PNG — YouTube)"
+                        : "Cover image (optional — otherwise the first frame)"}
                   </span>
                   <span className={buttonStyles.secondary}>{coverFile ? "Change" : "Choose"}</span>
                   <input
@@ -989,6 +1118,36 @@ function UploadModal({
                     onChange={(e) => setCoverFile(e.target.files?.[0] ?? null)}
                   />
                 </label>
+                {selectedPlatforms.has("youtube") && (
+                  <div className="space-y-2 rounded-lg border border-ink/10 p-3">
+                    <p className="text-tag uppercase tracking-widest text-ink-subtle">YouTube</p>
+                    <input
+                      className={inputClasses}
+                      placeholder={kind === "reel" ? "Short title (optional — else the caption's first line)" : "Video title (else the description's first line)"}
+                      value={videoTitle}
+                      onChange={(e) => setVideoTitle(e.target.value)}
+                      maxLength={100}
+                      disabled={busy}
+                    />
+                    {kind === "video" && (
+                      <select
+                        className={inputClasses}
+                        value={videoPrivacy}
+                        onChange={(e) => setVideoPrivacy(e.target.value as "public" | "unlisted" | "private")}
+                        disabled={busy}
+                        aria-label="YouTube privacy"
+                      >
+                        <option value="public">Public</option>
+                        <option value="unlisted">Unlisted</option>
+                        <option value="private">Private</option>
+                      </select>
+                    )}
+                    <p className="text-tag text-ink-subtle">Until Google approves the YouTube API audit, uploads stay private.</p>
+                  </div>
+                )}
+                {selectedPlatforms.has("tiktok") && (
+                  <p className="text-tag text-ink-subtle">TikTok gets it as a draft in the account&apos;s inbox — add the caption and post it from the TikTok app.</p>
+                )}
               </>
             )}
 
@@ -1003,7 +1162,7 @@ function UploadModal({
                 <textarea
                   className={inputClasses}
                   rows={5}
-                  placeholder="Write a caption…"
+                  placeholder={kind === "video" ? "Write the description…" : kind === "reel" ? "Write a short caption…" : "Write a caption…"}
                   value={caption}
                   onChange={(e) => setCaption(e.target.value)}
                   disabled={busy}
@@ -1021,7 +1180,24 @@ function UploadModal({
               is actually selected instead of one universal look. */}
           <div className="flex flex-col items-center">
             <p className="text-tag uppercase tracking-widest text-ink-subtle mb-2 self-start">Preview</p>
-            {previewPlatform === "tiktok" || kind !== "post" ? (
+            {kind === "video" ? (
+              <div className="w-full max-w-[300px] rounded-lg border border-ink/10 overflow-hidden bg-white">
+                <div className="relative w-full aspect-video bg-ink">
+                  {previewUrl ? (
+                    <video src={previewUrl} muted playsInline controls className="absolute inset-0 size-full object-contain" />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-cloud/40 text-small">No video yet</div>
+                  )}
+                </div>
+                <div className="px-3 py-2.5 space-y-1">
+                  <p className="text-small font-medium line-clamp-2">{videoTitle || caption.split("\n")[0] || "Video title"}</p>
+                  <div className="flex items-center gap-3 text-tag text-ink-subtle">
+                    <span>Shoaib Nabi Noor</span>
+                    <ThumbsUp className="size-3.5" aria-hidden />
+                  </div>
+                </div>
+              </div>
+            ) : previewPlatform === "tiktok" || kind !== "post" ? (
               <div className="relative w-full max-w-[220px] aspect-[9/16] rounded-2xl bg-ink overflow-hidden">
                 {previewUrl && file?.type.startsWith("video/") ? (
                   <video src={previewUrl} autoPlay muted loop playsInline className="absolute inset-0 size-full object-cover" />

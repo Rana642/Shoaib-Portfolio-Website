@@ -329,6 +329,24 @@ async function pagePost<T>(path: string, params: Record<string, string>, pageAcc
   return { body, res };
 }
 
+/** A regular (non-Reel) Page video: Facebook fetches it from `videoUrl`. */
+export async function publishFacebookVideo(
+  pageId: string,
+  pageAccessToken: string,
+  videoUrl: string,
+  title: string | null,
+  description: string
+): Promise<FacebookPostResult> {
+  const { body, res } = await pagePost<{ id?: string }>(
+    `/${pageId}/videos`,
+    { file_url: videoUrl, description, ...(title ? { title } : {}), published: "true" },
+    pageAccessToken,
+    "Facebook video"
+  );
+  if (!body.id) throw new Error("Facebook didn't accept the video.");
+  return { post_id: body.id, usagePercent: peakUsagePercent(res) };
+}
+
 /** A Facebook Page photo Story (Page Stories API): the photo is uploaded
  *  unpublished, then published as a story. Stories can't be scheduled on
  *  Meta's side — the cron calls this at the post's time. */

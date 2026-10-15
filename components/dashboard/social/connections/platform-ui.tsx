@@ -1,5 +1,5 @@
 import { MapPin, Megaphone } from "lucide-react";
-import { FacebookIcon, InstagramIcon, LinkedinIcon, TikTokIcon } from "@/components/ui/SocialIcons";
+import { FacebookIcon, InstagramIcon, LinkedinIcon, TikTokIcon, YoutubeIcon } from "@/components/ui/SocialIcons";
 import { cn } from "@/lib/utils";
 import type { ConnectionStatus, PlatformDef, PlatformKey } from "@/lib/social-platforms";
 
@@ -8,6 +8,7 @@ const ICONS: Record<PlatformKey, React.ComponentType<{ className?: string }>> = 
   instagram: InstagramIcon,
   linkedin: LinkedinIcon,
   tiktok: TikTokIcon,
+  youtube: YoutubeIcon,
   meta_ads: Megaphone,
   google_business: MapPin,
 };

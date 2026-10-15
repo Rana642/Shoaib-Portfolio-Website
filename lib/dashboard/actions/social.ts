@@ -174,8 +174,11 @@ const plannerUploadSchema = z.object({
   // connected accounts" (the original, still-default behavior).
   platforms: z.string().optional(),
   // A video Reel instead of a photo post, with an optional cover image.
-  post_type: z.enum(["post", "reel", "story"]).default("post"),
+  post_type: z.enum(["post", "reel", "story", "video"]).default("post"),
   cover_key: z.string().min(1).optional(),
+  // YouTube's title (max 100) and, for a Video, its privacy.
+  video_title: z.string().trim().max(100).optional(),
+  video_privacy: z.enum(["public", "unlisted", "private"]).optional(),
 });
 
 /** Creates one planner post for the day the user clicked on the calendar —
@@ -193,6 +196,8 @@ export async function createPlannerPost(formData: FormData) {
     platforms: formData.get("platforms") || undefined,
     post_type: formData.get("post_type") || undefined,
     cover_key: formData.get("cover_key") || undefined,
+    video_title: formData.get("video_title") || undefined,
+    video_privacy: formData.get("video_privacy") || undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
@@ -215,7 +220,16 @@ export async function createPlannerPost(formData: FormData) {
       scheduled_at: dateToScheduledAt(parsed.data.date, parsed.data.offset_minutes),
       caption: parsed.data.caption,
       target_platforms: targetPlatforms,
-      ...(parsed.data.post_type !== "post" ? { reel: { post_type: parsed.data.post_type, cover_key: parsed.data.post_type === "reel" ? parsed.data.cover_key ?? null : null } } : {}),
+      ...(parsed.data.post_type !== "post"
+        ? {
+            reel: {
+              post_type: parsed.data.post_type,
+              cover_key: parsed.data.post_type === "story" ? null : parsed.data.cover_key ?? null,
+              video_title: parsed.data.post_type === "story" ? null : parsed.data.video_title ?? null,
+              video_privacy: parsed.data.post_type === "video" ? parsed.data.video_privacy ?? null : null,
+            },
+          }
+        : {}),
     });
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Couldn't queue the upload." };

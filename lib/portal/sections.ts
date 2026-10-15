@@ -1,4 +1,4 @@
-import { BedDouble, CalendarDays, Contact, FileText, Inbox, KeyRound, MessageCircle, UserCircle, Users } from "lucide-react";
+import { BedDouble, CalendarDays, CircleDashed, Contact, FileText, Inbox, KeyRound, MessageCircle, UserCircle, Users } from "lucide-react";
 import type { Section, SectionItem } from "@/lib/dashboard/sections";
 
 /**
@@ -7,7 +7,7 @@ import type { Section, SectionItem } from "@/lib/dashboard/sections";
  * their features allow; empty sections disappear, and a section left with
  * one page is just a link (no menu of its own).
  */
-export type PortalLink = "whatsapp" | "bookings" | "inquiries" | "contacts" | "passwords" | "planner" | "intakes" | "team";
+export type PortalLink = "whatsapp" | "bookings" | "inquiries" | "contacts" | "passwords" | "planner" | "stories" | "intakes" | "team";
 
 const P = "/portal";
 const ITEM: Record<PortalLink, SectionItem> = {
@@ -16,6 +16,7 @@ const ITEM: Record<PortalLink, SectionItem> = {
   inquiries: { href: `${P}/inquiries`, label: "Inquiries", icon: Inbox },
   contacts: { href: `${P}/contacts`, label: "Contacts", icon: Contact },
   planner: { href: `${P}/planner`, label: "Planner", icon: CalendarDays },
+  stories: { href: `${P}/stories`, label: "Stories", icon: CircleDashed },
   passwords: { href: `${P}/passwords`, label: "Passwords", icon: KeyRound },
   intakes: { href: `${P}/intakes`, label: "Intake forms", icon: FileText },
   team: { href: `${P}/team`, label: "Team", icon: Users },
@@ -30,7 +31,7 @@ const LAYOUT: { key: string; label: string; icon: Section["icon"]; description: 
     description: "Bookings, inquiries and guests from your website.",
     links: ["bookings", "inquiries", "contacts"],
   },
-  { key: "planner", label: "Planner", icon: CalendarDays, description: "Your social media calendar.", links: ["planner"] },
+  { key: "planner", label: "Planner", icon: CalendarDays, description: "Your social media calendar.", links: ["planner", "stories"] },
   {
     key: "account",
     label: "Account",

@@ -74,7 +74,7 @@ export type Client = {
   is_active: boolean;
 };
 
-export type SocialPlatform = "facebook" | "instagram" | "linkedin" | "tiktok";
+export type SocialPlatform = "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube";
 
 /** A client_projects row flattened with its parent client's name, for
  *  project-picker dropdowns across the social poster UI/MCP. Social
@@ -126,18 +126,24 @@ export type ScheduledPost = {
   /** Set when a client (or their team) uploaded it from the portal. */
   uploaded_by_email?: string | null;
   client_note?: string | null;
-  /** "reel" = media_key is a video, posted as a Facebook/Instagram Reel;
-   *  absent/"post" = a photo post. ("story" is reserved for Stories.) */
+  /** "reel" = a vertical video (FB/IG Reel, YouTube Short, TikTok);
+   *  "video" = a landscape/long video (YouTube, Facebook, TikTok);
+   *  "story" = a Story; absent/"post" = a photo post. */
   post_type?: PostType;
-  /** Optional cover image for a Reel. */
+  /** Optional cover image for a Reel, or a Video's thumbnail. */
   cover_key?: string | null;
+  /** YouTube title (Videos, and Reels going to YouTube); null = from the caption. */
+  video_title?: string | null;
+  /** YouTube privacy for a Video; null = public. */
+  video_privacy?: VideoPrivacy | null;
   /** What has to change, while status is "needs_changes" (plain English,
    *  shown to the uploader). */
   review_note?: string | null;
   review_flagged_at?: string | null;
 };
 
-export type PostType = "post" | "reel" | "story";
+export type PostType = "post" | "reel" | "story" | "video";
+export type VideoPrivacy = "public" | "unlisted" | "private";
 
 export type ClientProject = {
   id: string;

@@ -705,7 +705,7 @@ create table if not exists client_social_accounts (
 -- `create table if not exists` above only applies to a brand-new database.
 alter table client_social_accounts drop constraint if exists client_social_accounts_platform_check;
 alter table client_social_accounts add constraint client_social_accounts_platform_check
-  check (platform in ('facebook', 'instagram', 'linkedin', 'tiktok'));
+  check (platform in ('facebook', 'instagram', 'linkedin', 'tiktok', 'youtube'));
 alter table client_social_accounts add column if not exists refresh_token_encrypted text;
 
 -- One-time rename from the original client_id design (2026-09-10) — tables
@@ -756,7 +756,13 @@ alter table scheduled_posts add column if not exists target_platforms text[];
 -- reserved for Stories.
 alter table scheduled_posts add column if not exists post_type text not null default 'post';
 alter table scheduled_posts drop constraint if exists scheduled_posts_post_type_check;
-alter table scheduled_posts add constraint scheduled_posts_post_type_check check (post_type in ('post', 'reel', 'story'));
+alter table scheduled_posts add constraint scheduled_posts_post_type_check check (post_type in ('post', 'reel', 'story', 'video'));
+-- Videos (2026-10-15): post_type 'video' = a landscape/long video for
+-- YouTube, Facebook and TikTok. video_title is YouTube's title (Reels use it
+-- too when they go to YouTube as a Short); video_privacy is YouTube's
+-- public/unlisted/private. cover_key doubles as the video's thumbnail.
+alter table scheduled_posts add column if not exists video_title text;
+alter table scheduled_posts add column if not exists video_privacy text;
 alter table scheduled_posts add column if not exists cover_key text;
 
 do $$

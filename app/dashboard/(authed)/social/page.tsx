@@ -3,6 +3,7 @@ import { listProjectOptions, listClientsMissingProject } from "@/lib/dashboard/p
 import { PageHeader } from "@/components/dashboard/ui";
 import ConnectionsHub, { type HubAccount } from "@/components/dashboard/social/connections/ConnectionsHub";
 import { getTikTokAccountSummary } from "@/lib/social-tiktok";
+import { getYouTubeChannelSummary } from "@/lib/social-youtube";
 import { listFacebookLogins } from "@/lib/social-accounts";
 import type { ClientSocialAccount } from "@/lib/dashboard/types";
 
@@ -12,7 +13,7 @@ export const metadata = { title: "Connections" };
 export default async function SocialConnectionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ project?: string; li?: string; li_error?: string; fb?: string; fb_error?: string; instagram?: string; instagram_error?: string }>;
+  searchParams: Promise<{ project?: string; li?: string; li_error?: string; fb?: string; fb_error?: string; instagram?: string; instagram_error?: string; youtube?: string; youtube_error?: string }>;
 }) {
   const params = await searchParams;
   const [projects, clientsMissingProject, { data: accounts }, { data: connection }, fbLogins] = await Promise.all([
@@ -32,6 +33,13 @@ export default async function SocialConnectionsPage({
         const summary = await getTikTokAccountSummary(a);
         return [a.id, summary.ok ? summary.follower_count : null] as const;
       })
+    )
+  );
+  const youtubeSubscribers = Object.fromEntries(
+    await Promise.all(
+      allAccounts
+        .filter((a) => a.platform === "youtube")
+        .map(async (a) => [a.id, (await getYouTubeChannelSummary(a))?.subscribers ?? null] as const)
     )
   );
 
@@ -81,6 +89,7 @@ export default async function SocialConnectionsPage({
         projects={projects}
         accounts={hubAccounts}
         tiktokFollowers={tiktokFollowers}
+        youtubeSubscribers={youtubeSubscribers}
         facebookLogin={{
           provider: "facebook",
           connectedAt: connection?.connected_at ?? null,
@@ -106,7 +115,11 @@ export default async function SocialConnectionsPage({
         initialProjectId={params.project ?? null}
         autoImportFacebook={params.fb === "connected"}
         notice={
-          params.fb_error
+          params.youtube_error
+            ? { kind: "error", text: `YouTube: ${params.youtube_error.slice(0, 300)}` }
+            : params.youtube
+            ? { kind: "ok", text: `YouTube channel ${params.youtube.slice(0, 80)} connected. Until Google's YouTube API audit is approved, videos posted from here upload as private.` }
+            : params.fb_error
             ? { kind: "error", text: `Facebook: ${params.fb_error.slice(0, 300)}` }
             : params.instagram_error
             ? { kind: "error", text: `Instagram: ${params.instagram_error.slice(0, 300)}` }

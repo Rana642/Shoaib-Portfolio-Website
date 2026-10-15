@@ -27,7 +27,7 @@ export async function createScheduledPost(input: {
   fromClient?: { email: string; note: string | null };
   /** A video Reel (with an optional cover image) or a Story, instead of a
    *  photo post. Stories carry no caption, so they're scheduled right away. */
-  reel?: { post_type?: "reel" | "story"; cover_key: string | null };
+  reel?: { post_type?: "reel" | "story" | "video"; cover_key: string | null; video_title?: string | null; video_privacy?: string | null };
 }): Promise<string> {
   const { data, error } = await db
     .from("scheduled_posts")
@@ -45,6 +45,8 @@ export async function createScheduledPost(input: {
       // Only sent for Reels, so photo posts keep working before the
       // post_type/cover_key columns exist.
       ...(input.reel ? { post_type: input.reel.post_type ?? "reel", cover_key: input.reel.cover_key } : {}),
+      ...(input.reel?.video_title ? { video_title: input.reel.video_title } : {}),
+      ...(input.reel?.video_privacy ? { video_privacy: input.reel.video_privacy } : {}),
     })
     .select("id")
     .single();

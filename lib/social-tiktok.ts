@@ -257,6 +257,49 @@ export async function publishTikTokPhotoPost(
   return { publish_id, status: status.status, failReason: status.fail_reason };
 }
 
+/**
+ * Sends a video to the creator's TikTok inbox as a draft (MEDIA_UPLOAD, the
+ * same reason as photo posts above: an unaudited app can't direct-post to a
+ * public account). Unlike photos, videos are pushed as bytes (FILE_UPLOAD)
+ * rather than pulled from a URL, so no media proxy is needed. The video is
+ * read from its R2 download URL in byte ranges: one chunk up to 64 MB,
+ * otherwise 10 MB chunks with the remainder in the last one (TikTok's
+ * chunking rules). The inbox endpoint takes no caption — the creator adds
+ * it when finishing the draft in the TikTok app.
+ */
+export async function publishTikTokVideoDraft(accessToken: string, videoUrl: string): Promise<TikTokPublishResult> {
+  const head = await fetch(videoUrl, { headers: { Range: "bytes=0-0" }, cache: "no-store" });
+  const total = Number(head.headers.get("content-range")?.split("/")[1] ?? head.headers.get("content-length") ?? 0);
+  if (!total) throw new Error("Couldn't read the video's size.");
+  const type = head.headers.get("content-type") || "video/mp4";
+
+  const SINGLE_MAX = 64 * 1024 * 1024;
+  const CHUNK = 10 * 1024 * 1024;
+  const chunkSize = total <= SINGLE_MAX ? total : CHUNK;
+  const count = total <= SINGLE_MAX ? 1 : Math.floor(total / CHUNK);
+
+  const { publish_id, upload_url } = await apiPost<{ publish_id: string; upload_url: string }>("/v2/post/publish/inbox/video/init/", accessToken, {
+    source_info: { source: "FILE_UPLOAD", video_size: total, chunk_size: chunkSize, total_chunk_count: count },
+  });
+
+  for (let i = 0; i < count; i++) {
+    const start = i * chunkSize;
+    const end = i === count - 1 ? total - 1 : start + chunkSize - 1;
+    const part = await fetch(videoUrl, { headers: { Range: `bytes=${start}-${end}` }, cache: "no-store" });
+    if (!part.ok) throw new Error(`Couldn't read the video file (HTTP ${part.status}).`);
+    const bytes = new Uint8Array(await part.arrayBuffer());
+    const put = await fetch(upload_url, {
+      method: "PUT",
+      headers: { "Content-Type": type, "Content-Length": String(bytes.length), "Content-Range": `bytes ${start}-${end}/${total}` },
+      body: bytes,
+    });
+    if (!put.ok) throw new Error(`TikTok video upload failed at part ${i + 1} of ${count} (HTTP ${put.status}).`);
+  }
+
+  const status = await pollTikTokPublishStatus(accessToken, publish_id);
+  return { publish_id, status: status.status, failReason: status.fail_reason };
+}
+
 const MEDIA_URL_TTL_MS = 15 * 60 * 1000;
 
 // encryptToken/decryptToken emit standard base64 (+, /, = padding), which

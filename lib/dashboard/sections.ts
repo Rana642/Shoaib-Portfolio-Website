@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  CircleDashed,
   Calculator,
   CalendarDays,
   ClipboardList,
@@ -158,6 +159,7 @@ export const SECTIONS: Section[] = [
         title: "Social",
         items: [
           { href: `${D}/social/planner`, label: "Planner", icon: CalendarDays },
+          { href: `${D}/social/stories`, label: "Stories", icon: CircleDashed },
           { href: `${D}/social/insights`, label: "Insights", icon: BarChart3 },
         ],
       },

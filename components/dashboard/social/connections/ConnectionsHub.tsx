@@ -39,6 +39,7 @@ export default function ConnectionsHub({
   projects,
   accounts,
   tiktokFollowers,
+  youtubeSubscribers,
   facebookLogin,
   facebookLogin2,
   linkedinLogin,
@@ -50,6 +51,7 @@ export default function ConnectionsHub({
   projects: ProjectOption[];
   accounts: HubAccount[];
   tiktokFollowers: Record<string, number | null>;
+  youtubeSubscribers: Record<string, number | null>;
   facebookLogin: WorkspaceLogin;
   /** A second Facebook profile with access to other clients' Pages. */
   facebookLogin2: WorkspaceLogin;
@@ -161,7 +163,9 @@ export default function ConnectionsHub({
       detail:
         def.key === "tiktok" && tiktokFollowers[r.id] != null
           ? `${tiktokFollowers[r.id]!.toLocaleString()} followers`
-          : undefined,
+          : def.key === "youtube" && youtubeSubscribers[r.id] != null
+            ? `${youtubeSubscribers[r.id]!.toLocaleString()} subscribers`
+            : undefined,
     }));
 
     let note: string | undefined;
@@ -175,6 +179,11 @@ export default function ConnectionsHub({
         ? "Reviews, replies and Planner posts go through Socially Snap, one at a time (Google-friendly pace)."
         : "Connect with Google, or reuse the Google sign-in already connected on another project.";
       action = def.connectHref ? { kind: "link", label: rows.length ? "Open Google Business" : "Connect Google Business", href: def.connectHref(pid) } : null;
+    } else if (def.key === "youtube") {
+      note = rows.length
+        ? "Reels from the Planner go up as Shorts. Until Google's YouTube API audit is approved, they upload as private."
+        : "Sign in with the Google account that owns the channel (or pick its Brand Account).";
+      action = def.connectHref ? { kind: "link", label: rows.length ? "Reconnect" : "Connect YouTube", href: def.connectHref(pid) } : null;
     } else if (def.mode === "project_oauth") {
       note = `Authorize ${def.label} for this project.`;
       action = def.connectHref ? { kind: "link", label: rows.length ? "Connect another" : `Connect ${def.label}`, href: def.connectHref(pid) } : null;

@@ -156,7 +156,7 @@ Args (all optional):
   - dateField ("created_at" | "scheduled_at", default "created_at"): which date from/to apply to. created_at = when it was added.
   - limit (number, default 50, max 200): rows returned (the summary always covers every match).
 
-Returns (JSON): { total, summary: { by_project: [{ project_label, total, added_last_7_days, by_status }], by_status }, posts: [{ id, project_label, filename, status, scheduled_at, created_at, caption_preview, needs_changes }] }`,
+Returns (JSON): { total, summary: { by_project: [{ project_label, total, added_last_7_days, by_status }], by_status }, posts: [{ id, project_label, filename, kind (post | reel | video | story), status, scheduled_at, created_at, caption_preview, needs_changes }] }`,
       inputSchema: {
         project: z.string().min(1).max(120).optional(),
         status: z.union([z.enum(STATUSES), z.array(z.enum(STATUSES)).min(1)]).optional(),
@@ -214,7 +214,7 @@ Returns (JSON): { total, summary: { by_project: [{ project_label, total, added_l
         };
         const [{ data: summaryRows, error: e1 }, { data: rows, error: e2 }] = await Promise.all([
           base("project_id, status, created_at").limit(10000),
-          base("id, project_id, original_filename, status, scheduled_at, created_at, caption, review_note")
+          base("id, project_id, original_filename, status, scheduled_at, created_at, caption, review_note, post_type")
             .order("created_at", { ascending: false })
             .limit(limit),
         ]);
@@ -243,12 +243,14 @@ Returns (JSON): { total, summary: { by_project: [{ project_label, total, added_l
           created_at: string;
           caption: string | null;
           review_note: string | null;
+          post_type: string | null;
         }[]).map((r) => {
           const p = byId.get(r.project_id);
           return {
             id: r.id,
             project_label: p ? label(p) : "Unknown project",
             filename: r.original_filename,
+            kind: r.post_type ?? "post",
             status: r.status,
             scheduled_at: r.scheduled_at,
             created_at: r.created_at,

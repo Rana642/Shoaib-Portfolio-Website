@@ -4,6 +4,39 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-15 — Planner split by kind + YouTube + Videos + TikTok video
+- **Planner tabs:** All · Posts · Reels & Shorts · Videos, with a "needs caption" count on each tab. "+ Add" opens that kind's composer; on "All" the composer has a post / Reel / video switcher.
+- **Stories:** now their own Planner page.
+  - Dashboard: `/dashboard/social/stories`.
+  - Portal: `/portal/stories`, view-only for clients.
+  - Both pages share `PlannerScreen` / `PortalPlannerScreen`.
+- **Which platforms take what** (`lib/social-post.ts`, mirrored in `PlannerCalendar` `takes()`):
+
+  | Kind | Goes to |
+  |---|---|
+  | Post (photo) | Everywhere except YouTube |
+  | Reel | FB, IG, YouTube Short, TikTok |
+  | Video (new `post_type`) | YouTube, Facebook (`/videos`), TikTok |
+  | Story | FB, IG |
+
+- **YouTube** (`lib/social-youtube.ts`):
+  - **Connect:** per-project Google OAuth on the "gmb" Socially Snap client. It reuses `/api/gbp/callback` with `state="yt:<project>"`, so no new redirect URI is needed.
+  - **Upload:** resumable, streamed from R2. Reels get `#Shorts`. Videos carry a title, privacy and thumbnail.
+  - **Connections:** tile with the subscriber count.
+- **TikTok video:** sent to the inbox as a draft (FILE_UPLOAD, chunked byte ranges from R2). The creator adds the caption in the app.
+- **SQL run:**
+  - `client_social_accounts` platform check now allows `youtube`.
+  - `scheduled_posts.post_type` now allows `video`.
+  - New columns `video_title` and `video_privacy`.
+- **MCP:** `social_list_posts` now returns `kind`. The daily 5 PM task captions per kind, and its limit is now 1 per kind per project per day.
+- **Still to do (Shoaib):**
+  - Enable YouTube Data API v3 + YouTube Analytics API on the socially-snap GCP project.
+  - Add the `youtube.upload`, `youtube.readonly` and `yt-analytics.readonly` scopes to the consent screen.
+  - Apply for the YouTube API audit (until it passes, uploads stay private).
+- **Not yet tested:**
+  - Not browser-tested (needs a dashboard login); only tsc and eslint ran.
+  - The cron has `maxDuration` 60s, so very large videos may not finish in one run.
+
 ## 2026-10-14 — Avenza posts reviewed + Roman Urdu flag rule
 - Reviewed 20 new portal posts (Avalon 7, Eventia 6, Avenza Land 7).
   - Flagged 6, with fixes explained in English + Roman Urdu and one email to the uploader:

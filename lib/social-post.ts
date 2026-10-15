@@ -10,12 +10,14 @@ import {
   postInstagramPhoto,
   publishFacebookPhotoStory,
   publishFacebookReel,
+  publishFacebookVideo,
   publishFacebookVideoStory,
   publishInstagramContainer,
   scheduleFacebookPhoto,
 } from "./social-fb";
 import { postLinkedInPhoto } from "./social-linkedin";
-import { getFreshTikTokAccessToken, publishTikTokPhotoPost, mintTikTokMediaUrl } from "./social-tiktok";
+import { getFreshTikTokAccessToken, publishTikTokPhotoPost, publishTikTokVideoDraft, mintTikTokMediaUrl } from "./social-tiktok";
+import { uploadYouTubeVideo } from "./social-youtube";
 import { mintInstagramMediaUrl } from "./social-instagram-media";
 import { mintFacebookMediaUrl } from "./social-facebook-media";
 import { IG_LOGIN_GRAPH_BASE, getFreshInstagramLoginToken, isInstagramLoginAccount } from "./social-instagram-login";
@@ -41,28 +43,59 @@ export type PlatformPostResult = {
 
 export type ReelPending = { container_id: string; since: string };
 
-/** What a Reel or a Story needs when it's posted: URLs Meta can fetch, and
- *  any Instagram container from an earlier run.
- *  - Reel / video story: `videoUrl` (the original video).
- *  - Photo story: `fbImageUrl` (size-safe proxy) and `igImageUrl` (JPEG proxy). */
+/** What a Reel, Video or Story needs when it's posted: URLs the platforms
+ *  can fetch, and any Instagram container from an earlier run.
+ *  - Reel / Video / video story: `videoUrl` (the original video).
+ *  - Photo story: `fbImageUrl` (size-safe proxy) and `igImageUrl` (JPEG proxy).
+ *  - `title` / `privacy`: YouTube's title and (Videos) privacy. */
 export type ReelInput = {
-  kind: "reel" | "story";
+  kind: "reel" | "story" | "video";
   videoUrl: string | null;
+  title?: string | null;
+  privacy?: string | null;
   fbImageUrl?: string;
   igImageUrl?: string;
   coverUrl: string | null;
   pending: Record<string, ReelPending>;
 };
 
-/** Reels and Stories go to Facebook and Instagram; other platforms aren't wired for them yet. */
-export const REEL_PLATFORMS = ["facebook", "instagram"];
+/** Which platforms take each kind: Reels go to Facebook, Instagram, YouTube
+ *  (as a Short) and TikTok; Videos to YouTube, Facebook and TikTok; Stories
+ *  to Facebook and Instagram. */
+export const REEL_PLATFORMS = ["facebook", "instagram", "youtube", "tiktok"];
+const VIDEO_PLATFORMS = ["youtube", "facebook", "tiktok"];
+const STORY_PLATFORMS = ["facebook", "instagram"];
+const PLATFORMS_FOR: Record<ReelInput["kind"], string[]> = { reel: REEL_PLATFORMS, video: VIDEO_PLATFORMS, story: STORY_PLATFORMS };
+/** Platforms that only take video — never sent a photo post. */
+const VIDEO_ONLY_PLATFORMS = ["youtube"];
 /** Give up on an Instagram Reel/Story that hasn't finished processing by then. */
 const REEL_PROCESSING_LIMIT_MS = 45 * 60 * 1000;
 
 async function postReelToAccount(account: ClientSocialAccount, caption: string, reel: ReelInput): Promise<PlatformPostResult> {
   const base = { platform: account.platform, label: account.label, external_id: account.external_id };
-  const what = reel.kind === "story" ? "story" : "Reel";
+  const what = reel.kind === "story" ? "story" : reel.kind === "video" ? "video" : "Reel";
   try {
+    if (!PLATFORMS_FOR[reel.kind].includes(account.platform)) return { ...base, ok: false, error: `${account.platform} doesn't take this kind of post.` };
+    if (account.platform === "youtube") {
+      const r = await uploadYouTubeVideo(account, reel.videoUrl!, {
+        caption,
+        title: reel.title,
+        privacy: reel.kind === "video" ? reel.privacy : "public",
+        short: reel.kind === "reel",
+        thumbnailUrl: reel.kind === "video" ? reel.coverUrl : null,
+      });
+      return { ...base, ok: true, post_id: r.post_id };
+    }
+    if (account.platform === "tiktok") {
+      // Goes to the creator's TikTok inbox as a draft to finish in the app.
+      const r = await publishTikTokVideoDraft(await getFreshTikTokAccessToken(account), reel.videoUrl!);
+      if (r.status === "FAILED") throw new Error(r.failReason || "TikTok rejected the video.");
+      return { ...base, ok: true, post_id: r.publish_id };
+    }
+    if (account.platform === "facebook" && reel.kind === "video") {
+      const r = await publishFacebookVideo(account.external_id, decryptAccountToken(account), reel.videoUrl!, reel.title ?? null, caption);
+      return { ...base, ok: true, post_id: r.post_id, usagePercent: r.usagePercent };
+    }
     if (account.platform === "facebook") {
       const token = decryptAccountToken(account);
       const r =
@@ -197,7 +230,8 @@ export async function postToAllProjectAccounts(
   if (targetPlatforms && targetPlatforms.length > 0) {
     remaining = remaining.filter((a) => targetPlatforms.includes(a.platform));
   }
-  if (reel) remaining = remaining.filter((a) => REEL_PLATFORMS.includes(a.platform));
+  if (reel) remaining = remaining.filter((a) => PLATFORMS_FOR[reel.kind].includes(a.platform));
+  else remaining = remaining.filter((a) => !VIDEO_ONLY_PLATFORMS.includes(a.platform));
   if (remaining.length === 0) return [];
   return Promise.all(remaining.map((a) => (reel ? postReelToAccount(a, caption, reel) : postToOneAccount(a, imageUrl, caption, mediaKey))));
 }
@@ -218,7 +252,8 @@ export async function submitNativeSchedule(
 ): Promise<PlatformPostResult[]> {
   if (!isWithinNativeScheduleWindow(scheduledAtIso)) return [];
   if (targetPlatforms && targetPlatforms.length > 0 && !targetPlatforms.includes("facebook")) return [];
-  if (postType === "story") return [];
+  // Stories can't be scheduled on Meta's side; Videos go out with the cron.
+  if (postType === "story" || postType === "video") return [];
   const accounts = await listSocialAccountsForProject(projectId);
   const eligible = accounts.filter((a) => a.platform === "facebook");
   if (eligible.length === 0) return [];

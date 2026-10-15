@@ -12,7 +12,7 @@
  *    every project (Meta Ads via the vault's System User); the connect link
  *    re-verifies access through Facebook Login for Business.
  */
-export type PlatformKey = "facebook" | "instagram" | "meta_ads" | "linkedin" | "tiktok" | "google_business";
+export type PlatformKey = "facebook" | "instagram" | "meta_ads" | "linkedin" | "tiktok" | "youtube" | "google_business";
 
 export type PlatformDef = {
   key: PlatformKey;
@@ -67,6 +67,14 @@ export const PLATFORMS: PlatformDef[] = [
     mode: "project_oauth",
     connectHref: (projectId) => `/api/dashboard/social/tiktok/authorize?project_id=${projectId}`,
     chipClass: "bg-ink text-white",
+  },
+  {
+    key: "youtube",
+    label: "YouTube",
+    tagline: "Shorts from the Planner's Reels",
+    mode: "project_oauth",
+    connectHref: (projectId) => `/api/dashboard/social/youtube/authorize?project_id=${projectId}`,
+    chipClass: "bg-[#FF0000] text-white",
   },
   {
     key: "google_business",

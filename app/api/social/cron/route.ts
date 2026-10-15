@@ -79,6 +79,7 @@ export async function GET(request: Request) {
     const priorLive = prior.live ?? [];
     const isReel = post.post_type === "reel";
     const isStory = post.post_type === "story";
+    const isVideo = post.post_type === "video";
     // A story is a photo or a video — told apart by the uploaded file's extension.
     const isVideoFile = /\.(mp4|mov)$/i.test(post.media_key);
     // Natively scheduled on Facebook, or already tried on an earlier run
@@ -87,21 +88,23 @@ export async function GET(request: Request) {
 
     try {
       const targets = post.target_platforms?.length ? post.target_platforms : null;
-      // Reels and stories are Facebook/Instagram only — Google Business takes photo posts.
-      const gbpLoc = !isReel && !isStory && (!targets || targets.includes(GBP_PLATFORM)) ? await gbpPlannerLocation(post.project_id) : null;
+      // Google Business takes photo posts only — never Reels, Videos or Stories.
+      const gbpLoc = !isReel && !isStory && !isVideo && (!targets || targets.includes(GBP_PLATFORM)) ? await gbpPlannerLocation(post.project_id) : null;
       const socialTargets = targets ? targets.filter((t) => t !== GBP_PLATFORM) : null;
 
       let liveResults: PlatformPostResult[] = [];
       if (!targets || (socialTargets && socialTargets.length > 0)) {
-        const imageUrl = await presignDownload(post.media_key, undefined, isReel || isStory ? 6 * 3600 : 3600);
+        const imageUrl = await presignDownload(post.media_key, undefined, isReel || isStory || isVideo ? 6 * 3600 : 3600);
         const reel =
-          isReel || isStory
+          isReel || isStory || isVideo
             ? {
-                kind: isStory ? ("story" as const) : ("reel" as const),
-                videoUrl: isReel || isVideoFile ? imageUrl : null,
+                kind: isStory ? ("story" as const) : isVideo ? ("video" as const) : ("reel" as const),
+                videoUrl: isReel || isVideo || isVideoFile ? imageUrl : null,
+                title: post.video_title ?? null,
+                privacy: post.video_privacy ?? null,
                 fbImageUrl: isStory && !isVideoFile ? mintFacebookMediaUrl(post.media_key) : undefined,
                 igImageUrl: isStory && !isVideoFile ? mintInstagramMediaUrl(post.media_key) : undefined,
-                coverUrl: isReel && post.cover_key ? mintInstagramMediaUrl(post.cover_key) : null,
+                coverUrl: (isReel || isVideo) && post.cover_key ? mintInstagramMediaUrl(post.cover_key) : null,
                 pending: prior.pending ?? {},
               }
             : undefined;
