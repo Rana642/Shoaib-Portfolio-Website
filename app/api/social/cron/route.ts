@@ -205,9 +205,9 @@ export async function GET(request: Request) {
   // Stories from Google Drive folders: import new files, at most once an
   // hour per folder, only when this run has time left after posting.
   let storyFoldersSynced = 0;
-  if (!deferred && Date.now() - startedAt < 30_000) {
+  if (!deferred && Date.now() - startedAt < 15_000) {
     try {
-      storyFoldersSynced = await syncDueStoryFolders(15_000);
+      storyFoldersSynced = await syncDueStoryFolders(10_000);
     } catch {
       /* retried on the next run */
     }

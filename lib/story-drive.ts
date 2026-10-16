@@ -370,7 +370,8 @@ export async function syncDueStoryFolders(budgetMs: number): Promise<number> {
   let synced = 0;
   for (const row of data ?? []) {
     if (Date.now() - started > budgetMs) break;
-    await syncStoryFolder(row.project_id as string, 4);
+    // Two per run: each is a full video download + upload, and the cron has 60s in all.
+    await syncStoryFolder(row.project_id as string, 2);
     synced++;
   }
   return synced;
