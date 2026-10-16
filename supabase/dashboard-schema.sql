@@ -1718,3 +1718,5 @@ alter table scheduled_posts add column if not exists drive_file_id text;
 -- Not unique: files are recycled (re-posted) once the whole folder has been used.
 drop index if exists scheduled_posts_drive_file_idx;
 create index if not exists scheduled_posts_drive_file_lookup on scheduled_posts (project_id, drive_file_id) where drive_file_id is not null;
+-- Files held back from import (e.g. waiting for a brand/logo check).
+alter table story_drive_sources add column if not exists hold_file_ids text[] not null default '{}';

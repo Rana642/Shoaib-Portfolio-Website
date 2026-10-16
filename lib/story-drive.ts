@@ -51,6 +51,8 @@ export type StoryDriveSource = {
   slots_updated_at: string | null;
   last_synced_at: string | null;
   last_result: SyncResult | null;
+  /** Drive file ids held back from import (waiting for a brand/logo check). */
+  hold_file_ids: string[];
 };
 
 export type SyncResult = {
@@ -250,7 +252,10 @@ export async function syncStoryFolder(projectId: string, maxImports = 8): Promis
     const hasIg = accounts.some((a) => a.platform === "instagram");
     if (!hasFb && !hasIg) throw new Error("Connect the project's Facebook Page or Instagram account first.");
 
-    const files = (await listFolder(source.folder_id, key)).filter((f) => IMAGE_TYPES.includes(f.mimeType) || VIDEO_TYPES.includes(f.mimeType));
+    const held = new Set(source.hold_file_ids ?? []);
+    const files = (await listFolder(source.folder_id, key)).filter(
+      (f) => (IMAGE_TYPES.includes(f.mimeType) || VIDEO_TYPES.includes(f.mimeType)) && !held.has(f.id)
+    );
     // Every earlier use of each file: is it on the calendar now, and when was it last used?
     const ids = files.map((f) => f.id);
     const upcoming = new Set<string>();
