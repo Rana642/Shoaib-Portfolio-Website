@@ -12,13 +12,9 @@ export default function StoryDriveCard({ projectId, source, notice }: { projectI
   return (
     <Card className="p-5 mb-5">
       <div className="flex flex-col lg:flex-row gap-5">
-        <div className="lg:w-80 shrink-0">
+        <div className="lg:w-56 shrink-0">
           <p className="flex items-center gap-2 font-medium">
             <FolderSync className="size-4" aria-hidden /> Stories from Google Drive
-          </p>
-          <p className="text-small text-ink-muted mt-1">
-            Share the folder as &quot;Anyone with the link&quot;. New images and videos are added as Stories every hour, in random order, at the
-            followers&apos; most active times. Videos over 60s skip Facebook.
           </p>
         </div>
         <div className="flex-1 min-w-0 space-y-3">
