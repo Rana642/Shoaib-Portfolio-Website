@@ -16,7 +16,8 @@ const ITEM: Record<PortalLink, SectionItem> = {
   inquiries: { href: `${P}/inquiries`, label: "Inquiries", icon: Inbox },
   contacts: { href: `${P}/contacts`, label: "Contacts", icon: Contact },
   planner: { href: `${P}/planner`, label: "Planner", icon: CalendarDays },
-  stories: { href: `${P}/stories`, label: "Stories", icon: CircleDashed },
+  // Reached from the Planner's Posts / Stories side toggle, not a tab.
+  stories: { href: `${P}/stories`, label: "Stories", icon: CircleDashed, hidden: true },
   passwords: { href: `${P}/passwords`, label: "Passwords", icon: KeyRound },
   intakes: { href: `${P}/intakes`, label: "Intake forms", icon: FileText },
   team: { href: `${P}/team`, label: "Team", icon: Users },

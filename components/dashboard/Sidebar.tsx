@@ -18,7 +18,7 @@ import {
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { SECTIONS, inSection } from "@/lib/dashboard/sections";
+import { SECTIONS, inSection, matchStrength } from "@/lib/dashboard/sections";
 import { CountBadge, QuickTools, useAttentionCounts } from "@/components/dashboard/SidebarTools";
 import { authCookieOptions } from "@/lib/auth-cookies";
 
@@ -80,6 +80,7 @@ export default function Sidebar({
   const [open, setOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const counts = useAttentionCounts(showStudio);
+  const strongestMatch = Math.max(0, ...nav.map((i) => ("match" in i && i.match ? matchStrength(i.match, pathname) : 0)));
 
   const signOut = async () => {
     const supabase = createBrowserClient(
@@ -230,8 +231,10 @@ export default function Sidebar({
               );
             }
 
+            // Two sections can claim a path (Planner's /social/planner sits under
+            // Marketing's /social): the more specific claim is the active one.
             const active = item.match
-              ? item.match.some((m) => pathname === m || pathname.startsWith(`${m}/`))
+              ? matchStrength(item.match, pathname) > 0 && matchStrength(item.match, pathname) === strongestMatch
               : item.exact
                 ? pathname === item.href
                 : pathname.startsWith(item.href);

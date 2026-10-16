@@ -4,6 +4,20 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-16 — Planner is its own section; Posts / Stories side toggle
+- **Sidebar:** Planner is now its own item, above Marketing. The "to caption + failed" badge moved from Marketing to Planner (counts key `planner`).
+- **Marketing tabs:** Insights · YouTube · Meta Ads · Google Business · Connections.
+- **Planner page** (Shoaib's layout):
+  - A vertical **Posts / Stories** toggle on the left of the calendar. On a phone it becomes a row above the calendar.
+  - Tabs on top: **All · Image · Reels & Shorts · Videos**. "Posts" was renamed "Image", so "Posts" now only names the toggle.
+  - URLs are unchanged (`/dashboard/social/planner`, `/dashboard/social/stories`).
+- **Client portal:** same layout. Stories is no longer a tab; it's reached from the toggle, and only shown to people with the planner feature.
+- **Code:**
+  - `SectionItem.hidden` marks a page that is reachable from inside its section but isn't a tab. It's still in Ctrl+K.
+  - Sections now match the most specific prefix (`matchStrength`), so Planner's `/social/planner` wins over Marketing's `/social`, in both the tabs and the sidebar highlight.
+  - The toggle itself is `PlannerSideToggle` in `PlannerCalendar.tsx`.
+- **Tested:** browser-tested locally (desktop and phone, Posts ↔ Stories, Marketing tabs). The portal wasn't tested (no client login).
+
 ## 2026-10-16 — YouTube page: growth report, video SEO, comments, audit
 - **Page:** `/dashboard/youtube`, with a tab per feature. Listed under Marketing → Social. The Connections tile's "Open YouTube" goes here.
   - **Overview:** the last 28 days vs the 28 before:

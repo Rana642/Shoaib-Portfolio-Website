@@ -14,8 +14,10 @@ import { cn } from "@/lib/utils";
 // Planner's week columns, Insights charts and the inboxes use every pixel.
 const WIDE_ROUTES = [
   "/dashboard/social/planner",
+  "/dashboard/social/stories",
   "/dashboard/social/insights",
   "/portal/planner",
+  "/portal/stories",
   "/dashboard/bookings",
   "/portal/bookings",
   "/dashboard/whatsapp",

@@ -14,7 +14,10 @@ import { isItemActive, type Section } from "@/lib/dashboard/sections";
  */
 export default function SectionNav({ section }: { section: Section }) {
   const pathname = usePathname();
-  const groups = section.groups.filter((g) => g.title !== "Setup");
+  const groups = section.groups
+    .filter((g) => g.title !== "Setup")
+    .map((g) => ({ ...g, items: g.items.filter((i) => !i.hidden) }))
+    .filter((g) => g.items.length > 0);
   const setup = section.groups.find((g) => g.title === "Setup");
   const rowRef = useRef<HTMLDivElement>(null);
 

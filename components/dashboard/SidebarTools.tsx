@@ -91,7 +91,7 @@ export function QuickTools({ rail, onNavigate }: { rail: boolean; onNavigate?: (
 /**
  * How many things wait in each section (sidebar badges): Sales = leads since
  * the last visit to Leads, Clients = credential submissions to import,
- * Finance = receipts to confirm + late invoices + bills due, Marketing =
+ * Finance = receipts to confirm + late invoices + bills due, Planner =
  * posts to caption or that failed, WhatsApp = chats with unread messages.
  * Refreshed on navigation (at most every 15 s) and every 2 minutes.
  */
@@ -117,7 +117,7 @@ export function useAttentionCounts(enabled: boolean): Record<string, number> {
       try {
         const res = await fetch("/api/dashboard/counts", { cache: "no-store" });
         if (!res.ok) return;
-        const j = (await res.json()) as { finance: number; whatsapp: number; marketing: number; clients: number; leadTimes: string[] };
+        const j = (await res.json()) as { finance: number; whatsapp: number; planner: number; clients: number; leadTimes: string[] };
         let seen = Date.now();
         try {
           seen = Date.parse(localStorage.getItem(LEADS_SEEN_KEY) ?? "") || seen;
@@ -125,7 +125,7 @@ export function useAttentionCounts(enabled: boolean): Record<string, number> {
           /* ignore */
         }
         const sales = j.leadTimes.filter((t) => Date.parse(t) > seen).length;
-        setCounts({ sales, clients: j.clients, finance: j.finance, marketing: j.marketing, whatsapp: j.whatsapp });
+        setCounts({ sales, clients: j.clients, finance: j.finance, planner: j.planner, whatsapp: j.whatsapp });
       } catch {
         /* offline — keep the last counts */
       }

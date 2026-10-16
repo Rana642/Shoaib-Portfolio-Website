@@ -36,7 +36,7 @@ export async function GET() {
     {
       finance: receipts + overdueInvoices + lateInvoices + dueBills,
       whatsapp: unreadChats,
-      marketing: postsToCaption + failedPosts,
+      planner: postsToCaption + failedPosts,
       clients: submissions,
       leadTimes: ((leads.data ?? []) as { created_at: string }[]).map((l) => l.created_at),
     },

@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { DayNote } from "@/lib/planner-day-notes";
-import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard, CircleDashed, AlertTriangle, Film, ThumbsUp } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard, CircleDashed, AlertTriangle, Film, ThumbsUp, LayoutGrid } from "lucide-react";
 import { clearPostChanges, createPlannerPost, deletePost, movePost, reorderDay } from "@/lib/dashboard/actions/social";
 import { ReplaceImageButton } from "@/components/portal/NeedsChangesAlert";
 import { deletePortalUpload } from "@/lib/portal/planner";
@@ -30,11 +31,13 @@ const takes = (kind: Kind, platform: string) =>
   kind === "post" ? !VIDEO_ONLY_PLATFORMS.includes(platform) : KIND_PLATFORMS[kind].includes(platform);
 const kindOf = (post: ScheduledPost): Kind => post.post_type ?? "post";
 
-/** The main Planner's tabs; Stories have their own Planner page. */
+/** The Posts Planner's tabs across the top; Posts / Stories is the toggle on
+ *  the side (Shoaib, 2026-10-16). Photo posts are "Image" here so the word
+ *  "Posts" only means the side toggle. */
 type FeedTab = "all" | "post" | "reel" | "video";
 const FEED_TABS: { key: FeedTab; label: string }[] = [
   { key: "all", label: "All" },
-  { key: "post", label: "Posts" },
+  { key: "post", label: "Image" },
   { key: "reel", label: "Reels & Shorts" },
   { key: "video", label: "Videos" },
 ];
@@ -156,6 +159,7 @@ export default function PlannerCalendar({
   dayNotes = {},
   weatherCity = null,
   section = "feed",
+  switchPaths,
 }: {
   projects: ProjectOption[];
   selectedProjectId: string;
@@ -178,6 +182,9 @@ export default function PlannerCalendar({
   /** "feed" = the main Planner (Posts, Reels & Shorts, Videos — tabs);
    *  "stories" = the separate Stories Planner. */
   section?: "feed" | "stories";
+  /** The Posts / Stories toggle on the side: each side's page, or null when
+   *  this person can't open it (no toggle unless both exist). */
+  switchPaths?: { feed: string | null; stories: string | null };
 }) {
   const isClient = mode === "client";
   const isStories = section === "stories";
@@ -325,7 +332,11 @@ export default function PlannerCalendar({
     setWeekStart(new Date(Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate() + days)));
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col md:flex-row gap-4 md:gap-6">
+      {switchPaths?.feed && switchPaths.stories && (
+        <PlannerSideToggle section={section} paths={{ feed: switchPaths.feed, stories: switchPaths.stories }} projectId={selectedProjectId} />
+      )}
+    <div className="flex-1 min-w-0 space-y-5">
       {!isStories && (
         <div className="flex flex-wrap items-center gap-1 border-b border-ink/10" role="tablist" aria-label="What to show">
           {FEED_TABS.map((t) => (
@@ -579,6 +590,48 @@ export default function PlannerCalendar({
         />
       )}
     </div>
+    </div>
+  );
+}
+
+/** Posts / Stories, stacked on the left of the calendar (a row above it on a
+ *  phone). Each side is its own page, so the open project carries over. */
+function PlannerSideToggle({
+  section,
+  paths,
+  projectId,
+}: {
+  section: "feed" | "stories";
+  paths: { feed: string; stories: string };
+  projectId: string;
+}) {
+  const options = [
+    { key: "feed" as const, label: "Posts", Icon: LayoutGrid },
+    { key: "stories" as const, label: "Stories", Icon: CircleDashed },
+  ];
+  return (
+    <nav
+      aria-label="Posts or Stories"
+      className="flex md:flex-col gap-1 rounded-xl border border-ink/15 p-1 md:w-24 md:self-start md:sticky md:top-4 shrink-0"
+    >
+      {options.map(({ key, label, Icon }) => {
+        const active = section === key;
+        return (
+          <Link
+            key={key}
+            href={`${paths[key]}?project=${projectId}`}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "flex-1 flex md:flex-col items-center justify-center gap-1.5 rounded-lg px-3 py-2 md:py-3 text-small font-medium transition-colors",
+              active ? "bg-citrus text-ink" : "text-ink-muted hover:text-ink hover:bg-ink/5"
+            )}
+          >
+            <Icon className="size-4 md:size-5" aria-hidden />
+            {label}
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 

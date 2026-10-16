@@ -99,6 +99,7 @@ export default async function PortalPlannerScreen({ project, section }: { projec
         canUpload={canUpload}
         plannerPath={section === "stories" ? "/portal/stories" : "/portal/planner"}
         section={section}
+        switchPaths={{ feed: "/portal/planner", stories: canView ? "/portal/stories" : null }}
         projects={projects.map((p) => ({ id: p.id as string, label: p.name as string, name: p.name as string, client: "", client_id: ctx.clientId }))}
         selectedProjectId={selected.id as string}
         posts={withUrls}

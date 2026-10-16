@@ -48,9 +48,19 @@ import {
  * in its last group ("Setup"), pinned to the right of the tabs — so bank
  * accounts sit in Finance, social connections in Marketing, and so on.
  * Page URLs are unchanged — a section just claims the paths that start
- * with one of its `match` prefixes.
+ * with one of its `match` prefixes; when two sections claim a path, the
+ * longer (more specific) prefix wins (Planner's /social/planner over
+ * Marketing's /social).
  */
-export type SectionItem = { href: string; label: string; icon: LucideIcon; exact?: boolean };
+export type SectionItem = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  exact?: boolean;
+  /** Not a tab: the page is reached from inside the section (the Planner's
+   *  Posts / Stories toggle). Still in Ctrl+K search. */
+  hidden?: boolean;
+};
 export type Section = {
   key: string;
   label: string;
@@ -150,17 +160,34 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    // Its own section (Shoaib, 2026-10-16), out of Marketing. Posts and
+    // Stories are a toggle on the page's side, not tabs; Image / Reels &
+    // Shorts / Videos are tabs inside the Posts calendar.
+    key: "planner",
+    label: "Planner",
+    icon: CalendarDays,
+    description: "Posts, Reels & Shorts, Videos and Stories on one calendar.",
+    match: [`${D}/social/planner`, `${D}/social/stories`],
+    groups: [
+      {
+        title: "Planner",
+        items: [
+          { href: `${D}/social/planner`, label: "Planner", icon: CalendarDays },
+          { href: `${D}/social/stories`, label: "Stories", icon: CircleDashed, hidden: true },
+        ],
+      },
+    ],
+  },
+  {
     key: "marketing",
     label: "Marketing",
     icon: Megaphone,
-    description: "Posts, insights, ads and Google Business.",
+    description: "Insights, YouTube, ads and Google Business.",
     match: [`${D}/social`, `${D}/ads`, `${D}/gbp`, `${D}/youtube`],
     groups: [
       {
         title: "Social",
         items: [
-          { href: `${D}/social/planner`, label: "Planner", icon: CalendarDays },
-          { href: `${D}/social/stories`, label: "Stories", icon: CircleDashed },
           { href: `${D}/social/insights`, label: "Insights", icon: BarChart3 },
           { href: `${D}/youtube`, label: "YouTube", icon: SquarePlay },
         ],
@@ -247,13 +274,24 @@ export const SECTIONS: Section[] = [
 
 const under = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
 
-/** Is this path inside the section? */
-export const inSection = (section: Section, pathname: string) => section.match.some((m) => under(pathname, m));
+/** How specifically a list of prefixes claims a path: its longest matching prefix (0 = not at all). */
+export const matchStrength = (match: string[], pathname: string) =>
+  Math.max(0, ...match.filter((m) => under(pathname, m)).map((m) => m.length));
+
+/** Is this path inside the section? A section with a more specific prefix for it wins. */
+export const inSection = (section: Section, pathname: string, sections: Section[] = SECTIONS) => {
+  const own = matchStrength(section.match, pathname);
+  return own > 0 && !sections.some((s) => s !== section && matchStrength(s.match, pathname) > own);
+};
+
+/** The tabs a section shows (hidden pages are reached from inside it). */
+export const visibleItems = (section: Section) => section.groups.flatMap((g) => g.items).filter((i) => !i.hidden);
 
 /** The section a path belongs to (none for Overview / Home and unknown pages). A section
- *  with a single page gets no tabs of its own — it's just a link in the main sidebar. */
+ *  with a single visible page gets no tabs of its own — it's just a link in the main sidebar. */
 export function sectionFor(pathname: string, sections: Section[] = SECTIONS): Section | null {
-  return sections.find((s) => s.groups.flatMap((g) => g.items).length > 1 && inSection(s, pathname)) ?? null;
+  const owner = sections.find((s) => inSection(s, pathname, sections));
+  return owner && visibleItems(owner).length > 1 ? owner : null;
 }
 
 /** Is this tab the current page? The most specific matching item wins (Bundle services over Single services). */

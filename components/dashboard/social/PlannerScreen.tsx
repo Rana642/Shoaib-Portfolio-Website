@@ -73,6 +73,7 @@ export default async function PlannerScreen({ projectParam, section }: { project
         weatherCity={day.city}
         section={section}
         plannerPath={section === "stories" ? "/dashboard/social/stories" : "/dashboard/social/planner"}
+        switchPaths={{ feed: "/dashboard/social/planner", stories: "/dashboard/social/stories" }}
       />
     </>
   );
