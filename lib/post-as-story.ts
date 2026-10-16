@@ -16,7 +16,6 @@ import type { ScheduledPost } from "./dashboard/types";
  * next cron run (≤ 15 min) posts it through the normal Story path. One
  * story per post (unique story_of_post_id).
  */
-const IG_STORY_MAX_BYTES = 100 * 1024 * 1024;
 
 export async function queueStoryCopy(post: ScheduledPost): Promise<"queued" | "skipped"> {
   if ((post.post_type ?? "post") === "story" || post.story_of_post_id) return "skipped";
@@ -31,8 +30,6 @@ export async function queueStoryCopy(post: ScheduledPost): Promise<"queued" | "s
 
   const head = await headObject(post.media_key).catch(() => null);
   if (!head) return "skipped";
-  if (head.size > IG_STORY_MAX_BYTES) platforms = platforms.filter((p) => p !== "instagram");
-  if (!platforms.length) return "skipped";
 
   const ext = post.media_key.split(".").pop() ?? "jpg";
   const storyKey = `planner/${post.project_id}/post-stories/${post.id}.${ext}`;

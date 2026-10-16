@@ -31,8 +31,6 @@ export const FB_STORY_MAX_SECONDS = 60;
 /** Instagram stories published through the API — 60 seconds per story. */
 export const IG_STORY_MAX_SECONDS = 60;
 const MIN_VIDEO_SECONDS = 3;
-/** Instagram's API takes story files up to 100 MB; bigger ones go to Facebook only. */
-const IG_STORY_MAX_BYTES = 100 * 1024 * 1024;
 /** Hours (PKT) used when the account has no followers-online data. */
 const DEFAULT_SLOT_HOURS = [10, 12, 14, 16, 18, 20, 21, 22];
 /** Stories only between these PKT hours, whatever the data says. */
@@ -315,14 +313,13 @@ export async function syncStoryFolder(projectId: string, maxImports = 8): Promis
         if (seconds > FB_STORY_MAX_SECONDS) platforms = platforms.filter((p) => p !== "facebook");
         if (seconds > IG_STORY_MAX_SECONDS) platforms = platforms.filter((p) => p !== "instagram");
       }
-      if (Number(f.size ?? 0) > IG_STORY_MAX_BYTES) platforms = platforms.filter((p) => p !== "instagram");
       if (isVideo) {
         if (!platforms.length) {
           result.skipped.push({
             name: f.name,
             reason:
               seconds != null && seconds > FB_STORY_MAX_SECONDS
-                ? `video is ${Math.round(seconds)}s${Number(f.size ?? 0) > IG_STORY_MAX_BYTES ? ` and ${Math.round(Number(f.size) / 1e6)} MB` : ""} — too long for Facebook and too big/long for Instagram; trim or compress it`
+                ? `video is ${Math.round(seconds)}s — too long for a story on Facebook and Instagram (max 60s); trim it`
                 : "not accepted by Facebook or Instagram",
           });
           continue;
