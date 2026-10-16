@@ -1715,4 +1715,6 @@ create table if not exists story_drive_sources (
 );
 alter table story_drive_sources enable row level security;
 alter table scheduled_posts add column if not exists drive_file_id text;
-create unique index if not exists scheduled_posts_drive_file_idx on scheduled_posts (project_id, drive_file_id) where drive_file_id is not null;
+-- Not unique: files are recycled (re-posted) once the whole folder has been used.
+drop index if exists scheduled_posts_drive_file_idx;
+create index if not exists scheduled_posts_drive_file_lookup on scheduled_posts (project_id, drive_file_id) where drive_file_id is not null;

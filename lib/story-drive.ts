@@ -16,6 +16,11 @@ import { instagramOnlineByPktHour } from "./social-best-times";
  * The file is copied to R2 on import (Meta fetches stories from a URL we
  * control); the cron deletes that copy once the story is posted. The Drive
  * original is never touched.
+ *
+ * No day goes empty (Shoaib, 2026-10-16): the next HORIZON_DAYS are kept
+ * filled — new files first (random order), then, once every file has been
+ * used, the folder is recycled, least-recently-posted first. A file is never
+ * on the calendar twice at the same time.
  */
 
 const DRIVE = "https://www.googleapis.com/drive/v3";
@@ -26,12 +31,16 @@ export const FB_STORY_MAX_SECONDS = 60;
 /** Instagram stories published through the API — 60 seconds per story. */
 export const IG_STORY_MAX_SECONDS = 60;
 const MIN_VIDEO_SECONDS = 3;
+/** Instagram's API takes story files up to 100 MB; bigger ones go to Facebook only. */
+const IG_STORY_MAX_BYTES = 100 * 1024 * 1024;
 /** Hours (PKT) used when the account has no followers-online data. */
 const DEFAULT_SLOT_HOURS = [10, 12, 14, 16, 18, 20, 21, 22];
 /** Stories only between these PKT hours, whatever the data says. */
 const EARLIEST_HOUR = 9;
 const LATEST_HOUR = 23;
 const PKT_MS = 5 * 3600_000;
+/** How far ahead the calendar is kept filled. */
+const HORIZON_DAYS = 7;
 
 export type StoryDriveSource = {
   project_id: string;
@@ -97,6 +106,9 @@ async function listFolder(folderId: string, key: string): Promise<DriveFile[]> {
 async function downloadFile(fileId: string, key: string): Promise<Buffer> {
   const res = await fetch(`${DRIVE}/files/${fileId}?alt=media&acknowledgeAbuse=true&supportsAllDrives=true&key=${key}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Couldn't download from Drive (HTTP ${res.status}).`);
+  // When Drive throttles, it answers 200 with an HTML "Sorry…" page instead of the file.
+  const type = res.headers.get("content-type") ?? "";
+  if (!/^(video|image)\//.test(type)) throw new Error("Google Drive is limiting downloads right now — it will be retried on the next sync.");
   return Buffer.from(await res.arrayBuffer());
 }
 
@@ -134,7 +146,7 @@ type DayLoad = { count: number; hours: Set<number> };
 function* freeSlots(hours: number[], perDay: number, taken: Map<string, DayLoad>) {
   const earliest = Date.now() + 30 * 60_000;
   const today = pktDay(Date.now());
-  for (let d = 0; d < 366; d++) {
+  for (let d = 0; d < HORIZON_DAYS; d++) {
     const [y, m, dd] = today.split("-").map(Number);
     const dayStart = Date.UTC(y, m - 1, dd + d); // 00:00 of that PKT day, as if UTC
     const key = new Date(dayStart).toISOString().slice(0, 10);
@@ -239,13 +251,29 @@ export async function syncStoryFolder(projectId: string, maxImports = 8): Promis
     if (!hasFb && !hasIg) throw new Error("Connect the project's Facebook Page or Instagram account first.");
 
     const files = (await listFolder(source.folder_id, key)).filter((f) => IMAGE_TYPES.includes(f.mimeType) || VIDEO_TYPES.includes(f.mimeType));
+    // Every earlier use of each file: is it on the calendar now, and when was it last used?
     const ids = files.map((f) => f.id);
-    const imported = new Set<string>();
+    const upcoming = new Set<string>();
+    const lastUsed = new Map<string, number>();
     for (let i = 0; i < ids.length; i += 200) {
-      const { data } = await db.from("scheduled_posts").select("drive_file_id").eq("project_id", projectId).in("drive_file_id", ids.slice(i, i + 200));
-      for (const r of data ?? []) imported.add(r.drive_file_id as string);
+      const { data } = await db
+        .from("scheduled_posts")
+        .select("drive_file_id, status, scheduled_at, posted_at")
+        .eq("project_id", projectId)
+        .in("drive_file_id", ids.slice(i, i + 200));
+      for (const r of data ?? []) {
+        const id = r.drive_file_id as string;
+        if (r.status === "scheduled") upcoming.add(id);
+        const t = new Date((r.posted_at ?? r.scheduled_at) as string).getTime();
+        lastUsed.set(id, Math.max(lastUsed.get(id) ?? 0, t));
+      }
     }
-    const fresh = shuffle(files.filter((f) => !imported.has(f.id)));
+    // New files first, in random order; then the folder again, oldest use first.
+    const neverUsed = shuffle(files.filter((f) => !lastUsed.has(f.id)));
+    const recycle = shuffle(files.filter((f) => lastUsed.has(f.id) && !upcoming.has(f.id))).sort(
+      (a, b) => lastUsed.get(a.id)! - lastUsed.get(b.id)!
+    );
+    const fresh = [...neverUsed, ...recycle];
 
     // Refresh the active hours once a day.
     let hours = source.slot_hours;
@@ -265,9 +293,10 @@ export async function syncStoryFolder(projectId: string, maxImports = 8): Promis
     const slots = freeSlots(hours, source.per_day, dayLoads(existing ?? []));
 
     let processed = 0;
+    let full = false;
     for (const f of fresh) {
-      if (processed >= maxImports) {
-        result.waiting++;
+      if (processed >= maxImports || full) {
+        if (!lastUsed.has(f.id)) result.waiting++;
         continue;
       }
       const isVideo = VIDEO_TYPES.includes(f.mimeType);
@@ -280,13 +309,26 @@ export async function syncStoryFolder(projectId: string, maxImports = 8): Promis
         }
         if (seconds > FB_STORY_MAX_SECONDS) platforms = platforms.filter((p) => p !== "facebook");
         if (seconds > IG_STORY_MAX_SECONDS) platforms = platforms.filter((p) => p !== "instagram");
+      }
+      if (Number(f.size ?? 0) > IG_STORY_MAX_BYTES) platforms = platforms.filter((p) => p !== "instagram");
+      if (isVideo) {
         if (!platforms.length) {
-          result.skipped.push({ name: f.name, reason: `video is ${Math.round(seconds)}s — too long for a story (max ${Math.max(FB_STORY_MAX_SECONDS, IG_STORY_MAX_SECONDS)}s); trim it` });
+          result.skipped.push({
+            name: f.name,
+            reason:
+              seconds != null && seconds > FB_STORY_MAX_SECONDS
+                ? `video is ${Math.round(seconds)}s${Number(f.size ?? 0) > IG_STORY_MAX_BYTES ? ` and ${Math.round(Number(f.size) / 1e6)} MB` : ""} — too long for Facebook and too big/long for Instagram; trim or compress it`
+                : "not accepted by Facebook or Instagram",
+          });
           continue;
         }
       }
       const at = slots.next();
-      if (at.done) break;
+      if (at.done) {
+        full = true;
+        if (!lastUsed.has(f.id)) result.waiting++;
+        continue;
+      }
       processed++;
       try {
         const ext = f.mimeType === "video/quicktime" ? "mov" : f.mimeType.split("/")[1].replace("jpeg", "jpg");

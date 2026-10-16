@@ -49,7 +49,7 @@ export default function StoryDriveCard({ projectId, source, notice }: { projectI
           {r && (
             <div className="text-small text-ink-muted space-y-1">
               <p>
-                Last sync {pkt(r.at)}: {r.error ? <span className="text-red-700">{r.error}</span> : `${r.imported} added${r.waiting ? `, ${r.waiting} waiting for the next sync` : ""}.`}
+                Last sync {pkt(r.at)}: {r.error ? <span className="text-red-700">{r.error}</span> : `${r.imported} added${r.waiting ? `, ${r.waiting} new files waiting for a free slot` : ""}.`}
               </p>
               {r.skipped.length > 0 && (
                 <ul className="list-disc pl-5">
