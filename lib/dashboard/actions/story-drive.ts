@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAdminUser } from "../auth";
 import { db } from "../db";
-import { parseDriveFolderId, syncStoryFolder } from "../../story-drive";
+import { parseDriveFolderId, rebalanceDriveStories, syncStoryFolder } from "../../story-drive";
 
 async function assertAuthed() {
   const user = await getAdminUser();
@@ -26,6 +26,8 @@ export async function saveStoryDriveFolder(formData: FormData) {
     // A new folder or a new per-day count re-picks the active hours.
     .upsert({ project_id: projectId, folder_id: folderId, folder_url: url, per_day: perDay, slot_hours: null, slots_updated_at: null }, { onConflict: "project_id" });
   if (error) redirect(back(projectId, `&drive_error=${encodeURIComponent(error.message)}`));
+  // A changed per-day count re-spreads what's already on the calendar.
+  await rebalanceDriveStories(projectId);
   await syncStoryFolder(projectId, 8);
   revalidatePath("/dashboard/social/stories");
   redirect(back(projectId, "&drive=saved"));

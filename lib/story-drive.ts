@@ -128,26 +128,90 @@ function shuffle<T>(items: T[]): T[] {
 
 const pktDay = (ms: number) => new Date(ms + PKT_MS).toISOString().slice(0, 10);
 
-/** Free story slots from now on: per day, the slot hours not yet taken, up to perDay. */
-function* freeSlots(hours: number[], perDay: number, taken: Map<string, Set<number>>) {
+type DayLoad = { count: number; hours: Set<number> };
+
+/** Free story slots from now on: per day, the slot hours not yet taken, up to perDay stories. */
+function* freeSlots(hours: number[], perDay: number, taken: Map<string, DayLoad>) {
   const earliest = Date.now() + 30 * 60_000;
   const today = pktDay(Date.now());
   for (let d = 0; d < 366; d++) {
     const [y, m, dd] = today.split("-").map(Number);
     const dayStart = Date.UTC(y, m - 1, dd + d); // 00:00 of that PKT day, as if UTC
     const key = new Date(dayStart).toISOString().slice(0, 10);
-    const used = taken.get(key) ?? new Set<number>();
+    const load = taken.get(key) ?? { count: 0, hours: new Set<number>() };
+    taken.set(key, load);
     for (const h of hours) {
-      if (used.size >= perDay) break;
-      if (used.has(h)) continue;
+      if (load.count >= perDay) break;
+      if (load.hours.has(h)) continue;
       // A few random minutes so stories don't all land on the hour.
       const at = dayStart + h * 3600_000 - PKT_MS + Math.floor(Math.random() * 40) * 60_000;
       if (at < earliest) continue;
-      used.add(h);
-      taken.set(key, used);
+      load.hours.add(h);
+      load.count++;
       yield new Date(at).toISOString();
     }
   }
+}
+
+/** Stories already on the calendar, per PKT day: how many, and which hours. */
+function dayLoads(rows: { scheduled_at: unknown }[]): Map<string, DayLoad> {
+  const taken = new Map<string, DayLoad>();
+  for (const r of rows) {
+    const ms = new Date(r.scheduled_at as string).getTime() + PKT_MS;
+    const d = new Date(ms).toISOString().slice(0, 10);
+    const load = taken.get(d) ?? { count: 0, hours: new Set<number>() };
+    load.count++;
+    load.hours.add(new Date(ms).getUTCHours());
+    taken.set(d, load);
+  }
+  return taken;
+}
+
+const CLAIM_MS = 3 * 60_000;
+
+/** Atomically marks the folder as syncing; false if another sync started in the last 3 minutes. */
+async function claim(projectId: string): Promise<boolean> {
+  const { data } = await db
+    .from("story_drive_sources")
+    .update({ last_synced_at: new Date().toISOString() })
+    .eq("project_id", projectId)
+    .or(`last_synced_at.is.null,last_synced_at.lt.${new Date(Date.now() - CLAIM_MS).toISOString()}`)
+    .select("project_id");
+  return Boolean(data?.length);
+}
+
+/**
+ * Re-places every not-yet-posted Drive story of the project (from 30 min
+ * from now) so no day has more than per_day, keeping their order — after a
+ * per-day change, or to repair a double-booked calendar. Stories added by
+ * hand keep their times and count toward each day's total.
+ */
+export async function rebalanceDriveStories(projectId: string): Promise<number> {
+  const source = await getStoryDriveSource(projectId);
+  if (!source) return 0;
+  const hours = source.slot_hours?.length ? source.slot_hours : await slotHours(projectId, source.per_day);
+  const from = new Date(Date.now() + 30 * 60_000).toISOString();
+  const { data: rows } = await db
+    .from("scheduled_posts")
+    .select("id, scheduled_at, drive_file_id")
+    .eq("project_id", projectId)
+    .eq("post_type", "story")
+    .eq("status", "scheduled")
+    .gte("scheduled_at", from)
+    .order("scheduled_at");
+  const all = rows ?? [];
+  const movable = all.filter((r) => r.drive_file_id);
+  const slots = freeSlots(hours, source.per_day, dayLoads(all.filter((r) => !r.drive_file_id)));
+  let moved = 0;
+  for (const r of movable) {
+    const at = slots.next();
+    if (at.done) break;
+    if (at.value !== r.scheduled_at) {
+      await db.from("scheduled_posts").update({ scheduled_at: at.value }).eq("id", r.id);
+      moved++;
+    }
+  }
+  return moved;
 }
 
 export async function getStoryDriveSource(projectId: string): Promise<StoryDriveSource | null> {
@@ -164,6 +228,9 @@ export async function syncStoryFolder(projectId: string, maxImports = 8): Promis
   const result: SyncResult = { at: new Date().toISOString(), imported: 0, waiting: 0, skipped: [] };
   const source = await getStoryDriveSource(projectId);
   if (!source) return { ...result, error: "No Drive folder set for this project." };
+  // One sync at a time per folder: two at once (Sync now + the cron) would
+  // both see the same free slots and double-book the days.
+  if (!(await claim(projectId))) return { ...result, error: "A sync is already running for this folder — try again in a minute." };
   try {
     const key = await apiKey();
     const accounts = await listSocialAccountsForProject(projectId);
@@ -195,17 +262,7 @@ export async function syncStoryFolder(projectId: string, maxImports = 8): Promis
       .eq("post_type", "story")
       .in("status", ["scheduled", "pending_caption", "needs_changes"])
       .gte("scheduled_at", new Date(Date.now() - 86400_000).toISOString());
-    const taken = new Map<string, Set<number>>();
-    for (const r of existing ?? []) {
-      const ms = new Date(r.scheduled_at as string).getTime() + PKT_MS;
-      const d = new Date(ms).toISOString().slice(0, 10);
-      const set = taken.get(d) ?? new Set<number>();
-      // Count it against the nearest slot hour so the day's total stays at per_day.
-      const h = new Date(ms).getUTCHours();
-      set.add(hours.includes(h) ? h : hours.find((x) => !set.has(x)) ?? h);
-      taken.set(d, set);
-    }
-    const slots = freeSlots(hours, source.per_day, taken);
+    const slots = freeSlots(hours, source.per_day, dayLoads(existing ?? []));
 
     let processed = 0;
     for (const f of fresh) {
