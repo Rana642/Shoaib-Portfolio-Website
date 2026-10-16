@@ -183,7 +183,11 @@ export default function ConnectionsHub({
       note = rows.length
         ? "Reels from the Planner go up as Shorts. Until Google's YouTube API audit is approved, they upload as private."
         : "Sign in with the Google account that owns the channel (or pick its Brand Account).";
-      action = def.connectHref ? { kind: "link", label: rows.length ? "Reconnect" : "Connect YouTube", href: def.connectHref(pid) } : null;
+      action = rows.length
+        ? { kind: "link", label: "Open YouTube", href: `/dashboard/youtube?project=${pid}` }
+        : def.connectHref
+          ? { kind: "link", label: "Connect YouTube", href: def.connectHref(pid) }
+          : null;
     } else if (def.mode === "project_oauth") {
       note = `Authorize ${def.label} for this project.`;
       action = def.connectHref ? { kind: "link", label: rows.length ? "Connect another" : `Connect ${def.label}`, href: def.connectHref(pid) } : null;

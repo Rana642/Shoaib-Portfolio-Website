@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  SquarePlay,
   CircleDashed,
   Calculator,
   CalendarDays,
@@ -153,7 +154,7 @@ export const SECTIONS: Section[] = [
     label: "Marketing",
     icon: Megaphone,
     description: "Posts, insights, ads and Google Business.",
-    match: [`${D}/social`, `${D}/ads`, `${D}/gbp`],
+    match: [`${D}/social`, `${D}/ads`, `${D}/gbp`, `${D}/youtube`],
     groups: [
       {
         title: "Social",
@@ -161,6 +162,7 @@ export const SECTIONS: Section[] = [
           { href: `${D}/social/planner`, label: "Planner", icon: CalendarDays },
           { href: `${D}/social/stories`, label: "Stories", icon: CircleDashed },
           { href: `${D}/social/insights`, label: "Insights", icon: BarChart3 },
+          { href: `${D}/youtube`, label: "YouTube", icon: SquarePlay },
         ],
       },
       {

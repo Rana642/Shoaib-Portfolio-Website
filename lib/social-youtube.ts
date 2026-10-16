@@ -24,7 +24,11 @@ export const YOUTUBE_SCOPES = [
   "email",
   "https://www.googleapis.com/auth/youtube.upload",
   "https://www.googleapis.com/auth/youtube.readonly",
+  // Comment replies, and editing video titles/descriptions/tags (lib/youtube-manage.ts).
+  "https://www.googleapis.com/auth/youtube.force-ssl",
   "https://www.googleapis.com/auth/yt-analytics.readonly",
+  // Revenue in the growth report, for monetized channels.
+  "https://www.googleapis.com/auth/yt-analytics-monetary.readonly",
 ];
 
 /** `state` prefix that routes the shared Google callback to YouTube. */

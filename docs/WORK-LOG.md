@@ -4,6 +4,24 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-16 — YouTube page: growth report, video SEO, comments, audit
+- **Page:** `/dashboard/youtube`, with a tab per feature. Listed under Marketing → Social. The Connections tile's "Open YouTube" goes here.
+  - **Overview:** the last 28 days vs the 28 before:
+    - views, watch time, net subscribers, estimated revenue (null if not monetized)
+    - likes, comments and shares
+    - daily bars, traffic sources, top 10 videos, countries
+  - **Videos & SEO:** the latest 50 uploads.
+    - Edit the title, description and tags (`videos.update`, 50 quota units each).
+    - Per-video SEO tips: title length, description, chapters, tags, link, hashtags, captions.
+  - **Comments:** the newest 100 threads, filtered to those not yet answered by the channel. Replying calls `comments.insert` (50 units).
+  - **Audit:** a 12-point channel checklist with a score.
+- **Code:** `lib/youtube-manage.ts` (API calls) and `lib/dashboard/actions/youtube.ts` (server actions).
+- **Scopes:** the connect now also asks for `youtube.force-ssl` and `yt-analytics-monetary.readonly`.
+- **Not done yet:**
+  - Not browser-tested (no dashboard login, and no channel connected yet).
+  - No MCP tools for these yet.
+  - The privacy policy needs a YouTube API Services disclosure before the Google audit / verification.
+
 ## 2026-10-15 — Planner split by kind + YouTube + Videos + TikTok video
 - **Planner tabs:** All · Posts · Reels & Shorts · Videos, with a "needs caption" count on each tab. "+ Add" opens that kind's composer; on "All" the composer has a post / Reel / video switcher.
 - **Stories:** now their own Planner page.
