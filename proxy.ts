@@ -53,15 +53,18 @@ function buildCsp(pathname: string): string {
   // dashboard, Meta's CDNs (post thumbnails from the Graph API). The vault
   // and the public site keep the original tight list.
   const imgSrc = ["'self'", "data:", "blob:", "https://cdn.sanity.io"];
-  if (pathname.startsWith("/dashboard/social") || pathname === "/portal/planner") {
+  const plannerPage = pathname.startsWith("/dashboard/social") || pathname === "/portal/planner" || pathname === "/portal/stories";
+  if (plannerPage) {
     const r2 = r2Origin();
     if (r2) imgSrc.push(r2);
   }
   if (pathname.startsWith("/dashboard/social")) imgSrc.push("https://*.fbcdn.net", "https://*.cdninstagram.com");
+  // YouTube page: channel avatars and video thumbnails from Google's image CDNs.
+  if (pathname.startsWith("/dashboard/youtube")) imgSrc.push("https://*.ytimg.com", "https://yt3.ggpht.com", "https://yt3.googleusercontent.com");
   // Reels: the upload preview plays a local blob:, the Planner plays the
   // uploaded video from R2 — same pages as the R2 images above.
   const mediaSrc = ["'self'", "blob:"];
-  if (pathname.startsWith("/dashboard/social") || pathname === "/portal/planner") {
+  if (plannerPage) {
     const r2 = r2Origin();
     if (r2) mediaSrc.push(r2);
   }
