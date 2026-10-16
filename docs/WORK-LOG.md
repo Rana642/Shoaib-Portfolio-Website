@@ -4,6 +4,17 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-16 — Stories from a Google Drive folder
+- **Where:** the Stories Planner, card "Stories from Google Drive", per project. Fields: folder link (shared "Anyone with the link") and stories per day (default 8). Buttons: Sync now, Disconnect.
+- **Code:** `lib/story-drive.ts`.
+  - Reads the folder with a plain Google API key from API Vault service `google_drive`, field `api_key`. No OAuth needed.
+  - Takes new JPG/PNG/WebP and MP4/MOV files in random order.
+  - Places them at the Instagram followers-online peak hours, PKT 9–23 (`instagramOnlineByPktHour`). Without that data it uses 10/12/14/16/18/20/21/22. The slots are refreshed daily, with a few random minutes on each.
+  - Copies each file to R2 and creates `scheduled_posts` rows: `post_type` story, status scheduled, `drive_file_id`. A unique index makes sure a file never imports twice.
+  - Videos over 60s skip FB (Meta's Page Stories cap). IG is also set to 60s, so longer videos are listed as skipped.
+- **Cron:** the social cron syncs each folder at most once an hour, 4 imports per run, only when the run has time left. The R2 copy is deleted after posting, as before.
+- **SQL run:** table `story_drive_sources`, plus `scheduled_posts.drive_file_id` with its unique index.
+- **To do (Shoaib):** create the Google API key (Drive API enabled), save it in the API Vault, then paste the Toni and Guy folder link.
 ## 2026-10-16 — Planner is its own section; Posts / Stories side toggle
 - **Sidebar:** Planner is now its own item, above Marketing. The "to caption + failed" badge moved from Marketing to Planner (counts key `planner`).
 - **Marketing tabs:** Insights · YouTube · Meta Ads · Google Business · Connections.

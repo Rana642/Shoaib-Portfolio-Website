@@ -8,6 +8,7 @@ import { postToAllProjectAccounts, type PlatformPostResult, type ReelPending } f
 import { mintInstagramMediaUrl } from "@/lib/social-instagram-media";
 import { refreshExpiringInstagramLogins } from "@/lib/social-instagram-login";
 import { presignDownload, deleteObject } from "@/lib/storage";
+import { syncDueStoryFolders } from "@/lib/story-drive";
 
 // Cron runs every 15 min (vercel.json) but a batch of due posts still fires
 // within one invocation — space them out a few seconds apart rather than
@@ -190,5 +191,16 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ checked: due.length, processed: results.length, deferred, backedOff, results, instagramTokensRefreshed });
+  // Stories from Google Drive folders: import new files, at most once an
+  // hour per folder, only when this run has time left after posting.
+  let storyFoldersSynced = 0;
+  if (!deferred && Date.now() - startedAt < 30_000) {
+    try {
+      storyFoldersSynced = await syncDueStoryFolders(15_000);
+    } catch {
+      /* retried on the next run */
+    }
+  }
+
+  return NextResponse.json({ checked: due.length, processed: results.length, deferred, backedOff, results, instagramTokensRefreshed, storyFoldersSynced });
 }

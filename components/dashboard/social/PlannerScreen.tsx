@@ -5,6 +5,8 @@ import { listProjectOptions } from "@/lib/dashboard/projects";
 import { PageHeader, EmptyState, LinkButton } from "@/components/dashboard/ui";
 import PlannerCalendar from "@/components/dashboard/social/PlannerCalendar";
 import { plannerDayNotes } from "@/lib/planner-day-notes";
+import StoryDriveCard from "@/components/dashboard/social/StoryDriveCard";
+import { getStoryDriveSource } from "@/lib/story-drive";
 import type { ScheduledPost } from "@/lib/dashboard/types";
 
 const COPY = {
@@ -20,7 +22,16 @@ const COPY = {
 
 /** The dashboard Planner page — shared by the main Planner and the
  *  separate Stories Planner (`section`). */
-export default async function PlannerScreen({ projectParam, section }: { projectParam?: string; section: "feed" | "stories" }) {
+export default async function PlannerScreen({
+  projectParam,
+  section,
+  driveNotice,
+}: {
+  projectParam?: string;
+  section: "feed" | "stories";
+  /** Stories: the result of a Drive-folder action that came back through the URL. */
+  driveNotice?: { ok: boolean; text: string } | null;
+}) {
   const projects = await listProjectOptions();
 
   if (projects.length === 0) {
@@ -64,6 +75,9 @@ export default async function PlannerScreen({ projectParam, section }: { project
   return (
     <>
       <PageHeader title={COPY[section].title} description={COPY[section].description} />
+      {section === "stories" && (
+        <StoryDriveCard projectId={selectedProjectId} source={await getStoryDriveSource(selectedProjectId)} notice={driveNotice} />
+      )}
       <PlannerCalendar
         projects={projects}
         selectedProjectId={selectedProjectId}

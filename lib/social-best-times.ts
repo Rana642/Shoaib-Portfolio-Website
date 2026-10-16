@@ -144,6 +144,33 @@ async function accountTimes(account: ClientSocialAccount, days: number): Promise
   }
 }
 
+/** Average Instagram followers online per PKT hour (0–23) for a project's
+ *  Instagram account, or null when there is no data — used to place
+ *  Stories at the followers' active hours (lib/story-drive.ts). */
+export async function instagramOnlineByPktHour(projectId: string): Promise<number[] | null> {
+  const ig = (await listSocialAccountsForProject(projectId)).find((a) => a.platform === "instagram");
+  if (!ig) return null;
+  try {
+    const viaLogin = isInstagramLoginAccount(ig);
+    const token = viaLogin ? await getFreshInstagramLoginToken(ig) : decryptAccountToken(ig);
+    const host = viaLogin ? IG_LOGIN_GRAPH_BASE : GRAPH_BASE;
+    const o = await graphJson<{ data?: { values?: { value?: Record<string, number> }[] }[] }>(
+      `${host}/${ig.external_id}/insights?${new URLSearchParams({ metric: "online_followers", period: "lifetime", access_token: token })}`
+    );
+    const values = o.data?.[0]?.values ?? [];
+    if (!values.length) return null;
+    const shift = hoursToPkt("America/Los_Angeles");
+    const sum = new Array(24).fill(0), n = new Array(24).fill(0);
+    for (const day of values) for (const [h, c] of Object.entries(day.value ?? {})) {
+      const pkt = (((+h + shift) % 24) + 24) % 24;
+      sum[pkt] += c; n[pkt] += 1;
+    }
+    return sum.map((v, i) => (n[i] ? Math.round(v / n[i]) : 0));
+  } catch {
+    return null;
+  }
+}
+
 type ProjectRow = { id: string; name: string; clients: { name: string } | { name: string }[] | null };
 const labelOf = (p: ProjectRow) => `${(Array.isArray(p.clients) ? p.clients[0]?.name : p.clients?.name) ?? "Unknown"} — ${p.name}`;
 

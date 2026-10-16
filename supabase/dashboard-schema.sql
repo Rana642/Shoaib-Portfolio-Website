@@ -1697,3 +1697,22 @@ alter table payments add column if not exists pkr_amount numeric(14,2);
 
 alter table finance_bills enable row level security;
 alter table finance_entries enable row level security;
+
+-- Stories from a Google Drive folder (2026-10-16): one public ("anyone with
+-- the link") folder per project; the social cron imports new images/videos
+-- from it as Stories, up to per_day a day at the followers' active hours.
+-- scheduled_posts.drive_file_id stops a file being imported twice.
+create table if not exists story_drive_sources (
+  project_id uuid primary key references client_projects(id) on delete cascade,
+  folder_id text not null,
+  folder_url text not null,
+  per_day int not null default 8 check (per_day between 1 and 20),
+  slot_hours int[],
+  slots_updated_at timestamptz,
+  last_synced_at timestamptz,
+  last_result jsonb,
+  created_at timestamptz not null default now()
+);
+alter table story_drive_sources enable row level security;
+alter table scheduled_posts add column if not exists drive_file_id text;
+create unique index if not exists scheduled_posts_drive_file_idx on scheduled_posts (project_id, drive_file_id) where drive_file_id is not null;
