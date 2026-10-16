@@ -1720,3 +1720,8 @@ drop index if exists scheduled_posts_drive_file_idx;
 create index if not exists scheduled_posts_drive_file_lookup on scheduled_posts (project_id, drive_file_id) where drive_file_id is not null;
 -- Files held back from import (e.g. waiting for a brand/logo check).
 alter table story_drive_sources add column if not exists hold_file_ids text[] not null default '{}';
+-- Every published post / Reel / video is also shared as a Story (Shoaib,
+-- 2026-10-16): the cron adds a story row pointing back at its post; the
+-- unique index keeps it to one story per post.
+alter table scheduled_posts add column if not exists story_of_post_id uuid references scheduled_posts(id) on delete set null;
+create unique index if not exists scheduled_posts_story_of_idx on scheduled_posts (story_of_post_id) where story_of_post_id is not null;

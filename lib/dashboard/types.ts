@@ -136,6 +136,8 @@ export type ScheduledPost = {
   video_title?: string | null;
   /** YouTube privacy for a Video; null = public. */
   video_privacy?: VideoPrivacy | null;
+  /** A Story made automatically from this published post (lib/post-as-story.ts). */
+  story_of_post_id?: string | null;
   /** What has to change, while status is "needs_changes" (plain English,
    *  shown to the uploader). */
   review_note?: string | null;

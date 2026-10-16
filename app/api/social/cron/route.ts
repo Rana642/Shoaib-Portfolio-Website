@@ -9,6 +9,7 @@ import { mintInstagramMediaUrl } from "@/lib/social-instagram-media";
 import { refreshExpiringInstagramLogins } from "@/lib/social-instagram-login";
 import { presignDownload, deleteObject } from "@/lib/storage";
 import { syncDueStoryFolders } from "@/lib/story-drive";
+import { queueStoryCopy } from "@/lib/post-as-story";
 
 // Cron runs every 15 min (vercel.json) but a batch of due posts still fires
 // within one invocation — space them out a few seconds apart rather than
@@ -150,6 +151,16 @@ export async function GET(request: Request) {
       const ok = allResults.length > 0 && allResults.every((r) => r.ok);
       await markPostResult(post.id, ok, { platforms: allResults });
       results.push({ id: post.id, ok, platforms: allResults });
+
+      // Every published post / Reel / video is shared as a Story too — copied
+      // before the original file is deleted below. Best-effort.
+      if (allResults.some((r) => r.ok) && post.post_type !== "story") {
+        try {
+          await queueStoryCopy(post);
+        } catch {
+          /* the post itself went out; a missing story copy isn't fatal */
+        }
+      }
 
       // Once every connected account has confirmed the post live, Meta/IG
       // already hold their own copy — the original in R2 is no longer

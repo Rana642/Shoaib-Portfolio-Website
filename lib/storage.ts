@@ -1,5 +1,5 @@
 import "server-only";
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand, CopyObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 /**
@@ -113,4 +113,10 @@ export async function streamObject(key: string): Promise<{ body: ReadableStream;
     contentType: res.ContentType || "application/octet-stream",
     size: typeof res.ContentLength === "number" ? res.ContentLength : null,
   };
+}
+
+/** Server-side copy inside the bucket (no download/upload through us). */
+export async function copyObject(fromKey: string, toKey: string) {
+  if (!client) throw new Error("Storage isn't configured.");
+  await client.send(new CopyObjectCommand({ Bucket: bucket, CopySource: `${bucket}/${encodeURIComponent(fromKey).replace(/%2F/g, "/")}`, Key: toKey }));
 }
