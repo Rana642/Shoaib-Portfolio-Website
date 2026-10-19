@@ -4,6 +4,14 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-19 — Business Management section + Password Vault on its own
+- **Sidebar:** "Websites" is now **Business Management**. **Password Vault** is its own item and is no longer a Clients tab. Shoaib calls it his personal tool.
+- **Business Management** tabs are grouped by system:
+  - A small "HOTEL MANAGEMENT" label (`showTitle` on a section group, drawn by SectionNav), then Bookings · Inquiries · Contacts.
+  - Salon Management and any other system will be a new labelled group once it's built. It is not shown until then (Shoaib's choice).
+- **Unchanged:** URLs, and the client portal's own "Bookings" section.
+- Browser-tested locally (sidebar highlight, tabs, vault page, Clients tabs).
+
 ## 2026-10-16 — Stories from a Google Drive folder
 - **Where:** the Stories Planner, card "Stories from Google Drive", per project. Fields: folder link (shared "Anyone with the link") and stories per day (default 8). Buttons: Sync now, Disconnect.
 - **Code:** `lib/story-drive.ts`.

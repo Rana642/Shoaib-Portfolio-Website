@@ -65,6 +65,9 @@ export default function SectionNav({ section }: { section: Section }) {
         {groups.map((g, gi) => (
           <div key={g.title} className="flex items-center gap-5">
             {gi > 0 && <span className="h-4 w-px bg-ink/10" aria-hidden />}
+            {g.showTitle && (
+              <span className="shrink-0 text-tag uppercase tracking-widest text-ink-subtle whitespace-nowrap">{g.title}</span>
+            )}
             {g.items.map(tab)}
           </div>
         ))}

@@ -10,7 +10,6 @@ import {
   FileSignature,
   FileText,
   FolderInput,
-  Globe,
   Inbox,
   KeyRound,
   LayoutDashboard,
@@ -30,6 +29,7 @@ import {
   Send,
   Settings as SettingsIcon,
   SlidersHorizontal,
+  Store,
   Briefcase,
   Building2,
   BedDouble,
@@ -67,7 +67,9 @@ export type Section = {
   icon: LucideIcon;
   description: string;
   match: string[];
-  groups: { title: string; items: SectionItem[] }[];
+  /** `showTitle` prints the group's title as a small label before its tabs
+   *  (Business Management: "Hotel Management", later "Salon Management"). */
+  groups: { title: string; items: SectionItem[]; showTitle?: boolean }[];
   /** "bottom" = shown next to Sign out instead of in the main list (Settings). */
   placement?: "bottom";
 };
@@ -111,8 +113,8 @@ export const SECTIONS: Section[] = [
     key: "clients",
     label: "Clients",
     icon: Users,
-    description: "Your clients, their monthly reports, logins and letters.",
-    match: [`${D}/clients`, `${D}/reports`, `${D}/vault`, `${D}/letterhead`],
+    description: "Your clients, their monthly reports and letters.",
+    match: [`${D}/clients`, `${D}/reports`, `${D}/letterhead`],
     groups: [
       {
         title: "Clients",
@@ -123,10 +125,7 @@ export const SECTIONS: Section[] = [
       },
       {
         title: "Tools",
-        items: [
-          { href: `${D}/vault`, label: "Password Vault", icon: KeyRound },
-          { href: `${D}/letterhead`, label: "Letterhead", icon: ScrollText },
-        ],
+        items: [{ href: `${D}/letterhead`, label: "Letterhead", icon: ScrollText }],
       },
       { title: "Setup", items: [{ href: `${D}/clients/setup`, label: "Setup", icon: SlidersHorizontal }] },
     ],
@@ -234,17 +233,20 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
-    // Data that comes in from client websites. Grouped by kind of data, not
-    // by industry, so salon bookings or career-page applications become one
-    // more tab here (and in the portal) instead of one more section.
-    key: "websites",
-    label: "Websites",
-    icon: Globe,
-    description: "Bookings, inquiries and contacts from client websites.",
+    // One home for the industry systems we run for clients (Shoaib,
+    // 2026-10-19). Each system is its own labelled group of tabs: Hotel
+    // Management now — bookings, inquiries and guests from hotel websites and
+    // WhatsApp — and Salon Management or others as they're built. The client
+    // portal keeps its own simpler "Bookings" section.
+    key: "business",
+    label: "Business Management",
+    icon: Store,
+    description: "The systems we run for client businesses — hotel bookings, inquiries and guests today.",
     match: [`${D}/bookings`, `${D}/inquiries`, `${D}/contacts`],
     groups: [
       {
-        title: "Websites",
+        title: "Hotel Management",
+        showTitle: true,
         items: [
           { href: `${D}/bookings`, label: "Bookings", icon: BedDouble },
           { href: `${D}/inquiries`, label: "Inquiries", icon: MessageSquareText },
@@ -252,6 +254,16 @@ export const SECTIONS: Section[] = [
         ],
       },
     ],
+  },
+  {
+    // Shoaib's own tool, so its own sidebar item rather than a Clients tab
+    // (2026-10-19). One page, so no tabs.
+    key: "vault",
+    label: "Password Vault",
+    icon: KeyRound,
+    description: "Your zero-knowledge vault for client and personal logins.",
+    match: [`${D}/vault`],
+    groups: [{ title: "Password Vault", items: [{ href: `${D}/vault`, label: "Password Vault", icon: KeyRound }] }],
   },
   {
     key: "settings",
