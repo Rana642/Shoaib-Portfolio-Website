@@ -38,7 +38,7 @@ export async function getInstagramLoginCredentials(): Promise<{ app_id: string; 
   if (!isApiVaultCryptoConfigured) throw new Error("API_VAULT_ENCRYPTION_KEY is not configured.");
   const { data: row, error } = await db.from("api_credentials").select("fields").eq("service", "instagram_login").maybeSingle();
   if (error || !row) {
-    throw new Error("No 'instagram_login' credential in the API Vault yet — add the Instagram app id and secret (Dashboard → API Vault → Instagram API).");
+    throw new Error("No 'instagram_login' credential in the API Vault yet — add the Instagram app id and secret (Password Vault → API Vault → Instagram API).");
   }
   const fields = row.fields as Record<string, string>;
   if (!fields.app_id || !fields.app_secret) throw new Error("The 'instagram_login' credential needs both app_id and app_secret.");

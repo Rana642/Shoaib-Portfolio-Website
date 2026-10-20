@@ -5,7 +5,7 @@ import { decryptField } from "./api-vault-crypto";
 /**
  * Shared credential lookup for every marketing-API MCP tool (Google Ads,
  * GA4, GSC, GTM, Meta Marketing) — all read from the same api_credentials
- * vault (lib/api-vault-crypto.ts) that /dashboard/api-vault manages. Each
+ * vault (lib/api-vault-crypto.ts) that the API Vault tab (inside the Password Vault) manages. Each
  * service is expected to have exactly one active row; if Shoaib ever needs
  * more than one Google Ads/Meta account, the tools take an explicit
  * customerId/actId argument rather than picking a row here.
@@ -19,7 +19,7 @@ export async function getVaultCredential(service: string): Promise<Record<string
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(`Vault lookup failed for '${service}': ${error.message}`);
-  if (!data) throw new Error(`No active '${service}' credential in the API Vault (/dashboard/api-vault).`);
+  if (!data) throw new Error(`No active '${service}' credential in the API Vault (Password Vault → API Vault).`);
 
   const fields = data.fields as Record<string, string>;
   const out: Record<string, string> = {};

@@ -257,27 +257,35 @@ export const SECTIONS: Section[] = [
   },
   {
     // Shoaib's own tool, so its own sidebar item rather than a Clients tab
-    // (2026-10-19). One page, so no tabs.
+    // (2026-10-19). One page, so no tabs. The API Vault moved in from Settings
+    // (2026-10-20): a tab inside the unlocked vault; its old URL redirects there.
     key: "vault",
     label: "Password Vault",
     icon: KeyRound,
-    description: "Your zero-knowledge vault for client and personal logins.",
-    match: [`${D}/vault`],
-    groups: [{ title: "Password Vault", items: [{ href: `${D}/vault`, label: "Password Vault", icon: KeyRound }] }],
+    description: "Your zero-knowledge vault for client and personal logins, and the API Vault.",
+    match: [`${D}/vault`, `${D}/api-vault`],
+    groups: [
+      {
+        title: "Password Vault",
+        items: [
+          { href: `${D}/vault`, label: "Password Vault", icon: KeyRound },
+          { href: `${D}/api-vault`, label: "API Vault", icon: Plug, hidden: true },
+        ],
+      },
+    ],
   },
   {
     key: "settings",
     label: "Settings",
     icon: SettingsIcon,
-    description: "Your business profile and the API keys your integrations use.",
-    match: [`${D}/settings`, `${D}/api-vault`],
+    description: "Your business profile.",
+    match: [`${D}/settings`],
     placement: "bottom",
     groups: [
       {
         title: "Settings",
         items: [
           { href: `${D}/settings`, label: "Business profile", icon: Building2 },
-          { href: `${D}/api-vault`, label: "API Vault", icon: Plug },
         ],
       },
     ],

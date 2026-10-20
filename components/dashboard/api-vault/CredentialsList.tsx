@@ -35,7 +35,7 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function CredentialCard({ cred }: { cred: ListedCredential }) {
+function CredentialCard({ cred, onChanged }: { cred: ListedCredential; onChanged?: () => void }) {
   const [, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
   const [revealed, setRevealed] = useState<{ name: string; value: string }[] | null>(null);
@@ -62,6 +62,7 @@ function CredentialCard({ cred }: { cred: ListedCredential }) {
     startTransition(async () => {
       await deleteCredential(cred.id);
       setBusy(false);
+      onChanged?.();
     });
   };
 
@@ -84,8 +85,9 @@ function CredentialCard({ cred }: { cred: ListedCredential }) {
             <button
               type="button"
               onClick={() =>
-                startTransition(() => {
-                  void setCredentialActive(cred.id, !cred.is_active);
+                startTransition(async () => {
+                  await setCredentialActive(cred.id, !cred.is_active);
+                  onChanged?.();
                 })
               }
               aria-label={cred.is_active ? "Mark inactive" : "Mark active"}
@@ -156,17 +158,25 @@ function CredentialCard({ cred }: { cred: ListedCredential }) {
         </div>
       </Card>
 
-      {editing && <CredentialModal editing={cred} onClose={() => setEditing(false)} />}
+      {editing && <CredentialModal editing={cred} onSaved={onChanged} onClose={() => setEditing(false)} />}
     </>
   );
 }
 
-export default function CredentialsList({ credentials }: { credentials: ListedCredential[] }) {
+/** `onChanged` reloads the list after a change — it lives inside the
+ *  unlocked Password Vault, which loads it client-side (no page refresh). */
+export default function CredentialsList({
+  credentials,
+  onChanged,
+}: {
+  credentials: ListedCredential[];
+  onChanged?: () => void;
+}) {
   if (credentials.length === 0) {
     return (
       <EmptyState
         title="No API credentials saved yet"
-        description="Add Google Ads, Meta Marketing API, GA4, GTM, GSC or Google Business Profile credentials above."
+        description="Add Google Ads, Meta Marketing API, GA4, GTM, GSC or Google Business Profile credentials with “Add credential”."
       />
     );
   }
@@ -174,7 +184,7 @@ export default function CredentialsList({ credentials }: { credentials: ListedCr
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {credentials.map((cred) => (
-        <CredentialCard key={cred.id} cred={cred} />
+        <CredentialCard key={cred.id} cred={cred} onChanged={onChanged} />
       ))}
     </div>
   );

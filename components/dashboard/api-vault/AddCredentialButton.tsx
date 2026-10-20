@@ -5,7 +5,7 @@ import { Plus } from "lucide-react";
 import { buttonStyles } from "@/components/dashboard/ui";
 import CredentialModal from "./CredentialModal";
 
-export default function AddCredentialButton() {
+export default function AddCredentialButton({ onSaved }: { onSaved?: () => void }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -13,7 +13,7 @@ export default function AddCredentialButton() {
         <Plus className="size-4" aria-hidden />
         Add credential
       </button>
-      {open && <CredentialModal onClose={() => setOpen(false)} />}
+      {open && <CredentialModal onSaved={onSaved} onClose={() => setOpen(false)} />}
     </>
   );
 }

@@ -4,11 +4,13 @@ import { PageHeader } from "@/components/dashboard/ui";
 import VaultApp from "@/components/dashboard/VaultApp";
 import type { Client, ClientProject } from "@/lib/dashboard/types";
 import { getAccessIdentities } from "@/lib/dashboard/settings";
+import { isApiVaultCryptoConfigured } from "@/lib/api-vault-crypto";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Password Vault" };
 
-export default async function VaultPage() {
+export default async function VaultPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  const { tab } = await searchParams;
   const [meta, { data: clients }, { data: projects }, identities] = await Promise.all([
     getVaultMeta(),
     // Inactive clients too, so their saved accounts still show a name; the
@@ -22,13 +24,15 @@ export default async function VaultPage() {
     <>
       <PageHeader
         title="Password Vault"
-        description="Client and personal account logins, encrypted in your browser with your master password — the server only ever stores unreadable ciphertext."
+        description="Client and personal account logins, encrypted in your browser with your master password — the server only ever stores unreadable ciphertext. The API Vault opens here too, after unlock."
       />
       <VaultApp
         meta={meta}
         clients={(clients ?? []) as Pick<Client, "id" | "name" | "email" | "is_active">[]}
         projects={(projects ?? []) as Pick<ClientProject, "id" | "client_id" | "name" | "sort_order">[]}
         identities={identities}
+        initialTab={tab === "api" ? "api" : "accounts"}
+        apiCryptoReady={isApiVaultCryptoConfigured}
       />
     </>
   );

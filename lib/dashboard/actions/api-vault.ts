@@ -96,7 +96,7 @@ export async function createCredential(formData: FormData) {
   });
   if (error) return { error: error.message };
 
-  revalidatePath("/dashboard/api-vault");
+  revalidatePath("/dashboard/vault");
   return { ok: true };
 }
 
@@ -127,7 +127,7 @@ export async function updateCredential(id: string, formData: FormData) {
     .eq("id", id);
   if (error) return { error: error.message };
 
-  revalidatePath("/dashboard/api-vault");
+  revalidatePath("/dashboard/vault");
   return { ok: true };
 }
 
@@ -135,7 +135,7 @@ export async function setCredentialActive(id: string, is_active: boolean) {
   await assertAuthed();
   const { error } = await db.from("api_credentials").update({ is_active }).eq("id", id);
   if (error) return { error: error.message };
-  revalidatePath("/dashboard/api-vault");
+  revalidatePath("/dashboard/vault");
   return { ok: true };
 }
 
@@ -143,6 +143,6 @@ export async function deleteCredential(id: string) {
   await assertAuthed();
   const { error } = await db.from("api_credentials").delete().eq("id", id);
   if (error) return { error: error.message };
-  revalidatePath("/dashboard/api-vault");
+  revalidatePath("/dashboard/vault");
   return { ok: true };
 }

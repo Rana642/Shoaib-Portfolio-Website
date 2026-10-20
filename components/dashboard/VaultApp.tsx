@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Inbox, KeyRound, Lock, Plus, RefreshCw, Search, Send } from "lucide-react";
+import { Inbox, KeyRound, Lock, Plug, Plus, RefreshCw, Search, Send } from "lucide-react";
 import {
   setupVault,
   unlockWithPassword,
@@ -40,6 +40,7 @@ import EntryEditor from "./vault/EntryEditor";
 import VaultList from "./vault/VaultList";
 import NotifyClientModal from "./vault/NotifyClientModal";
 import RequestModal from "./vault/RequestModal";
+import ApiVaultPanel from "./vault/ApiVaultPanel";
 import type { Item, VaultClient, VaultProject } from "./vault/shared";
 import type { AccessIdentities } from "@/lib/access-identities";
 
@@ -55,6 +56,10 @@ type InboxItem = {
   /** Couldn't be opened — can only be discarded. */
   broken: boolean;
 };
+
+/** Accounts = the zero-knowledge logins; API Vault = the server-side API keys,
+ *  shown here only while the vault is unlocked. */
+export type VaultTab = "accounts" | "api";
 
 type View =
   | { kind: "list" }
@@ -100,13 +105,19 @@ export default function VaultApp({
   clients,
   projects,
   identities,
+  initialTab = "accounts",
+  apiCryptoReady,
 }: {
   meta: VaultMeta | null;
   clients: VaultClient[];
   projects: VaultProject[];
   identities: AccessIdentities;
+  initialTab?: VaultTab;
+  apiCryptoReady: boolean;
 }) {
   const [dataKey, setDataKey] = useState<CryptoKey | null>(null);
+  // Kept across a lock, so unlocking again returns to the same tab.
+  const [tab, setTab] = useState<VaultTab>(initialTab);
   const dkRawRef = useRef<Uint8Array | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [view, setView] = useState<View>({ kind: "list" });
@@ -399,8 +410,18 @@ export default function VaultApp({
   const attentionCount = items.filter((i) => i.broken || securityIssues(i.secret).length > 0).length;
   const notifyClient = notify ? clients.find((c) => c.id === notify.clientId) : null;
 
+  if (tab === "api") {
+    return (
+      <>
+        <VaultTabs tab={tab} onTab={setTab} accounts={items.length} />
+        <ApiVaultPanel ready={apiCryptoReady} onLock={lock} />
+      </>
+    );
+  }
+
   return (
     <>
+      <VaultTabs tab={tab} onTab={setTab} accounts={items.length} />
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="size-4 text-ink-subtle absolute left-3.5 top-1/2 -translate-y-1/2" aria-hidden />
@@ -545,5 +566,33 @@ export default function VaultApp({
         />
       )}
     </>
+  );
+}
+
+/** Accounts / API Vault — both behind the same master-password unlock. */
+function VaultTabs({ tab, onTab, accounts }: { tab: VaultTab; onTab: (tab: VaultTab) => void; accounts: number }) {
+  const options = [
+    { key: "accounts" as const, label: `Accounts (${accounts})`, Icon: KeyRound },
+    { key: "api" as const, label: "API Vault", Icon: Plug },
+  ];
+  return (
+    <div role="tablist" aria-label="Vault" className="inline-flex gap-1 rounded-xl border border-ink/15 p-1 mb-5">
+      {options.map(({ key, label, Icon }) => (
+        <button
+          key={key}
+          type="button"
+          role="tab"
+          aria-selected={tab === key}
+          onClick={() => onTab(key)}
+          className={cn(
+            "flex items-center gap-2 rounded-lg px-4 py-2 text-small font-medium transition-colors cursor-pointer",
+            tab === key ? "bg-citrus text-ink" : "text-ink-muted hover:text-ink hover:bg-ink/5"
+          )}
+        >
+          <Icon className="size-4" aria-hidden />
+          {label}
+        </button>
+      ))}
+    </div>
   );
 }

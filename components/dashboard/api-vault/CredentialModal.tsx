@@ -16,9 +16,11 @@ type FieldRow = { name: string; value: string };
  *  scratch. */
 export default function CredentialModal({
   editing,
+  onSaved,
   onClose,
 }: {
   editing?: Omit<ApiCredential, "fields"> & { fieldNames: string[] };
+  onSaved?: () => void;
   onClose: () => void;
 }) {
   const [pending, startTransition] = useTransition();
@@ -76,7 +78,10 @@ export default function CredentialModal({
     startTransition(async () => {
       const result = editing ? await updateCredential(editing.id, fd) : await createCredential(fd);
       if (result?.error) setError(result.error);
-      else onClose();
+      else {
+        onSaved?.();
+        onClose();
+      }
     });
   };
 
