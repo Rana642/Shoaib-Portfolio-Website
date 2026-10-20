@@ -4,6 +4,12 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-20 — API Vault inside the Password Vault (953f1dd)
+- The unlocked Password Vault now has two tabs: **Accounts** and **API Vault**. The API keys list loads only after the master password unlock and is dropped on lock, including the 10-minute idle lock.
+- The keys are still encrypted with the server key, not the master password, because crons, MCP tools and integrations read them on the server. So the master password is a screen gate, not extra encryption.
+- `/dashboard/api-vault` redirects to `/dashboard/vault?tab=api`. Settings now has only Business profile. Shoaib said "filhal", so this may move again.
+- tsc and eslint passed. Not browser-tested: the Browser pane couldn't open localhost, and the local `next build` passed 10 minutes without finishing. Vercel builds it on push.
+
 ## 2026-10-19 — Business Management section + Password Vault on its own
 - **Sidebar:** "Websites" is now **Business Management**. **Password Vault** is its own item and is no longer a Clients tab. Shoaib calls it his personal tool.
 - **Business Management** tabs are grouped by system:
