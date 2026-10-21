@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "./dashboard/db";
-import { copyObject, headObject } from "./storage";
+import { copyObject, fetchObject, headObject, uploadObject } from "./storage";
+import { storyFrame } from "./story-frame";
 import { listSocialAccountsForProject } from "./social-accounts";
 import type { ScheduledPost } from "./dashboard/types";
 
@@ -32,8 +33,24 @@ export async function queueStoryCopy(post: ScheduledPost): Promise<"queued" | "s
   if (!head) return "skipped";
 
   const ext = post.media_key.split(".").pop() ?? "jpg";
-  const storyKey = `planner/${post.project_id}/post-stories/${post.id}.${ext}`;
-  await copyObject(post.media_key, storyKey);
+  // A photo is redrawn as a full 9:16 frame (lib/story-frame.ts) so the
+  // Story shows the whole post instead of a zoomed, side-cropped one.
+  // Videos are copied as they are; if the redraw fails, the plain copy
+  // still goes out.
+  let storyKey = `planner/${post.project_id}/post-stories/${post.id}.${ext}`;
+  const isPhoto = head.contentType.startsWith("image/") || /^(jpe?g|png|webp)$/i.test(ext);
+  let framed = false;
+  if (isPhoto) {
+    try {
+      const { buffer } = await fetchObject(post.media_key);
+      storyKey = `planner/${post.project_id}/post-stories/${post.id}.jpg`;
+      await uploadObject(storyKey, await storyFrame(buffer), "image/jpeg");
+      framed = true;
+    } catch {
+      storyKey = `planner/${post.project_id}/post-stories/${post.id}.${ext}`;
+    }
+  }
+  if (!framed) await copyObject(post.media_key, storyKey);
   const { error } = await db.from("scheduled_posts").insert({
     project_id: post.project_id,
     media_key: storyKey,
