@@ -18,7 +18,7 @@ import ManualAccountForm from "@/components/dashboard/social/ManualAccountForm";
 import { cn } from "@/lib/utils";
 import { PLATFORMS, type ConnectionStatus, type PlatformDef, type PlatformKey, type WorkspaceLogin } from "@/lib/social-platforms";
 import type { ProjectOption } from "@/lib/dashboard/types";
-import type { DiscoveredPage } from "@/lib/social-fb";
+import type { PageChoice } from "@/lib/social-fb";
 import type { DiscoveredOrganization } from "@/lib/social-linkedin";
 import PlatformTile, { type TileAccount, type TileAction } from "./PlatformTile";
 import ConnectionsMatrix from "./ConnectionsMatrix";
@@ -30,7 +30,7 @@ import { PlatformChip, StatusPill } from "./platform-ui";
 export type HubAccount = { id: string; project_id: string; platform: string; label: string; external_id: string };
 
 type ImportState =
-  | { provider: "facebook"; pages: DiscoveredPage[] }
+  | { provider: "facebook"; pages: PageChoice[] }
   | { provider: "linkedin"; orgs: DiscoveredOrganization[] };
 
 const byKey = (key: PlatformKey) => PLATFORMS.find((p) => p.key === key) as PlatformDef;
@@ -128,11 +128,18 @@ export default function ConnectionsHub({
     if (importing.provider === "facebook") {
       return importing.pages.map((p) => {
         const existing = accounts.find((a) => a.platform === "facebook" && a.external_id === p.page_id);
+        const ig = p.instagram_business_account_id;
+        // Instagram linked to the Page after it was imported: the Page can be
+        // picked again to bring in just its Instagram, on the same project.
+        const igMissing =
+          existing && ig && !accounts.some((a) => a.platform === "instagram" && a.external_id === ig && a.project_id === existing.project_id);
         return {
           id: p.page_id,
           name: p.name,
-          subtitle: p.instagram_business_account_id ? "Facebook Page + Instagram" : "Facebook Page",
+          subtitle: ig ? "Facebook Page + Instagram" : "Facebook Page",
           importedTo: existing ? projectLabel(existing.project_id) : undefined,
+          addTo: igMissing ? existing.project_id : undefined,
+          addNote: igMissing ? "its Instagram isn't connected yet — select to add it" : undefined,
         };
       });
     }
@@ -145,7 +152,7 @@ export default function ConnectionsHub({
   const saveImport = async (mapping: Record<string, string>) => {
     if (!importing) return;
     if (importing.provider === "facebook") {
-      const chosen = importing.pages.filter((p) => mapping[p.page_id]).map((p) => ({ project_id: mapping[p.page_id], page: p }));
+      const chosen = importing.pages.filter((p) => mapping[p.page_id]).map((p) => ({ project_id: mapping[p.page_id], page_id: p.page_id }));
       return saveMappings(JSON.stringify(chosen));
     }
     const chosen = importing.orgs

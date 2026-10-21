@@ -114,6 +114,16 @@ export type DiscoveredPage = {
   instagram_business_account_id: string | null;
 };
 
+/** A discovered Page as the browser sees it (the import dialog) — never its
+ *  token. Saving sends Page ids back and the server re-discovers the tokens. */
+export type PageChoice = Omit<DiscoveredPage, "page_access_token">;
+
+export const toPageChoice = (p: DiscoveredPage): PageChoice => ({
+  page_id: p.page_id,
+  name: p.name,
+  instagram_business_account_id: p.instagram_business_account_id,
+});
+
 /** Lists every Facebook Page the given User token's owner administers,
  *  including each Page's linked Instagram Business Account (if any). */
 export async function listManagedPages(longLivedUserToken: string): Promise<DiscoveredPage[]> {

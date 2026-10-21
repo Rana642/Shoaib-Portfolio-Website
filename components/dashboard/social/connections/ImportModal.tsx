@@ -12,12 +12,17 @@ export type ImportItem = {
   subtitle?: string;
   /** Project label this item is already imported into, if any. */
   importedTo?: string;
+  /** Already imported, but something of it is still missing on that project
+   *  (a Page's Instagram linked later): selectable, pinned to this project. */
+  addTo?: string;
+  addNote?: string;
 };
 
 /** Generic "discovered accounts → projects" import dialog, shared by the
  *  Facebook (Pages + linked Instagram) and LinkedIn (Company Pages) flows.
  *  Already-imported items are shown but locked, so re-importing can't
- *  create duplicate client_social_accounts rows. */
+ *  create duplicate client_social_accounts rows — unless something of them
+ *  is still missing (`addTo`), and then only that is added. */
 export default function ImportModal({
   title,
   description,
@@ -43,14 +48,16 @@ export default function ImportModal({
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     const list = q ? items.filter((i) => i.name.toLowerCase().includes(q)) : items;
-    return [...list].sort((a, b) => Number(Boolean(a.importedTo)) - Number(Boolean(b.importedTo)));
+    const locked = (i: ImportItem) => Number(Boolean(i.importedTo) && !i.addTo);
+    return [...list].sort((a, b) => locked(a) - locked(b));
   }, [items, query]);
 
-  const toggle = (id: string) =>
+  const toggle = (item: ImportItem) =>
     setSelected((prev) => {
       const next = { ...prev };
+      const id = item.id;
       if (next[id] !== undefined) delete next[id];
-      else next[id] = defaultProjectId ?? projects[0]?.id ?? "";
+      else next[id] = item.addTo ?? defaultProjectId ?? projects[0]?.id ?? "";
       return next;
     });
 
@@ -103,7 +110,7 @@ export default function ImportModal({
 
         <ul className="flex-1 overflow-y-auto px-3 py-2">
           {visible.map((item) => {
-            const locked = Boolean(item.importedTo);
+            const locked = Boolean(item.importedTo) && !item.addTo;
             const checked = selected[item.id] !== undefined;
             return (
               <li
@@ -119,7 +126,7 @@ export default function ImportModal({
                     type="checkbox"
                     disabled={locked}
                     checked={checked}
-                    onChange={() => toggle(item.id)}
+                    onChange={() => toggle(item)}
                     className="size-4 accent-ink"
                   />
                   <span className="flex items-center justify-center size-9 rounded-full bg-ink/5 text-small font-semibold shrink-0">
@@ -128,11 +135,13 @@ export default function ImportModal({
                   <span className="min-w-0">
                     <span className="block text-small font-medium truncate">{item.name}</span>
                     <span className="block text-tag text-ink-subtle truncate">
-                      {locked ? `Imported · ${item.importedTo}` : item.subtitle}
+                      {item.importedTo
+                        ? `Imported · ${item.importedTo} · ${item.addNote ?? item.subtitle}`
+                        : item.subtitle}
                     </span>
                   </span>
                 </label>
-                {checked && (
+                {checked && !item.addTo && (
                   <select
                     value={selected[item.id]}
                     onChange={(e) => setSelected((prev) => ({ ...prev, [item.id]: e.target.value }))}

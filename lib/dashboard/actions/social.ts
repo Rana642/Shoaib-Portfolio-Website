@@ -26,7 +26,7 @@ import {
 import { submitNativeScheduleForPost, rescheduleNativePosts, cancelPostEverywhere } from "../../social-post";
 import { deleteObject } from "../../storage";
 import { clearPostFlag } from "../../post-review";
-import type { DiscoveredPage } from "../../social-fb";
+import { toPageChoice } from "../../social-fb";
 import type { DiscoveredOrganization } from "../../social-linkedin";
 
 async function assertAuthed() {
@@ -40,7 +40,7 @@ export async function connectFacebook(formData: FormData) {
   if (!token) return { error: "Paste a User Access Token first." };
   try {
     const pages = await connectFacebookAccount(token);
-    return { ok: true, pages };
+    return { ok: true, pages: pages.map(toPageChoice) };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Couldn't connect to Facebook." };
   }
@@ -61,13 +61,14 @@ export async function refreshFacebookPages() {
   await assertAuthed();
   try {
     const pages = await rediscoverFacebookPages();
-    return { ok: true, pages };
+    return { ok: true, pages: pages.map(toPageChoice) };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Couldn't refresh pages." };
   }
 }
 
-const mappingSchema = z.array(z.object({ project_id: z.string().uuid(), page: z.custom<DiscoveredPage>() }));
+// Page ids only — the server re-discovers each Page and its token.
+const mappingSchema = z.array(z.object({ project_id: z.string().uuid(), page_id: z.string().regex(/^d{1,30}$/) })).max(200);
 
 export async function saveMappings(mappingsJson: string) {
   await assertAuthed();

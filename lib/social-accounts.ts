@@ -139,50 +139,53 @@ export async function rediscoverFacebookPages(): Promise<DiscoveredPage[]> {
   return pages;
 }
 
-/** Step 2 — persists the project mapping for a set of discovered Pages
- *  (and, where present, their linked Instagram Business Account). A client
- *  with multiple businesses maps different Pages to different projects. */
-export async function saveFacebookPageMappings(
-  mappings: { page: DiscoveredPage; project_id: string }[]
-) {
-  const rows = mappings.flatMap(({ page, project_id }) => {
+/** Step 2 — persists the project mapping for the Pages picked in the import
+ *  dialog (and, where present, their linked Instagram Business Account). A
+ *  client with multiple businesses maps different Pages to different
+ *  projects. The browser sends only Page ids: Pages and their tokens are
+ *  re-discovered here, so a token never passes through the browser.
+ *  Nothing a project already has is added twice — so picking a Page that's
+ *  already imported adds just its Instagram, when that was linked to the Page
+ *  after the first import (Tad Pharma, 2026-10-21). Returns the rows added. */
+export async function saveFacebookPageMappings(mappings: { page_id: string; project_id: string }[]): Promise<number> {
+  const discovered = new Map((await rediscoverFacebookPages()).map((p) => [p.page_id, p]));
+  if (mappings.some((m) => !discovered.has(m.page_id))) {
+    throw new Error("A selected Page isn't reachable through your Facebook logins any more. Reconnect, then import again.");
+  }
+  const pages = mappings.map(({ page_id, project_id }) => ({ page: discovered.get(page_id)!, project_id }));
+  const ids = pages.flatMap(({ page }) => [page.page_id, ...(page.instagram_business_account_id ? [page.instagram_business_account_id] : [])]);
+  // An Instagram account the project already has (e.g. through Instagram
+  // Login) isn't added a second time — it would post everything twice.
+  const { data: have } = await db
+    .from("client_social_accounts")
+    .select("project_id, platform, external_id")
+    .in("platform", ["facebook", "instagram"])
+    .in("external_id", ids);
+  const taken = new Set(
+    ((have ?? []) as { project_id: string; platform: string; external_id: string }[]).map((r) => `${r.project_id}:${r.platform}:${r.external_id}`)
+  );
+  const rows = pages.flatMap(({ page, project_id }) => {
+    const token = encryptToken(page.page_access_token);
     const out: {
       project_id: string;
       platform: SocialPlatform;
       label: string;
       external_id: string;
       access_token_encrypted: string;
-    }[] = [
-      {
-        project_id,
-        platform: "facebook",
-        label: page.name,
-        external_id: page.page_id,
-        access_token_encrypted: encryptToken(page.page_access_token),
-      },
-    ];
-    if (page.instagram_business_account_id) {
-      out.push({
-        project_id,
-        platform: "instagram",
-        label: `${page.name} (Instagram)`,
-        external_id: page.instagram_business_account_id,
-        access_token_encrypted: encryptToken(page.page_access_token),
-      });
+    }[] = [];
+    if (!taken.has(`${project_id}:facebook:${page.page_id}`)) {
+      out.push({ project_id, platform: "facebook", label: page.name, external_id: page.page_id, access_token_encrypted: token });
+    }
+    const ig = page.instagram_business_account_id;
+    if (ig && !taken.has(`${project_id}:instagram:${ig}`)) {
+      out.push({ project_id, platform: "instagram", label: `${page.name} (Instagram)`, external_id: ig, access_token_encrypted: token });
     }
     return out;
   });
-  // An Instagram account the project already has (e.g. through Instagram
-  // Login) isn't added a second time — it would post everything twice.
-  const igIds = rows.filter((r) => r.platform === "instagram").map((r) => r.external_id);
-  const { data: haveIg } = igIds.length
-    ? await db.from("client_social_accounts").select("project_id, external_id").eq("platform", "instagram").in("external_id", igIds)
-    : { data: [] };
-  const taken = new Set(((haveIg ?? []) as { project_id: string; external_id: string }[]).map((r) => `${r.project_id}:${r.external_id}`));
-  const fresh = rows.filter((r) => r.platform !== "instagram" || !taken.has(`${r.project_id}:${r.external_id}`));
-  if (fresh.length === 0) return;
-  const { error } = await db.from("client_social_accounts").insert(fresh);
+  if (rows.length === 0) return 0;
+  const { error } = await db.from("client_social_accounts").insert(rows);
   if (error) throw new Error(error.message);
+  return rows.length;
 }
 
 export function decryptAccountToken(account: ClientSocialAccount): string {
