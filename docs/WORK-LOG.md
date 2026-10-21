@@ -4,6 +4,12 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-21 — Tad Pharma Instagram connected; Import Pages fix (4c5c405, a684e4b)
+- An imported Page was locked in the Import Pages dialog, so an Instagram linked to it later (Tad Pharma, via the Business portfolio) couldn't be added. Now such a Page is selectable, pinned to its project, and only the missing Instagram is added.
+- The dialog no longer receives Page access tokens. Save sends Page ids, and the server re-discovers the tokens.
+- a684e4b fixed the Page-id regex (it lost its `\d`, so every import said "Invalid mapping data").
+- Tad Pharma Instagram is connected and verified in the DB, with no duplicate Facebook row. Its 23 scheduled posts (22 Oct to 16 Nov) now go to Instagram too. A sample of the images is 4:5.
+
 ## 2026-10-20 — API Vault inside the Password Vault (953f1dd)
 - The unlocked Password Vault now has two tabs: **Accounts** and **API Vault**. The API keys list loads only after the master password unlock and is dropped on lock, including the 10-minute idle lock.
 - The keys are still encrypted with the server key, not the master password, because crons, MCP tools and integrations read them on the server. So the master password is a screen gate, not extra encryption.
