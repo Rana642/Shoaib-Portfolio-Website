@@ -68,7 +68,7 @@ export async function refreshFacebookPages() {
 }
 
 // Page ids only — the server re-discovers each Page and its token.
-const mappingSchema = z.array(z.object({ project_id: z.string().uuid(), page_id: z.string().regex(/^d{1,30}$/) })).max(200);
+const mappingSchema = z.array(z.object({ project_id: z.string().uuid(), page_id: z.string().regex(/^\d{1,30}$/) })).max(200);
 
 export async function saveMappings(mappingsJson: string) {
   await assertAuthed();
