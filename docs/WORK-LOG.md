@@ -4,6 +4,13 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-21 — Auto-shared Stories no longer side-cropped (c07c10e)
+- Instagram and Facebook zoomed 4:5 posts to fill a Story and cut off headlines and footer contacts. The Meezab accounts manager sent a screenshot.
+- `lib/story-frame.ts` now redraws every shared photo as 1080×1920 with the whole post centred. The space above and below takes the post's edge colour when that edge is flat, otherwise white.
+- Videos are unchanged.
+- Tested on 3 real posts (Meezab Diureef, Tad Partner, Tad Biofurose).
+- 12 Stories went out cropped earlier today. They can't be deleted by API and expire in 24h.
+
 ## 2026-10-21 — Tad Pharma Instagram connected; Import Pages fix (4c5c405, a684e4b)
 - An imported Page was locked in the Import Pages dialog, so an Instagram linked to it later (Tad Pharma, via the Business portfolio) couldn't be added. Now such a Page is selectable, pinned to its project, and only the missing Instagram is added.
 - The dialog no longer receives Page access tokens. Save sends Page ids, and the server re-discovers the tokens.
