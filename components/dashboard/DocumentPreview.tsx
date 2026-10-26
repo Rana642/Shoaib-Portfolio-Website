@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { formatMoney, formatDate } from "@/lib/dashboard/format";
 import type { Client, LineItem, Settings } from "@/lib/dashboard/types";
 import type { PaymentBlock } from "@/lib/payment-accounts";
@@ -73,6 +74,15 @@ export default function DocumentPreview({
     { key: "addons", label: "Add-ons", items: chargedItems.filter((item) => item.line_kind === "addon") },
   ].filter((group) => group.items.length > 0);
   const showGroupLabels = isRetainer || groups.length > 1;
+  // With more than one group the totals list each group's subtotal, then a
+  // grand total (Shoaib, 2026-10-26).
+  const showGroupTotals = groups.length > 1;
+  const groupTotal = (group: LineGroup) => group.items.reduce((sum, item) => sum + Number(item.amount), 0);
+  // The discount covers services (never tools), plus any add-on that opted
+  // in, so it sits under the last group it covers.
+  const lastServiceGroup = groups.filter((group) => group.key !== "tools" && group.key !== "addons").length - 1;
+  const discountCoversAddons = chargedItems.some((item) => item.line_kind === "addon" && item.addon_discount);
+  const discountAfter = discountCoversAddons || lastServiceGroup < 0 ? groups.length - 1 : lastServiceGroup;
   // The discount sits under the lines, so every line keeps its original price.
   const discountAmount = Number(document.discount_amount ?? 0);
   const showDiscount = discountAmount > 0 && (kind === "invoice" || Boolean(document.discount_enabled));
@@ -82,6 +92,12 @@ export default function DocumentPreview({
   // package; otherwise Rate just repeats Amount (Shoaib, 2026-10-26).
   const showQtyRate = chargedItems.some((item) => Number(item.quantity) !== 1);
   const columns = showQtyRate ? 4 : 2;
+  const discountRow = (
+    <div className="flex justify-between text-body">
+      <span className="text-ink-muted">Discount{discountLabel}</span>
+      <span>−{formatMoney(discountAmount, document.currency)}</span>
+    </div>
+  );
   const itemRow = (item: LineItem) => (
     <tr key={item.id} className="border-b border-ink/5">
       <td className="py-4 pr-4 text-body whitespace-pre-line">{item.description}</td>
@@ -186,15 +202,24 @@ export default function DocumentPreview({
           lands alone on a fresh page, split from the figures above it. */}
       <div className="flex justify-end mt-6 print:break-inside-avoid">
         <div className="w-full max-w-xs space-y-2.5">
-          <div className="flex justify-between text-body">
-            <span className="text-ink-muted">Subtotal</span>
-            <span>{formatMoney(Number(document.subtotal), document.currency)}</span>
-          </div>
-          {showDiscount && (
-            <div className="flex justify-between text-body">
-              <span className="text-ink-muted">Discount{discountLabel}</span>
-              <span>−{formatMoney(discountAmount, document.currency)}</span>
-            </div>
+          {showGroupTotals ? (
+            groups.map((group, index) => (
+              <Fragment key={group.key}>
+                <div className="flex justify-between text-body">
+                  <span className="text-ink-muted">{group.label}</span>
+                  <span>{formatMoney(groupTotal(group), document.currency)}</span>
+                </div>
+                {showDiscount && index === discountAfter && discountRow}
+              </Fragment>
+            ))
+          ) : (
+            <>
+              <div className="flex justify-between text-body">
+                <span className="text-ink-muted">Subtotal</span>
+                <span>{formatMoney(Number(document.subtotal), document.currency)}</span>
+              </div>
+              {showDiscount && discountRow}
+            </>
           )}
           {document.tax_enabled && (
             <div className="flex justify-between text-body">
@@ -205,7 +230,7 @@ export default function DocumentPreview({
             </div>
           )}
           <div className="flex justify-between pt-2.5 border-t-2 border-ink">
-            <span className="font-semibold">Total</span>
+            <span className="font-semibold">{showGroupTotals ? "Grand total" : "Total"}</span>
             <span className="font-serif italic text-h3 leading-none">
               {formatMoney(Number(document.total), document.currency)}
             </span>
