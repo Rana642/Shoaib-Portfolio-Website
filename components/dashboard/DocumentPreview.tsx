@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import { formatMoney, formatDate } from "@/lib/dashboard/format";
 import type { Client, LineItem, Settings } from "@/lib/dashboard/types";
 import type { PaymentBlock } from "@/lib/payment-accounts";
@@ -59,6 +58,11 @@ export default function DocumentPreview({
   // Complimentary lines are listed under the charged ones, never inside the totals.
   const chargedItems = items.filter((item) => !item.is_complimentary);
   const complimentaryItems = items.filter((item) => item.is_complimentary);
+  // The discount sits under the lines, so every line keeps its original price.
+  const discountAmount = Number(document.discount_amount ?? 0);
+  const showDiscount = discountAmount > 0 && (kind === "invoice" || Boolean(document.discount_enabled));
+  const discountLabel =
+    document.discount_type === "percentage" && Number(document.discount_value) > 0 ? ` (${Number(document.discount_value)}%)` : "";
   // Charged lines in their own groups: the retainer's services, tools, then
   // add-ons (domain renewal, a subscription…). A retainer's first invoice
   // also carries the proposal's one-time services, marked "(one-time)".
@@ -74,30 +78,34 @@ export default function DocumentPreview({
     { key: "addons", label: "Add-ons", items: chargedItems.filter((item) => item.line_kind === "addon") },
   ].filter((group) => group.items.length > 0);
   const showGroupLabels = isRetainer || groups.length > 1;
-  // With more than one group the totals list each group's subtotal, then a
-  // grand total (Shoaib, 2026-10-26).
+  // With more than one group, a discounted group shows its own subtotal,
+  // discount and total under its lines, and the totals list each group's
+  // amount, then a grand total (Shoaib, 2026-10-26).
   const showGroupTotals = groups.length > 1;
-  const groupTotal = (group: LineGroup) => group.items.reduce((sum, item) => sum + Number(item.amount), 0);
-  // The discount covers services (never tools), plus any add-on that opted
-  // in, so it sits under the last group it covers.
-  const lastServiceGroup = groups.filter((group) => group.key !== "tools" && group.key !== "addons").length - 1;
-  const discountCoversAddons = chargedItems.some((item) => item.line_kind === "addon" && item.addon_discount);
-  const discountAfter = discountCoversAddons || lastServiceGroup < 0 ? groups.length - 1 : lastServiceGroup;
-  // The discount sits under the lines, so every line keeps its original price.
-  const discountAmount = Number(document.discount_amount ?? 0);
-  const showDiscount = discountAmount > 0 && (kind === "invoice" || Boolean(document.discount_enabled));
-  const discountLabel =
-    document.discount_type === "percentage" && Number(document.discount_value) > 0 ? ` (${Number(document.discount_value)}%)` : "";
+  const sumOf = (list: LineItem[]) => list.reduce((sum, item) => sum + Number(item.amount), 0);
+  // The discount covers services (never tools), plus any add-on that opted in.
+  const discountable = (item: LineItem) =>
+    (item.line_kind ?? "service") === "service" || (item.line_kind === "addon" && Boolean(item.addon_discount));
+  const discountBase = sumOf(chargedItems.filter(discountable));
+  // Each covered group's share of the discount; the last takes the rounding remainder so the shares add up exactly.
+  const discountShares = new Map<string, number>();
+  if (showDiscount && discountBase > 0) {
+    const covered = groups.filter((group) => group.items.some(discountable));
+    let left = discountAmount;
+    covered.forEach((group, index) => {
+      const share =
+        index === covered.length - 1
+          ? Math.round(left * 100) / 100
+          : Math.round(((discountAmount * sumOf(group.items.filter(discountable))) / discountBase) * 100) / 100;
+      discountShares.set(group.key, share);
+      left -= share;
+    });
+  }
+  const groupNet = (group: LineGroup) => sumOf(group.items) - (discountShares.get(group.key) ?? 0);
   // Qty and Rate only earn their columns when some line isn't a single
   // package; otherwise Rate just repeats Amount (Shoaib, 2026-10-26).
   const showQtyRate = chargedItems.some((item) => Number(item.quantity) !== 1);
   const columns = showQtyRate ? 4 : 2;
-  const discountRow = (
-    <div className="flex justify-between text-body">
-      <span className="text-ink-muted">Discount{discountLabel}</span>
-      <span>−{formatMoney(discountAmount, document.currency)}</span>
-    </div>
-  );
   const itemRow = (item: LineItem) => (
     <tr key={item.id} className="border-b border-ink/5">
       <td className="py-4 pr-4 text-body whitespace-pre-line">{item.description}</td>
@@ -192,6 +200,34 @@ export default function DocumentPreview({
               </tr>
             )}
             {group.items.map(itemRow)}
+            {showGroupTotals && discountShares.has(group.key) && (
+              <>
+                <tr>
+                  <td colSpan={columns - 1} className="pt-3 pr-3 text-body text-right text-ink-muted">
+                    Subtotal
+                  </td>
+                  <td className="pt-3 pl-3 text-body text-right whitespace-nowrap">
+                    {formatMoney(sumOf(group.items), document.currency)}
+                  </td>
+                </tr>
+                <tr>
+                  <td colSpan={columns - 1} className="pt-1.5 pr-3 text-body text-right text-ink-muted">
+                    Discount{discountLabel}
+                  </td>
+                  <td className="pt-1.5 pl-3 text-body text-right whitespace-nowrap">
+                    −{formatMoney(discountShares.get(group.key) ?? 0, document.currency)}
+                  </td>
+                </tr>
+                <tr>
+                  <td colSpan={columns - 1} className="pt-1.5 pb-2 pr-3 text-body text-right font-medium">
+                    {group.label} total
+                  </td>
+                  <td className="pt-1.5 pb-2 pl-3 text-body text-right font-medium whitespace-nowrap">
+                    {formatMoney(groupNet(group), document.currency)}
+                  </td>
+                </tr>
+              </>
+            )}
           </tbody>
         ))}
       </table>
@@ -203,14 +239,11 @@ export default function DocumentPreview({
       <div className="flex justify-end mt-6 print:break-inside-avoid">
         <div className="w-full max-w-xs space-y-2.5">
           {showGroupTotals ? (
-            groups.map((group, index) => (
-              <Fragment key={group.key}>
-                <div className="flex justify-between text-body">
-                  <span className="text-ink-muted">{group.label}</span>
-                  <span>{formatMoney(groupTotal(group), document.currency)}</span>
-                </div>
-                {showDiscount && index === discountAfter && discountRow}
-              </Fragment>
+            groups.map((group) => (
+              <div key={group.key} className="flex justify-between text-body">
+                <span className="text-ink-muted">{group.label}</span>
+                <span>{formatMoney(groupNet(group), document.currency)}</span>
+              </div>
             ))
           ) : (
             <>
@@ -218,7 +251,12 @@ export default function DocumentPreview({
                 <span className="text-ink-muted">Subtotal</span>
                 <span>{formatMoney(Number(document.subtotal), document.currency)}</span>
               </div>
-              {showDiscount && discountRow}
+              {showDiscount && (
+                <div className="flex justify-between text-body">
+                  <span className="text-ink-muted">Discount{discountLabel}</span>
+                  <span>−{formatMoney(discountAmount, document.currency)}</span>
+                </div>
+              )}
             </>
           )}
           {document.tax_enabled && (
