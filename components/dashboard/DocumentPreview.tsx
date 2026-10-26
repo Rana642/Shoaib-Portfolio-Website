@@ -61,11 +61,19 @@ export default function DocumentPreview({
   const showDiscount = discountAmount > 0 && (kind === "invoice" || Boolean(document.discount_enabled));
   const discountLabel =
     document.discount_type === "percentage" && Number(document.discount_value) > 0 ? ` (${Number(document.discount_value)}%)` : "";
+  // Qty and Rate only earn their columns when some line isn't a single
+  // package; otherwise Rate just repeats Amount (Shoaib, 2026-10-26).
+  const showQtyRate = [...chargedItems, ...addonItems].some((item) => Number(item.quantity) !== 1);
+  const columns = showQtyRate ? 4 : 2;
   const itemRow = (item: LineItem) => (
     <tr key={item.id} className="border-b border-ink/5">
       <td className="py-4 pr-4 text-body whitespace-pre-line">{item.description}</td>
-      <td className="py-4 px-3 text-body text-right whitespace-nowrap">{Number(item.quantity)}</td>
-      <td className="py-4 px-3 text-body text-right whitespace-nowrap">{formatMoney(Number(item.rate), document.currency)}</td>
+      {showQtyRate && (
+        <>
+          <td className="py-4 px-3 text-body text-right whitespace-nowrap">{Number(item.quantity)}</td>
+          <td className="py-4 px-3 text-body text-right whitespace-nowrap">{formatMoney(Number(item.rate), document.currency)}</td>
+        </>
+      )}
       <td className="py-4 pl-3 text-body text-right font-medium whitespace-nowrap">
         {formatMoney(Number(item.amount), document.currency)}
       </td>
@@ -122,12 +130,16 @@ export default function DocumentPreview({
             <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 pr-4">
               Description
             </th>
-            <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 px-3 text-right whitespace-nowrap">
-              Qty
-            </th>
-            <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 px-3 text-right whitespace-nowrap">
-              Rate
-            </th>
+            {showQtyRate && (
+              <>
+                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 px-3 text-right whitespace-nowrap">
+                  Qty
+                </th>
+                <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 px-3 text-right whitespace-nowrap">
+                  Rate
+                </th>
+              </>
+            )}
             <th className="font-mono uppercase text-tag tracking-widest text-ink-subtle py-3 pl-3 text-right whitespace-nowrap">
               Amount
             </th>
@@ -137,7 +149,7 @@ export default function DocumentPreview({
         {addonItems.length > 0 && (
           <tbody className="avoid-break">
             <tr>
-              <td colSpan={4} className="pt-6 pb-2 font-mono uppercase text-tag tracking-widest text-ink-subtle">
+              <td colSpan={columns} className="pt-6 pb-2 font-mono uppercase text-tag tracking-widest text-ink-subtle">
                 Add-ons
               </td>
             </tr>
