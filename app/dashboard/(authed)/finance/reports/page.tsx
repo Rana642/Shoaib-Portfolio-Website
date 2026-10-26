@@ -104,7 +104,7 @@ export default async function FinanceReportsPage({ searchParams }: { searchParam
           </div>
           {(s.clientMoneyIn > 0 || s.clientAdSpend > 0) && (
             <p className="text-tag text-ink-subtle mt-4">
-              Client money, kept out of profit: received {formatPkr(s.clientMoneyIn)}, spent on their ads {formatPkr(s.clientAdSpend)}
+              Client money, kept out of profit: received {formatPkr(s.clientMoneyIn)}, spent for them (ads, add-ons) {formatPkr(s.clientAdSpend)}
               {s.clientMoneyHeld > 0 ? `, still holding ${formatPkr(s.clientMoneyHeld)}` : ""}.
             </p>
           )}

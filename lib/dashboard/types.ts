@@ -189,7 +189,16 @@ export type LineItem = {
   sort_order: number;
   /** Shown with its value and a "Complimentary" label, never charged. */
   is_complimentary?: boolean;
+  /** Invoices only: what the line is. Add-ons (domain renewal, a
+   *  subscription…) are listed apart and their share of a payment is client
+   *  money in Finance, not income. Older rows have no value = service. */
+  line_kind?: LineKind;
+  /** Add-ons only: whether the invoice discount / GST also apply to it. */
+  addon_discount?: boolean;
+  addon_tax?: boolean;
 };
+
+export type LineKind = "service" | "tool" | "addon";
 
 export type ProposalStatus = "draft" | "sent" | "viewed" | "accepted" | "declined" | "expired";
 
@@ -402,6 +411,12 @@ export type Invoice = {
   period?: string | null;
   /** Public /invoice/[token] link. */
   access_token?: string;
+  /** The discount on this invoice (services, plus add-ons that opt in). */
+  discount_type?: "percentage" | "fixed";
+  discount_value?: number;
+  discount_amount?: number;
+  /** The add-ons' share of the total (after their discount and GST). */
+  addons_total?: number;
 };
 
 export type RetainerStatus = "active" | "paused" | "ended";
@@ -439,6 +454,23 @@ export type RetainerItem = {
   item_type: "service" | "tool";
   /** Unticked = stays on the retainer but isn't billed (optional tools). */
   included: boolean;
+  /** Shown on every invoice with its value, never charged. */
+  is_complimentary?: boolean;
+  sort_order: number;
+};
+
+/** Something extra billed on a retainer's invoices (domain renewal, a
+ *  subscription…): every month, or only on the next invoice. */
+export type RetainerAddon = {
+  id: string;
+  retainer_id: string;
+  description: string;
+  quantity: number;
+  rate: number;
+  recurring: boolean;
+  apply_discount: boolean;
+  apply_tax: boolean;
+  billed_invoice_id: string | null;
   sort_order: number;
 };
 

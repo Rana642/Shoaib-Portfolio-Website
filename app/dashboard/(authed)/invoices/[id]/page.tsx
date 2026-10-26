@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, FileText } from "lucide-react";
+import { ArrowLeft, FileText, Plus } from "lucide-react";
 import { db } from "@/lib/dashboard/db";
 import { getSettings } from "@/lib/dashboard/settings";
 import {
@@ -9,7 +9,7 @@ import {
   deleteDocument,
 } from "@/lib/dashboard/actions/documents";
 import { formatMoney, formatDate } from "@/lib/dashboard/format";
-import { StatusBadge, Card } from "@/components/dashboard/ui";
+import { StatusBadge, Card, buttonStyles } from "@/components/dashboard/ui";
 import DocumentPreview from "@/components/dashboard/DocumentPreview";
 import DocumentActions from "@/components/dashboard/DocumentActions";
 import PaymentForm from "@/components/dashboard/PaymentForm";
@@ -154,13 +154,19 @@ export default async function InvoicePage({ params }: PageProps<"/dashboard/invo
           )
         )}
 
-        <div className="mb-8">
+        <div className="mb-8 space-y-3">
           <DocumentActions
             editHref={`/dashboard/invoices/${id}/edit`}
             statusOptions={statusOptions}
             currentStatus={invoice.status}
             onStatusChange={changeStatus}
           />
+          {invoice.status !== "paid" && invoice.status !== "cancelled" && (
+            <Link href={`/dashboard/invoices/${id}/edit?addon=1`} className={buttonStyles.secondary}>
+              <Plus className="size-4" aria-hidden />
+              Add add-on
+            </Link>
+          )}
         </div>
 
         {receipts.length > 0 && (

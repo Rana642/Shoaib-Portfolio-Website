@@ -1725,3 +1725,38 @@ alter table story_drive_sources add column if not exists hold_file_ids text[] no
 -- unique index keeps it to one story per post.
 alter table scheduled_posts add column if not exists story_of_post_id uuid references scheduled_posts(id) on delete set null;
 create unique index if not exists scheduled_posts_story_of_idx on scheduled_posts (story_of_post_id) where story_of_post_id is not null;
+
+-- Invoice discount, add-ons and complimentary retainer lines (Shoaib,
+-- 2026-10-26). One invoice for the client, but its money is kept apart:
+--  * the discount lives on the invoice (not as a negative line), so the
+--    invoice shows the original prices, the discount and the total;
+--  * add-ons (domain renewal, Claude subscription…) are their own lines —
+--    each one chooses whether the discount and GST apply — and the add-on
+--    share of every payment is client money in Finance, not income;
+--  * a retainer keeps the proposal's complimentary services and its own
+--    add-ons (every month, or only on the next invoice).
+alter table invoices add column if not exists discount_type text not null default 'percentage' check (discount_type in ('percentage','fixed'));
+alter table invoices add column if not exists discount_value numeric(12,2) not null default 0;
+alter table invoices add column if not exists discount_amount numeric(12,2) not null default 0;
+alter table invoices add column if not exists addons_total numeric(12,2) not null default 0;
+alter table invoice_items add column if not exists line_kind text not null default 'service' check (line_kind in ('service','tool','addon'));
+alter table invoice_items add column if not exists addon_discount boolean not null default false;
+alter table invoice_items add column if not exists addon_tax boolean not null default false;
+alter table retainer_items add column if not exists is_complimentary boolean not null default false;
+create table if not exists retainer_addons (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  retainer_id uuid not null references retainers (id) on delete cascade,
+  description text not null,
+  quantity numeric(10,2) not null default 1,
+  rate numeric(12,2) not null default 0,
+  -- true = on every monthly invoice; false = only on the next one, then done.
+  recurring boolean not null default false,
+  apply_discount boolean not null default false,
+  apply_tax boolean not null default false,
+  -- A one-off add-on, once billed, remembers its invoice and isn't billed again.
+  billed_invoice_id uuid references invoices (id) on delete set null,
+  sort_order int not null default 0
+);
+alter table retainer_addons enable row level security;
+create index if not exists retainer_addons_parent_idx on retainer_addons (retainer_id);

@@ -69,14 +69,21 @@ export type ToolsTax = { enabled: boolean; rate: number };
  * they choose), so they store `servicesTotal` and show it split into
  * `monthlyTotal` (the retainer) and `oneTimeTotal`. Discount and tax are
  * shared out in proportion to each part's subtotal.
+ *
+ * Add-ons (invoices: domain renewal, a subscription billed back…) are a
+ * third bucket. Each one opts in to the discount (`addon_discount`) and to
+ * GST (`addon_tax`); otherwise it's billed as-is. With no add-ons every
+ * figure is exactly what it was before add-ons existed.
  */
 export function calculateTotals(
   allItems: {
     quantity: number;
     rate: number;
-    item_type?: "service" | "tool";
+    item_type?: "service" | "tool" | "addon";
     billing_type?: "monthly" | "one_time";
     is_complimentary?: boolean;
+    addon_discount?: boolean;
+    addon_tax?: boolean;
   }[],
   taxEnabled: boolean,
   taxRate: number,
@@ -85,42 +92,59 @@ export function calculateTotals(
 ) {
   // Complimentary lines show their value on the document but are never charged.
   const items = allItems.filter((item) => !item.is_complimentary);
-  const subtotal = round2(
-    items
-      .filter((item) => item.item_type !== "tool")
-      .reduce((sum, item) => sum + round2(item.quantity * item.rate), 0)
-  );
-  const toolsSubtotal = round2(
-    items
-      .filter((item) => item.item_type === "tool")
-      .reduce((sum, item) => sum + round2(item.quantity * item.rate), 0)
-  );
+  const amount = (item: { quantity: number; rate: number }) => round2(item.quantity * item.rate);
+  const sum = (list: { quantity: number; rate: number }[]) => round2(list.reduce((total, item) => total + amount(item), 0));
+  const services = items.filter((item) => (item.item_type ?? "service") === "service");
+  const addons = items.filter((item) => item.item_type === "addon");
+  const subtotal = sum(services);
+  const toolsSubtotal = sum(items.filter((item) => item.item_type === "tool"));
+  const addonsSubtotal = sum(addons);
+  const discountableAddons = sum(addons.filter((a) => a.addon_discount));
+
+  const discountBase = round2(subtotal + discountableAddons);
   const rawDiscount = !discount?.enabled
     ? 0
     : discount.type === "percentage"
-      ? (subtotal * discount.value) / 100
+      ? (discountBase * discount.value) / 100
       : discount.value;
-  const discountAmount = round2(Math.min(Math.max(rawDiscount, 0), subtotal));
-  const discountedSubtotal = round2(subtotal - discountAmount);
-  const taxAmount = taxEnabled ? round2((discountedSubtotal * taxRate) / 100) : 0;
+  const discountAmount = round2(Math.min(Math.max(rawDiscount, 0), discountBase));
+  // The discount is shared between services and the add-ons that opted in.
+  const servicesDiscount = discountBase > 0 ? round2((discountAmount * subtotal) / discountBase) : 0;
+  const addonsDiscount = round2(discountAmount - servicesDiscount);
+  const discountedSubtotal = round2(subtotal - servicesDiscount);
+
+  const taxableAddons = addons
+    .filter((a) => a.addon_tax)
+    .reduce(
+      (total, a) =>
+        total + amount(a) - (a.addon_discount && discountableAddons > 0 ? (addonsDiscount * amount(a)) / discountableAddons : 0),
+      0
+    );
+  const servicesTax = taxEnabled ? round2((discountedSubtotal * taxRate) / 100) : 0;
+  const addonsTax = taxEnabled ? round2((taxableAddons * taxRate) / 100) : 0;
+  const taxAmount = round2(servicesTax + addonsTax);
+
   const toolsTaxAmount = toolsTax?.enabled ? round2((toolsSubtotal * toolsTax.rate) / 100) : 0;
   const toolsTotal = round2(toolsSubtotal + toolsTaxAmount);
-  const total = round2(discountedSubtotal + taxAmount + toolsTotal);
-  const servicesTotal = round2(discountedSubtotal + taxAmount);
-  const monthlySubtotal = round2(
-    items
-      .filter((item) => item.item_type !== "tool" && item.billing_type === "monthly")
-      .reduce((sum, item) => sum + round2(item.quantity * item.rate), 0)
-  );
+  const addonsTotal = round2(addonsSubtotal - addonsDiscount + addonsTax);
+  const servicesTotal = round2(discountedSubtotal + servicesTax);
+  const total = round2(servicesTotal + toolsTotal + addonsTotal);
+  const monthlySubtotal = sum(services.filter((item) => item.billing_type === "monthly"));
   const monthlyTotal = subtotal > 0 ? round2((servicesTotal * monthlySubtotal) / subtotal) : 0;
   const oneTimeTotal = round2(servicesTotal - monthlyTotal);
   return {
+    /** Services only, before the discount. */
     subtotal,
     discountAmount,
     taxAmount,
     toolsSubtotal,
     toolsTaxAmount,
     toolsTotal,
+    addonsSubtotal,
+    /** Add-ons after their share of the discount, plus their GST. */
+    addonsTotal,
+    /** Every charged line before the discount and GST — an invoice's "Subtotal". */
+    grossSubtotal: round2(subtotal + toolsTotal + addonsSubtotal),
     total,
     servicesTotal,
     monthlyTotal,

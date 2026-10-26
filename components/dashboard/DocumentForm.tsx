@@ -10,6 +10,8 @@ import { CURRENCIES, type CatalogItem, type Client, type Settings } from "@/lib/
 import { countableFor, readCount, writeCount } from "@/lib/dashboard/countable";
 import CountStepper from "@/components/dashboard/CountStepper";
 
+type LineKind = "service" | "tool" | "addon";
+
 type EditableItem = {
   key: string;
   catalog_item_id: string | null;
@@ -17,6 +19,10 @@ type EditableItem = {
   quantity: number;
   rate: number;
   is_complimentary: boolean;
+  /** Invoices: service / tool / add-on. Add-ons opt in to discount and GST. */
+  line_kind: LineKind;
+  addon_discount: boolean;
+  addon_tax: boolean;
 };
 
 type ExistingDocument = {
@@ -39,11 +45,26 @@ type ExistingDocument = {
     quantity: number;
     rate: number;
     is_complimentary?: boolean;
+    line_kind?: LineKind;
+    addon_discount?: boolean;
+    addon_tax?: boolean;
   }[];
 };
 
 let keyCounter = 0;
 const nextKey = () => `item-${keyCounter++}`;
+
+const blankLine = (lineKind: LineKind = "service"): EditableItem => ({
+  key: nextKey(),
+  catalog_item_id: null,
+  description: "",
+  quantity: 1,
+  rate: 0,
+  is_complimentary: false,
+  line_kind: lineKind,
+  addon_discount: false,
+  addon_tax: false,
+});
 
 export default function DocumentForm({
   kind,
@@ -53,6 +74,7 @@ export default function DocumentForm({
   bundleTotals = {},
   settings,
   document,
+  startWithAddon = false,
 }: {
   kind: "quotation" | "invoice";
   clients: Client[];
@@ -63,6 +85,8 @@ export default function DocumentForm({
   bundleTotals?: Record<string, number>;
   settings: Settings;
   document?: ExistingDocument;
+  /** Invoices: open with an empty add-on line ready (the "Add add-on" button). */
+  startWithAddon?: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -76,33 +100,37 @@ export default function DocumentForm({
   const [discountValue, setDiscountValue] = useState(document?.discount_value ?? 0);
   const [taxEnabled, setTaxEnabled] = useState(document?.tax_enabled ?? settings.tax_enabled);
   const [taxRate, setTaxRate] = useState(document?.tax_rate ?? settings.tax_rate);
-  const [items, setItems] = useState<EditableItem[]>(
-    document?.items.map((item) => ({ ...item, is_complimentary: item.is_complimentary ?? false, key: nextKey() })) ?? [
-      { key: nextKey(), catalog_item_id: null, description: "", quantity: 1, rate: 0, is_complimentary: false },
-    ]
-  );
+  const [items, setItems] = useState<EditableItem[]>(() => {
+    const existing =
+      document?.items.map((item) => ({
+        ...item,
+        is_complimentary: item.is_complimentary ?? false,
+        line_kind: item.line_kind ?? ("service" as LineKind),
+        addon_discount: item.addon_discount ?? false,
+        addon_tax: item.addon_tax ?? false,
+        key: nextKey(),
+      })) ?? [blankLine()];
+    return startWithAddon ? [...existing, blankLine("addon")] : existing;
+  });
 
   const isQuotation = kind === "quotation";
+  const isInvoice = kind === "invoice";
 
   const totals = useMemo(
     () =>
       calculateTotals(
-        items,
+        items.map((item) => ({ ...item, item_type: isInvoice ? item.line_kind : ("service" as const) })),
         taxEnabled,
         taxRate,
-        isQuotation ? { enabled: discountEnabled, type: discountType, value: discountValue } : undefined
+        { enabled: discountEnabled, type: discountType, value: discountValue }
       ),
-    [items, taxEnabled, taxRate, isQuotation, discountEnabled, discountType, discountValue]
+    [items, taxEnabled, taxRate, isInvoice, discountEnabled, discountType, discountValue]
   );
 
   const updateItem = (key: string, patch: Partial<EditableItem>) =>
     setItems((prev) => prev.map((item) => (item.key === key ? { ...item, ...patch } : item)));
 
-  const addItem = () =>
-    setItems((prev) => [
-      ...prev,
-      { key: nextKey(), catalog_item_id: null, description: "", quantity: 1, rate: 0, is_complimentary: false },
-    ]);
+  const addItem = (lineKind: LineKind = "service") => setItems((prev) => [...prev, blankLine(lineKind)]);
 
   const removeItem = (key: string) =>
     setItems((prev) => (prev.length === 1 ? prev : prev.filter((item) => item.key !== key)));
@@ -155,15 +183,7 @@ export default function DocumentForm({
         const blank =
           prev.length === 1 && !prev[0].catalog_item_id && !prev[0].description.trim() ? prev[0].key : null;
         const kept = blank ? [] : prev;
-        const added: EditableItem[] = sources.map((source) => ({
-          key: nextKey(),
-          catalog_item_id: null,
-          description: "",
-          quantity: 1,
-          rate: 0,
-          is_complimentary: false,
-          ...lineFromCatalog(source),
-        }));
+        const added: EditableItem[] = sources.map((source) => ({ ...blankLine(), ...lineFromCatalog(source) }));
         return [...kept, ...added];
       });
     }
@@ -191,12 +211,15 @@ export default function DocumentForm({
     formData.set(
       "items",
       JSON.stringify(
-        items.map(({ catalog_item_id, description, quantity, rate, is_complimentary }) => ({
+        items.map(({ catalog_item_id, description, quantity, rate, is_complimentary, line_kind, addon_discount, addon_tax }) => ({
           catalog_item_id,
           description,
           quantity,
           rate,
           is_complimentary,
+          line_kind: isInvoice ? line_kind : "service",
+          addon_discount: isInvoice && line_kind === "addon" && addon_discount,
+          addon_tax: isInvoice && line_kind === "addon" && addon_tax,
         }))
       )
     );
@@ -295,10 +318,16 @@ export default function DocumentForm({
                 Add services
               </button>
             )}
-            <button type="button" onClick={addItem} className={buttonStyles.secondary}>
+            <button type="button" onClick={() => addItem()} className={buttonStyles.secondary}>
               <Plus className="size-4" aria-hidden />
               Add line
             </button>
+            {isInvoice && (
+              <button type="button" onClick={() => addItem("addon")} className={buttonStyles.secondary}>
+                <Plus className="size-4" aria-hidden />
+                Add add-on
+              </button>
+            )}
           </div>
         </div>
 
@@ -439,15 +468,51 @@ export default function DocumentForm({
                   placeholder="What are you billing for?"
                   className={inputClasses}
                 />
-                <label className="mt-2 inline-flex items-center gap-2 text-small text-ink-muted cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={item.is_complimentary}
-                    onChange={(e) => updateItem(item.key, { is_complimentary: e.target.checked })}
-                    className="size-4 accent-ink"
-                  />
-                  Complimentary: show its value, don&apos;t charge it
-                </label>
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                  {isInvoice && (
+                    <select
+                      aria-label="Line type"
+                      value={item.line_kind}
+                      onChange={(e) => updateItem(item.key, { line_kind: e.target.value as LineKind })}
+                      className="rounded-md border border-ink/15 bg-white px-2 py-1 text-small"
+                    >
+                      <option value="service">Service</option>
+                      <option value="addon">Add-on</option>
+                      <option value="tool">Tool</option>
+                    </select>
+                  )}
+                  <label className="inline-flex items-center gap-2 text-small text-ink-muted cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={item.is_complimentary}
+                      onChange={(e) => updateItem(item.key, { is_complimentary: e.target.checked })}
+                      className="size-4 accent-ink"
+                    />
+                    Complimentary: show its value, don&apos;t charge it
+                  </label>
+                  {isInvoice && item.line_kind === "addon" && !item.is_complimentary && (
+                    <>
+                      <label className="inline-flex items-center gap-1.5 text-small text-ink-muted cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={item.addon_discount}
+                          onChange={(e) => updateItem(item.key, { addon_discount: e.target.checked })}
+                          className="size-4 accent-ink"
+                        />
+                        Discount applies
+                      </label>
+                      <label className="inline-flex items-center gap-1.5 text-small text-ink-muted cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={item.addon_tax}
+                          onChange={(e) => updateItem(item.key, { addon_tax: e.target.checked })}
+                          className="size-4 accent-ink"
+                        />
+                        GST applies
+                      </label>
+                    </>
+                  )}
+                </div>
               </div>
 
               {(() => {
@@ -538,11 +603,11 @@ export default function DocumentForm({
         </div>
       </Card>
 
-      {/* Discount (quotations only) + tax + totals */}
+      {/* Discount + tax + totals */}
       <Card className="p-6">
         <div className="flex flex-col lg:flex-row gap-8">
           <div className="flex-1 space-y-5">
-            {isQuotation && (
+            {(
               <div className="space-y-4">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
@@ -552,7 +617,9 @@ export default function DocumentForm({
                     onChange={(e) => setDiscountEnabled(e.target.checked)}
                     className="size-4 accent-citrus cursor-pointer"
                   />
-                  <span className="text-small font-medium">Offer a discount on the total</span>
+                  <span className="text-small font-medium">
+                    {isQuotation ? "Offer a discount on the total" : "Discount (services, and add-ons that opt in)"}
+                  </span>
                 </label>
 
                 {discountEnabled && (
@@ -643,9 +710,15 @@ export default function DocumentForm({
           <div className="lg:w-72 space-y-2.5 lg:border-l lg:border-ink/10 lg:pl-8">
             <div className="flex justify-between text-small">
               <span className="text-ink-muted">Subtotal</span>
-              <span className="font-medium">{formatMoney(totals.subtotal, currency)}</span>
+              <span className="font-medium">{formatMoney(isInvoice ? totals.grossSubtotal : totals.subtotal, currency)}</span>
             </div>
-            {isQuotation && discountEnabled && totals.discountAmount > 0 && (
+            {isInvoice && totals.addonsSubtotal > 0 && (
+              <div className="flex justify-between text-tag text-ink-subtle">
+                <span>of which add-ons</span>
+                <span>{formatMoney(totals.addonsSubtotal, currency)}</span>
+              </div>
+            )}
+            {discountEnabled && totals.discountAmount > 0 && (
               <div className="flex justify-between text-small">
                 <span className="text-ink-muted">
                   Discount {discountType === "percentage" ? `(${discountValue}%)` : ""}

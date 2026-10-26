@@ -3,7 +3,7 @@ import { db } from "@/lib/dashboard/db";
 import { PageHeader, EmptyState, Card, StatusBadge } from "@/components/dashboard/ui";
 import { formatMoney, formatDate } from "@/lib/dashboard/format";
 import { retainerMonthlyTotal } from "@/lib/dashboard/retainers";
-import type { Retainer, RetainerItem } from "@/lib/dashboard/types";
+import type { Retainer, RetainerAddon, RetainerItem } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Retainers" };
@@ -11,10 +11,10 @@ export const metadata = { title: "Retainers" };
 export default async function RetainersPage() {
   const { data } = await db
     .from("retainers")
-    .select("*, clients(name), retainer_items(*)")
+    .select("*, clients(name), retainer_items(*), retainer_addons(*)")
     .order("created_at", { ascending: false });
 
-  const retainers = (data ?? []) as (Retainer & { clients: { name: string } | null; retainer_items: RetainerItem[] })[];
+  const retainers = (data ?? []) as (Retainer & { clients: { name: string } | null; retainer_items: RetainerItem[]; retainer_addons: RetainerAddon[] | null })[];
 
   return (
     <>
@@ -50,7 +50,7 @@ export default async function RetainersPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-right font-mono">
-                    {formatMoney(retainerMonthlyTotal(r, r.retainer_items ?? []), r.currency)}
+                    {formatMoney(retainerMonthlyTotal(r, r.retainer_items ?? [], r.retainer_addons ?? []), r.currency)}
                   </td>
                   <td className="px-4 py-3">{r.status === "active" ? formatDate(r.next_invoice_date) : "—"}</td>
                   <td className="px-4 py-3">

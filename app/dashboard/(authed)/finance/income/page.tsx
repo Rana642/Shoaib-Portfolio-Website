@@ -4,7 +4,7 @@ import EntriesTable from "@/components/dashboard/finance/EntriesTable";
 import NewEntry from "@/components/dashboard/finance/NewEntry";
 import { clientOptions, loadMoney, receiptLinks, summarize } from "@/lib/dashboard/finance";
 import { pkrRates } from "@/lib/fx-rate";
-import { FINANCE_CURRENCIES, monthPeriod, todayPk } from "@/lib/finance";
+import { FINANCE_CURRENCIES, formatPkr, monthPeriod, todayPk } from "@/lib/finance";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Income" };
@@ -31,7 +31,7 @@ export default async function IncomePage({ searchParams }: { searchParams: Promi
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatCard label="From invoices" value={s.invoiceIncome} note={period.label} />
         <StatCard label="Other income" value={s.otherIncome} note="Commission, payments without an invoice…" />
-        <StatCard label="Client money received" value={s.clientMoneyIn} note="Their ad budget — not your income" />
+        <StatCard label="Client money received" value={s.clientMoneyIn} note={s.addonsIn > 0 ? `Ad budgets + ${formatPkr(s.addonsIn)} add-ons paid back — not your income` : "Their ad budget — not your income"} />
       </div>
 
       <div className="mb-6">

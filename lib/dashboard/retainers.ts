@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { generateNumber } from "./numbering";
 import { calculateTotals, round2 } from "./format";
-import type { Retainer, RetainerItem } from "./types";
+import type { LineKind, Retainer, RetainerAddon, RetainerItem } from "./types";
 
 /**
  * Monthly retainers — see docs/RETAINER-BILLING-PLAN.md.
@@ -61,19 +61,24 @@ type BillLine = {
   description: string;
   quantity: number;
   rate: number;
-  item_type: "service" | "tool";
+  item_type: LineKind;
   catalog_item_id?: string | null;
+  /** Shown with its value, never charged. */
+  is_complimentary?: boolean;
+  /** Add-ons only: whether the discount / GST also apply. */
+  addon_discount?: boolean;
+  addon_tax?: boolean;
 };
 
 type Discount = { type: "percentage" | "fixed"; value: number };
 
 /**
  * Turn lines + discount/tax settings into invoice line rows and stored
- * totals. Invoices have no discount / tools-tax columns, so those become
- * their own visible lines ("Discount", "International transaction tax");
- * GST stays the invoice's tax, charged on discounted services only — the
- * same maths as the proposal (`calculateTotals`). Stored `subtotal` is
- * total − GST, so the invoice's Subtotal + GST = Total always adds up.
+ * totals — the same maths as the proposal (`calculateTotals`). Lines stay at
+ * their original prices; the discount is stored on the invoice itself and
+ * shown under the lines (Subtotal − Discount + GST = Total). Tools carry
+ * their estimated international transaction tax as a line of their own.
+ * Add-ons are listed apart, and complimentary lines are shown, not charged.
  */
 export function buildBill(
   lines: BillLine[],
@@ -82,47 +87,97 @@ export function buildBill(
   toolsTax: { enabled: boolean; rate: number }
 ) {
   const totals = calculateTotals(
-    lines.map((l) => ({ quantity: l.quantity, rate: l.rate, item_type: l.item_type })),
+    lines.map((l) => ({
+      quantity: l.quantity,
+      rate: l.rate,
+      item_type: l.item_type,
+      is_complimentary: l.is_complimentary,
+      addon_discount: l.addon_discount,
+      addon_tax: l.addon_tax,
+    })),
     tax.enabled,
     tax.rate,
     { enabled: discount.value > 0, type: discount.type, value: discount.value },
     { enabled: toolsTax.enabled, rate: toolsTax.rate }
   );
 
-  const rows: { description: string; quantity: number; rate: number; amount: number; catalog_item_id: string | null }[] = [];
-  for (const l of lines.filter((x) => x.item_type === "service")) {
-    rows.push({ description: l.description, quantity: l.quantity, rate: l.rate, amount: round2(l.quantity * l.rate), catalog_item_id: l.catalog_item_id ?? null });
-  }
-  if (totals.discountAmount > 0) {
-    const label = discount.type === "percentage" ? `Discount (${Number(discount.value)}%)` : "Discount";
-    rows.push({ description: label, quantity: 1, rate: -totals.discountAmount, amount: -totals.discountAmount, catalog_item_id: null });
-  }
-  for (const l of lines.filter((x) => x.item_type === "tool")) {
-    rows.push({ description: l.description, quantity: l.quantity, rate: l.rate, amount: round2(l.quantity * l.rate), catalog_item_id: l.catalog_item_id ?? null });
-  }
+  type Row = {
+    description: string;
+    quantity: number;
+    rate: number;
+    amount: number;
+    catalog_item_id: string | null;
+    is_complimentary: boolean;
+    line_kind: LineKind;
+    addon_discount: boolean;
+    addon_tax: boolean;
+  };
+  const toRow = (l: BillLine): Row => ({
+    description: l.description,
+    quantity: l.quantity,
+    rate: l.rate,
+    amount: round2(l.quantity * l.rate),
+    catalog_item_id: l.catalog_item_id ?? null,
+    is_complimentary: Boolean(l.is_complimentary),
+    line_kind: l.item_type,
+    addon_discount: l.item_type === "addon" && Boolean(l.addon_discount),
+    addon_tax: l.item_type === "addon" && Boolean(l.addon_tax),
+  });
+  const charged = lines.filter((l) => !l.is_complimentary);
+  const rows: Row[] = [
+    ...charged.filter((l) => l.item_type === "service").map(toRow),
+    ...charged.filter((l) => l.item_type === "tool").map(toRow),
+  ];
   if (totals.toolsTaxAmount > 0) {
-    rows.push({
-      description: `International transaction tax on tools (est. ${Number(toolsTax.rate)}%)`,
-      quantity: 1,
-      rate: totals.toolsTaxAmount,
-      amount: totals.toolsTaxAmount,
-      catalog_item_id: null,
-    });
+    rows.push(
+      toRow({
+        description: `International transaction tax on tools (est. ${Number(toolsTax.rate)}%)`,
+        quantity: 1,
+        rate: totals.toolsTaxAmount,
+        item_type: "tool",
+      })
+    );
   }
+  rows.push(...charged.filter((l) => l.item_type === "addon").map(toRow));
+  rows.push(...lines.filter((l) => l.is_complimentary).map(toRow));
 
   return {
     rows,
+    discountAmount: totals.discountAmount,
     taxAmount: totals.taxAmount,
+    addonsTotal: totals.addonsTotal,
     total: totals.total,
-    subtotal: round2(totals.total - totals.taxAmount),
+    /** Every charged line before the discount and GST. */
+    subtotal: totals.grossSubtotal,
     monthlyTotal: totals.total,
   };
 }
 
-/** Monthly amount of a retainer (what each month's invoice totals). */
-export function retainerMonthlyTotal(retainer: Retainer, items: RetainerItem[]) {
+/** Monthly amount of a retainer (what each month's invoice totals): its
+ *  billed lines plus the add-ons that recur every month. */
+export function retainerMonthlyTotal(retainer: Retainer, items: RetainerItem[], addons: RetainerAddon[] = []) {
   return buildBill(
-    items.filter((i) => i.included !== false).map((i) => ({ description: i.description, quantity: Number(i.quantity), rate: Number(i.rate), item_type: i.item_type })),
+    [
+      ...items
+        .filter((i) => i.included !== false)
+        .map((i) => ({
+          description: i.description,
+          quantity: Number(i.quantity),
+          rate: Number(i.rate),
+          item_type: i.item_type,
+          is_complimentary: Boolean(i.is_complimentary),
+        })),
+      ...addons
+        .filter((a) => a.recurring)
+        .map((a) => ({
+          description: a.description,
+          quantity: Number(a.quantity),
+          rate: Number(a.rate),
+          item_type: "addon" as const,
+          addon_discount: a.apply_discount,
+          addon_tax: a.apply_tax,
+        })),
+    ],
     { type: retainer.discount_type, value: Number(retainer.discount_value) },
     { enabled: retainer.tax_enabled, rate: Number(retainer.tax_rate) },
     { enabled: retainer.tools_tax_enabled, rate: Number(retainer.tools_tax_rate) }
@@ -147,8 +202,9 @@ export async function createRetainerFromProposal(
 
   const { data: items } = await db.from("proposal_items").select("*").eq("proposal_id", proposalId).order("sort_order");
   const charged = (items ?? []).filter((i) => !i.is_complimentary);
-  const monthly = charged.filter((i) => i.billing_type === "monthly");
-  if (monthly.length === 0) return null;
+  if (!charged.some((i) => i.billing_type === "monthly")) return null;
+  // Complimentary monthly services come along, so every invoice shows them.
+  const monthly = (items ?? []).filter((i) => i.billing_type === "monthly");
 
   let discountValue = 0;
   if (proposal.discount_enabled && Number(proposal.discount_value) > 0) {
@@ -200,6 +256,7 @@ export async function createRetainerFromProposal(
       item_type: i.item_type === "tool" ? "tool" : "service",
       // Tools are optional for the client — off until ticked on the retainer.
       included: i.item_type !== "tool",
+      is_complimentary: Boolean(i.is_complimentary),
       sort_order: index,
     }))
   );
@@ -228,7 +285,13 @@ export async function generateRetainerInvoice(
 
   const { data: retainer } = await db.from("retainers").select("*").eq("id", retainerId).single();
   if (!retainer) return { error: "Retainer not found." };
-  const { data: items } = await db.from("retainer_items").select("*").eq("retainer_id", retainerId).order("sort_order");
+  const [{ data: items }, { data: addonRows }] = await Promise.all([
+    db.from("retainer_items").select("*").eq("retainer_id", retainerId).order("sort_order"),
+    // Tolerated before the add-ons table exists (error → no add-ons).
+    db.from("retainer_addons").select("*").eq("retainer_id", retainerId).order("sort_order"),
+  ]);
+  // Every-month add-ons, plus one-off ones not billed yet.
+  const addons = ((addonRows ?? []) as RetainerAddon[]).filter((a) => a.recurring || !a.billed_invoice_id);
 
   const label = periodLabel(period);
   const lines: BillLine[] = (items ?? []).filter((i) => i.included !== false).map((i) => ({
@@ -237,7 +300,18 @@ export async function generateRetainerInvoice(
     rate: Number(i.rate),
     item_type: i.item_type,
     catalog_item_id: i.catalog_item_id,
+    is_complimentary: Boolean(i.is_complimentary),
   }));
+  for (const a of addons) {
+    lines.push({
+      description: a.recurring ? `${a.description} — ${label}` : a.description,
+      quantity: Number(a.quantity),
+      rate: Number(a.rate),
+      item_type: "addon",
+      addon_discount: a.apply_discount,
+      addon_tax: a.apply_tax,
+    });
+  }
 
   let discount: Discount = { type: retainer.discount_type, value: Number(retainer.discount_value) };
   if (options?.includeOneTime && retainer.proposal_id) {
@@ -247,7 +321,8 @@ export async function generateRetainerInvoice(
       .select("*")
       .eq("proposal_id", retainer.proposal_id)
       .order("sort_order");
-    const oneTime = (pItems ?? []).filter((i) => !i.is_complimentary && i.billing_type !== "monthly");
+    // One-time services (complimentary ones shown, not charged) go on the first invoice.
+    const oneTime = (pItems ?? []).filter((i) => i.billing_type !== "monthly");
     const names = await projectNames(retainer.proposal_id);
     for (const i of oneTime) {
       lines.push({
@@ -256,6 +331,7 @@ export async function generateRetainerInvoice(
         rate: Number(i.rate),
         item_type: i.item_type === "tool" ? "tool" : "service",
         catalog_item_id: i.catalog_item_id ?? null,
+        is_complimentary: Boolean(i.is_complimentary),
       });
     }
     // The first invoice carries the proposal's own discount over everything.
@@ -264,7 +340,7 @@ export async function generateRetainerInvoice(
     }
   }
 
-  if (lines.length === 0) return { error: "This retainer has no lines to bill." };
+  if (!lines.some((l) => !l.is_complimentary)) return { error: "This retainer has no lines to bill." };
 
   const bill = buildBill(
     lines,
@@ -290,6 +366,10 @@ export async function generateRetainerInvoice(
       tax_enabled: retainer.tax_enabled,
       tax_name: retainer.tax_name,
       tax_rate: retainer.tax_rate,
+      discount_type: discount.type,
+      discount_value: discount.value,
+      discount_amount: bill.discountAmount,
+      addons_total: bill.addonsTotal,
       subtotal: bill.subtotal,
       tax_amount: bill.taxAmount,
       total: bill.total,
@@ -314,9 +394,10 @@ export async function generateRetainerInvoice(
     return { error: error?.message ?? "Couldn't create the invoice." };
   }
 
-  await db.from("invoice_items").insert(
-    bill.rows.map((r, index) => ({ invoice_id: invoice.id, ...r, is_complimentary: false, sort_order: index }))
-  );
+  await db.from("invoice_items").insert(bill.rows.map((r, index) => ({ invoice_id: invoice.id, ...r, sort_order: index })));
+  // A one-off add-on is billed once: this invoice now carries it.
+  const oneOff = addons.filter((a) => !a.recurring).map((a) => a.id);
+  if (oneOff.length) await db.from("retainer_addons").update({ billed_invoice_id: invoice.id }).in("id", oneOff);
 
   return { id: invoice.id, number, created: true };
 }

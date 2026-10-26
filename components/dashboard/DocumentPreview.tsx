@@ -52,8 +52,25 @@ export default function DocumentPreview({
   const dateValue = kind === "invoice" ? document.due_date : document.valid_until;
   const balance = (document.total ?? 0) - (document.amount_paid ?? 0);
   // Complimentary lines are listed under the charged ones, never inside the totals.
-  const chargedItems = items.filter((item) => !item.is_complimentary);
+  const chargedItems = items.filter((item) => !item.is_complimentary && item.line_kind !== "addon");
+  // Add-ons (domain renewal, a subscription…) get their own group under the services.
+  const addonItems = items.filter((item) => !item.is_complimentary && item.line_kind === "addon");
   const complimentaryItems = items.filter((item) => item.is_complimentary);
+  // The discount sits under the lines, so every line keeps its original price.
+  const discountAmount = Number(document.discount_amount ?? 0);
+  const showDiscount = discountAmount > 0 && (kind === "invoice" || Boolean(document.discount_enabled));
+  const discountLabel =
+    document.discount_type === "percentage" && Number(document.discount_value) > 0 ? ` (${Number(document.discount_value)}%)` : "";
+  const itemRow = (item: LineItem) => (
+    <tr key={item.id} className="border-b border-ink/5">
+      <td className="py-4 pr-4 text-body whitespace-pre-line">{item.description}</td>
+      <td className="py-4 px-3 text-body text-right whitespace-nowrap">{Number(item.quantity)}</td>
+      <td className="py-4 px-3 text-body text-right whitespace-nowrap">{formatMoney(Number(item.rate), document.currency)}</td>
+      <td className="py-4 pl-3 text-body text-right font-medium whitespace-nowrap">
+        {formatMoney(Number(item.amount), document.currency)}
+      </td>
+    </tr>
+  );
 
   return (
     <div className="bg-white border border-ink/10 rounded-xl p-8 md:p-12 print:border-0 print:rounded-none print:p-0">
@@ -116,22 +133,17 @@ export default function DocumentPreview({
             </th>
           </tr>
         </thead>
-        <tbody>
-          {chargedItems.map((item) => (
-            <tr key={item.id} className="border-b border-ink/5">
-              <td className="py-4 pr-4 text-body whitespace-pre-line">{item.description}</td>
-              <td className="py-4 px-3 text-body text-right whitespace-nowrap">
-                {Number(item.quantity)}
-              </td>
-              <td className="py-4 px-3 text-body text-right whitespace-nowrap">
-                {formatMoney(Number(item.rate), document.currency)}
-              </td>
-              <td className="py-4 pl-3 text-body text-right font-medium whitespace-nowrap">
-                {formatMoney(Number(item.amount), document.currency)}
+        <tbody>{chargedItems.map(itemRow)}</tbody>
+        {addonItems.length > 0 && (
+          <tbody className="avoid-break">
+            <tr>
+              <td colSpan={4} className="pt-6 pb-2 font-mono uppercase text-tag tracking-widest text-ink-subtle">
+                Add-ons
               </td>
             </tr>
-          ))}
-        </tbody>
+            {addonItems.map(itemRow)}
+          </tbody>
+        )}
       </table>
 
       <ComplimentaryServices items={complimentaryItems} currency={document.currency} className="mt-6" />
@@ -144,13 +156,10 @@ export default function DocumentPreview({
             <span className="text-ink-muted">Subtotal</span>
             <span>{formatMoney(Number(document.subtotal), document.currency)}</span>
           </div>
-          {document.discount_enabled && Number(document.discount_amount ?? 0) > 0 && (
+          {showDiscount && (
             <div className="flex justify-between text-body">
-              <span className="text-ink-muted">
-                Discount
-                {document.discount_type === "percentage" ? ` (${Number(document.discount_value)}%)` : ""}
-              </span>
-              <span>−{formatMoney(Number(document.discount_amount), document.currency)}</span>
+              <span className="text-ink-muted">Discount{discountLabel}</span>
+              <span>−{formatMoney(discountAmount, document.currency)}</span>
             </div>
           )}
           {document.tax_enabled && (
@@ -167,6 +176,12 @@ export default function DocumentPreview({
               {formatMoney(Number(document.total), document.currency)}
             </span>
           </div>
+          {kind === "invoice" && showDiscount && (
+            <div className="flex justify-between text-small text-ink-muted">
+              <span>You save</span>
+              <span>{formatMoney(discountAmount, document.currency)}</span>
+            </div>
+          )}
 
           {kind === "invoice" && Number(document.amount_paid ?? 0) > 0 && (
             <>

@@ -29,7 +29,19 @@ const itemSchema = z.object({
   rate: z.coerce.number(),
   item_type: z.enum(["service", "tool"]),
   included: z.boolean().default(true),
+  is_complimentary: z.boolean().default(false),
   catalog_item_id: z.string().uuid().nullable().optional(),
+});
+
+const addonSchema = z.object({
+  id: z.string().uuid().nullable().optional(),
+  description: z.string().min(1, "Every add-on needs a description").max(500),
+  quantity: z.coerce.number().min(0),
+  rate: z.coerce.number().min(0),
+  recurring: z.boolean().default(false),
+  apply_discount: z.boolean().default(false),
+  apply_tax: z.boolean().default(false),
+  billed_invoice_id: z.string().uuid().nullable().optional(),
 });
 
 const retainerSchema = z.object({
@@ -46,13 +58,16 @@ const retainerSchema = z.object({
   tools_tax_rate: z.coerce.number().min(0).max(100),
   notes: z.string().max(5000).nullable(),
   items: z.array(itemSchema).min(1, "Add at least one monthly line"),
+  addons: z.array(addonSchema).max(50).default([]),
 });
 
 export async function updateRetainer(id: string, formData: FormData) {
   await assertAuthed();
   let items: unknown;
+  let addons: unknown;
   try {
     items = JSON.parse(String(formData.get("items") ?? "[]"));
+    addons = JSON.parse(String(formData.get("addons") ?? "[]"));
   } catch {
     return { error: "Line items were malformed" };
   }
@@ -70,10 +85,12 @@ export async function updateRetainer(id: string, formData: FormData) {
     tools_tax_rate: formData.get("tools_tax_rate") || 18,
     notes: formData.get("notes") || null,
     items,
+    addons,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
+  if (!parsed.data.items.some((l) => !l.is_complimentary)) return { error: "Add at least one charged monthly line" };
 
-  const { items: lines, ...fields } = parsed.data;
+  const { items: lines, addons: addonLines, ...fields } = parsed.data;
   const { error } = await db
     .from("retainers")
     .update({
@@ -95,11 +112,32 @@ export async function updateRetainer(id: string, formData: FormData) {
       rate: l.rate,
       item_type: l.item_type,
       included: l.included,
+      is_complimentary: l.is_complimentary,
       catalog_item_id: l.catalog_item_id ?? null,
       sort_order: index,
     }))
   );
   if (itemsError) return { error: itemsError.message };
+
+  // Add-ons are replaced too. A one-off add-on already billed keeps its
+  // invoice link, so saving never bills it a second time.
+  await db.from("retainer_addons").delete().eq("retainer_id", id);
+  if (addonLines.length) {
+    const { error: addonsError } = await db.from("retainer_addons").insert(
+      addonLines.map((a, index) => ({
+        retainer_id: id,
+        description: a.description,
+        quantity: a.quantity,
+        rate: a.rate,
+        recurring: a.recurring,
+        apply_discount: a.apply_discount,
+        apply_tax: a.apply_tax,
+        billed_invoice_id: a.recurring ? null : (a.billed_invoice_id ?? null),
+        sort_order: index,
+      }))
+    );
+    if (addonsError) return { error: addonsError.message };
+  }
 
   revalidatePath("/dashboard/retainers");
   revalidatePath(`/dashboard/retainers/${id}`);

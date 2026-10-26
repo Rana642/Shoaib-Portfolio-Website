@@ -11,8 +11,11 @@ export const dynamic = "force-dynamic";
 
 export default async function EditInvoicePage({
   params,
+  searchParams,
 }: PageProps<"/dashboard/invoices/[id]/edit">) {
   const { id } = await params;
+  // "Add add-on" on the invoice page opens this form with an add-on line ready.
+  const { addon } = await searchParams;
 
   const [{ data: invoiceData }, { data: itemsData }, formData] = await Promise.all([
     db.from("invoices").select("*").eq("id", id).single(),
@@ -44,6 +47,7 @@ export default async function EditInvoicePage({
         bundleMembers={formData.bundleMembers}
         bundleTotals={formData.bundleTotals}
         settings={formData.settings}
+        startWithAddon={addon === "1"}
         document={{
           id: invoice.id,
           client_id: invoice.client_id,
@@ -53,6 +57,9 @@ export default async function EditInvoicePage({
           tax_enabled: invoice.tax_enabled,
           tax_name: invoice.tax_name,
           tax_rate: Number(invoice.tax_rate),
+          discount_enabled: Number(invoice.discount_value ?? 0) > 0,
+          discount_type: invoice.discount_type ?? "percentage",
+          discount_value: Number(invoice.discount_value ?? 0),
           notes: invoice.notes,
           terms: invoice.terms,
           items: items.map((item) => ({
@@ -60,6 +67,10 @@ export default async function EditInvoicePage({
             description: item.description,
             quantity: Number(item.quantity),
             rate: Number(item.rate),
+            is_complimentary: Boolean(item.is_complimentary),
+            line_kind: item.line_kind ?? "service",
+            addon_discount: Boolean(item.addon_discount),
+            addon_tax: Boolean(item.addon_tax),
           })),
         }}
       />

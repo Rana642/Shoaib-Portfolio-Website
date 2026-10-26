@@ -20,6 +20,10 @@ const lineItemSchema = z.object({
   quantity: z.coerce.number().min(0),
   rate: z.coerce.number(),
   is_complimentary: z.boolean().default(false),
+  // Invoices: service / tool / add-on. Add-ons choose whether discount and GST apply.
+  line_kind: z.enum(["service", "tool", "addon"]).default("service"),
+  addon_discount: z.boolean().default(false),
+  addon_tax: z.boolean().default(false),
 });
 
 const documentSchema = z.object({
@@ -39,6 +43,55 @@ const documentSchema = z.object({
 });
 
 type DocumentKind = "quotation" | "invoice";
+
+type ParsedDocument = z.infer<typeof documentSchema>;
+
+/** Totals for a document. Quotations bill services only; invoices also
+ *  carry tools and add-ons (each add-on opts in to the discount / GST). */
+function documentTotals(kind: DocumentKind, data: ParsedDocument) {
+  return calculateTotals(
+    data.items.map((item) => ({
+      quantity: item.quantity,
+      rate: item.rate,
+      is_complimentary: item.is_complimentary,
+      item_type: kind === "invoice" ? item.line_kind : "service",
+      addon_discount: item.addon_discount,
+      addon_tax: item.addon_tax,
+    })),
+    data.tax_enabled,
+    data.tax_rate,
+    { enabled: data.discount_enabled, type: data.discount_type, value: data.discount_value }
+  );
+}
+
+/** The money columns each document type stores. An invoice keeps its
+ *  discount on itself and its Subtotal is every charged line before the
+ *  discount and GST, so Subtotal − Discount + GST = Total on the page. */
+function moneyColumns(kind: DocumentKind, data: ParsedDocument, totals: ReturnType<typeof calculateTotals>) {
+  if (kind === "invoice") {
+    return {
+      due_date: data.due_date,
+      discount_type: data.discount_type,
+      discount_value: data.discount_enabled ? data.discount_value : 0,
+      discount_amount: totals.discountAmount,
+      addons_total: totals.addonsTotal,
+      subtotal: totals.grossSubtotal,
+      tax_amount: totals.taxAmount,
+      total: totals.total,
+    };
+  }
+  return {
+    valid_until: data.due_date,
+    due_date: undefined,
+    discount_enabled: data.discount_enabled,
+    discount_type: data.discount_type,
+    discount_value: data.discount_value,
+    discount_amount: totals.discountAmount,
+    subtotal: totals.subtotal,
+    tax_amount: totals.taxAmount,
+    total: totals.total,
+  };
+}
 
 function parseDocumentForm(formData: FormData) {
   let items: unknown;
@@ -75,9 +128,8 @@ export async function createDocument(kind: DocumentKind, formData: FormData) {
 
   const parsed = parseDocumentForm(formData);
   if (!parsed.success) return { error: parsed.error };
-  // Discount only exists on quotations — invoices don't have these
-  // columns, so they're pulled out of `doc` here and only added back for
-  // the quotation branch below.
+  // Discount fields are written per document type by moneyColumns().
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { items, discount_enabled, discount_type, discount_value, ...doc } = parsed.data;
 
   const { data: settings } = await db.from("settings").select("*").eq("id", 1).single();
@@ -87,12 +139,7 @@ export async function createDocument(kind: DocumentKind, formData: FormData) {
   const number = await generateNumber(kind, prefix);
   if (!number) return { error: "Couldn't generate a document number. Check the database setup." };
 
-  const totals = calculateTotals(
-    items,
-    doc.tax_enabled,
-    doc.tax_rate,
-    kind === "quotation" ? { enabled: discount_enabled, type: discount_type, value: discount_value } : undefined
-  );
+  const totals = documentTotals(kind, parsed.data);
   const table = kind === "invoice" ? "invoices" : "quotations";
 
   const { data: created, error } = await db
@@ -101,20 +148,8 @@ export async function createDocument(kind: DocumentKind, formData: FormData) {
       ...doc,
       // valid_until and due_date are the same field conceptually, named
       // differently per document type.
-      ...(kind === "invoice"
-        ? { due_date: doc.due_date }
-        : {
-            valid_until: doc.due_date,
-            due_date: undefined,
-            discount_enabled,
-            discount_type,
-            discount_value,
-            discount_amount: totals.discountAmount,
-          }),
+      ...moneyColumns(kind, parsed.data, totals),
       number,
-      subtotal: totals.subtotal,
-      tax_amount: totals.taxAmount,
-      total: totals.total,
     })
     .select("id")
     .single();
@@ -133,33 +168,17 @@ export async function updateDocument(kind: DocumentKind, id: string, formData: F
 
   const parsed = parseDocumentForm(formData);
   if (!parsed.success) return { error: parsed.error };
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { items, discount_enabled, discount_type, discount_value, ...doc } = parsed.data;
 
-  const totals = calculateTotals(
-    items,
-    doc.tax_enabled,
-    doc.tax_rate,
-    kind === "quotation" ? { enabled: discount_enabled, type: discount_type, value: discount_value } : undefined
-  );
+  const totals = documentTotals(kind, parsed.data);
   const table = kind === "invoice" ? "invoices" : "quotations";
 
   const { error } = await db
     .from(table)
     .update({
       ...doc,
-      ...(kind === "invoice"
-        ? { due_date: doc.due_date }
-        : {
-            valid_until: doc.due_date,
-            due_date: undefined,
-            discount_enabled,
-            discount_type,
-            discount_value,
-            discount_amount: totals.discountAmount,
-          }),
-      subtotal: totals.subtotal,
-      tax_amount: totals.taxAmount,
-      total: totals.total,
+      ...moneyColumns(kind, parsed.data, totals),
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
@@ -196,6 +215,13 @@ async function replaceLineItems(
     // For a complimentary line this is its value, shown but not charged.
     amount: round2(item.quantity * item.rate),
     sort_order: index,
+    ...(kind === "invoice"
+      ? {
+          line_kind: item.line_kind,
+          addon_discount: item.line_kind === "addon" && item.addon_discount,
+          addon_tax: item.line_kind === "addon" && item.addon_tax,
+        }
+      : {}),
   }));
 
   const { error: insertError } = await db.from(itemsTable).insert(rows);
@@ -294,6 +320,10 @@ export async function convertQuotationToInvoice(quotationId: string) {
       tax_enabled: quote.tax_enabled,
       tax_name: quote.tax_name,
       tax_rate: quote.tax_rate,
+      // The agreed discount comes along, shown under the lines.
+      discount_type: quote.discount_type ?? "percentage",
+      discount_value: quote.discount_enabled ? Number(quote.discount_value ?? 0) : 0,
+      discount_amount: quote.discount_enabled ? Number(quote.discount_amount ?? 0) : 0,
       subtotal: quote.subtotal,
       tax_amount: quote.tax_amount,
       total: quote.total,

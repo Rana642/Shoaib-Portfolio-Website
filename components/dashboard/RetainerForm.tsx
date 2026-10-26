@@ -5,7 +5,7 @@ import { Plus, Trash2, LoaderCircle, CheckCircle2 } from "lucide-react";
 import { Card, Field, buttonStyles, inputClasses } from "@/components/dashboard/ui";
 import { calculateTotals, formatMoney, round2 } from "@/lib/dashboard/format";
 import { updateRetainer } from "@/lib/dashboard/actions/retainers";
-import type { Retainer, RetainerItem } from "@/lib/dashboard/types";
+import type { Retainer, RetainerAddon, RetainerItem } from "@/lib/dashboard/types";
 
 type Line = {
   description: string;
@@ -13,10 +13,36 @@ type Line = {
   rate: number;
   item_type: "service" | "tool";
   included: boolean;
+  is_complimentary: boolean;
   catalog_item_id: string | null;
 };
 
-export default function RetainerForm({ retainer, items }: { retainer: Retainer; items: RetainerItem[] }) {
+type Addon = {
+  id: string | null;
+  description: string;
+  quantity: number;
+  rate: number;
+  recurring: boolean;
+  apply_discount: boolean;
+  apply_tax: boolean;
+  billed_invoice_id: string | null;
+};
+
+export default function RetainerForm({
+  retainer,
+  items,
+  addons = [],
+  addonSuggestions = [],
+  billedOn = {},
+}: {
+  retainer: Retainer;
+  items: RetainerItem[];
+  addons?: RetainerAddon[];
+  /** Add-on names used before, offered as you type. */
+  addonSuggestions?: string[];
+  /** invoice id → number, for one-off add-ons already billed. */
+  billedOn?: Record<string, string>;
+}) {
   const [lines, setLines] = useState<Line[]>(
     items.map((i) => ({
       description: i.description,
@@ -24,7 +50,20 @@ export default function RetainerForm({ retainer, items }: { retainer: Retainer; 
       rate: Number(i.rate),
       item_type: i.item_type,
       included: i.included !== false,
+      is_complimentary: Boolean(i.is_complimentary),
       catalog_item_id: i.catalog_item_id,
+    }))
+  );
+  const [addonLines, setAddonLines] = useState<Addon[]>(
+    addons.map((a) => ({
+      id: a.id,
+      description: a.description,
+      quantity: Number(a.quantity),
+      rate: Number(a.rate),
+      recurring: a.recurring,
+      apply_discount: a.apply_discount,
+      apply_tax: a.apply_tax,
+      billed_invoice_id: a.billed_invoice_id,
     }))
   );
   const [discountType, setDiscountType] = useState(retainer.discount_type);
@@ -37,21 +76,31 @@ export default function RetainerForm({ retainer, items }: { retainer: Retainer; 
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
 
+  // "Each month" = the billed lines plus the add-ons that recur every month.
   const totals = calculateTotals(
-    lines.filter((l) => l.included),
+    [
+      ...lines.filter((l) => l.included),
+      ...addonLines
+        .filter((a) => a.recurring)
+        .map((a) => ({ quantity: a.quantity, rate: a.rate, item_type: "addon" as const, addon_discount: a.apply_discount, addon_tax: a.apply_tax })),
+    ],
     taxEnabled,
     taxRate,
     { enabled: discountValue > 0, type: discountType, value: discountValue },
     { enabled: toolsTaxEnabled, rate: toolsTaxRate }
   );
+  const nextOnly = addonLines.filter((a) => !a.recurring && !a.billed_invoice_id);
 
   const setLine = (index: number, patch: Partial<Line>) =>
     setLines((prev) => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
+  const setAddon = (index: number, patch: Partial<Addon>) =>
+    setAddonLines((prev) => prev.map((a, i) => (i === index ? { ...a, ...patch } : a)));
 
   const onSubmit = (formData: FormData) => {
     setError(null);
     setSaved(false);
     formData.set("items", JSON.stringify(lines));
+    formData.set("addons", JSON.stringify(addonLines));
     startTransition(async () => {
       const result = await updateRetainer(retainer.id, formData);
       if (result?.error) setError(result.error);
@@ -91,14 +140,13 @@ export default function RetainerForm({ retainer, items }: { retainer: Retainer; 
       <Card className="p-6">
         <h2 className="text-body-lg font-medium mb-1">Monthly lines</h2>
         <p className="text-small text-ink-muted mb-4">
-          Untick a line (e.g. an optional tool) to keep it here but leave it off the invoices.
+          Untick a line (e.g. an optional tool) to keep it here but leave it off the invoices. A complimentary line is shown on
+          every invoice with its value, but never charged.
         </p>
         <div className="space-y-3">
           {lines.map((line, index) => (
-            <div
-              key={index}
-              className={`grid gap-2 sm:grid-cols-[auto_1fr_90px_140px_110px_auto] items-center ${line.included ? "" : "opacity-55"}`}
-            >
+            <div key={index} className={line.included ? "" : "opacity-55"}>
+            <div className="grid gap-2 sm:grid-cols-[auto_1fr_90px_140px_110px_auto] items-center">
               <input
                 type="checkbox"
                 aria-label="Bill this line"
@@ -149,15 +197,138 @@ export default function RetainerForm({ retainer, items }: { retainer: Retainer; 
                 <Trash2 className="size-4" aria-hidden />
               </button>
             </div>
+            <label className="mt-1 ml-6 inline-flex items-center gap-2 text-tag text-ink-muted cursor-pointer">
+              <input
+                type="checkbox"
+                checked={line.is_complimentary}
+                onChange={(e) => setLine(index, { is_complimentary: e.target.checked })}
+                className="size-3.5 accent-ink"
+              />
+              Complimentary: show its value on the invoice, don&apos;t charge it
+            </label>
+            </div>
           ))}
         </div>
         <button
           type="button"
-          onClick={() => setLines((prev) => [...prev, { description: "", quantity: 1, rate: 0, item_type: "service", included: true, catalog_item_id: null }])}
+          onClick={() =>
+            setLines((prev) => [
+              ...prev,
+              { description: "", quantity: 1, rate: 0, item_type: "service", included: true, is_complimentary: false, catalog_item_id: null },
+            ])
+          }
           className={`${buttonStyles.secondary} mt-4`}
         >
           <Plus className="size-4" aria-hidden /> Add line
         </button>
+      </Card>
+
+      <Card className="p-6">
+        <h2 className="text-body-lg font-medium mb-1">Add-ons</h2>
+        <p className="text-small text-ink-muted mb-4">
+          Extras billed on the same invoice: a domain renewal, a Claude subscription… Listed apart on the invoice, and kept out
+          of your income in Finance (client money). Choose for each one whether the discount and GST apply.
+        </p>
+        <datalist id="addon-suggestions">
+          {addonSuggestions.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
+        {addonLines.length === 0 && <p className="text-small text-ink-subtle mb-2">No add-ons yet.</p>}
+        <div className="space-y-4">
+          {addonLines.map((addon, index) => {
+            const billed = !addon.recurring && addon.billed_invoice_id;
+            return (
+              <div key={index} className={`rounded-lg border border-ink/10 p-3 space-y-2 ${billed ? "opacity-60" : ""}`}>
+                <div className="grid gap-2 sm:grid-cols-[1fr_90px_140px_auto] items-center">
+                  <input
+                    aria-label="Add-on"
+                    list="addon-suggestions"
+                    value={addon.description}
+                    onChange={(e) => setAddon(index, { description: e.target.value })}
+                    className={inputClasses}
+                    placeholder="e.g. Domain renewal — example.com (1 year)"
+                  />
+                  <input
+                    aria-label="Quantity"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={addon.quantity}
+                    onChange={(e) => setAddon(index, { quantity: Number(e.target.value) })}
+                    className={inputClasses}
+                  />
+                  <input
+                    aria-label="Rate"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={addon.rate}
+                    onChange={(e) => setAddon(index, { rate: Number(e.target.value) })}
+                    className={inputClasses}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setAddonLines((prev) => prev.filter((_, i) => i !== index))}
+                    className={buttonStyles.secondary}
+                    aria-label="Remove add-on"
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-tag text-ink-muted">
+                  <select
+                    aria-label="When to bill"
+                    value={addon.recurring ? "monthly" : "once"}
+                    onChange={(e) => setAddon(index, { recurring: e.target.value === "monthly", billed_invoice_id: null })}
+                    className="rounded-md border border-ink/15 bg-white px-2 py-1 text-tag"
+                  >
+                    <option value="once">Next invoice only</option>
+                    <option value="monthly">Every month</option>
+                  </select>
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={addon.apply_discount}
+                      onChange={(e) => setAddon(index, { apply_discount: e.target.checked })}
+                      className="size-3.5 accent-ink"
+                    />
+                    Discount applies
+                  </label>
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={addon.apply_tax}
+                      onChange={(e) => setAddon(index, { apply_tax: e.target.checked })}
+                      className="size-3.5 accent-ink"
+                    />
+                    GST applies
+                  </label>
+                  {billed && (
+                    <span className="text-green-700">
+                      Billed on {billedOn[addon.billed_invoice_id!] ?? "an invoice"}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          onClick={() =>
+            setAddonLines((prev) => [
+              ...prev,
+              { id: null, description: "", quantity: 1, rate: 0, recurring: false, apply_discount: false, apply_tax: false, billed_invoice_id: null },
+            ])
+          }
+          className={`${buttonStyles.secondary} mt-4`}
+        >
+          <Plus className="size-4" aria-hidden /> Add add-on
+        </button>
+        <p className="text-tag text-ink-subtle mt-3">
+          To add something to an invoice that&apos;s already made, open the draft invoice and use “Add add-on”.
+        </p>
       </Card>
 
       <Card className="p-6 space-y-5">
@@ -174,7 +345,7 @@ export default function RetainerForm({ retainer, items }: { retainer: Retainer; 
               <option value="fixed">Fixed amount</option>
             </select>
           </Field>
-          <Field label="Discount" htmlFor="discount_value" hint="On services only, every month.">
+          <Field label="Discount" htmlFor="discount_value" hint="On services (and add-ons that opt in), every month.">
             <input
               id="discount_value"
               name="discount_value"
@@ -236,10 +407,21 @@ export default function RetainerForm({ retainer, items }: { retainer: Retainer; 
 
         <div className="border-t border-ink/10 pt-4 space-y-1 text-small max-w-sm ml-auto">
           <Row label="Services" value={formatMoney(totals.subtotal, retainer.currency)} />
+          {totals.toolsTotal > 0 && <Row label="Tools (incl. est. tax)" value={formatMoney(totals.toolsTotal, retainer.currency)} />}
+          {totals.addonsSubtotal > 0 && <Row label="Monthly add-ons" value={formatMoney(totals.addonsSubtotal, retainer.currency)} />}
           {totals.discountAmount > 0 && <Row label="Discount" value={`−${formatMoney(totals.discountAmount, retainer.currency)}`} />}
           {totals.taxAmount > 0 && <Row label={`Tax (${taxRate}%)`} value={formatMoney(totals.taxAmount, retainer.currency)} />}
-          {totals.toolsTotal > 0 && <Row label="Tools (incl. est. tax)" value={formatMoney(totals.toolsTotal, retainer.currency)} />}
           <Row label="Each month" value={formatMoney(round2(totals.total), retainer.currency)} strong />
+          {nextOnly.length > 0 && (
+            <p className="text-tag text-ink-subtle pt-1">
+              Next invoice also carries {nextOnly.length} one-off add-on{nextOnly.length === 1 ? "" : "s"} (
+              {formatMoney(
+                round2(nextOnly.reduce((sum, a) => sum + a.quantity * a.rate, 0)),
+                retainer.currency
+              )}{" "}
+              before discount/GST).
+            </p>
+          )}
         </div>
       </Card>
 

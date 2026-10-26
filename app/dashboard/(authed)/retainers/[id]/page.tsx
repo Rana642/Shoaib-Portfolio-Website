@@ -7,14 +7,14 @@ import { formatMoney, formatDate } from "@/lib/dashboard/format";
 import { createRetainerInvoiceNow } from "@/lib/dashboard/actions/retainers";
 import { periodLabel, todayPkt } from "@/lib/dashboard/retainers";
 import RetainerForm, { RetainerInvoiceNow } from "@/components/dashboard/RetainerForm";
-import type { Retainer, RetainerItem } from "@/lib/dashboard/types";
+import type { Retainer, RetainerAddon, RetainerItem } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function RetainerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const [{ data: retainer }, { data: items }, { data: invoices }] = await Promise.all([
+  const [{ data: retainer }, { data: items }, { data: invoices }, { data: addons }, { data: usedAddons }, { data: usedLines }] = await Promise.all([
     db.from("retainers").select("*, clients(name), proposals(id, number)").eq("id", id).single(),
     db.from("retainer_items").select("*").eq("retainer_id", id).order("sort_order"),
     db
@@ -22,7 +22,15 @@ export default async function RetainerPage({ params }: { params: Promise<{ id: s
       .select("id, number, status, period, issue_date, total, currency")
       .eq("retainer_id", id)
       .order("period", { ascending: false }),
+    db.from("retainer_addons").select("*").eq("retainer_id", id).order("sort_order"),
+    // Add-on names used before (any retainer or invoice), offered as you type.
+    db.from("retainer_addons").select("description").limit(200),
+    db.from("invoice_items").select("description").eq("line_kind", "addon").limit(200),
   ]);
+  const addonSuggestions = [
+    ...new Set([...(usedAddons ?? []), ...(usedLines ?? [])].map((r: { description: string }) => r.description.trim()).filter(Boolean)),
+  ].slice(0, 60);
+  const billedOn = Object.fromEntries((invoices ?? []).map((inv) => [inv.id, inv.number]));
   if (!retainer) notFound();
 
   const r = retainer as Retainer & {
@@ -65,7 +73,13 @@ export default async function RetainerPage({ params }: { params: Promise<{ id: s
       </p>
 
       <div className="grid gap-8 lg:grid-cols-[1fr_340px] items-start">
-        <RetainerForm retainer={r} items={(items ?? []) as RetainerItem[]} />
+        <RetainerForm
+          retainer={r}
+          items={(items ?? []) as RetainerItem[]}
+          addons={(addons ?? []) as RetainerAddon[]}
+          addonSuggestions={addonSuggestions}
+          billedOn={billedOn}
+        />
 
         <div className="space-y-6">
           <Card className="p-6">

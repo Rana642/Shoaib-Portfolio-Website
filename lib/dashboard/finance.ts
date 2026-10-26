@@ -35,6 +35,9 @@ export type MoneyRow = {
   clientId: string | null;
   clientName: string | null;
   passThrough: boolean;
+  /** Invoice payments: the share that paid for add-ons (domain renewal,
+   *  a subscription…) — client money, kept out of income. */
+  addonsPkr: number;
   method: string | null;
   reference: string | null;
   notes: string | null;
@@ -105,6 +108,7 @@ function fromEntry(e: EntryRecord): MoneyRow {
     clientId: e.client_id,
     clientName: e.clients?.name ?? null,
     passThrough: e.pass_through,
+    addonsPkr: 0,
     method: e.method,
     reference: null,
     notes: e.notes,
@@ -123,16 +127,26 @@ type PaymentRecord = {
   notes: string | null;
   fx_rate?: number | null;
   pkr_amount?: number | null;
-  invoices: { id: string; number: string; currency: string; client_id: string; clients: { name: string } | null } | null;
+  invoices: {
+    id: string;
+    number: string;
+    currency: string;
+    client_id: string;
+    total?: number | null;
+    addons_total?: number | null;
+    clients: { name: string } | null;
+  } | null;
 };
 
 async function loadPayments(period: Pick<Period, "from" | "to">): Promise<MoneyRow[]> {
-  const cols = "id, amount, paid_at, method, reference, notes, invoices!inner(id, number, currency, client_id, clients(name))";
+  const cols = (invoiceExtra: string) =>
+    `id, amount, paid_at, method, reference, notes, invoices!inner(id, number, currency, client_id${invoiceExtra}, clients(name))`;
   const query = (select: string) =>
     db.from("payments").select(select).gte("paid_at", period.from).lte("paid_at", period.to).order("paid_at", { ascending: false });
-  let res = await query(`${cols}, fx_rate, pkr_amount`);
-  // Before the Finance SQL is run the PKR columns don't exist yet.
-  if (res.error) res = await query(cols);
+  let res = await query(`${cols(", total, addons_total")}, fx_rate, pkr_amount`);
+  // Older databases: no add-on totals yet, or no PKR columns yet.
+  if (res.error) res = await query(`${cols("")}, fx_rate, pkr_amount`);
+  if (res.error) res = await query(cols(""));
   const payments = (res.data ?? []) as unknown as PaymentRecord[];
 
   return Promise.all(
@@ -148,6 +162,10 @@ async function loadPayments(period: Pick<Period, "from" | "to">): Promise<MoneyR
         pkr = round2(amount * (fxRate ?? 0));
         estimated = currency !== "PKR";
       }
+      // The add-ons' share of this payment, in proportion to the invoice.
+      const invoiceTotal = Number(inv?.total ?? 0);
+      const addonsShare = invoiceTotal > 0 ? Math.min(1, Math.max(0, Number(inv?.addons_total ?? 0) / invoiceTotal)) : 0;
+      const addonsPkr = round2(pkr * addonsShare);
       return {
         id: p.id,
         source: "payment" as const,
@@ -157,7 +175,9 @@ async function loadPayments(period: Pick<Period, "from" | "to">): Promise<MoneyR
         categoryLabel: INVOICE_PAYMENT_LABEL,
         group: null,
         party: inv?.clients?.name ?? null,
-        description: inv ? `Invoice ${inv.number}` : null,
+        description: inv
+          ? `Invoice ${inv.number}${addonsPkr > 0 ? ` · add-ons PKR ${addonsPkr.toLocaleString("en-PK")} kept as client money` : ""}`
+          : null,
         amount,
         currency,
         fxRate,
@@ -166,6 +186,7 @@ async function loadPayments(period: Pick<Period, "from" | "to">): Promise<MoneyR
         clientId: inv?.client_id ?? null,
         clientName: inv?.clients?.name ?? null,
         passThrough: false,
+        addonsPkr,
         method: p.method,
         reference: p.reference,
         notes: p.notes,
@@ -199,8 +220,10 @@ export type Summary = {
   invoiceIncome: number;
   /** Other income that's yours (affiliate commission, payments without an invoice…). */
   otherIncome: number;
-  /** A client's own money received (their ad budget). */
+  /** A client's own money received (their ad budget, or add-ons they paid back). */
   clientMoneyIn: number;
+  /** Of that: the add-ons' share of invoice payments. */
+  addonsIn: number;
   /** A client's money spent for them (their ads). */
   clientAdSpend: number;
   /** Client money received but not spent yet — not income. */
@@ -229,13 +252,19 @@ export function summarize(rows: MoneyRow[]): Summary {
   let invoiceIncome = 0,
     otherIncome = 0,
     clientMoneyIn = 0,
+    addonsIn = 0,
     clientAdSpend = 0,
     direct = 0,
     overhead = 0,
     tax = 0;
   for (const r of rows) {
     if (r.kind === "income") {
-      if (r.source === "payment") invoiceIncome += r.pkr;
+      if (r.source === "payment") {
+        // Add-ons billed on the invoice are the client's money, not income.
+        invoiceIncome += r.pkr - r.addonsPkr;
+        clientMoneyIn += r.addonsPkr;
+        addonsIn += r.addonsPkr;
+      }
       else if (r.passThrough) clientMoneyIn += r.pkr;
       else otherIncome += r.pkr;
     } else if (r.passThrough || r.group === "pass_through") clientAdSpend += r.pkr;
@@ -251,6 +280,7 @@ export function summarize(rows: MoneyRow[]): Summary {
     invoiceIncome: round2(invoiceIncome),
     otherIncome: round2(otherIncome),
     clientMoneyIn: round2(clientMoneyIn),
+    addonsIn: round2(addonsIn),
     clientAdSpend: round2(clientAdSpend),
     clientMoneyHeld: round2(Math.max(0, clientNet)),
     revenue: round2(revenue),
@@ -315,8 +345,9 @@ export function incomeByOrigin(rows: MoneyRow[]) {
     foreign = 0;
   for (const r of rows) {
     if (r.kind !== "income" || r.passThrough) continue;
-    if (r.currency === "PKR") local += r.pkr;
-    else foreign += r.pkr;
+    const own = r.pkr - r.addonsPkr;
+    if (r.currency === "PKR") local += own;
+    else foreign += own;
   }
   return { local: round2(local), foreign: round2(foreign) };
 }

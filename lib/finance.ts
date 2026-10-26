@@ -50,7 +50,10 @@ export const EXPENSE_GROUPS: { key: ExpenseGroup; label: string; hint: string; c
     key: "pass_through",
     label: "Client money",
     hint: "Paid with a client's money — not your cost.",
-    categories: [{ key: "client_ad_spend", label: "Client ad spend", hint: "A client's budget paid to Meta, Google…" }],
+    categories: [
+      { key: "client_ad_spend", label: "Client ad spend", hint: "A client's budget paid to Meta, Google…" },
+      { key: "client_addons", label: "Client add-ons", hint: "A domain, a subscription… bought for a client and billed back as an invoice add-on" },
+    ],
   },
 ];
 
