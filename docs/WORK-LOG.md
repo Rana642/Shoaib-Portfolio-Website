@@ -4,6 +4,18 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-26 — Invoices: discount under the lines, add-ons, complimentary retainer services (de4dd84)
+- The discount is now stored on the invoice, not as a negative line. Lines keep their original prices, and the totals read Subtotal → Discount → GST → Total → You save. The client link and receipt use the same layout.
+- **Add-ons** (domain renewal, Claude subscription…):
+  - On the invoice they are their own group, and each one opts in to the discount and GST.
+  - On the retainer page they are a new section: "every month" or "next invoice only" (a one-off is billed once).
+  - A draft invoice has an "Add add-on" button.
+- **Finance:** the add-on share of a payment is client money, not income. New pass-through expense category "Client add-ons".
+- Retainers now keep the proposal's complimentary services, shown on every invoice and never charged.
+- Fixed: editing an invoice dropped the complimentary flag.
+- Shoaib ran the SQL block (end of `supabase/dashboard-schema.sql`).
+- Data fix: the Meezab + Tad retainer got 6 complimentary lines. INV-2026-002 (draft) now shows 40,000 − 50% = 20,000, plus the complimentary box.
+
 ## 2026-10-21 — Auto-shared Stories no longer side-cropped (c07c10e)
 - Instagram and Facebook zoomed 4:5 posts to fill a Story and cut off headlines and footer contacts. The Meezab accounts manager sent a screenshot.
 - `lib/story-frame.ts` now redraws every shared photo as 1080×1920 with the whole post centred. The space above and below takes the post's edge colour when that edge is flat, otherwise white.
