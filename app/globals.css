@@ -160,10 +160,15 @@
 
   /* Only the app prints. Browser extensions inject fixed sidebars and
      floating buttons straight into <body>/<html>; they would otherwise
-     print over the right edge of every page. */
+     print over the right edge of every page. Many set an inline
+     `display: block !important`, which beats this rule's display, so
+     visibility and opacity hide them too (an icon printed over an
+     invoice amount, 2026-10-26). */
   html > :not(head):not(body),
   body > :not([data-app-root]) {
     display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
   }
 
   body {
