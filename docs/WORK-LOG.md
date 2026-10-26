@@ -15,6 +15,9 @@ context (decisions, gotchas, rules) is in the second-brain vault:
 - Fixed: editing an invoice dropped the complimentary flag.
 - Shoaib ran the SQL block (end of `supabase/dashboard-schema.sql`).
 - Data fix: the Meezab + Tad retainer got 6 complimentary lines. INV-2026-002 (draft) now shows 40,000 − 50% = 20,000, plus the complimentary box.
+- Later the same day:
+  - Qty and Rate columns appear only when some line's quantity isn't 1 (19b91d1).
+  - Invoice lines are grouped as Monthly retainer / One-time services (first retainer invoice) / Tools / Add-ons (93e2a37). Other invoices use "Services" and show group labels only when there's more than one group.
 
 ## 2026-10-21 — Auto-shared Stories no longer side-cropped (c07c10e)
 - Instagram and Facebook zoomed 4:5 posts to fill a Story and cut off headlines and footer contacts. The Meezab accounts manager sent a screenshot.
