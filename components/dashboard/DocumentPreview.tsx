@@ -22,7 +22,11 @@ type PreviewDocument = {
   amount_paid?: number;
   notes: string | null;
   terms: string | null;
+  /** Set on invoices billed from a monthly retainer. */
+  retainer_id?: string | null;
 };
+
+type LineGroup = { key: string; label: string; items: LineItem[] };
 
 /**
  * The client-facing document. Rendered on screen and printed as-is —
@@ -52,10 +56,23 @@ export default function DocumentPreview({
   const dateValue = kind === "invoice" ? document.due_date : document.valid_until;
   const balance = (document.total ?? 0) - (document.amount_paid ?? 0);
   // Complimentary lines are listed under the charged ones, never inside the totals.
-  const chargedItems = items.filter((item) => !item.is_complimentary && item.line_kind !== "addon");
-  // Add-ons (domain renewal, a subscription…) get their own group under the services.
-  const addonItems = items.filter((item) => !item.is_complimentary && item.line_kind === "addon");
+  const chargedItems = items.filter((item) => !item.is_complimentary);
   const complimentaryItems = items.filter((item) => item.is_complimentary);
+  // Charged lines in their own groups: the retainer's services, tools, then
+  // add-ons (domain renewal, a subscription…). A retainer's first invoice
+  // also carries the proposal's one-time services, marked "(one-time)".
+  const isRetainer = kind === "invoice" && Boolean(document.retainer_id);
+  const isOneTime = (item: LineItem) => /\(one-time\)$/.test(item.description.trim());
+  const serviceItems = chargedItems.filter((item) => (item.line_kind ?? "service") === "service");
+  const groups: LineGroup[] = [
+    isRetainer
+      ? { key: "retainer", label: "Monthly retainer", items: serviceItems.filter((item) => !isOneTime(item)) }
+      : { key: "services", label: "Services", items: serviceItems },
+    { key: "one-time", label: "One-time services", items: isRetainer ? serviceItems.filter(isOneTime) : [] },
+    { key: "tools", label: "Tools", items: chargedItems.filter((item) => item.line_kind === "tool") },
+    { key: "addons", label: "Add-ons", items: chargedItems.filter((item) => item.line_kind === "addon") },
+  ].filter((group) => group.items.length > 0);
+  const showGroupLabels = isRetainer || groups.length > 1;
   // The discount sits under the lines, so every line keeps its original price.
   const discountAmount = Number(document.discount_amount ?? 0);
   const showDiscount = discountAmount > 0 && (kind === "invoice" || Boolean(document.discount_enabled));
@@ -63,7 +80,7 @@ export default function DocumentPreview({
     document.discount_type === "percentage" && Number(document.discount_value) > 0 ? ` (${Number(document.discount_value)}%)` : "";
   // Qty and Rate only earn their columns when some line isn't a single
   // package; otherwise Rate just repeats Amount (Shoaib, 2026-10-26).
-  const showQtyRate = [...chargedItems, ...addonItems].some((item) => Number(item.quantity) !== 1);
+  const showQtyRate = chargedItems.some((item) => Number(item.quantity) !== 1);
   const columns = showQtyRate ? 4 : 2;
   const itemRow = (item: LineItem) => (
     <tr key={item.id} className="border-b border-ink/5">
@@ -145,17 +162,22 @@ export default function DocumentPreview({
             </th>
           </tr>
         </thead>
-        <tbody>{chargedItems.map(itemRow)}</tbody>
-        {addonItems.length > 0 && (
-          <tbody className="avoid-break">
-            <tr>
-              <td colSpan={columns} className="pt-6 pb-2 font-mono uppercase text-tag tracking-widest text-ink-subtle">
-                Add-ons
-              </td>
-            </tr>
-            {addonItems.map(itemRow)}
+        {groups.map((group, index) => (
+          // The first group may run long enough to need a page break; the later, short ones stay whole.
+          <tbody key={group.key} className={index > 0 ? "avoid-break" : undefined}>
+            {showGroupLabels && (
+              <tr>
+                <td
+                  colSpan={columns}
+                  className={`${index > 0 ? "pt-6" : "pt-4"} pb-2 font-mono uppercase text-tag tracking-widest text-ink-subtle`}
+                >
+                  {group.label}
+                </td>
+              </tr>
+            )}
+            {group.items.map(itemRow)}
           </tbody>
-        )}
+        ))}
       </table>
 
       <ComplimentaryServices items={complimentaryItems} currency={document.currency} className="mt-6" />
