@@ -18,7 +18,9 @@ context (decisions, gotchas, rules) is in the second-brain vault:
 - Later the same day:
   - Qty and Rate columns appear only when some line's quantity isn't 1 (19b91d1).
   - Invoice lines are grouped as Monthly retainer / One-time services (first retainer invoice) / Tools / Add-ons (93e2a37). Other invoices use "Services" and show group labels only when there's more than one group.
-  - With more than one group, a discounted group shows Subtotal / Discount / "<group> total" under its own lines. The totals at the bottom list each group's amount after its discount, then GST and a Grand total (e846450, then this commit).
+  - With more than one group, a discounted group shows Subtotal / Discount / "<group> total" under its own lines. The totals at the bottom list each group's amount after its discount, then GST and a Grand total (e846450, 2c60d6a).
+  - INV-2026-002 line spelling fixed in the data (Claude, maintenance, Renewal).
+  - Print fix (bf3e34e): a browser-extension icon printed over an amount. Extensions force `display: block !important` inline, so the print CSS now also sets visibility and opacity on non-app nodes.
 
 ## 2026-10-21 — Auto-shared Stories no longer side-cropped (c07c10e)
 - Instagram and Facebook zoomed 4:5 posts to fill a Story and cut off headlines and footer contacts. The Meezab accounts manager sent a screenshot.
