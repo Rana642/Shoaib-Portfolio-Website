@@ -4,6 +4,14 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-27 — Meta checkpoint (24–26 Oct) + Story Drive day limit (836381a)
+- From 24 Oct 10:00 UTC to 26 Oct 17:32 UTC every live Meta call failed with "You cannot access the app till you log in to www.facebook.com and follow the instructions given." That is a checkpoint on the Facebook account that owns the token.
+  - FB feed posts that were natively scheduled still went out.
+  - 48 rows failed: 37 Stories (21 of them TONI&GUY) and Instagram for 9 feed posts and 2 Reels (Avalon, Eventia, Elegant, Silver Sand).
+  - It works again from 27 Oct 05:00 UTC. Re-posting the 11 on Instagram is waiting on Shoaib.
+- **Fix (836381a):** Story Drive counted only *scheduled* stories toward `per_day`. TONI&GUY's slot hours were refreshed on 27 Oct (now 16–23 PKT), and the hourly sync filled the new hours: 11 Stories that day instead of 8. Posted and failed stories now count too.
+- TONI&GUY `109.mp4` (61 s) is skipped. It needs trimming to 60 s.
+
 ## 2026-10-26 — Invoices: discount under the lines, add-ons, complimentary retainer services (de4dd84)
 - The discount is now stored on the invoice, not as a negative line. Lines keep their original prices, and the totals read Subtotal → Discount → GST → Total → You save. The client link and receipt use the same layout.
 - **Add-ons** (domain renewal, Claude subscription…):
