@@ -285,13 +285,14 @@ export async function syncStoryFolder(projectId: string, maxImports = 8): Promis
       await db.from("story_drive_sources").update({ slot_hours: hours, slots_updated_at: new Date().toISOString() }).eq("project_id", projectId);
     }
 
-    // Stories already on the calendar, by PKT day and hour.
+    // Stories already on the calendar, by PKT day and hour. Posted and failed
+    // ones count too: otherwise each story that goes out frees a place in its
+    // day, and a change of slot hours lets the sync add more than per_day.
     const { data: existing } = await db
       .from("scheduled_posts")
       .select("scheduled_at")
       .eq("project_id", projectId)
       .eq("post_type", "story")
-      .in("status", ["scheduled", "pending_caption", "needs_changes"])
       .gte("scheduled_at", new Date(Date.now() - 86400_000).toISOString());
     const slots = freeSlots(hours, source.per_day, dayLoads(existing ?? []));
 
