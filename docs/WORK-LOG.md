@@ -8,7 +8,8 @@ context (decisions, gotchas, rules) is in the second-brain vault:
 - From 24 Oct 10:00 UTC to 26 Oct 17:32 UTC every live Meta call failed with "You cannot access the app till you log in to www.facebook.com and follow the instructions given." That is a checkpoint on the Facebook account that owns the token.
   - FB feed posts that were natively scheduled still went out.
   - 48 rows failed: 37 Stories (21 of them TONI&GUY) and Instagram for 9 feed posts and 2 Reels (Avalon, Eventia, Elegant, Silver Sand).
-  - It works again from 27 Oct 05:00 UTC. Re-posting the 11 on Instagram is waiting on Shoaib.
+  - It works again from 27 Oct 05:00 UTC.
+  - Shoaib approved re-posting the 11 on Instagram. They are back to `scheduled` with `target_platforms: ["instagram"]`, 28 Oct – 1 Nov PKT, at times that don't clash with each client's own posts. FB + Google results are kept in `result.live` / `result.gbp`, so those platforms are skipped and a reschedule can't delete the live FB post.
 - **Fix (836381a):** Story Drive counted only *scheduled* stories toward `per_day`. TONI&GUY's slot hours were refreshed on 27 Oct (now 16–23 PKT), and the hourly sync filled the new hours: 11 Stories that day instead of 8. Posted and failed stories now count too.
 - TONI&GUY `109.mp4` (61 s) is skipped. It needs trimming to 60 s.
 
