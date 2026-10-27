@@ -10,6 +10,7 @@ import { refreshExpiringInstagramLogins } from "@/lib/social-instagram-login";
 import { presignDownload, deleteObject } from "@/lib/storage";
 import { syncDueStoryFolders } from "@/lib/story-drive";
 import { queueStoryCopy } from "@/lib/post-as-story";
+import { alertHeldPosts, holdLimitMs, HOLD_RETRY_MS, isConnectionError, isWaitingToRetry, type HoldInfo } from "@/lib/social-connection-hold";
 
 // Cron runs every 15 min (vercel.json) but a batch of due posts still fires
 // within one invocation — space them out a few seconds apart rather than
@@ -48,19 +49,31 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * the gate says "wait", only the Google part is held back: everything
  * already attempted is saved under result.live, the post stays 'scheduled',
  * and the next run (15 min later) sends just the Google post.
+ *
+ * When Meta blocks the login itself (a checkpoint, a revoked or expired
+ * token), the post is held instead of failed — see lib/social-connection-
+ * hold.ts. Held posts wait HOLD_RETRY_MS between tries; one probe per run is
+ * enough to know the block is still on, and once it lifts each project gets
+ * at most one late post per run so a backlog doesn't land all at once.
  */
 export async function GET(request: Request) {
   if (!(await isCronRequest(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const due = await listDuePosts();
+  const due = (await listDuePosts()).filter((post) => !isWaitingToRetry(post.result));
   const results = [];
   let backedOff = false;
   let deferred = 0;
   const startedAt = Date.now();
+  // Meta refused a login this run: other held posts needn't try again yet.
+  let metaBlocked = false;
+  let lastHeldId: string | null = null;
+  const lateDoneProjects = new Set<string>();
 
   for (const [i, post] of due.entries()) {
+    const heldBefore = (post.result as { held?: HoldInfo } | null)?.held;
+    if (heldBefore && (metaBlocked || lateDoneProjects.has(post.project_id))) continue;
     // Only start another post while there's clearly time to finish it —
     // an Instagram publish can take ~30s. A run cut off at maxDuration in
     // the middle of a post could publish it without recording that, and
@@ -119,9 +132,13 @@ export async function GET(request: Request) {
       // container, and finish it on a later run.
       const stillProcessing = liveResults.filter((r) => r.pending && !r.ok);
       if (stillProcessing.length) {
-        const done = liveResults.filter((r) => !r.pending);
+        // A blocked account isn't "done" — leave it out so it's tried again.
+        const done = liveResults.filter((r) => !r.pending && !isConnectionError(r));
         const pending = Object.fromEntries(stillProcessing.map((r) => [r.external_id, r.pending!]));
-        await db.from("scheduled_posts").update({ result: { native: nativeResults, live: [...priorLive, ...done], pending } }).eq("id", post.id);
+        await db
+          .from("scheduled_posts")
+          .update({ result: { native: nativeResults, live: [...priorLive, ...done], pending, ...(heldBefore ? { held: heldBefore } : {}) } })
+          .eq("id", post.id);
         results.push({ id: post.id, ok: false, processingReel: true });
         continue;
       }
@@ -141,16 +158,53 @@ export async function GET(request: Request) {
       }
 
       if (gbpWaiting) {
-        // Keep it scheduled; the next run sends only the Google post.
-        await db.from("scheduled_posts").update({ result: { native: nativeResults, live } }).eq("id", post.id);
+        // Keep it scheduled; the next run sends only the Google post (and
+        // tries any blocked Meta account again).
+        await db
+          .from("scheduled_posts")
+          .update({ result: { native: nativeResults, live: live.filter((r) => !isConnectionError(r)), ...(heldBefore ? { held: heldBefore } : {}) } })
+          .eq("id", post.id);
         results.push({ id: post.id, ok: false, waitingForGoogle: true });
         continue;
+      }
+
+      // Meta blocked the login: hold the post rather than fail it, unless it
+      // has already waited too long to still be worth posting.
+      const blocked = live.filter(isConnectionError);
+      if (blocked.length) {
+        metaBlocked = true;
+        const since = heldBefore?.since ?? new Date().toISOString();
+        if (Date.now() - new Date(since).getTime() < holdLimitMs(post.post_type)) {
+          const held: HoldInfo = {
+            since,
+            error: blocked[0].error ?? "",
+            accounts: blocked.map((r) => r.label),
+            next_try: new Date(Date.now() + HOLD_RETRY_MS).toISOString(),
+            tries: (heldBefore?.tries ?? 0) + 1,
+            ...(heldBefore?.alerted_at ? { alerted_at: heldBefore.alerted_at } : {}),
+          };
+          await db
+            .from("scheduled_posts")
+            .update({
+              result: {
+                native: nativeResults,
+                live: live.filter((r) => !isConnectionError(r)),
+                ...(gbpResult?.ok ? { gbp: gbpResult } : {}),
+                held,
+              },
+            })
+            .eq("id", post.id);
+          lastHeldId = post.id;
+          results.push({ id: post.id, ok: false, held: true });
+          continue;
+        }
       }
 
       const allResults = [...nativeResults, ...live, ...(gbpResult ? [gbpResult] : [])];
       const ok = allResults.length > 0 && allResults.every((r) => r.ok);
       await markPostResult(post.id, ok, { platforms: allResults });
       results.push({ id: post.id, ok, platforms: allResults });
+      if (heldBefore) lateDoneProjects.add(post.project_id);
 
       // Every published post / Reel / video is shared as a Story too — copied
       // before the original file is deleted below. Best-effort.
@@ -188,6 +242,15 @@ export async function GET(request: Request) {
       const message = error instanceof Error ? error.message : String(error);
       await markPostResult(post.id, false, { error: message });
       results.push({ id: post.id, ok: false, error: message });
+    }
+  }
+
+  // Tell Shoaib about held posts (at most one email every few hours).
+  if (lastHeldId) {
+    try {
+      await alertHeldPosts(lastHeldId);
+    } catch (error) {
+      console.error("[social-cron] held-posts alert failed:", error);
     }
   }
 

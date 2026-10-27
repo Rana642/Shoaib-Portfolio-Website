@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { redirect } from "next/navigation";
 import DashboardShell from "@/components/dashboard/DashboardShell";
+import HeldPostsBanner from "@/components/dashboard/HeldPostsBanner";
 import { getAdminUser } from "@/lib/dashboard/auth";
 
 export const metadata: Metadata = {
@@ -35,5 +36,9 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
   // middleware misconfiguration fails closed rather than leaking data.
   if (!user) redirect("/dashboard/login");
 
-  return <DashboardShell email={user.email ?? ""}>{children}</DashboardShell>;
+  return (
+    <DashboardShell email={user.email ?? ""} banner={<HeldPostsBanner />}>
+      {children}
+    </DashboardShell>
+  );
 }

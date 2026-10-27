@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/dashboard/auth";
 import { exchangeInstagramCode, instagramMe } from "@/lib/social-instagram-login";
 import { saveInstagramLoginAccount } from "@/lib/social-accounts";
+import { releaseHeldPosts } from "@/lib/social-connection-hold";
 
 /**
  * Instagram Login redirect target (registered under the app's Instagram
@@ -35,6 +36,8 @@ export async function GET(request: Request) {
       return back({ instagram_error: `@${me.username} is a personal account — switch it to a Business or Creator account in Instagram, then connect again.` });
     }
     await saveInstagramLoginAccount({ project_id: projectId, ig_user_id: me.user_id, username: me.username, access_token: tokens.access_token, expires_in: tokens.expires_in });
+    // Posts held while this login was blocked can go out on the next run.
+    await releaseHeldPosts().catch(() => {});
     return back({ project: projectId, instagram: `@${me.username}` });
   } catch (error) {
     return back({ project: projectId, instagram_error: error instanceof Error ? error.message : "Couldn't connect the Instagram account." });
