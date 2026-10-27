@@ -12,6 +12,16 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - Shoaib approved re-posting the 11 on Instagram. They are back to `scheduled` with `target_platforms: ["instagram"]`, 28 Oct – 1 Nov PKT, at times that don't clash with each client's own posts. FB + Google results are kept in `result.live` / `result.gbp`, so those platforms are skipped and a reschedule can't delete the live FB post.
 - **Fix (836381a):** Story Drive counted only *scheduled* stories toward `per_day`. TONI&GUY's slot hours were refreshed on 27 Oct (now 16–23 PKT), and the hourly sync filled the new hours: 11 Stories that day instead of 8. Posted and failed stories now count too.
 - TONI&GUY `109.mp4` (61 s) is skipped. It needs trimming to 60 s.
+- The checkpoint came back at 15:00 PKT the same day. Shoaib has to log in on facebook.com with the profile behind Login 1 and reconnect.
+- **Hold + alert (0e30c0f), `lib/social-connection-hold.ts`:**
+  - A Meta login error (checkpoint, expired, revoked or invalid token) no longer fails a post. It stays `scheduled` with `result.held`.
+  - Parts that already went out are kept: Google, Instagram-login accounts, native FB.
+  - Blocked accounts are retried every hour, one probe per cron run.
+  - Email to `RESEND_TO_EMAIL` (at most every 6 h), plus a red banner on every dashboard page (`HeldPostsBanner` via the `DashboardShell` `banner` prop).
+  - The FB and IG OAuth callbacks call `releaseHeldPosts()`. After that, each project gets one late post per run.
+  - Stories give up after 12 h, posts after 48 h, then they are marked failed as before.
+  - Classifier and DB filters were checked with a read-only tsx script. The banner itself can't be seen until something is held.
+- Next (discussed with Shoaib): a System User token for posting, so no personal profile sits behind the Page tokens. Test on one Page first, because the posting app is unpublished (Standard Access).
 
 ## 2026-10-26 — Invoices: discount under the lines, add-ons, complimentary retainer services (de4dd84)
 - The discount is now stored on the invoice, not as a negative line. Lines keep their original prices, and the totals read Subtotal → Discount → GST → Total → You save. The client link and receipt use the same layout.
