@@ -175,8 +175,9 @@ async function postOrganizationImage(orgUrn: string, token: string, imageBytes: 
   if (!put.ok) throw new Error(`LinkedIn image upload failed (HTTP ${put.status})`);
 
   // 3. Give LinkedIn a moment to process it; a post on a still-processing
-  //    image can fail. Post anyway after a few tries — it usually takes.
-  for (let i = 0; i < 4; i++) {
+  //    image can fail. Post anyway after two checks — each check counts
+  //    against the images resource's daily quota (small on Development Tier).
+  for (let i = 0; i < 2; i++) {
     const res = await restFetch(`/images/${encodeURIComponent(value.image)}`, token).catch(() => null);
     const status = res ? ((await res.json()) as { status?: string }).status : undefined;
     if (status === "AVAILABLE") break;

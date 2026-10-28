@@ -10,7 +10,7 @@ import { refreshExpiringInstagramLogins } from "@/lib/social-instagram-login";
 import { presignDownload, deleteObject } from "@/lib/storage";
 import { syncDueStoryFolders } from "@/lib/story-drive";
 import { queueStoryCopy } from "@/lib/post-as-story";
-import { alertHeldPosts, holdLimitMs, HOLD_RETRY_MS, isConnectionError, isWaitingToRetry, type HoldInfo } from "@/lib/social-connection-hold";
+import { alertHeldPosts, holdLimitMs, HOLD_RETRY_MS, isRateLimited, isRetryable, isWaitingToRetry, type HoldInfo } from "@/lib/social-connection-hold";
 
 // Cron runs every 15 min (vercel.json) but a batch of due posts still fires
 // within one invocation — space them out a few seconds apart rather than
@@ -66,14 +66,17 @@ export async function GET(request: Request) {
   let backedOff = false;
   let deferred = 0;
   const startedAt = Date.now();
-  // Meta refused a login this run: other held posts needn't try again yet.
+  // A login was refused / an API limit was hit this run: other posts held
+  // for the same reason needn't try again yet.
   let metaBlocked = false;
+  let rateLimited = false;
   let lastHeldId: string | null = null;
   const lateDoneProjects = new Set<string>();
 
   for (const [i, post] of due.entries()) {
     const heldBefore = (post.result as { held?: HoldInfo } | null)?.held;
-    if (heldBefore && (metaBlocked || lateDoneProjects.has(post.project_id))) continue;
+    const sameReasonFailedThisRun = heldBefore?.kind === "rate_limited" ? rateLimited : metaBlocked;
+    if (heldBefore && (sameReasonFailedThisRun || lateDoneProjects.has(post.project_id))) continue;
     // Only start another post while there's clearly time to finish it —
     // an Instagram publish can take ~30s. A run cut off at maxDuration in
     // the middle of a post could publish it without recording that, and
@@ -133,7 +136,7 @@ export async function GET(request: Request) {
       const stillProcessing = liveResults.filter((r) => r.pending && !r.ok);
       if (stillProcessing.length) {
         // A blocked account isn't "done" — leave it out so it's tried again.
-        const done = liveResults.filter((r) => !r.pending && !isConnectionError(r));
+        const done = liveResults.filter((r) => !r.pending && !isRetryable(r));
         const pending = Object.fromEntries(stillProcessing.map((r) => [r.external_id, r.pending!]));
         await db
           .from("scheduled_posts")
@@ -162,17 +165,21 @@ export async function GET(request: Request) {
         // tries any blocked Meta account again).
         await db
           .from("scheduled_posts")
-          .update({ result: { native: nativeResults, live: live.filter((r) => !isConnectionError(r)), ...(heldBefore ? { held: heldBefore } : {}) } })
+          .update({ result: { native: nativeResults, live: live.filter((r) => !isRetryable(r)), ...(heldBefore ? { held: heldBefore } : {}) } })
           .eq("id", post.id);
         results.push({ id: post.id, ok: false, waitingForGoogle: true });
         continue;
       }
 
-      // Meta blocked the login: hold the post rather than fail it, unless it
-      // has already waited too long to still be worth posting.
-      const blocked = live.filter(isConnectionError);
+      // A blocked login or an API limit: hold the post rather than fail it,
+      // unless it has already waited too long to still be worth posting.
+      // Limits (e.g. LinkedIn's daily quota) clear by themselves — retried
+      // quietly, no banner or email.
+      const blocked = live.filter(isRetryable);
       if (blocked.length) {
-        metaBlocked = true;
+        const onlyLimits = blocked.every(isRateLimited);
+        if (onlyLimits) rateLimited = true;
+        else metaBlocked = true;
         const since = heldBefore?.since ?? new Date().toISOString();
         if (Date.now() - new Date(since).getTime() < holdLimitMs(post.post_type)) {
           const held: HoldInfo = {
@@ -182,19 +189,20 @@ export async function GET(request: Request) {
             next_try: new Date(Date.now() + HOLD_RETRY_MS).toISOString(),
             tries: (heldBefore?.tries ?? 0) + 1,
             ...(heldBefore?.alerted_at ? { alerted_at: heldBefore.alerted_at } : {}),
+            ...(onlyLimits ? { kind: "rate_limited" as const } : {}),
           };
           await db
             .from("scheduled_posts")
             .update({
               result: {
                 native: nativeResults,
-                live: live.filter((r) => !isConnectionError(r)),
+                live: live.filter((r) => !isRetryable(r)),
                 ...(gbpResult?.ok ? { gbp: gbpResult } : {}),
                 held,
               },
             })
             .eq("id", post.id);
-          lastHeldId = post.id;
+          if (!onlyLimits) lastHeldId = post.id;
           results.push({ id: post.id, ok: false, held: true });
           continue;
         }

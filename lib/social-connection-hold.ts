@@ -36,14 +36,29 @@ export type HoldInfo = {
   tries: number;
   /** Set on the post whose hold triggered the email. */
   alerted_at?: string;
+  /** "rate_limited": only a platform's API limit (e.g. LinkedIn's daily
+   *  quota) — retried quietly, no banner or email. Missing = blocked login. */
+  kind?: "blocked" | "rate_limited";
 };
 
 const CONNECTION_ERROR =
   /log in to www\.facebook\.com|error validating access token|invalid oauth access token|session has been invalidated|session has expired|has not authorized application|user is not a confirmed user/i;
+const RATE_LIMIT_ERROR = /HTTP 429|TOO_MANY_REQUESTS|throttle .*limit/i;
 
 /** True when the error means the login/token is blocked — not a problem with the post itself. */
 export function isConnectionError(result: PlatformPostResult): boolean {
   return !result.ok && CONNECTION_ERROR.test(result.error ?? "");
+}
+
+/** True when the platform refused only because an API limit was reached
+ *  (LinkedIn's Development Tier has small daily quotas per resource). */
+export function isRateLimited(result: PlatformPostResult): boolean {
+  return !result.ok && RATE_LIMIT_ERROR.test(result.error ?? "");
+}
+
+/** Worth trying again later rather than failing the post. */
+export function isRetryable(result: PlatformPostResult): boolean {
+  return isConnectionError(result) || isRateLimited(result);
 }
 
 export function holdLimitMs(postType: string | null | undefined): number {
@@ -71,7 +86,10 @@ export async function heldPostsSummary(): Promise<HeldSummary> {
     .select("result, client_projects(name)")
     .eq("status", "scheduled")
     .not("result->held", "is", null);
-  const rows = (data ?? []) as unknown as { result: { held: HoldInfo }; client_projects: { name: string } | null }[];
+  // Posts waiting only on an API limit clear by themselves — not an alarm.
+  const rows = ((data ?? []) as unknown as { result: { held: HoldInfo }; client_projects: { name: string } | null }[]).filter(
+    (r) => r.result.held.kind !== "rate_limited"
+  );
   const since = rows.map((r) => r.result.held.since).sort()[0] ?? null;
   const latest = [...rows].sort((a, b) => b.result.held.next_try.localeCompare(a.result.held.next_try))[0];
   return {
