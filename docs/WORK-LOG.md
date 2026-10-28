@@ -4,6 +4,30 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-28 — LinkedIn Company Pages on the Community Management API (1db24d4)
+- LinkedIn passed vetting. The "Ads by Shoaib" app (client 77dikbiti3z1fg) has CM API **Development Tier**. The Standard-tier upgrade form is due in 21 days (about 18 Nov) and needs a screen recording plus test login details.
+- **Built:**
+  - Connect with LinkedIn: `/api/dashboard/social/linkedin/authorize` → `/api/social/linkedin-callback`, with a state cookie.
+    - Scopes: `rw_organization_admin w_organization_social r_organization_social`.
+    - Credentials come from the API Vault service **`linkedin_company`** (client_id + client_secret).
+  - Coming back opens Import LinkedIn Pages. A reconnect refreshes the token on Pages that are already imported.
+  - Pages come from `/rest/organizationAcls` (ADMINISTRATOR, APPROVED) plus the org lookup.
+  - Posting uses `/rest/images` initializeUpload → PUT → `/rest/posts`.
+    - Commentary is escaped for the "little" text format (`toLittleText`, round-trip tested).
+    - Personal profiles keep the v2 ugcPosts flow on their own app.
+  - Insights adds a LinkedIn section: followers, organic impressions/clicks/likes/comments/reposts against the previous period, and per-post stats. The CSP now allows media.licdn.com.
+  - `LinkedIn-Version: 202610`.
+- On prod, unauthenticated: authorize → 307 to login, callback → 401.
+- On the local dev server every `/api/dashboard/social/*` route returns 404, including the old personal one. That's a dev quirk; prod is fine.
+- **Waiting on Shoaib:**
+  - add the redirect URL in the LinkedIn app's Auth tab;
+  - add the `linkedin_company` vault entry;
+  - connect and import his own Page;
+  - approve a test post;
+  - approve the privacy-policy LinkedIn draft;
+  - choose how reviewers log in;
+  - give the legal name and address.
+
 ## 2026-10-27 — Meta checkpoint (24–26 Oct) + Story Drive day limit (836381a)
 - From 24 Oct 10:00 UTC to 26 Oct 17:32 UTC every live Meta call failed with "You cannot access the app till you log in to www.facebook.com and follow the instructions given." That is a checkpoint on the Facebook account that owns the token.
   - FB feed posts that were natively scheduled still went out.
