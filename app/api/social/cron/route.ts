@@ -10,6 +10,7 @@ import { refreshExpiringInstagramLogins } from "@/lib/social-instagram-login";
 import { presignDownload, deleteObject } from "@/lib/storage";
 import { syncDueStoryFolders } from "@/lib/story-drive";
 import { queueStoryCopy } from "@/lib/post-as-story";
+import { restorePublishedMedia } from "@/lib/social-media-restore";
 import { alertHeldPosts, holdLimitMs, HOLD_RETRY_MS, isRateLimited, isRetryable, isWaitingToRetry, type HoldInfo } from "@/lib/social-connection-hold";
 
 // Cron runs every 15 min (vercel.json) but a batch of due posts still fires
@@ -112,6 +113,9 @@ export async function GET(request: Request) {
 
       let liveResults: PlatformPostResult[] = [];
       if (!targets || (socialTargets && socialTargets.length > 0)) {
+        // A photo whose upload was already cleared (another row posted the
+        // same image) is taken back from that post's Instagram/Facebook copy.
+        if (!isReel && !isStory && !isVideo) await restorePublishedMedia(post).catch(() => false);
         const imageUrl = await presignDownload(post.media_key, undefined, isReel || isStory || isVideo ? 6 * 3600 : 3600);
         const reel =
           isReel || isStory || isVideo
