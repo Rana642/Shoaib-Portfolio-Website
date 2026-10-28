@@ -59,7 +59,38 @@ doesn't reply to or moderate comments, and Meta rejects permissions it can't see
 ### instagram_manage_insights
 > Reads account and media insights for the linked Instagram account (reach, views, likes, comments, shares, saves, and followers online by hour) for the dashboard's Insights page and best-time-to-post suggestions. The data is only shown to the account's admin in the dashboard and is not stored.
 
-## 3. Screen recording (one video covers all 8)
+### Instagram API with Instagram Login (same app): for IG accounts with no Facebook Page
+
+`lib/social-instagram-login.ts` asks for exactly these 3 (Danish Construction and Avenza Land use it).
+
+#### instagram_business_basic
+> Some clients' Instagram professional accounts aren't linked to a Facebook Page. Their admin connects the account with Instagram Login ("Log in with Instagram" in the dashboard's Connections). The app reads the account's id, username and recent media to map it to the right client project and show its recent posts.
+
+#### instagram_business_content_publish
+> Publishes client-approved content to that Instagram account when it is due: feed photos, Stories and Reels, via `graph.instagram.com/{ig-user-id}/media` followed by `/media_publish`, after checking the account's publishing limit.
+
+#### instagram_business_manage_insights
+> Reads that account's insights (reach, views, likes, comments, shares, saves, and followers online by hour) for the dashboard's Insights page and best-time-to-post suggestions. Shown only to the account's admin and not stored.
+
+### Remove from the submission (trash icon). The app doesn't use these.
+Meta pre-fills a long list from the use cases. Remove these 13 from the submission:
+- Instagram Public Content Access
+- instagram_business_manage_messages
+- pages_read_user_content
+- instagram_branded_content_ads_brand
+- pages_manage_metadata
+- facebook_branded_content_ads_brand
+- pages_manage_engagement
+- instagram_manage_comments
+- instagram_branded_content_brand
+- catalog_management
+- instagram_manage_contents
+- instagram_manage_messages
+- instagram_shopping_tag_products
+
+That leaves **12**: the 8 above, the 3 Instagram Login ones, and `public_profile`. `public_profile` is the default; write "Used to identify the admin who connects (name and ID) so the dashboard shows which profile each Page came from."
+
+## 3. Screen recording (one video covers all of them)
 
 Record the screen in **English** at 1080p, about 3–4 minutes, **no voice needed**. Add short on-screen text
 (captions) at each step if possible. Use a real client Page that you manage. Avalon or Elegant is fine.
@@ -73,6 +104,7 @@ Record the screen in **English** at 1080p, about 3–4 minutes, **no voice neede
 7. Back in the dashboard, open **Social → Insights** for that project: show the Page numbers, the post list with reactions/comments, and the Instagram numbers. *(pages_read_engagement, read_insights, instagram_manage_insights)*
 8. On the same Insights page, scroll to **Best posting times**. *(read_insights, instagram_manage_insights)*
 9. Optional: open a scheduled post in the planner, move it to another time, then delete it. *(pages_manage_posts, scheduled post update/delete)*
+10. **Instagram Login part:** in Connections, pick a project with no Facebook Page (e.g. Avenza Land) and click **Log in with Instagram for …**. Show the Instagram permission screen and allow it, then show the account in Connections. Schedule one post to it from the Planner, show it on Instagram, and open its Insights. *(instagram_business_basic, instagram_business_content_publish, instagram_business_manage_insights)*
 
 Upload the same video for each permission. Meta allows one video for several permissions.
 
