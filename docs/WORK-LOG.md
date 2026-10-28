@@ -19,6 +19,8 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - `LinkedIn-Version: 202610`.
 - On prod, unauthenticated: authorize → 307 to login, callback → 401.
 - On the local dev server every `/api/dashboard/social/*` route returns 404, including the old personal one. That's a dev quirk; prod is fine.
+- **Privacy policy (4e2adcb), approved by Shoaib:** LinkedIn in the connected-accounts list and the processors table, plus a new "LinkedIn API disclosure" section. Last updated is now 28 Oct 2026; live check passed.
+- **Reviewer login plan:** a portal Team member on client "Shoaib Nabi Noor", planner + uploads only, project Ads by Shoaib only. Shoaib creates it in Clients → Client portal and sets the password himself.
 - **Waiting on Shoaib:**
   - add the redirect URL in the LinkedIn app's Auth tab;
   - add the `linkedin_company` vault entry;
