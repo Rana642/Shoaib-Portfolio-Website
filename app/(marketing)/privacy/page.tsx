@@ -57,6 +57,7 @@ const sections: Section[] = [
         heading: "Information from accounts you connect",
         items: [
           "For clients who authorize it: campaign metrics from ad accounts, and Google Business Profile data (business information, reviews, posts, and performance insights) — accessed through each platform's own official OAuth-based API, only for accounts explicitly connected, and only to do the work agreed with that client.",
+          "For clients who authorize it: their LinkedIn Company Page — the Pages the connecting admin manages, the Page's posts, follower count and post statistics — through LinkedIn's Community Management API, only to publish posts the client approved and report how they performed.",
         ],
       },
     ],
@@ -105,6 +106,11 @@ const sections: Section[] = [
           "Manages a client's Business Profile",
           "Business info, reviews, posts — client-authorized only",
         ],
+        [
+          "LinkedIn Community Management API",
+          "Publishes approved posts to a client's Company Page and reads its post statistics",
+          "Page posts, follower count, post statistics — client-authorized only",
+        ],
         ["Vercel", "Hosting & basic traffic analytics", "Standard request/traffic logs"],
         ["Sanity", "Stores blog & site content", "No visitor personal data"],
       ],
@@ -116,6 +122,14 @@ const sections: Section[] = [
     body: [
       "adsbyshoaib.com's use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.",
       "Google Business Profile data is accessed only for clients who've connected their account to me via Google OAuth 2.0, used strictly to manage business information, posts, and reviews on their behalf — never sold, and never used for advertising or any purpose beyond the service that client asked for.",
+    ],
+  },
+  {
+    id: "linkedin-api",
+    title: "LinkedIn API disclosure",
+    body: [
+      "LinkedIn data is accessed only for Company Pages whose administrators connect them through LinkedIn OAuth 2.0. It is used only to publish that client's approved posts and to report their results. It is never sold, never shared with other clients, and never used for advertising, sales prospecting or profiling of individual LinkedIn members.",
+      "Access tokens are stored encrypted; statistics are read when needed and not kept. Access can be revoked at any time from LinkedIn's Settings → Data privacy → Permitted services, or by emailing me, and the stored token is then deleted.",
     ],
   },
   {
@@ -191,9 +205,9 @@ export default function PrivacyPage() {
             <h1 className="font-serif italic text-hero mt-8">
               Privacy Policy<span className="text-citrus">.</span>
             </h1>
-            <p className="text-small text-ink-subtle mt-4">Last updated: August 24, 2026</p>
+            <p className="text-small text-ink-subtle mt-4">Last updated: October 28, 2026</p>
             <p className="text-body text-ink-muted mt-6 max-w-2xl">
-              Ads by Shoaib is Shoaib Nabi Noor's independent performance marketing practice,
+              Ads by Shoaib is Shoaib Nabi Noor&apos;s independent performance marketing practice,
               based in Multan, Punjab, Pakistan — formerly operated under the name Socially Snap.
               This policy explains what information I collect through adsbyshoaib.com and through
               any Google, Meta, or other account a client authorizes me to manage on their behalf,
