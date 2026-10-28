@@ -331,7 +331,15 @@ export async function rediscoverLinkedInOrganizations(): Promise<DiscoveredOrgan
   if (error || !data?.li_user_token_encrypted) {
     throw new Error("No LinkedIn connection saved yet — connect one first.");
   }
-  return listManagedOrganizations(decryptToken(data.li_user_token_encrypted));
+  const orgs = await listManagedOrganizations(decryptToken(data.li_user_token_encrypted));
+  // When LinkedIn won't return a name, use the one saved when the Page was imported.
+  const { data: saved } = await db
+    .from("client_social_accounts")
+    .select("external_id, label")
+    .eq("platform", "linkedin")
+    .in("external_id", orgs.map((o) => o.organization_urn));
+  const known = new Map((saved ?? []).map((r) => [r.external_id as string, r.label as string]));
+  return orgs.map((o) => (o.name === o.organization_urn && known.has(o.organization_urn) ? { ...o, name: known.get(o.organization_urn)! } : o));
 }
 
 /** Persists the project mapping for discovered LinkedIn Company Pages. The

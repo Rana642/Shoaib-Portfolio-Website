@@ -108,8 +108,10 @@ export type DiscoveredOrganization = {
 };
 
 /** Lists Company Pages the token's owner administers — same idea as Meta's
- *  /me/accounts. Names come from the Organization Lookup API, one call per
- *  Page (a member admins a handful at most). */
+ *  /me/accounts. Names come from the Organization Lookup API in ONE batch
+ *  call: twenty parallel single lookups got throttled (2026-10-28) and the
+ *  dialog showed bare URNs. A Page whose name still can't be read keeps its
+ *  URN here; callers fill in names they already know. */
 export async function listManagedOrganizations(token: string): Promise<DiscoveredOrganization[]> {
   const urns: string[] = [];
   for (let start = 0; start < 500; start += 100) {
@@ -120,18 +122,18 @@ export async function listManagedOrganizations(token: string): Promise<Discovere
     if (page.length < 100) break;
   }
   const unique = [...new Set(urns)].filter((u) => u.startsWith("urn:li:organization:"));
-  return Promise.all(
-    unique.map(async (urn) => {
-      const id = urn.split(":").pop()!;
-      try {
-        const res = await restFetch(`/organizations/${id}`, token);
-        const org = (await res.json()) as { localizedName?: string };
-        return { organization_urn: urn, name: org.localizedName || urn };
-      } catch {
-        return { organization_urn: urn, name: urn };
-      }
-    })
-  );
+  const names = new Map<string, string>();
+  for (let i = 0; i < unique.length; i += 50) {
+    const ids = unique.slice(i, i + 50).map((u) => u.split(":").pop()!);
+    try {
+      const res = await restFetch(`/organizations?ids=List(${ids.join(",")})`, token, { headers: { "X-RestLi-Method": "BATCH_GET" } });
+      const body = (await res.json()) as { results?: Record<string, { localizedName?: string }> };
+      for (const [id, org] of Object.entries(body.results ?? {})) if (org.localizedName) names.set(`urn:li:organization:${id}`, org.localizedName);
+    } catch (error) {
+      console.error("[linkedin] organization names lookup failed:", error instanceof Error ? error.message : error);
+    }
+  }
+  return unique.map((urn) => ({ organization_urn: urn, name: names.get(urn) ?? urn }));
 }
 
 // ── Posting ───────────────────────────────────────────────────────
