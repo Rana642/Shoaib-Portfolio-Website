@@ -22,7 +22,11 @@ export async function GET(request: Request) {
   authorizeUrl.searchParams.set("redirect_uri", `${url.origin}/api/social/facebook-oauth-callback`);
   authorizeUrl.searchParams.set(
     "scope",
-    "pages_show_list,pages_manage_posts,pages_read_engagement,pages_manage_engagement,instagram_basic,instagram_content_publish,instagram_manage_insights,business_management,read_insights"
+    // Only what the app calls — Meta App Review rejects permissions it can't
+    // see in use (pages_manage_engagement dropped 2026-10-28: no comment
+    // replies or moderation here). business_management: Pages a client's
+    // Business portfolio shares with us only list in /me/accounts with it.
+    "pages_show_list,pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,instagram_manage_insights,business_management,read_insights"
   );
   authorizeUrl.searchParams.set("response_type", "code");
   // ?slot=2 connects the second Facebook profile (see connectFacebookAccount).

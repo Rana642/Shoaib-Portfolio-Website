@@ -4,6 +4,11 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-28 — Meta App Review prep (Advanced Access for the posting app)
+- New public page **/data-deletion**, for Meta's "Data deletion instructions URL". It is in the sitemap; indexing stays blocked while `SITE_IS_LIVE=false`.
+- The Facebook Login scope dropped `pages_manage_engagement`, which nothing used. Meta rejects permissions it can't see in use.
+- `docs/meta-app-review.md` has the settings checklist, use-case text for all 8 permissions (checked against the code) and the screen-recording steps. Waiting on Shoaib: record the video, a demo login, then submit.
+
 ## 2026-10-28 — Held-posts alert names the blocked Facebook profile
 - The red dashboard banner and the alert email are now **one alert per blocked login**. Each says whose Facebook profile it is, which project/platform it holds up (e.g. "Hotel Avalon Suites (Instagram)"), and to log in as that person.
 - The profile name is stored per account in `client_social_accounts.fb_login_name`, set by `refreshFacebookPageTokens` on every Facebook reconnect and after Import Pages. **Needs the one-line SQL** in `supabase/dashboard-schema.sql`. The code works without it; names then show as "not recorded yet".
