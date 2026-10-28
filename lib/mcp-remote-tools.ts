@@ -5,6 +5,7 @@ import { db } from "./dashboard/db";
 import { listPendingCaptionPosts, getScheduledPost, setCaptionAndSchedule, countPostsNeedingChanges } from "./scheduled-posts";
 import { registerPostReviewTools } from "./post-review-tools";
 import { registerPostListingTools } from "./post-listing-tools";
+import { registerLinkedInPageTools } from "./linkedin-page-tools";
 import { fetchObject } from "./storage";
 import { rescheduleNativePosts, submitNativeScheduleForPost } from "./social-post";
 import { registerBestTimeTool } from "./social-best-times";
@@ -179,4 +180,5 @@ Returns: confirmation text.`,
   registerPostReviewTools(server);
   registerBestTimeTool(server);
   registerPostListingTools(server);
+  registerLinkedInPageTools(server);
 }

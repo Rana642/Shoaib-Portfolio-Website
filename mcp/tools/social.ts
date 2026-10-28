@@ -13,6 +13,7 @@ import {
 } from "../../lib/scheduled-posts.js";
 import { registerPostReviewTools } from "../../lib/post-review-tools.js";
 import { registerPostListingTools } from "../../lib/post-listing-tools.js";
+import { registerLinkedInPageTools } from "../../lib/linkedin-page-tools.js";
 import { uploadObject, fetchObject, presignDownload } from "../../lib/storage.js";
 import { postToAllProjectAccounts, rescheduleNativePosts, submitNativeScheduleForPost } from "../../lib/social-post.js";
 
@@ -211,6 +212,7 @@ Returns: confirmation text.`,
 
   registerPostReviewTools(server);
   registerPostListingTools(server);
+  registerLinkedInPageTools(server);
 
   server.registerTool(
     "social_list_queue",

@@ -328,6 +328,48 @@ export async function listOrganizationPosts(orgUrn: string, token: string, count
   }));
 }
 
+/** The Page's full profile as LinkedIn's Organization Lookup API returns it
+ *  (name, vanity name, description, tagline, website, industries, size,
+ *  locations, specialties, logo/cover assets…). Public Page data. */
+export async function getOrganizationProfile(orgUrn: string, token: string): Promise<Record<string, unknown>> {
+  const res = await restFetch(`/organizations/${orgUrn.split(":").pop()}`, token);
+  return (await res.json()) as Record<string, unknown>;
+}
+
+/** Lifetime organic totals for the Page (no time range). */
+export async function getOrganizationLifetimeStats(orgUrn: string, token: string): Promise<LinkedInShareStats> {
+  const res = await restFetch(
+    `/organizationalEntityShareStatistics?q=organizationalEntity&organizationalEntity=${encodeURIComponent(orgUrn)}`,
+    token
+  );
+  const body = (await res.json()) as { elements?: { totalShareStatistics?: RawShareStats }[] };
+  return toStats(body.elements?.[0]?.totalShareStatistics);
+}
+
+/** Who follows the Page: lifetime follower counts by country, industry,
+ *  seniority, job function and company size (top entries of each, as URNs). */
+export async function getFollowerBreakdown(orgUrn: string, token: string): Promise<Record<string, { key: string; followers: number }[]>> {
+  const res = await restFetch(
+    `/organizationalEntityFollowerStatistics?q=organizationalEntity&organizationalEntity=${encodeURIComponent(orgUrn)}`,
+    token
+  );
+  const body = (await res.json()) as { elements?: Record<string, unknown>[] };
+  const el = body.elements?.[0] ?? {};
+  const out: Record<string, { key: string; followers: number }[]> = {};
+  for (const [field, value] of Object.entries(el)) {
+    if (!field.startsWith("followerCountsBy") || !Array.isArray(value)) continue;
+    out[field.replace("followerCountsBy", "")] = (value as Record<string, unknown>[])
+      .map((row) => {
+        const counts = (row.followerCounts ?? {}) as { organicFollowerCount?: number; paidFollowerCount?: number };
+        const keyField = Object.keys(row).find((k) => k !== "followerCounts");
+        return { key: String(keyField ? row[keyField] : "?"), followers: (counts.organicFollowerCount ?? 0) + (counts.paidFollowerCount ?? 0) };
+      })
+      .sort((a, b) => b.followers - a.followers)
+      .slice(0, 8);
+  }
+  return out;
+}
+
 /** Viewable URLs for uploaded images (they expire, so fetch per page view). */
 export async function getImageUrls(token: string, imageUrns: string[]): Promise<Record<string, string>> {
   if (!imageUrns.length) return {};
