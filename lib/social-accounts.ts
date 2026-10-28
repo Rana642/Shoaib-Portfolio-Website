@@ -306,7 +306,7 @@ export async function updateTikTokAccountTokens(
  *  projects get the new token too, since LinkedIn has no per-Page token and
  *  the old one dies after 60 days (see lib/social-linkedin.ts). */
 export async function connectLinkedInAccount(memberToken: string, expiresIn: number | null = null): Promise<DiscoveredOrganization[]> {
-  const orgs = await listManagedOrganizations(memberToken);
+  const orgs = await listManagedOrganizations(memberToken, await knownLinkedInNames());
   const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null;
   const encrypted = encryptToken(memberToken);
   await db.from("social_connections").upsert({
@@ -331,15 +331,18 @@ export async function rediscoverLinkedInOrganizations(): Promise<DiscoveredOrgan
   if (error || !data?.li_user_token_encrypted) {
     throw new Error("No LinkedIn connection saved yet — connect one first.");
   }
-  const orgs = await listManagedOrganizations(decryptToken(data.li_user_token_encrypted));
-  // When LinkedIn won't return a name, use the one saved when the Page was imported.
-  const { data: saved } = await db
+  return listManagedOrganizations(decryptToken(data.li_user_token_encrypted), await knownLinkedInNames());
+}
+
+/** Names of Company Pages already imported — reused so no LinkedIn quota is
+ *  spent looking them up again (Development Tier: 100 lookups a day). */
+async function knownLinkedInNames(): Promise<Map<string, string>> {
+  const { data } = await db
     .from("client_social_accounts")
     .select("external_id, label")
     .eq("platform", "linkedin")
-    .in("external_id", orgs.map((o) => o.organization_urn));
-  const known = new Map((saved ?? []).map((r) => [r.external_id as string, r.label as string]));
-  return orgs.map((o) => (o.name === o.organization_urn && known.has(o.organization_urn) ? { ...o, name: known.get(o.organization_urn)! } : o));
+    .like("external_id", "urn:li:organization:%");
+  return new Map((data ?? []).map((r) => [r.external_id as string, r.label as string]));
 }
 
 /** Persists the project mapping for discovered LinkedIn Company Pages. The

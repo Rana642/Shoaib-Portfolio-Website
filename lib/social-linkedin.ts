@@ -108,11 +108,13 @@ export type DiscoveredOrganization = {
 };
 
 /** Lists Company Pages the token's owner administers — same idea as Meta's
- *  /me/accounts. Names come from the Organization Lookup API in ONE batch
- *  call: twenty parallel single lookups got throttled (2026-10-28) and the
- *  dialog showed bare URNs. A Page whose name still can't be read keeps its
- *  URN here; callers fill in names they already know. */
-export async function listManagedOrganizations(token: string): Promise<DiscoveredOrganization[]> {
+ *  /me/accounts. Development Tier quotas (seen 2026-10-28 in the app's
+ *  Analytics tab) are per resource AND method: organizations GET = 100 a
+ *  day per member, organizations BATCH_GET = only 2 a day for the whole app.
+ *  So names already known (Pages imported earlier) aren't looked up again,
+ *  the rest go one GET at a time, and a 429 stops the lookups — those Pages
+ *  keep their URN until the quota resets (00:00 UTC). */
+export async function listManagedOrganizations(token: string, knownNames: Map<string, string> = new Map()): Promise<DiscoveredOrganization[]> {
   const urns: string[] = [];
   for (let start = 0; start < 500; start += 100) {
     const res = await restFetch(`/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&state=APPROVED&count=100&start=${start}`, token);
@@ -123,14 +125,20 @@ export async function listManagedOrganizations(token: string): Promise<Discovere
   }
   const unique = [...new Set(urns)].filter((u) => u.startsWith("urn:li:organization:"));
   const names = new Map<string, string>();
-  for (let i = 0; i < unique.length; i += 50) {
-    const ids = unique.slice(i, i + 50).map((u) => u.split(":").pop()!);
+  for (const urn of unique) {
+    const known = knownNames.get(urn);
+    if (known) {
+      names.set(urn, known);
+      continue;
+    }
     try {
-      const res = await restFetch(`/organizations?ids=List(${ids.join(",")})`, token, { headers: { "X-RestLi-Method": "BATCH_GET" } });
-      const body = (await res.json()) as { results?: Record<string, { localizedName?: string }> };
-      for (const [id, org] of Object.entries(body.results ?? {})) if (org.localizedName) names.set(`urn:li:organization:${id}`, org.localizedName);
+      const res = await restFetch(`/organizations/${urn.split(":").pop()}`, token);
+      const org = (await res.json()) as { localizedName?: string };
+      if (org.localizedName) names.set(urn, org.localizedName);
     } catch (error) {
-      console.error("[linkedin] organization names lookup failed:", error instanceof Error ? error.message : error);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[linkedin] organization name lookup failed:", message);
+      if (/HTTP 429/.test(message)) break; // daily quota used up — don't spend more calls
     }
   }
   return unique.map((urn) => ({ organization_urn: urn, name: names.get(urn) ?? urn }));
@@ -174,16 +182,14 @@ async function postOrganizationImage(orgUrn: string, token: string, imageBytes: 
   const put = await fetch(value.uploadUrl, { method: "PUT", headers: { Authorization: `Bearer ${token}` }, body: imageBytes });
   if (!put.ok) throw new Error(`LinkedIn image upload failed (HTTP ${put.status})`);
 
-  // 3. Give LinkedIn a moment to process it; a post on a still-processing
-  //    image can fail. Post anyway after two checks — each check counts
-  //    against the images resource's daily quota (small on Development Tier).
-  for (let i = 0; i < 2; i++) {
-    const res = await restFetch(`/images/${encodeURIComponent(value.image)}`, token).catch(() => null);
-    const status = res ? ((await res.json()) as { status?: string }).status : undefined;
-    if (status === "AVAILABLE") break;
-    if (status === "PROCESSING_FAILED") throw new Error("LinkedIn couldn't process the image.");
-    await new Promise((r) => setTimeout(r, 1500));
-  }
+  // 3. Give LinkedIn a moment to process it, then ONE status check — images
+  //    GET is 100 calls a day per member on Development Tier, shared with
+  //    every post that day. If the check itself is refused, post anyway.
+  await new Promise((r) => setTimeout(r, 2000));
+  const check = await restFetch(`/images/${encodeURIComponent(value.image)}`, token).catch(() => null);
+  const status = check ? ((await check.json()) as { status?: string }).status : undefined;
+  if (status === "PROCESSING_FAILED") throw new Error("LinkedIn couldn't process the image.");
+  if (status && status !== "AVAILABLE") await new Promise((r) => setTimeout(r, 2500));
 
   // 4. The post itself.
   const res = await restFetch("/posts", token, {
