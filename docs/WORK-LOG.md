@@ -5,7 +5,7 @@ context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
 ## 2026-10-28 — Meta App Review prep (Advanced Access for the posting app)
-- New public page **/data-deletion**, for Meta's "Data deletion instructions URL". It is in the sitemap; indexing stays blocked while `SITE_IS_LIVE=false`.
+- A /data-deletion page was added here, then **removed again the same day**. The Meta app (Socially Snap business) already uses the Socially Snap site's privacy, terms and data-deletion pages (sociallysnap.adsbyshoaib.com), which were built for this on 2026-09-13.
 - The Facebook Login scope dropped `pages_manage_engagement`, which nothing used. Meta rejects permissions it can't see in use.
 - `docs/meta-app-review.md` has the settings checklist, use-case text for all 8 permissions (checked against the code) and the screen-recording steps. Waiting on Shoaib: record the video, a demo login, then submit.
 

@@ -11,14 +11,19 @@ If the app changes, update this file first.
 
 ## 1. Before submitting (App settings → Basic)
 
+Already set, checked 2026-10-28. The app belongs to the verified **Socially Snap** business, so its legal pages are on
+the Socially Snap site (repo `sociallysnap`, built 2026-09-13 for exactly this). Don't point them at adsbyshoaib.com.
+
 | Field | Value |
 |---|---|
-| Privacy Policy URL | https://adsbyshoaib.com/privacy |
-| Terms of Service URL | https://adsbyshoaib.com/terms |
-| User data deletion | choose **"Data deletion instructions URL"** → https://adsbyshoaib.com/data-deletion |
-| App icon | 1024×1024 PNG (use `public/brand/mark.svg` exported to PNG) |
+| App domains | adsbyshoaib.com, sociallysnap.adsbyshoaib.com |
+| Privacy Policy URL | https://sociallysnap.adsbyshoaib.com/privacy |
+| Terms of Service URL | https://sociallysnap.adsbyshoaib.com/terms |
+| User data deletion | Data deletion instructions URL → https://sociallysnap.adsbyshoaib.com/data-deletion |
+| App icon | Socially Snap mark |
 | Category | Business and pages |
-| Contact email | hello@adsbyshoaib.com |
+
+Small optional fix in the `sociallysnap` repo: its /data-deletion page says "Facebook settings → Apps and Websites → remove Socially Snap". For a Facebook Login for Business app, the path is **Settings → Business integrations → Socially Snap Planner**.
 
 Also:
 - **Alert Inbox** and **Required actions** must be empty. Open both and finish anything Meta lists.
@@ -73,7 +78,7 @@ Upload the same video for each permission. Meta allows one video for several per
 
 ## 4. "How can reviewers test?" box
 
-> This is an internal agency tool, not a public app: only our team and our clients' Page admins sign in. The screen recording shows the complete flow for every permission (Facebook Login → Page selection → mapping → publishing to the Page and Instagram → insights). Reviewer test login for the dashboard: [demo account email] / [password], shared here only for review.
+> Socially Snap is the social media planner of Shoaib Nabi Noor's marketing practice. Until the standalone app is ready, it runs inside the practice's dashboard at adsbyshoaib.com (both domains are listed under App domains). It is an internal agency tool, not a public app: only our team and our clients' Page admins sign in. The screen recording shows the complete flow for every permission (Facebook Login → Page selection → mapping → publishing to the Page and Instagram → insights). Reviewer test login for the dashboard: [demo account email] / [password], shared here only for review.
 
 Use a **demo account, never the admin login**: the same rule as the LinkedIn review. Fill in the email and
 password yourself, directly in Meta's form.
