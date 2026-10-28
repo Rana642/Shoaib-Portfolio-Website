@@ -103,6 +103,9 @@ export type ClientSocialAccount = {
   refresh_token_encrypted: string | null;
   token_expires_at: string | null;
   is_active: boolean;
+  /** Facebook/Instagram via a Page: the Facebook profile whose login gave
+   *  the token, set on every reconnect. Null until then (or not Meta). */
+  fb_login_name?: string | null;
 };
 
 /** "needs_changes" = held: the upload has a mistake the uploader must fix

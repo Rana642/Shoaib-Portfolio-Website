@@ -707,6 +707,10 @@ alter table client_social_accounts drop constraint if exists client_social_accou
 alter table client_social_accounts add constraint client_social_accounts_platform_check
   check (platform in ('facebook', 'instagram', 'linkedin', 'tiktok', 'youtube'));
 alter table client_social_accounts add column if not exists refresh_token_encrypted text;
+-- Facebook/Instagram via a Page: which Facebook profile's login gave the
+-- token (set on every reconnect), so a blocked-login alert names the profile
+-- to fix (2026-10-28).
+alter table client_social_accounts add column if not exists fb_login_name text;
 
 -- One-time rename from the original client_id design (2026-09-10) — tables
 -- were empty when this landed, so this is mostly future-proofing if it's

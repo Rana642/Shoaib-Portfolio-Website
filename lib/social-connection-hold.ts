@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "./dashboard/db";
 import { resend, isResendConfigured, fromEmail, toEmail } from "./resend";
 import { siteUrl } from "./seo";
+import type { ClientSocialAccount } from "./dashboard/types";
 import type { PlatformPostResult } from "./social-post";
 
 /**
@@ -71,34 +72,100 @@ export function isWaitingToRetry(result: unknown, now = Date.now()): boolean {
   return Boolean(held && new Date(held.next_try).getTime() > now);
 }
 
-export type HeldSummary = {
+/** The held posts behind one login, so the alert names the profile to fix
+ *  instead of "a Facebook connection". */
+export type BlockedLogin = {
+  /** "facebook": a Facebook profile behind Page tokens; "instagram": an
+   *  account connected through Instagram Login. */
+  kind: "facebook" | "instagram";
+  /** The Facebook profile name, or the Instagram Login account. Null: not
+   *  known yet — the accounts weren't refreshed since this was recorded. */
+  name: string | null;
   count: number;
-  since: string | null;
-  error: string | null;
-  accounts: string[];
-  projects: string[];
+  since: string;
+  /** e.g. { project: "Hotel Avalon Suites", platforms: ["Facebook", "Instagram"] } */
+  accounts: { project: string; platforms: string[] }[];
 };
 
-/** Every held post right now — for the dashboard banner and the email. */
+export type HeldSummary = {
+  count: number;
+  error: string | null;
+  logins: BlockedLogin[];
+};
+
+/** Every held post right now, grouped by the login that blocks it — for the
+ *  dashboard banner and the email. */
 export async function heldPostsSummary(): Promise<HeldSummary> {
   const { data } = await db
     .from("scheduled_posts")
-    .select("result, client_projects(name)")
+    .select("project_id, result, client_projects(name)")
     .eq("status", "scheduled")
     .not("result->held", "is", null);
   // Posts waiting only on an API limit clear by themselves — not an alarm.
-  const rows = ((data ?? []) as unknown as { result: { held: HoldInfo }; client_projects: { name: string } | null }[]).filter(
-    (r) => r.result.held.kind !== "rate_limited"
-  );
-  const since = rows.map((r) => r.result.held.since).sort()[0] ?? null;
+  const rows = (
+    (data ?? []) as unknown as { project_id: string; result: { held: HoldInfo }; client_projects: { name: string } | null }[]
+  ).filter((r) => r.result.held.kind !== "rate_limited");
+  if (!rows.length) return { count: 0, error: null, logins: [] };
+
+  // "*" rather than a column list: fb_login_name may not be migrated yet.
+  const { data: accountRows } = await db
+    .from("client_social_accounts")
+    .select("*")
+    .in("project_id", [...new Set(rows.map((r) => r.project_id))]);
+  const accounts = (accountRows ?? []) as ClientSocialAccount[];
+
+  const groups = new Map<string, { login: Omit<BlockedLogin, "count" | "accounts">; posts: Set<number>; projects: Map<string, Set<string>> }>();
+  rows.forEach((row, i) => {
+    const { held } = row.result;
+    for (const label of held.accounts) {
+      const account = accounts.find((a) => a.project_id === row.project_id && a.label === label);
+      const viaInstagramLogin = account?.platform === "instagram" && account.token_expires_at !== null;
+      const login = viaInstagramLogin
+        ? { kind: "instagram" as const, name: label }
+        : { kind: "facebook" as const, name: account?.fb_login_name ?? null };
+      const key = `${login.kind}:${login.name ?? ""}`;
+      const group = groups.get(key) ?? { login: { ...login, since: held.since }, posts: new Set<number>(), projects: new Map() };
+      if (held.since < group.login.since) group.login.since = held.since;
+      group.posts.add(i);
+      const project = row.client_projects?.name ?? "Unknown project";
+      const platform = account?.platform === "facebook" ? "Facebook" : account?.platform === "instagram" ? "Instagram" : label;
+      group.projects.set(project, (group.projects.get(project) ?? new Set<string>()).add(platform));
+      groups.set(key, group);
+    }
+  });
+
   const latest = [...rows].sort((a, b) => b.result.held.next_try.localeCompare(a.result.held.next_try))[0];
   return {
     count: rows.length,
-    since,
-    error: latest?.result.held.error ?? null,
-    accounts: [...new Set(rows.flatMap((r) => r.result.held.accounts))].sort(),
-    projects: [...new Set(rows.map((r) => r.client_projects?.name).filter((n): n is string => Boolean(n)))].sort(),
+    error: latest.result.held.error,
+    logins: [...groups.values()]
+      .map((g) => ({
+        ...g.login,
+        count: g.posts.size,
+        accounts: [...g.projects]
+          .map(([project, platforms]) => ({ project, platforms: [...platforms].sort() }))
+          .sort((a, b) => a.project.localeCompare(b.project)),
+      }))
+      .sort((a, b) => b.count - a.count),
   };
+}
+
+/** "Ijaz Danish's Facebook profile", "the Instagram login @x", … */
+export function blockedLoginTitle(login: BlockedLogin): string {
+  if (login.kind === "instagram") return `The Instagram login ${login.name}`;
+  return login.name ? `${login.name}'s Facebook profile` : "A Facebook profile (name not recorded yet)";
+}
+
+/** What to do about it, naming the profile to log in with. */
+export function blockedLoginFix(login: BlockedLogin): string {
+  if (login.kind === "instagram") return `Reconnect ${login.name} with Instagram on the Social page.`;
+  const who = login.name ? `as ${login.name}` : "with the profile that connected these Pages";
+  return `Log in at facebook.com ${who}, finish the security check, then reconnect that login on the Social page.`;
+}
+
+/** "Hotel Avalon Suites (Facebook, Instagram) · Danish Construction (Facebook)" */
+export function blockedAccountsLine(login: BlockedLogin): string {
+  return login.accounts.map((a) => `${a.project} (${a.platforms.join(", ")})`).join(" · ");
 }
 
 const pkt = (iso: string) =>
@@ -121,22 +188,23 @@ export async function alertHeldPosts(postId: string): Promise<boolean> {
 
   const summary = await heldPostsSummary();
   if (!summary.count) return false;
+  const posts = (n: number) => `${n} post${n === 1 ? "" : "s"}`;
   await resend.emails.send({
     from: fromEmail,
     to: toEmail,
-    subject: `Facebook connection blocked — ${summary.count} post${summary.count === 1 ? "" : "s"} on hold`,
+    subject:
+      summary.logins.length === 1
+        ? `${blockedLoginTitle(summary.logins[0])} is blocked — ${posts(summary.count)} on hold`
+        : `${summary.logins.length} social logins blocked — ${posts(summary.count)} on hold`,
     text: [
-      `Facebook stopped accepting posts${summary.since ? ` at ${pkt(summary.since)} (PKT)` : ""}.`,
+      `Meta says: ${summary.error ?? "the login is blocked"}`,
       ``,
-      `Facebook says: ${summary.error ?? "the login is blocked"}`,
-      ``,
-      `Blocked accounts: ${summary.accounts.join(", ")}`,
-      `Projects with posts on hold: ${summary.projects.join(", ")}`,
-      ``,
-      `What to do:`,
-      `1. Log in at https://www.facebook.com with the profile that connected the Pages and finish the security check.`,
-      `2. Open ${siteUrl}/dashboard/social and reconnect that Facebook login.`,
-      ``,
+      ...summary.logins.flatMap((login) => [
+        `${blockedLoginTitle(login)} is blocked since ${pkt(login.since)} (PKT) — ${posts(login.count)} on hold.`,
+        `Accounts: ${blockedAccountsLine(login)}`,
+        `Fix: ${blockedLoginFix(login)} ${siteUrl}/dashboard/social`,
+        ``,
+      ]),
       `The held posts then go out by themselves, a few at a time. Stories held more than 12 hours and posts held more than 2 days are dropped as failed.`,
     ].join("\n"),
   });

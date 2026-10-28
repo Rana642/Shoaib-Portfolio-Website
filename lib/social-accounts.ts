@@ -185,6 +185,8 @@ export async function saveFacebookPageMappings(mappings: { page_id: string; proj
   if (rows.length === 0) return 0;
   const { error } = await db.from("client_social_accounts").insert(rows);
   if (error) throw new Error(error.message);
+  // Records which Facebook profile the new accounts hang off (fb_login_name).
+  await refreshFacebookPageTokens().catch(() => {});
   return rows.length;
 }
 
@@ -390,14 +392,20 @@ export async function refreshFacebookPageTokens(): Promise<{ updated: number; mi
     .select("fb_user_token_encrypted")
     .not("fb_user_token_encrypted", "is", null)
     .order("connected_at", { ascending: false });
-  const byPage = new Map<string, string>();
-  const byIg = new Map<string, string>();
+  // Each token remembers which profile it came from, so a blocked-login
+  // alert can name the profile to fix (lib/social-connection-hold.ts).
+  type Found = { token: string; profile: string };
+  const byPage = new Map<string, Found>();
+  const byIg = new Map<string, Found>();
   for (const l of logins ?? []) {
     try {
-      for (const p of await listManagedPages(decryptToken(l.fb_user_token_encrypted as string))) {
-        if (!byPage.has(p.page_id)) byPage.set(p.page_id, p.page_access_token);
+      const userToken = decryptToken(l.fb_user_token_encrypted as string);
+      const [me, pages] = await Promise.all([facebookMe(userToken), listManagedPages(userToken)]);
+      for (const p of pages) {
+        const found = { token: p.page_access_token, profile: me.name };
+        if (!byPage.has(p.page_id)) byPage.set(p.page_id, found);
         if (p.instagram_business_account_id && !byIg.has(p.instagram_business_account_id)) {
-          byIg.set(p.instagram_business_account_id, p.page_access_token);
+          byIg.set(p.instagram_business_account_id, found);
         }
       }
     } catch {
@@ -413,12 +421,15 @@ export async function refreshFacebookPageTokens(): Promise<{ updated: number; mi
   const missing: string[] = [];
   for (const a of accounts ?? []) {
     if (a.platform === "instagram" && a.token_expires_at) continue; // Instagram Login account
-    const token = a.platform === "facebook" ? byPage.get(a.external_id) : byIg.get(a.external_id);
-    if (!token) {
+    const found = a.platform === "facebook" ? byPage.get(a.external_id) : byIg.get(a.external_id);
+    if (!found) {
       missing.push(a.label);
       continue;
     }
-    await db.from("client_social_accounts").update({ access_token_encrypted: encryptToken(token) }).eq("id", a.id);
+    await db.from("client_social_accounts").update({ access_token_encrypted: encryptToken(found.token) }).eq("id", a.id);
+    // Separate and unchecked: fb_login_name comes from a later migration, and
+    // a database without it must still get the fresh token above.
+    await db.from("client_social_accounts").update({ fb_login_name: found.profile }).eq("id", a.id);
     updated++;
   }
   return { updated, missing };

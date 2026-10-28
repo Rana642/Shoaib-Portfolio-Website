@@ -4,6 +4,11 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-28 — Held-posts alert names the blocked Facebook profile
+- The red dashboard banner and the alert email are now **one alert per blocked login**. Each says whose Facebook profile it is, which project/platform it holds up (e.g. "Hotel Avalon Suites (Instagram)"), and to log in as that person.
+- The profile name is stored per account in `client_social_accounts.fb_login_name`, set by `refreshFacebookPageTokens` on every Facebook reconnect and after Import Pages. **Needs the one-line SQL** in `supabase/dashboard-schema.sql`. The code works without it; names then show as "not recorded yet".
+- Why: the second Facebook login (wife's profile) is no longer in `social_connections`. Hotel Avalon FB+IG, Danish FB and Eventia IG still run on its dead tokens, and the old banner couldn't say which profile was at fault. Shoaib is connecting Ijaz Danish's profile (Tester invite pending) on 29 Oct.
+
 ## 2026-10-28 — LinkedIn Company Pages on the Community Management API (1db24d4)
 - LinkedIn passed vetting. The "Ads by Shoaib" app (client 77dikbiti3z1fg) has CM API **Development Tier**. The Standard-tier upgrade form is due in 21 days (about 18 Nov) and needs a screen recording plus test login details.
 - **Built:**
