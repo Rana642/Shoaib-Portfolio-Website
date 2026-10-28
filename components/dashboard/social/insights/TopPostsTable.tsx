@@ -6,7 +6,9 @@ export const FORMAT_LABEL: Record<PostFormat, string> = { reel: "Reel", video: "
 
 type Column = { key: "views" | "reach" | "reactions" | "comments" | "shares" | "extra"; label: string };
 
-const COLUMNS: Record<"facebook" | "instagram", Column[]> = {
+type TablePlatform = "facebook" | "instagram" | "linkedin";
+
+const COLUMNS: Record<TablePlatform, Column[]> = {
   facebook: [
     { key: "views", label: "Views" },
     { key: "reach", label: "Reach" },
@@ -23,12 +25,20 @@ const COLUMNS: Record<"facebook" | "instagram", Column[]> = {
     { key: "shares", label: "Shares" },
     { key: "extra", label: "Saves" },
   ],
+  linkedin: [
+    { key: "views", label: "Impressions" },
+    { key: "reach", label: "Unique" },
+    { key: "reactions", label: "Likes" },
+    { key: "comments", label: "Comments" },
+    { key: "shares", label: "Reposts" },
+    { key: "extra", label: "Clicks" },
+  ],
 };
 
 /** Rows shown before the "Show more" fold. */
 const TOP = 10;
 
-export default function TopPostsTable({ platform, posts }: { platform: "facebook" | "instagram"; posts: PostRow[] }) {
+export default function TopPostsTable({ platform, posts }: { platform: TablePlatform; posts: PostRow[] }) {
   if (posts.length === 0) return <p className="text-small text-ink-subtle">No posts published in this period.</p>;
   const rest = posts.slice(TOP);
   return (
@@ -46,7 +56,7 @@ export default function TopPostsTable({ platform, posts }: { platform: "facebook
   );
 }
 
-function PostsTable({ platform, posts }: { platform: "facebook" | "instagram"; posts: PostRow[] }) {
+function PostsTable({ platform, posts }: { platform: TablePlatform; posts: PostRow[] }) {
   const cols = COLUMNS[platform];
   return (
     <div className="overflow-x-auto">

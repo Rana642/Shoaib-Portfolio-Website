@@ -5,6 +5,7 @@ import {
   type FacebookInsights,
   type InstagramInsights,
   type InsightsError,
+  type LinkedInInsights,
 } from "@/lib/social-insights";
 import { parseInsightRange, type InsightRange } from "@/lib/social-insights-shared";
 import { PageHeader, EmptyState, LinkButton } from "@/components/dashboard/ui";
@@ -167,6 +168,44 @@ function FacebookBlock({ s, range }: { s: FacebookInsights; range: InsightRange 
       </div>
 
       <PostingTimesPanel analysis={s.postingTimes} />
+    </section>
+  );
+}
+
+function LinkedInBlock({ s, range }: { s: LinkedInInsights; range: InsightRange }) {
+  const cmp = `vs previous ${range} days`;
+  const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
+  return (
+    <section className="space-y-4">
+      <header className="flex flex-wrap items-center gap-3">
+        <PlatformTag platform="linkedin" />
+        <h2 className="text-body-lg font-semibold">{s.label}</h2>
+        <span className="text-small text-ink-subtle">
+          {postCountLabel(s.postCount)} in the last {range} days
+        </span>
+      </header>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-4">
+        <StatTile label="Followers" value={s.followers} note="Current total" />
+        <StatTile label="Impressions" value={s.current.impressions} previous={s.previous.impressions} comparisonLabel={cmp} />
+        <StatTile label="Clicks" value={s.current.clicks} previous={s.previous.clicks} comparisonLabel={cmp} />
+        <StatTile label="Likes" value={s.current.likes} previous={s.previous.likes} comparisonLabel={cmp} />
+        <StatTile label="Comments" value={s.current.comments} previous={s.previous.comments} comparisonLabel={cmp} />
+        <StatTile
+          label="Reposts"
+          value={s.current.shares}
+          previous={s.previous.shares}
+          comparisonLabel={cmp}
+          note={s.current.impressions ? `Engagement rate ${pct(s.current.engagement)}` : undefined}
+        />
+      </div>
+
+      <div className={card}>
+        <p className="text-small font-semibold mb-3">
+          Posts <span className="font-normal text-ink-subtle">· by impressions, organic only</span>
+        </p>
+        <TopPostsTable platform="linkedin" posts={s.topPosts} />
+      </div>
     </section>
   );
 }
@@ -385,13 +424,13 @@ export default async function InsightsPage({
     <>
       <PageHeader
         title="Insights"
-        description="Views, reach, engagement, follower growth and top posts for each connected Facebook Page and Instagram account."
+        description="Views, reach, engagement, follower growth and top posts for each connected Facebook Page, Instagram account and LinkedIn Company Page."
       />
       <InsightsShell projects={projects} projectId={projectId} range={range}>
         {sections.length === 0 ? (
           <EmptyState
-            title="No Facebook or Instagram account on this project"
-            description="Map a Page (and its linked Instagram) to this project on the Connections page first."
+            title="No Facebook, Instagram or LinkedIn Page on this project"
+            description="Map a Page (and its linked Instagram) or a LinkedIn Company Page to this project on the Connections page first."
             action={<LinkButton href="/dashboard/social">Go to Connections</LinkButton>}
           />
         ) : (
@@ -401,6 +440,8 @@ export default async function InsightsPage({
                 <ErrorBlock key={i} s={s} />
               ) : s.platform === "facebook" ? (
                 <FacebookBlock key={i} s={s} range={range} />
+              ) : s.platform === "linkedin" ? (
+                <LinkedInBlock key={i} s={s} range={range} />
               ) : (
                 <InstagramBlock key={i} s={s} range={range} />
               )
@@ -408,8 +449,8 @@ export default async function InsightsPage({
           </div>
         )}
         <p className="text-tag text-ink-subtle mt-12">
-          From Meta&apos;s Graph API, refreshed at most every 30 minutes. Meta itself reports most figures with up to a
-          day&apos;s delay, so today is usually partial.
+          From Meta&apos;s Graph API, refreshed at most every 30 minutes, and LinkedIn&apos;s Community Management API.
+          Both report most figures with up to a day&apos;s delay, so today is usually partial.
         </p>
       </InsightsShell>
     </>

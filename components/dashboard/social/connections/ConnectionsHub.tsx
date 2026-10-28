@@ -46,6 +46,7 @@ export default function ConnectionsHub({
   clientsMissingProject,
   initialProjectId,
   autoImportFacebook,
+  autoImportLinkedIn,
   notice,
 }: {
   projects: ProjectOption[];
@@ -59,6 +60,8 @@ export default function ConnectionsHub({
   clientsMissingProject: string[];
   initialProjectId: string | null;
   autoImportFacebook: boolean;
+  /** Back from "Connect with LinkedIn" (?li_company=connected). */
+  autoImportLinkedIn: boolean;
   /** Result of a connect round trip that came back through the URL. */
   notice?: { kind: "ok" | "error"; text: string } | null;
 }) {
@@ -113,15 +116,16 @@ export default function ConnectionsHub({
     });
   }, []);
 
-  // Returning from the Facebook Login redirect lands here with ?fb=connected —
-  // jump straight into the import dialog instead of making the user hunt for it.
+  // Returning from the Facebook or LinkedIn login redirect lands here with
+  // ?fb=connected / ?li_company=connected — jump straight into the import
+  // dialog instead of making the user hunt for it.
   const autoRan = useRef(false);
   useEffect(() => {
-    if (!autoImportFacebook || autoRan.current) return;
+    if ((!autoImportFacebook && !autoImportLinkedIn) || autoRan.current) return;
     autoRan.current = true;
-    openImport("facebook");
+    openImport(autoImportFacebook ? "facebook" : "linkedin");
     router.replace(projectId ? `/dashboard/social?project=${projectId}` : "/dashboard/social", { scroll: false });
-  }, [autoImportFacebook, openImport, router, projectId]);
+  }, [autoImportFacebook, autoImportLinkedIn, openImport, router, projectId]);
 
   const importItems: ImportItem[] = useMemo(() => {
     if (!importing) return [];
@@ -217,12 +221,15 @@ export default function ConnectionsHub({
           : { kind: "button", label: "Import from Facebook", onClick: () => openImport("facebook"), busy: loading === "facebook" };
       }
     } else if (def.loginProvider === "linkedin") {
+      // A personal profile (its own app, own 60-day token) or a Company Page
+      // imported from the LinkedIn login above.
       const personalHref = `/api/dashboard/social/linkedin-personal/authorize?project_id=${pid}`;
-      if (linkedinLogin.pendingApproval && !linkedinLogin.connectedAt) {
-        note = rows.length
-          ? "Personal profile connected (reconnect every 60 days). Company Pages unlock once LinkedIn approves Community Management API access."
-          : "Company Pages unlock once LinkedIn approves Community Management API access. A personal profile can be connected now.";
-        action = { kind: "link", label: rows.length ? "Reconnect personal profile" : "Connect personal profile", href: personalHref };
+      if (rows.some((r) => r.external_id.startsWith("urn:li:person:"))) {
+        note = "Personal profile connected (reconnect every 60 days).";
+        action = { kind: "link", label: "Reconnect personal profile", href: personalHref };
+      } else if (!linkedinLogin.connectedAt) {
+        note = "Connect your LinkedIn login (Workspace logins, above) to import this client's Company Page.";
+        action = { kind: "link", label: "Connect with LinkedIn", href: "/api/dashboard/social/linkedin/authorize" };
       } else {
         note = "Import this client's Company Page from your LinkedIn login.";
         action = rows.length ? null : { kind: "button", label: "Import from LinkedIn", onClick: () => openImport("linkedin"), busy: loading === "linkedin" };
@@ -276,6 +283,7 @@ export default function ConnectionsHub({
             title="LinkedIn login"
             subtitle="Discovers Company Pages you administer"
             login={linkedinLogin}
+            primary={{ label: linkedinLogin.connectedAt ? "Reconnect" : "Connect with LinkedIn", href: "/api/dashboard/social/linkedin/authorize" }}
             onImport={linkedinLogin.connectedAt ? () => openImport("linkedin") : undefined}
             importing={loading === "linkedin"}
           />

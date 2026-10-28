@@ -13,14 +13,26 @@ export const metadata = { title: "Connections" };
 export default async function SocialConnectionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ project?: string; li?: string; li_error?: string; fb?: string; fb_error?: string; instagram?: string; instagram_error?: string; youtube?: string; youtube_error?: string }>;
+  searchParams: Promise<{
+    project?: string;
+    li?: string;
+    li_error?: string;
+    li_company?: string;
+    li_company_error?: string;
+    fb?: string;
+    fb_error?: string;
+    instagram?: string;
+    instagram_error?: string;
+    youtube?: string;
+    youtube_error?: string;
+  }>;
 }) {
   const params = await searchParams;
   const [projects, clientsMissingProject, { data: accounts }, { data: connection }, fbLogins] = await Promise.all([
     listProjectOptions(),
     listClientsMissingProject(),
     db.from("client_social_accounts").select("*").order("created_at"),
-    db.from("social_connections").select("connected_at, fb_token_expires_at, li_connected_at").eq("id", 1).maybeSingle(),
+    db.from("social_connections").select("connected_at, fb_token_expires_at, li_connected_at, li_token_expires_at").eq("id", 1).maybeSingle(),
     listFacebookLogins(),
   ]);
   const { data: gbp } = await db.from("gbp_connections").select("project_id, locations, selected_location");
@@ -107,15 +119,17 @@ export default async function SocialConnectionsPage({
         linkedinLogin={{
           provider: "linkedin",
           connectedAt: connection?.li_connected_at ?? null,
-          expiresAt: null,
-          // Community Management API access is still under LinkedIn review.
-          pendingApproval: !connection?.li_connected_at,
+          expiresAt: connection?.li_token_expires_at ?? null,
+          expiresSoon: connection?.li_token_expires_at ? new Date(connection.li_token_expires_at).getTime() - now < 14 * 86_400_000 : false,
         }}
         clientsMissingProject={clientsMissingProject.map((c) => c.name)}
         initialProjectId={params.project ?? null}
         autoImportFacebook={params.fb === "connected"}
+        autoImportLinkedIn={params.li_company === "connected"}
         notice={
-          params.youtube_error
+          params.li_company_error
+            ? { kind: "error", text: `LinkedIn: ${params.li_company_error.slice(0, 300)}` }
+            : params.youtube_error
             ? { kind: "error", text: `YouTube: ${params.youtube_error.slice(0, 300)}` }
             : params.youtube
             ? { kind: "ok", text: `YouTube channel ${params.youtube.slice(0, 80)} connected. Until Google's YouTube API audit is approved, videos posted from here upload as private.` }

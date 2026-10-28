@@ -58,7 +58,8 @@ function buildCsp(pathname: string): string {
     const r2 = r2Origin();
     if (r2) imgSrc.push(r2);
   }
-  if (pathname.startsWith("/dashboard/social")) imgSrc.push("https://*.fbcdn.net", "https://*.cdninstagram.com");
+  // LinkedIn Company Page post images come from media.licdn.com.
+  if (pathname.startsWith("/dashboard/social")) imgSrc.push("https://*.fbcdn.net", "https://*.cdninstagram.com", "https://media.licdn.com");
   // YouTube page: channel avatars and video thumbnails from Google's image CDNs.
   if (pathname.startsWith("/dashboard/youtube")) imgSrc.push("https://*.ytimg.com", "https://yt3.ggpht.com", "https://yt3.googleusercontent.com");
   // Reels: the upload preview plays a local blob:, the Planner plays the

@@ -2,6 +2,14 @@ import "server-only";
 import { GRAPH_BASE } from "./social-fb";
 import { listSocialAccountsForProject, decryptAccountToken } from "./social-accounts";
 import { IG_LOGIN_GRAPH_BASE, getFreshInstagramLoginToken, isInstagramLoginAccount } from "./social-instagram-login";
+import {
+  getImageUrls,
+  getOrganizationFollowers,
+  getOrganizationShareTotals,
+  getPostShareStats,
+  listOrganizationPosts,
+  type LinkedInShareStats,
+} from "./social-linkedin";
 import type { ClientSocialAccount, SocialPlatform } from "./dashboard/types";
 import type { InsightRange, TrendPoint } from "./social-insights-shared";
 
@@ -744,23 +752,92 @@ async function instagramInsights(account: ClientSocialAccount, rangeDays: Insigh
   };
 }
 
+// ── LinkedIn Company Page ─────────────────────────────────────
+
+export type LinkedInInsights = {
+  platform: "linkedin";
+  label: string;
+  followers: number | null;
+  current: LinkedInShareStats;
+  previous: LinkedInShareStats;
+  /** Page posts published in the period, by impressions. */
+  topPosts: PostRow[];
+  postCount: number;
+};
+
+/** Organic Page stats (LinkedIn's Community Management API): totals for
+ *  this period and the one before, plus per-post figures. LinkedIn keeps
+ *  about 12 months of share statistics. */
+async function linkedinInsights(account: ClientSocialAccount, rangeDays: InsightRange): Promise<LinkedInInsights> {
+  const token = decryptAccountToken(account);
+  const org = account.external_id;
+  const until = anchorNow() * 1000;
+  const since = until - rangeDays * DAY * 1000;
+  const before = since - rangeDays * DAY * 1000;
+
+  const [followers, current, previous, posts] = await Promise.all([
+    getOrganizationFollowers(org, token),
+    getOrganizationShareTotals(org, token, since, until),
+    getOrganizationShareTotals(org, token, before, since),
+    listOrganizationPosts(org, token, 50),
+  ]);
+  const inRange = posts.filter((p) => p.publishedAt != null && p.publishedAt >= since);
+  const [stats, images] = await Promise.all([
+    getPostShareStats(org, token, inRange.map((p) => p.id)),
+    getImageUrls(token, inRange.map((p) => p.imageUrn).filter((u): u is string => Boolean(u))),
+  ]);
+  const topPosts: PostRow[] = inRange
+    .map((p) => {
+      const s = stats[p.id];
+      return {
+        id: p.id,
+        date: new Date(p.publishedAt!).toISOString(),
+        // Commentary comes back in LinkedIn's "little" format: drop the escapes.
+        text: p.text.replace(/\\(.)/g, "$1").replace(/\{hashtag\|\\?[#＃]\|([^}]*)\}/g, "#$1"),
+        image: p.imageUrn ? images[p.imageUrn] ?? null : null,
+        url: `https://www.linkedin.com/feed/update/${p.id}/`,
+        views: s?.impressions ?? 0,
+        reach: s?.uniqueImpressions ?? 0,
+        reactions: s?.likes ?? 0,
+        comments: s?.comments ?? 0,
+        shares: s?.shares ?? 0,
+        extra: s?.clicks ?? 0,
+      };
+    })
+    .sort((a, b) => b.views - a.views);
+
+  return { platform: "linkedin", label: account.label, followers, current, previous, topPosts, postCount: inRange.length };
+}
+
 // ── Entry point ───────────────────────────────────────────────
 
 export type InsightsError = { platform: SocialPlatform; label: string; error: string };
-export type InsightsSection = FacebookInsights | InstagramInsights | InsightsError;
+export type InsightsSection = FacebookInsights | InstagramInsights | LinkedInInsights | InsightsError;
 
-/** One section per connected Facebook Page / Instagram account on the
- *  project. A failure in one (expired token, a metric Meta just retired)
+const PLATFORM_ORDER: Record<string, number> = { facebook: 0, instagram: 1, linkedin: 2 };
+
+/** One section per connected Facebook Page / Instagram account / LinkedIn
+ *  Company Page on the project (personal LinkedIn profiles have no Page
+ *  stats). A failure in one (expired token, a metric Meta just retired)
  *  becomes that section's error card instead of breaking the whole page. */
 export async function getProjectInsights(projectId: string, rangeDays: InsightRange): Promise<InsightsSection[]> {
   const accounts = (await listSocialAccountsForProject(projectId))
-    .filter((a) => a.platform === "facebook" || a.platform === "instagram")
-    .sort((a, b) => (a.platform === b.platform ? 0 : a.platform === "facebook" ? -1 : 1));
+    .filter(
+      (a) =>
+        a.platform === "facebook" ||
+        a.platform === "instagram" ||
+        (a.platform === "linkedin" && a.external_id.startsWith("urn:li:organization:"))
+    )
+    .sort((a, b) => PLATFORM_ORDER[a.platform] - PLATFORM_ORDER[b.platform]);
 
   return Promise.all(
     accounts.map(async (a): Promise<InsightsSection> => {
       try {
-        return a.platform === "facebook" ? await facebookInsights(a, rangeDays) : await instagramInsights(a, rangeDays);
+        return a.platform === "facebook"
+          ? await facebookInsights(a, rangeDays)
+          : a.platform === "instagram"
+            ? await instagramInsights(a, rangeDays)
+            : await linkedinInsights(a, rangeDays);
       } catch (error) {
         return { platform: a.platform, label: a.label, error: error instanceof Error ? error.message : String(error) };
       }

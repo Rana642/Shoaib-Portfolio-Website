@@ -615,6 +615,11 @@ export const API_SERVICE_PRESETS: ApiServicePreset[] = [
     suggestedFields: ["client_id", "client_secret"],
   },
   {
+    value: "linkedin_company",
+    label: "LinkedIn — Company Pages (Community Management API app)",
+    suggestedFields: ["client_id", "client_secret"],
+  },
+  {
     value: "gmb",
     label: "Google Business Profile (GBP/GMB)",
     suggestedFields: ["client_id", "client_secret", "refresh_token"],

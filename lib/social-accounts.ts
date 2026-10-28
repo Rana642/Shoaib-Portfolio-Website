@@ -301,17 +301,28 @@ export async function updateTikTokAccountTokens(
 }
 
 /** LinkedIn equivalent of connectFacebookAccount — a member access token
- *  (LinkedIn has no simple "Graph API Explorer"; Shoaib generates one from
- *  his Developer app's own OAuth Token Generator) exchanged for the list of
- *  Company Pages he administers. Requires the app's Marketing Developer
- *  Platform product to be approved — see the note in social-linkedin.ts. */
-export async function connectLinkedInAccount(memberToken: string): Promise<DiscoveredOrganization[]> {
+ *  (from the "Connect with LinkedIn" OAuth flow, or pasted by hand) exchanged
+ *  for the list of Company Pages he administers. Company Pages already on
+ *  projects get the new token too, since LinkedIn has no per-Page token and
+ *  the old one dies after 60 days (see lib/social-linkedin.ts). */
+export async function connectLinkedInAccount(memberToken: string, expiresIn: number | null = null): Promise<DiscoveredOrganization[]> {
   const orgs = await listManagedOrganizations(memberToken);
+  const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null;
+  const encrypted = encryptToken(memberToken);
   await db.from("social_connections").upsert({
     id: 1,
-    li_user_token_encrypted: encryptToken(memberToken),
+    li_user_token_encrypted: encrypted,
+    li_token_expires_at: expiresAt,
     li_connected_at: new Date().toISOString(),
   });
+  const admined = orgs.map((o) => o.organization_urn);
+  if (admined.length) {
+    await db
+      .from("client_social_accounts")
+      .update({ access_token_encrypted: encrypted, token_expires_at: expiresAt })
+      .eq("platform", "linkedin")
+      .in("external_id", admined);
+  }
   return orgs;
 }
 
@@ -329,7 +340,7 @@ export async function rediscoverLinkedInOrganizations(): Promise<DiscoveredOrgan
 export async function saveLinkedInOrgMappings(mappings: { org: DiscoveredOrganization; project_id: string }[]) {
   const { data, error: tokenErr } = await db
     .from("social_connections")
-    .select("li_user_token_encrypted")
+    .select("li_user_token_encrypted, li_token_expires_at")
     .eq("id", 1)
     .single();
   if (tokenErr || !data?.li_user_token_encrypted) throw new Error("No LinkedIn connection saved yet.");
@@ -341,6 +352,7 @@ export async function saveLinkedInOrgMappings(mappings: { org: DiscoveredOrganiz
     label: org.name,
     external_id: org.organization_urn,
     access_token_encrypted: memberToken,
+    token_expires_at: data.li_token_expires_at ?? null,
   }));
   if (rows.length === 0) return;
   const { error } = await db.from("client_social_accounts").insert(rows);
