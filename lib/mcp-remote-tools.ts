@@ -6,6 +6,7 @@ import { listPendingCaptionPosts, getScheduledPost, setCaptionAndSchedule, count
 import { registerPostReviewTools } from "./post-review-tools";
 import { registerPostListingTools } from "./post-listing-tools";
 import { registerLinkedInPageTools } from "./linkedin-page-tools";
+import { registerSocialInsightsTools } from "./social-insights-tools";
 import { fetchObject } from "./storage";
 import { rescheduleNativePosts, submitNativeScheduleForPost } from "./social-post";
 import { registerBestTimeTool } from "./social-best-times";
@@ -181,4 +182,5 @@ Returns: confirmation text.`,
   registerBestTimeTool(server);
   registerPostListingTools(server);
   registerLinkedInPageTools(server);
+  registerSocialInsightsTools(server);
 }
