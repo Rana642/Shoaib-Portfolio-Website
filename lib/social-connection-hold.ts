@@ -42,8 +42,11 @@ export type HoldInfo = {
   kind?: "blocked" | "rate_limited";
 };
 
+// "…must be granted before impersonating a user's page": the profile behind
+// the Page token lost its grant (seen 2026-10-28 once the second login's
+// profile no longer had a role on the app) — same fix, reconnect.
 const CONNECTION_ERROR =
-  /log in to www\.facebook\.com|error validating access token|invalid oauth access token|session has been invalidated|session has expired|has not authorized application|user is not a confirmed user/i;
+  /log in to www\.facebook\.com|error validating access token|invalid oauth access token|session has been invalidated|session has expired|has not authorized application|user is not a confirmed user|must be granted before impersonating/i;
 const RATE_LIMIT_ERROR = /HTTP 429|TOO_MANY_REQUESTS|throttle .*limit/i;
 
 /** True when the error means the login/token is blocked — not a problem with the post itself. */
