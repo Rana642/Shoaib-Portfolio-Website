@@ -63,7 +63,7 @@ Args:
   - postLimit (number, optional, default 10, max 25): top posts per account.
 
 Returns (JSON) one section per account:
-  - facebook: followers, current/previous { views (organic when adViews is set), adViews, engagements, pageVisits, videoViews, viewers, avgDailyViewers, netFollows }, reactions, postCount, trend (series totals), postingTimes (best days/hours by median reach, PKT), topPosts [{ date, text, url, views, reach, reactions, comments, shares, extra = link clicks, adViews }].
+  - facebook: followers, audience (followers by country / city; Meta has no age or gender for Pages any more), current/previous { views (organic when adViews is set), adViews, engagements, pageVisits, videoViews, viewers, avgDailyViewers, netFollows }, reactions, postCount, trend (series totals), postingTimes (best days/hours by median reach, PKT), topPosts [{ date, text, url, views, reach, reactions, comments, shares, extra = link clicks, adViews }].
   - instagram: username, followers, current/previous (reach, views, interactions, profile visits… organic where Meta splits), ads (paid part), interactions, profileActivity, formats (reels/images/carousels with averages), audience (country/city/age/gender), postCount, postingTimes, topPosts (extra = saves), insightsError when Meta refused account-level insights.
   - A failing account comes back as { platform, label, error } instead of failing the whole call.`,
       inputSchema: {

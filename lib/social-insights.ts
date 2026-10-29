@@ -241,10 +241,21 @@ type FbTotals = {
   netFollows: number;
 };
 
+/** Where the Page's followers are — Meta gives country and city only (age,
+ *  gender and language left the API with the page_fans_* metrics). */
+export type FbAudience = {
+  country: { label: string; value: number }[];
+  city: { label: string; value: number }[];
+  total: number;
+};
+
 export type FacebookInsights = {
   platform: "facebook";
   label: string;
   followers: number | null;
+  /** Null when Meta returned nothing; audienceError says why. */
+  audience: FbAudience | null;
+  audienceError?: string;
   current: FbTotals;
   previous: FbTotals;
   series: { views: TrendPoint[]; engagements: TrendPoint[]; followers: TrendPoint[] };
@@ -412,6 +423,30 @@ function fbTotals(
   };
 }
 
+/** Followers by country and city: page_follows_country / page_follows_city,
+ *  Meta's replacements for page_fans_* (retired 15 Nov 2025). A daily
+ *  snapshot — the latest day that has one wins. */
+async function fbAudience(pageId: string, token: string): Promise<FbAudience> {
+  const { data } = await graphGet<{ data: { name: string; values: { value: unknown }[] }[] }>(`/${pageId}/insights`, {
+    metric: "page_follows_country,page_follows_city",
+    period: "day",
+    access_token: token,
+  });
+  const latest = (name: string): [string, number][] => {
+    const values = data.find((d) => d.name === name)?.values ?? [];
+    const snapshot = [...values].reverse().find((v) => typeof v.value === "object" && v.value !== null)?.value;
+    return Object.entries((snapshot ?? {}) as Record<string, number>);
+  };
+  const top = (rows: [string, number][], label: (key: string) => string) =>
+    [...rows].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([key, value]) => ({ label: label(key), value }));
+  const country = latest("page_follows_country");
+  return {
+    country: top(country, regionName),
+    city: top(latest("page_follows_city"), (key) => key.split(",")[0]),
+    total: country.reduce((sum, [, n]) => sum + n, 0),
+  };
+}
+
 async function facebookInsights(account: ClientSocialAccount, rangeDays: InsightRange): Promise<FacebookInsights> {
   const token = decryptAccountToken(account);
   const pageId = account.external_id;
@@ -447,11 +482,16 @@ async function facebookInsights(account: ClientSocialAccount, rangeDays: Insight
     for (const [type, n] of Object.entries(v.value)) reactionTotals.set(type, (reactionTotals.get(type) ?? 0) + n);
   }
   const followers = toSeries(curDaily.get("page_follows"));
+  const audience = await fbAudience(pageId, token).then(
+    (a) => ({ audience: a.total ? a : null }),
+    (error: unknown) => ({ audience: null, audienceError: error instanceof Error ? error.message : String(error) })
+  );
 
   return {
     platform: "facebook",
     label: account.label,
     followers: followers.at(-1)?.value ?? null,
+    ...audience,
     current: fbTotals(curDaily, curViewers, curViews, curVideo),
     previous: fbTotals(prevDaily, prevViewers, prevViews, prevVideo),
     series: {
