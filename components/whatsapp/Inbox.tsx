@@ -70,7 +70,10 @@ const SOURCES = [
   { value: "none", label: "No code" },
 ];
 
-const TABS: { stage: ChatStage; label: string; hint: string }[] = [
+type TabKey = ChatStage | "all";
+
+const TABS: { stage: TabKey; label: string; hint: string }[] = [
+  { stage: "all", label: "All", hint: "Every chat, whatever its stage" },
   { stage: "active", label: "Active", hint: "Automation is handling these" },
   {
     stage: "requesting",
@@ -224,18 +227,18 @@ export default async function Inbox({
         : undefined;
   };
   const staged = contacts.map((c) => ({ ...c, stage: chatStage(c) }));
-  const counts = { active: 0, requesting: 0, intervened: 0 } as Record<
-    ChatStage,
+  const counts = { all: staged.length, active: 0, requesting: 0, intervened: 0 } as Record<
+    TabKey,
     number
   >;
   for (const c of staged) counts[c.stage]++;
   // No tab in the URL → open the first one that has chats (Requesting first: those need a person).
-  const currentTab: ChatStage = TABS.some((t) => t.stage === tab)
-    ? (tab as ChatStage)
+  const currentTab: TabKey = TABS.some((t) => t.stage === tab)
+    ? (tab as TabKey)
     : ((["requesting", "active", "intervened"] as ChatStage[]).find(
         (s) => counts[s] > 0,
       ) ?? "active");
-  const shown = staged.filter((c) => c.stage === currentTab);
+  const shown = currentTab === "all" ? staged : staged.filter((c) => c.stage === currentTab);
 
   // The open chat (may sit in another tab, or outside the search).
   let active = staged.find((c) => c.id === chatId) ?? null;
