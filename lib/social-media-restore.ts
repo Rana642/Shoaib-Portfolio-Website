@@ -13,7 +13,8 @@ import { headObject, uploadObject } from "./storage";
  * has nothing to send (a 404 on the presigned URL). Before such a row goes
  * out, the image is taken back from the published Instagram copy (else
  * Facebook) of the row that already posted it, and put back under the same
- * key. The same recovery lib/gbp-backfill.ts uses for Google.
+ * key — or from the row's own copy when only one platform is being re-sent.
+ * The same recovery lib/gbp-backfill.ts uses for Google.
  */
 
 type Row = { id: string; project_id: string; media_key: string };
@@ -22,12 +23,13 @@ type Row = { id: string; project_id: string; media_key: string };
 export async function restorePublishedMedia(post: Row): Promise<boolean> {
   if (await headObject(post.media_key)) return true;
 
+  // The row itself counts too: a row re-sent for one platform (its other
+  // platforms already out, kept in result.live) has its own published copy.
   const { data: siblings } = await db
     .from("scheduled_posts")
     .select("id, result")
     .eq("media_key", post.media_key)
-    .eq("status", "posted")
-    .neq("id", post.id)
+    .or(`status.eq.posted,id.eq.${post.id}`)
     .limit(5);
   if (!siblings?.length) return false;
 

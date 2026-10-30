@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isCronRequest } from "@/lib/cron-auth";
 import { db } from "@/lib/dashboard/db";
 import { decryptAccountToken, listAllSocialAccounts } from "@/lib/social-accounts";
-import { GRAPH_BASE } from "@/lib/social-fb";
+import { GRAPH_BASE, deleteFacebookPostStrict } from "@/lib/social-fb";
 
 // TEMPORARY, read-only (2026-10-30): which Planner Facebook posts Meta really
 // published or still holds as scheduled, per Page. Remove once the audit is done.
@@ -72,4 +72,24 @@ export async function GET(request: Request) {
     })
   );
   return NextResponse.json({ since, pages });
+}
+
+/** Strictly deletes the given stuck Meta-side posts ("{page}_{post}"), each with its own Page's token. */
+export async function POST(request: Request) {
+  if (!(await isCronRequest(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { ids } = (await request.json()) as { ids?: string[] };
+  const accounts = (await listAllSocialAccounts()).filter((a) => a.platform === "facebook" && a.is_active);
+  const results = await Promise.all(
+    (ids ?? []).map(async (id) => {
+      const account = accounts.find((a) => a.external_id === id.split("_")[0]);
+      if (!account) return { id, ok: false, error: "no connected Page" };
+      try {
+        await deleteFacebookPostStrict(id, decryptAccountToken(account));
+        return { id, ok: true };
+      } catch (e) {
+        return { id, ok: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    })
+  );
+  return NextResponse.json({ results });
 }
