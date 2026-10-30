@@ -4,6 +4,12 @@ import { getVaultCredential } from "./marketing-vault";
 const API_VERSION = "v21.0";
 const BASE = `https://graph.facebook.com/${API_VERSION}`;
 
+/** Graph puts the access token in its paging.next/previous URLs — never hand
+ *  that back to a tool caller. Cursors (paging.cursors.after) still work for
+ *  the next page via the `after` param. */
+const redactTokens = (json: unknown): unknown =>
+  JSON.parse(JSON.stringify(json).replace(/access_token=[^&"\\]+/g, "access_token=REDACTED"));
+
 /** Generic Graph API call for the Marketing API surface (campaigns, adsets,
  *  ads, adcreatives, insights, audiences, ...) — same passthrough approach
  *  as the Google clients, since the Marketing API's object model is far too
@@ -22,7 +28,7 @@ export async function metaMarketingRequest(
       url.searchParams.set(k, typeof v === "string" ? v : JSON.stringify(v));
     }
     const res = await fetch(url.toString());
-    const json = await res.json();
+    const json = redactTokens(await res.json());
     if (!res.ok) throw new Error(`Meta Marketing API error (${res.status}): ${JSON.stringify(json)}`);
     return json;
   }
@@ -37,7 +43,7 @@ export async function metaMarketingRequest(
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
   });
-  const json = await res.json();
+  const json = redactTokens(await res.json());
   if (!res.ok) throw new Error(`Meta Marketing API error (${res.status}): ${JSON.stringify(json)}`);
   return json;
 }
