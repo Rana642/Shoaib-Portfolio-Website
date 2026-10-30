@@ -46,7 +46,8 @@ export default async function WhatsAppPage({
       search={q}
       source={src}
       scope={
-        all.length > 1
+        // Shown from the first number on (Shoaib, 2026-10-30), not only once there are two.
+        all.length > 0
           ? { param: "account", allLabel: "All businesses", options: all.map((a) => ({ value: a.id, label: a.name })) }
           : undefined
       }
