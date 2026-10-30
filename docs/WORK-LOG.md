@@ -4,6 +4,22 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-30 — Stories watchdog: email when Drive Stories stop
+- Shoaib: TONI&GUY Stories must never stop, and he must be told if they do. Only TONI&GUY has a Drive story folder today.
+- **How it works.** `lib/story-watchdog.ts` runs at the end of every social cron (15 min) for each `story_drive_sources` project. It flags:
+  - a story failed in the last 6 h
+  - a story is 90+ min past its time and still not posted
+  - no story is on the calendar for the next 24 h
+  - the Drive sync errored, or hasn't run for 6 h
+- **Emails:** one email when the Stories stop, a reminder every 12 h while they stay stopped, and one email when they run again.
+- **Needs the one-line SQL** (`story_drive_sources.alert jsonb`) in `supabase/dashboard-schema.sql`. Without it the watchdog stays quiet.
+- **Same day, data fixes:**
+  - **Second-login backlog:** the 12 partly-failed rows were re-queued for their missing platforms only.
+  - **TONI&GUY checkpoint failures:**
+    - 21 already-shown stories moved to 6–8 Nov, so the hourly sync refills 31 Oct – 2 Nov with the 20 stories that failed in the checkpoint and never ran.
+    - 11 videos Shoaib rejected (132, 139, 141, 142, 152, 157, 163, 165, 166, 174, 176) were put on `hold_file_ids`.
+    - Their 4 upcoming rows were removed. Deleting a file from Drive does not stop an already-imported story.
+
 ## 2026-10-28 — Meta App Review prep (Advanced Access for the posting app)
 - A /data-deletion page was added here, then **removed again the same day**. The Meta app (Socially Snap business) already uses the Socially Snap site's privacy, terms and data-deletion pages (sociallysnap.adsbyshoaib.com), which were built for this on 2026-09-13.
 - The Facebook Login scope dropped `pages_manage_engagement`, which nothing used. Meta rejects permissions it can't see in use.

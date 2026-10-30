@@ -11,6 +11,7 @@ import { presignDownload, deleteObject } from "@/lib/storage";
 import { syncDueStoryFolders } from "@/lib/story-drive";
 import { queueStoryCopy } from "@/lib/post-as-story";
 import { restorePublishedMedia } from "@/lib/social-media-restore";
+import { watchDriveStories } from "@/lib/story-watchdog";
 import { alertHeldPosts, holdLimitMs, HOLD_RETRY_MS, isRateLimited, isRetryable, isWaitingToRetry, type HoldInfo } from "@/lib/social-connection-hold";
 
 // Cron runs every 15 min (vercel.json) but a batch of due posts still fires
@@ -288,5 +289,13 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ checked: due.length, processed: results.length, deferred, backedOff, results, instagramTokensRefreshed, storyFoldersSynced });
+  // Drive-fed Stories must not stop unnoticed: email Shoaib when they do.
+  let storyAlerts = 0;
+  try {
+    storyAlerts = await watchDriveStories();
+  } catch {
+    /* retried on the next run */
+  }
+
+  return NextResponse.json({ checked: due.length, processed: results.length, deferred, backedOff, results, instagramTokensRefreshed, storyFoldersSynced, storyAlerts });
 }

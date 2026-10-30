@@ -1724,6 +1724,9 @@ drop index if exists scheduled_posts_drive_file_idx;
 create index if not exists scheduled_posts_drive_file_lookup on scheduled_posts (project_id, drive_file_id) where drive_file_id is not null;
 -- Files held back from import (e.g. waiting for a brand/logo check).
 alter table story_drive_sources add column if not exists hold_file_ids text[] not null default '{}';
+-- Stories-stopped watchdog (2026-10-30, lib/story-watchdog.ts): the last alert
+-- emailed for this folder's Stories, so it isn't sent every 15 minutes.
+alter table story_drive_sources add column if not exists alert jsonb;
 -- Every published post / Reel / video is also shared as a Story (Shoaib,
 -- 2026-10-16): the cron adds a story row pointing back at its post; the
 -- unique index keeps it to one story per post.
