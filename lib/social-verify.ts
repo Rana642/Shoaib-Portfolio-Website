@@ -64,7 +64,7 @@ const fbEntries = (row: Row): FbResult[] =>
 
 const unverified = (r: FbResult) => !r.verified_at;
 
-async function lookUp(postId: string, isReel: boolean, token: string): Promise<Lookup> {
+async function lookUp(postId: string, pageId: string, isReel: boolean, token: string): Promise<Lookup> {
   const fields = isReel ? "id,published,status" : "id,is_published";
   const res = await fetch(`${GRAPH_BASE}/${postId}?fields=${fields}&access_token=${encodeURIComponent(token)}`);
   const body = (await res.json().catch(() => ({}))) as {
@@ -75,8 +75,16 @@ async function lookUp(postId: string, isReel: boolean, token: string): Promise<L
     error?: { code?: number; message?: string };
   };
   if (body.error) {
-    // #100 "does not exist / cannot be loaded" = deleted or never created.
-    if (body.error.code === 100 && /does not exist|cannot be loaded|Unsupported get request/i.test(body.error.message ?? "")) return { state: "missing" };
+    // #100 "does not exist, cannot be loaded due to missing permissions…" is
+    // the same message for a deleted post and for a token that can't read
+    // it — only call it missing when the token can still read the Page's
+    // posts, so a permission problem never turns into a double post.
+    if (body.error.code === 100 && /does not exist|cannot be loaded|Unsupported get request/i.test(body.error.message ?? "")) {
+      const page = await fetch(`${GRAPH_BASE}/${pageId}/published_posts?fields=id&limit=1&access_token=${encodeURIComponent(token)}`);
+      const pageBody = (await page.json().catch(() => ({}))) as { error?: { message?: string } };
+      if (page.ok && !pageBody.error) return { state: "missing" };
+      return { state: "error", detail: pageBody.error?.message ?? `the Page can't be read (HTTP ${page.status})` };
+    }
     return { state: "error", detail: body.error.message ?? `HTTP ${res.status}` };
   }
   // A Reel Facebook is still processing isn't stuck — look again next run.
@@ -133,7 +141,7 @@ export async function verifyFacebookPosts(deadline: number): Promise<number> {
       const account = accounts.find((a) => a.platform === "facebook" && a.external_id === entry.external_id);
       if (!account) continue;
       const token = decryptAccountToken(account);
-      const found = await lookUp(entry.post_id!, row.post_type === "reel", token);
+      const found = await lookUp(entry.post_id!, account.external_id, row.post_type === "reel", token);
       checked++;
 
       if (found.state === "live") {
