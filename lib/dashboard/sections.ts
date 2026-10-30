@@ -13,6 +13,7 @@ import {
   Inbox,
   KeyRound,
   LayoutDashboard,
+  LayoutGrid,
   Link2,
   MapPin,
   Megaphone,
@@ -72,7 +73,20 @@ export type Section = {
   groups: { title: string; items: SectionItem[]; showTitle?: boolean }[];
   /** "bottom" = shown next to Sign out instead of in the main list (Settings). */
   placement?: "bottom";
+  /** Key of an APP_GROUPS entry: the section sits in that group's sidebar dropdown
+   *  instead of being a top-level entry. Add a new app = set this on its section. */
+  app?: string;
 };
+
+/**
+ * Sidebar dropdowns that hold several apps (Shoaib, 2026-10-30). "Socially Snap
+ * Apps" is one heading; each app (Planner, Marketing, WhatsApp, …) is an entry
+ * inside it, so a new app is one `app: "socially-snap"` line, and splitting the
+ * product out later means moving every section that carries that key.
+ */
+export const APP_GROUPS: { key: string; label: string; icon: LucideIcon }[] = [
+  { key: "socially-snap", label: "Socially Snap Apps", icon: LayoutGrid },
+];
 
 const D = "/dashboard";
 const W = `${D}/whatsapp`;
@@ -163,6 +177,7 @@ export const SECTIONS: Section[] = [
     // Stories are a toggle on the page's side, not tabs; Image / Reels &
     // Shorts / Videos are tabs inside the Posts calendar.
     key: "planner",
+    app: "socially-snap",
     label: "Planner",
     icon: CalendarDays,
     description: "Posts, Reels & Shorts, Videos and Stories on one calendar.",
@@ -179,6 +194,7 @@ export const SECTIONS: Section[] = [
   },
   {
     key: "marketing",
+    app: "socially-snap",
     label: "Marketing",
     icon: Megaphone,
     description: "Insights, YouTube, ads and Google Business.",
@@ -203,6 +219,7 @@ export const SECTIONS: Section[] = [
   },
   {
     key: "whatsapp",
+    app: "socially-snap",
     label: "WhatsApp",
     icon: MessageCircle,
     description: "Chats, broadcasts and templates for every connected number.",
@@ -239,6 +256,7 @@ export const SECTIONS: Section[] = [
     // WhatsApp — and Salon Management or others as they're built. The client
     // portal keeps its own simpler "Bookings" section.
     key: "business",
+    app: "socially-snap",
     label: "Business Management",
     icon: Store,
     description: "The systems we run for client businesses — hotel bookings, inquiries and guests today.",

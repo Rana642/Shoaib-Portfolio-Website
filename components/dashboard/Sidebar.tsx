@@ -18,7 +18,7 @@ import {
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { SECTIONS, inSection, matchStrength } from "@/lib/dashboard/sections";
+import { APP_GROUPS, SECTIONS, inSection, matchStrength } from "@/lib/dashboard/sections";
 import { CountBadge, QuickTools, useAttentionCounts } from "@/components/dashboard/SidebarTools";
 import { authCookieOptions } from "@/lib/auth-cookies";
 
@@ -35,20 +35,40 @@ export type NavItem =
       /** Which attention count (SidebarTools.useAttentionCounts) shows on it. */
       badge?: string;
     }
-  | { label: string; icon: LucideIcon; children: { href: string; label: string }[] };
+  | { label: string; icon: LucideIcon; children: NavChild[] };
 
-// Overview, then one entry per section (lib/dashboard/sections.ts). Inside a
-// section its pages are tabs across the top. Settings sits at the bottom,
-// next to Sign out (GoHighLevel style).
+/** A dropdown entry. `match` (a whole section's path prefixes) makes it active anywhere
+ *  inside that section, not just on its first page. */
+type NavChild = { href: string; label: string; icon?: LucideIcon; match?: string[]; badge?: string };
+
+const sectionEntry = (sec: (typeof SECTIONS)[number]) => ({
+  href: sec.groups[0].items[0].href,
+  label: sec.label,
+  icon: sec.icon,
+  match: sec.match,
+  badge: sec.key,
+});
+
+// Overview, then one entry per section (lib/dashboard/sections.ts). Sections
+// that carry an `app` key sit together in that app group's dropdown ("Socially
+// Snap Apps"), at the spot of the group's first section. Inside a section its
+// pages are tabs across the top. Settings sits at the bottom, next to Sign out
+// (GoHighLevel style).
 const DASHBOARD_NAV: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
-  ...SECTIONS.filter((sec) => sec.placement !== "bottom").map((sec) => ({
-    href: sec.groups[0].items[0].href,
-    label: sec.label,
-    icon: sec.icon,
-    match: sec.match,
-    badge: sec.key,
-  })),
+  ...SECTIONS.filter((sec) => sec.placement !== "bottom").flatMap((sec): NavItem[] => {
+    if (!sec.app) return [sectionEntry(sec)];
+    const group = APP_GROUPS.find((g) => g.key === sec.app);
+    if (!group) return [sectionEntry(sec)];
+    if (SECTIONS.find((s) => s.app === sec.app && s.placement !== "bottom") !== sec) return [];
+    return [
+      {
+        label: group.label,
+        icon: group.icon,
+        children: SECTIONS.filter((s) => s.app === sec.app && s.placement !== "bottom").map(sectionEntry),
+      },
+    ];
+  }),
 ];
 
 export default function Sidebar({
@@ -80,7 +100,16 @@ export default function Sidebar({
   const [open, setOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const counts = useAttentionCounts(showStudio);
-  const strongestMatch = Math.max(0, ...nav.map((i) => ("match" in i && i.match ? matchStrength(i.match, pathname) : 0)));
+  // Strongest section claim on this path, dropdown entries included (Planner's
+  // /social/planner is more specific than Marketing's /social).
+  const strongestMatch = Math.max(
+    0,
+    ...nav.flatMap((i) =>
+      "children" in i
+        ? i.children.map((c) => (c.match ? matchStrength(c.match, pathname) : 0))
+        : [("match" in i && i.match ? matchStrength(i.match, pathname) : 0)],
+    ),
+  );
 
   const signOut = async () => {
     const supabase = createBrowserClient(
@@ -96,14 +125,23 @@ export default function Sidebar({
 
   // A group's own route is "active" if the current path is under any of its
   // children's base paths.
-  const isGroupRoute = (children: { href: string }[]) =>
-    children.some((c) => pathname === c.href || pathname.startsWith(`${c.href}/`));
+  const isGroupRoute = (children: NavChild[]) =>
+    children.some((c) =>
+      c.match ? isMatchActive(c.match) : pathname === c.href || pathname.startsWith(`${c.href}/`),
+    );
+
+  const isMatchActive = (match: string[]) => {
+    const own = matchStrength(match, pathname);
+    return own > 0 && own === strongestMatch;
+  };
 
   // A specific child is active if the path is under its base path AND no
   // sibling with a more specific (longer) href also matches — e.g. under
   // "Services Catalog", "/dashboard/catalog/bundles/x" should highlight
-  // "Bundle Services", not both entries.
-  const isChildActive = (children: { href: string }[], href: string) => {
+  // "Bundle Services", not both entries. App entries use their section's prefixes.
+  const isChildActive = (children: NavChild[], child: NavChild) => {
+    if (child.match) return isMatchActive(child.match);
+    const href = child.href;
     if (pathname === href) return true;
     if (!pathname.startsWith(`${href}/`)) return false;
     const moreSpecificSibling = children.some(
@@ -200,9 +238,18 @@ export default function Sidebar({
                   >
                     <item.icon className="size-4 shrink-0" aria-hidden />
                     {item.label}
+                    {/* Closed dropdown: still show how many things wait inside it. */}
+                    {!showChildren && (
+                      <CountBadge
+                        count={item.children.reduce((n, c) => n + (c.badge ? (counts[c.badge] ?? 0) : 0), 0)}
+                        rail={false}
+                        active={false}
+                      />
+                    )}
                     <ChevronDown
                       className={cn(
-                        "size-3.5 shrink-0 ml-auto transition-transform",
+                        "size-3.5 shrink-0 transition-transform",
+                        showChildren || !item.children.some((c) => c.badge && counts[c.badge]) ? "ml-auto" : "",
                         showChildren ? "rotate-180" : ""
                       )}
                       aria-hidden
@@ -210,21 +257,26 @@ export default function Sidebar({
                   </button>
                   {showChildren && (
                     <div className="mt-1 ml-4 pl-3 border-l border-cloud/10 space-y-1">
-                      {item.children.map((child) => (
-                        <Link
-                          key={child.href}
-                          href={child.href}
-                          onClick={() => setOpen(false)}
-                          className={cn(
-                            "block rounded-lg px-3 py-2 text-small transition-colors",
-                            isChildActive(item.children, child.href)
-                              ? "bg-citrus text-ink font-medium"
-                              : "text-cloud/60 hover:text-cloud hover:bg-cloud/5"
-                          )}
-                        >
-                          {child.label}
-                        </Link>
-                      ))}
+                      {item.children.map((child) => {
+                        const childActive = isChildActive(item.children, child);
+                        return (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            onClick={() => setOpen(false)}
+                            className={cn(
+                              "flex items-center gap-2.5 rounded-lg px-3 py-2 text-small transition-colors",
+                              childActive
+                                ? "bg-citrus text-ink font-medium"
+                                : "text-cloud/60 hover:text-cloud hover:bg-cloud/5"
+                            )}
+                          >
+                            {child.icon && <child.icon className="size-4 shrink-0" aria-hidden />}
+                            {child.label}
+                            {child.badge && <CountBadge count={counts[child.badge]} rail={false} active={childActive} />}
+                          </Link>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
