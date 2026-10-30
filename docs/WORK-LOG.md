@@ -4,6 +4,12 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-30 — Portal uploads: one report per session, not one email per upload
+- Shoaib asked for no alert on every single upload (e.g. Fatima uploading one post at a time). He wants one combined report saying which projects' posts were uploaded.
+- **On upload or fix:** a portal upload or fixed re-upload marks its post with `scheduled_posts.client_activity` (who, when, note, what was fixed).
+- **Sending the report:** `lib/upload-digest.ts`, run from the social cron every 15 min, sends ONE email per uploader once they've been quiet for 30 min, or after 3 h of non-stop uploading. The report lists, per project, the new posts by day, the fixes, and the notes. It then clears the marks.
+- **Needs the one-line SQL** (`client_activity jsonb`). Until it's added, uploads still email right away as before.
+
 ## 2026-10-30 — Stories watchdog: email when Drive Stories stop
 - Shoaib: TONI&GUY Stories must never stop, and he must be told if they do. Only TONI&GUY has a Drive story folder today.
 - **How it works.** `lib/story-watchdog.ts` runs at the end of every social cron (15 min) for each `story_drive_sources` project. It flags:

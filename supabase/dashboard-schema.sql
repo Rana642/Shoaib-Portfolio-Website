@@ -1727,6 +1727,9 @@ alter table story_drive_sources add column if not exists hold_file_ids text[] no
 -- Stories-stopped watchdog (2026-10-30, lib/story-watchdog.ts): the last alert
 -- emailed for this folder's Stories, so it isn't sent every 15 minutes.
 alter table story_drive_sources add column if not exists alert jsonb;
+-- Portal upload report (2026-10-30, lib/upload-digest.ts): a client upload or
+-- fix waiting for the uploader's session report; cleared once it's emailed.
+alter table scheduled_posts add column if not exists client_activity jsonb;
 -- Every published post / Reel / video is also shared as a Story (Shoaib,
 -- 2026-10-16): the cron adds a story row pointing back at its post; the
 -- unique index keeps it to one story per post.

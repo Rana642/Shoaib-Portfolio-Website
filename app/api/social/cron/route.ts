@@ -12,6 +12,7 @@ import { syncDueStoryFolders } from "@/lib/story-drive";
 import { queueStoryCopy } from "@/lib/post-as-story";
 import { restorePublishedMedia } from "@/lib/social-media-restore";
 import { watchDriveStories } from "@/lib/story-watchdog";
+import { sendUploadReports } from "@/lib/upload-digest";
 import { alertHeldPosts, holdLimitMs, HOLD_RETRY_MS, isRateLimited, isRetryable, isWaitingToRetry, type HoldInfo } from "@/lib/social-connection-hold";
 
 // Cron runs every 15 min (vercel.json) but a batch of due posts still fires
@@ -297,5 +298,13 @@ export async function GET(request: Request) {
     /* retried on the next run */
   }
 
-  return NextResponse.json({ checked: due.length, processed: results.length, deferred, backedOff, results, instagramTokensRefreshed, storyFoldersSynced, storyAlerts });
+  // Client-portal uploads: one report per uploader session, not one per upload.
+  let uploadReports = 0;
+  try {
+    uploadReports = await sendUploadReports();
+  } catch {
+    /* retried on the next run */
+  }
+
+  return NextResponse.json({ checked: due.length, processed: results.length, deferred, backedOff, results, instagramTokensRefreshed, storyFoldersSynced, storyAlerts, uploadReports });
 }

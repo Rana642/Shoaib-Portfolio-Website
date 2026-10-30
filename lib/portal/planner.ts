@@ -8,6 +8,7 @@ import { createScheduledPost, dateToScheduledAt, deleteScheduledPost, getSchedul
 import { resend, isResendConfigured, fromEmail, toEmail } from "@/lib/resend";
 import { deleteObject } from "@/lib/storage";
 import { plannerDayLabel, replaceFlaggedPostMedia } from "@/lib/post-review";
+import { markClientActivity } from "@/lib/upload-digest";
 
 // Client-portal uploads: final, approved graphics go straight onto the
 // planner as ordinary 'pending_caption' posts. Nothing publishes until the
@@ -31,7 +32,7 @@ const uploadSchema = z.object({
   files: z.array(z.object({ key: z.string().min(1).max(512), name: z.string().min(1).max(300) })).min(1).max(30),
 });
 
-/** Turns uploaded files into planner posts, and lets Shoaib know. */
+/** Turns uploaded files into planner posts; Shoaib hears about them in the session's upload report. */
 export async function createPortalUploads(input: z.infer<typeof uploadSchema>) {
   const parsed = uploadSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Those uploads couldn't be read." };
@@ -45,7 +46,7 @@ export async function createPortalUploads(input: z.infer<typeof uploadSchema>) {
   if (files.some((f) => !f.key.startsWith(prefix) || f.key.includes(".."))) return { error: "Those uploads couldn't be read." };
 
   const email = ctx.user.email ?? "client";
-  let created = 0;
+  const ids: string[] = [];
   for (const [i, file] of files.entries()) {
     const post = {
       project_id: projectId,
@@ -54,19 +55,22 @@ export async function createPortalUploads(input: z.infer<typeof uploadSchema>) {
       scheduled_at: dateToScheduledAt(date, i * 5),
     };
     try {
-      await createScheduledPost({ ...post, fromClient: { email, note: note || null } });
+      ids.push(await createScheduledPost({ ...post, fromClient: { email, note: note || null } }));
     } catch {
       // Before the uploader/note columns exist: still save the post itself.
       try {
-        await createScheduledPost(post);
+        ids.push(await createScheduledPost(post));
       } catch {
-        return { error: created ? `Saved ${created} of ${files.length} — please try the rest again.` : "Couldn't save your uploads — please try again." };
+        return { error: ids.length ? `Saved ${ids.length} of ${files.length} — please try the rest again.` : "Couldn't save your uploads — please try again." };
       }
     }
-    created++;
   }
+  const created = ids.length;
 
-  if (isResendConfigured) {
+  // Reported in one email when this person's upload session ends
+  // (lib/upload-digest.ts). Only before that column exists: email now.
+  const reportedLater = await markClientActivity(ids, { at: new Date().toISOString(), by: email, kind: "upload", note: note || null });
+  if (!reportedLater && isResendConfigured) {
     const [{ data: client }, { data: project }] = await Promise.all([
       db.from("clients").select("name").eq("id", ctx.clientId).maybeSingle(),
       db.from("client_projects").select("name").eq("id", projectId).maybeSingle(),
@@ -112,8 +116,8 @@ const replaceSchema = z.object({
 });
 
 /** The corrected image for a post marked "needs changes": it takes the old
- *  one's place (same day and slot) and goes back for a caption, and I get
- *  an email saying what was fixed. */
+ *  one's place (same day and slot) and goes back for a caption; the
+ *  session's upload report says what was fixed. */
 export async function replacePortalUpload(input: z.infer<typeof replaceSchema>) {
   const parsed = replaceSchema.safeParse(input);
   if (!parsed.success) return { error: "That image couldn't be read." };
@@ -135,7 +139,13 @@ export async function replacePortalUpload(input: z.infer<typeof replaceSchema>) 
   // The rejected image isn't needed any more.
   if (before.media_key !== file.key) await deleteObject(before.media_key).catch(() => {});
 
-  if (isResendConfigured) {
+  const reportedLater = await markClientActivity([postId], {
+    at: new Date().toISOString(),
+    by: ctx.user.email ?? "client",
+    kind: "fix",
+    fixed: { from: before.original_filename, issue: before.review_note ?? null },
+  });
+  if (!reportedLater && isResendConfigured) {
     const { data: project } = await db.from("client_projects").select("name").eq("id", post.project_id).maybeSingle();
     await resend.emails
       .send({
