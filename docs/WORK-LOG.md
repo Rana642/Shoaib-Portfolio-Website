@@ -4,6 +4,19 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-30 — Morning report email (5fe341a)
+- Shoaib chose a free code report over an AI agent team.
+- `lib/morning-report.ts` runs from the social cron and sends one email per PKT day, from 8 AM.
+- **Contents:**
+  - yesterday's live posts per project and platform, and stories;
+  - failures;
+  - Facebook re-sends;
+  - posts held by a login problem;
+  - what's left for today;
+  - empty days in the next 7, only where posts are waiting for a caption;
+  - what waits on us or on the client.
+- **Once a day:** `check_rate_limit('morning-report:<date>', 1)`. No new SQL.
+
 ## 2026-10-30 — Facebook posts stuck in Meta's scheduler; every FB post now checked on Facebook (c3dc725, 2e2aa3d)
 - **Found:** Shoaib saw no FB posts since 23 Oct on Avalon, Danish Construction and Eventia.
   - An audit of every Page found 36 posts (Avalon 7, Eventia 7, Danish 7, Silver Sand 6, Elegant 4 + 3 reels, Avenza Land 2). They were handed to Meta's own scheduler before the 24 Oct login checkpoint/reconnect, and sat in `/{page}/scheduled_posts` past their time without publishing.
