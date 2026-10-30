@@ -123,7 +123,7 @@ type Change = {
     contacts?: { wa_id: string; profile?: { name?: string } }[];
     messages?: WaMessage[];
     message_echoes?: WaMessage[];
-    statuses?: { id: string; status: string; timestamp: string; errors?: { title?: string; message?: string }[] }[];
+    statuses?: { id: string; status: string; timestamp: string; errors?: { code?: number; title?: string; message?: string; error_data?: { details?: string } }[] }[];
     /** Coexistence: past chats from the WhatsApp Business app (up to 6 months). */
     history?: { metadata?: { phase?: number; progress?: number }; threads?: { id: string; messages?: WaMessage[] }[] }[];
     /** Coexistence: the phone's contact list (adds / edits). */
@@ -201,7 +201,17 @@ export async function ingestWebhook(payload: { entry?: { changes?: Change[] }[] 
 
       // Delivery / read receipts for messages we sent
       for (const s of v.statuses ?? []) {
-        await db.from("wa_messages").update({ status: s.status }).eq("wamid", s.id);
+        // A failed receipt carries Meta's reason; keep it on the message (raw is
+        // otherwise empty for messages we sent) so the inbox can show why.
+        const why = s.errors?.[0];
+        await db
+          .from("wa_messages")
+          .update(
+            s.status === "failed" && why
+              ? { status: s.status, raw: { error: { code: why.code ?? null, title: why.title ?? null, message: why.message ?? why.error_data?.details ?? null } } }
+              : { status: s.status },
+          )
+          .eq("wamid", s.id);
         await broadcastReceipt(s.id, s.status, s.errors?.[0]?.message ?? s.errors?.[0]?.title);
       }
 

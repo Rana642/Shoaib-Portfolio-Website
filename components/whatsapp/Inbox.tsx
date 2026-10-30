@@ -255,7 +255,7 @@ export default async function Inbox({
     ? await Promise.all([
         db
           .from("wa_messages")
-          .select("id, direction, via, type, body, status, sent_at")
+          .select("id, direction, via, type, body, status, sent_at, error:raw->error")
           .eq("contact_id", active.id)
           .order("sent_at", { ascending: false })
           .limit(500),
@@ -453,6 +453,16 @@ export default async function Inbox({
                         {m.direction === "out" &&
                           ` · ${m.via === "app" ? "phone" : m.via === "auto" ? "auto-reply" : m.via === "broadcast" ? "broadcast" : "dashboard"}${m.status ? ` · ${m.status}` : ""}`}
                       </span>
+                      {m.direction === "out" && m.status === "failed" && (
+                        <span className="block text-[11px] text-red-700 mt-1">
+                          Not delivered
+                          {(() => {
+                            const e = m.error as { code?: number | null; title?: string | null; message?: string | null } | null;
+                            const text = e?.message ?? e?.title;
+                            return text ? `: ${text}${e?.code ? ` (code ${e.code})` : ""}` : " — Meta gave no reason.";
+                          })()}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
