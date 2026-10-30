@@ -253,10 +253,11 @@ export const SECTIONS: Section[] = [
     // One home for the industry systems we run for clients (Shoaib,
     // 2026-10-19). Each system is its own labelled group of tabs: Hotel
     // Management now — bookings, inquiries and guests from hotel websites and
-    // WhatsApp — and Salon Management or others as they're built. The client
+    // WhatsApp — and Salon Management, Careers or others as they're built. It
+    // belongs to Ads by Shoaib, NOT to the "Socially Snap Apps" dropdown
+    // (Shoaib, 2026-10-30), so it stays a top-level entry. The client
     // portal keeps its own simpler "Bookings" section.
     key: "business",
-    app: "socially-snap",
     label: "Business Management",
     icon: Store,
     description: "The systems we run for client businesses — hotel bookings, inquiries and guests today.",
