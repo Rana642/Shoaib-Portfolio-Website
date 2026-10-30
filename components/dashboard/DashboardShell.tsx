@@ -28,6 +28,10 @@ const WIDE_ROUTES = [
   "/portal/contacts",
 ];
 
+// The held-posts alert belongs where the posts are: Overview and the Planner
+// (Shoaib, 2026-10-30) — not on every page.
+const BANNER_ROUTES = ["/dashboard/social/planner", "/dashboard/social/stories"];
+
 const STORAGE_KEY = "dashboard-sidebar-collapsed";
 
 /**
@@ -45,7 +49,7 @@ export default function DashboardShell({
 }: {
   email: string;
   children: React.ReactNode;
-  /** A notice above every page's content (e.g. HeldPostsBanner). */
+  /** A notice above the content of Overview and the Planner only (HeldPostsBanner). */
   banner?: React.ReactNode;
   /** The client portal: same shell, its own sidebar items + sections, no PWA. */
   portal?: { nav: NavItem[]; sections?: Section[] };
@@ -136,7 +140,7 @@ export default function DashboardShell({
             isWide ? "max-w-none" : "max-w-[96rem]"
           )}
         >
-          {banner}
+          {(pathname === "/dashboard" || BANNER_ROUTES.some((r) => pathname.startsWith(r))) && banner}
           {children}
         </div>
       </main>
