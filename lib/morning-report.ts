@@ -54,10 +54,31 @@ const results = (r: Row): Res[] => {
   if (res.gbp) list.push(res.gbp as Res);
   return list;
 };
-const firstError = (r: Row) =>
-  String((r.result?.held as { error?: string } | undefined)?.error ?? results(r).find((p) => !p.ok)?.error ?? (r.result?.error as string | undefined) ?? "")
-    .replace(/\s+/g, " ")
-    .slice(0, 140);
+/** The usual platform errors in plain Roman Urdu (the report is for Shoaib, not a developer); anything else keeps its own words. */
+const REASONS: [RegExp, string][] = [
+  [/never published.*video is no longer in storage/i, "Facebook par kabhi nahi gayi. Dobara lagane ke liye video storage mein nahi hai, video dobara upload karni ho gi"],
+  [/never published.*image is no longer in storage/i, "Facebook par kabhi nahi gayi. Dobara lagane ke liye image storage mein nahi mili, image dobara upload karni ho gi"],
+  [/never published/i, "Facebook par kabhi nahi gayi, aur dobara lagane ki koshish bhi fail hui"],
+  [/cannot access the app till you log in/i, "jis Facebook account se connection hai us par security checkpoint hai. facebook.com par login karke instructions poori karein"],
+  [/permission\(s\) must be granted|pages_read_engagement|does not have permission|permissions? (error|missing)/i, "connection ki permission chali gayi hai. Connections page se dobara connect karein"],
+  [/validating access token|session has expired|has been invalidated|token.*(expired|invalid)|re-?authori[sz]e|reconnect/i, "login expire ho gaya hai. Connections page se dobara connect karein"],
+  [/missing or invalid image file|no longer in storage|404/i, "post ki image/video storage mein nahi mili"],
+  [/google-friendly pace|per location per 24 hours/i, "Google ki roz ki limit poori ho gayi, agle din jaye gi"],
+  [/rate limit|too many (calls|requests)|request limit|quota|limit (reached|exceeded)/i, "platform ki limit poori ho gayi, khud dobara try ho gi"],
+  [/unexpected end of json|unexpected token|timed? ?out|timeout|ETIMEDOUT|ECONNRESET|temporar|try again later|unknown error|service unavailable/i, "platform ne waqt par jawab nahi diya (aarzi masla)"],
+  [/aspect ratio|resolution|duration|too (long|short)|video.*(length|size)|file size/i, "video ka size ya lambai platform ki shart ke mutabiq nahi"],
+  [/duplicate/i, "ye post pehle hi lag chuki hai (duplicate)"],
+];
+const PLATFORM_LONG = { facebook: "Facebook", instagram: "Instagram", linkedin: "LinkedIn", google_business: "Google", tiktok: "TikTok", youtube: "YouTube" } as Record<string, string>;
+const firstError = (r: Row) => {
+  const held = (r.result?.held as { error?: string } | undefined)?.error;
+  const failed = results(r).find((p) => !p.ok);
+  const raw = String(held ?? failed?.error ?? (r.result?.error as string | undefined) ?? "").replace(/\s+/g, " ").trim();
+  if (!raw) return "";
+  const reason = REASONS.find(([re]) => re.test(raw))?.[1] ?? `masla: ${raw.slice(0, 120)}`;
+  const where = !held && failed ? PLATFORM_LONG[failed.platform] : null;
+  return where && !reason.startsWith(where) ? `${where}: ${reason}` : reason;
+};
 
 const select = "id, project_id, status, post_type, scheduled_at, created_at, original_filename, result, project:client_projects(name)";
 
@@ -115,10 +136,17 @@ export async function buildMorningReport(now = Date.now()): Promise<{ subject: s
   const failedLines = failed
     .filter((r) => r.post_type !== "story")
     .map((r) => `• ${nameOf(r)} · ${r.original_filename} (${time(r.scheduled_at!)}): ${firstError(r)}`);
-  if (failedStories.length) {
-    const by = new Map<string, number>();
-    for (const r of failedStories) by.set(nameOf(r), (by.get(nameOf(r)) ?? 0) + 1);
-    for (const [name, n] of by) failedLines.push(`• ${name}: ${n} stor${n === 1 ? "y" : "ies"} fail (${firstError(failedStories.find((r) => nameOf(r) === name)!)})`);
+  // Stories are grouped by reason, so one checkpoint doesn't fill the email.
+  const storiesByReason = new Map<string, Map<string, number>>();
+  for (const r of failedStories) {
+    const by = storiesByReason.get(firstError(r)) ?? new Map<string, number>();
+    by.set(nameOf(r), (by.get(nameOf(r)) ?? 0) + 1);
+    storiesByReason.set(firstError(r), by);
+  }
+  for (const [reason, by] of storiesByReason) {
+    const n = [...by.values()].reduce((a, b) => a + b, 0);
+    const who = [...by.entries()].map(([name, c]) => (by.size === 1 ? name : `${name} ${c}`)).join(", ");
+    failedLines.push(`• ${n} stor${n === 1 ? "y" : "ies"} fail (${who}): ${reason}`);
   }
   section("MASLE (KAL)", failedLines, "Koi masla nahi ✓");
 
