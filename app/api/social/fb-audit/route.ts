@@ -3,6 +3,8 @@ import { isCronRequest } from "@/lib/cron-auth";
 import { db } from "@/lib/dashboard/db";
 import { decryptAccountToken, listAllSocialAccounts } from "@/lib/social-accounts";
 import { GRAPH_BASE, deleteFacebookPostStrict } from "@/lib/social-fb";
+import { getScheduledPost } from "@/lib/scheduled-posts";
+import { isWithinNativeScheduleWindow, submitNativeSchedule, type PlatformPostResult } from "@/lib/social-post";
 
 // TEMPORARY, read-only (2026-10-30): which Planner Facebook posts Meta really
 // published or still holds as scheduled, per Page. Remove once the audit is done.
@@ -74,11 +76,36 @@ export async function GET(request: Request) {
   return NextResponse.json({ since, pages });
 }
 
-/** Strictly deletes the given stuck Meta-side posts ("{page}_{post}"), each with its own Page's token. */
+/** `ids`: strictly deletes the given stuck Meta-side posts ("{page}_{post}"), each with its own Page's token.
+ *  `resubmit`: Planner row ids whose upcoming native Facebook drafts are cancelled (strictly) and handed
+ *  to Meta again with the Page's current token, at the same time. Keep to ~3 rows per call (60 s limit). */
 export async function POST(request: Request) {
   if (!(await isCronRequest(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { ids } = (await request.json()) as { ids?: string[] };
+  const { ids, resubmit } = (await request.json()) as { ids?: string[]; resubmit?: string[] };
   const accounts = (await listAllSocialAccounts()).filter((a) => a.platform === "facebook" && a.is_active);
+  if (resubmit?.length) {
+    const results = [];
+    for (const rowId of resubmit) {
+      try {
+        const post = await getScheduledPost(rowId);
+        if (!post || post.status !== "scheduled" || !post.caption || !post.scheduled_at) throw new Error("not a scheduled, captioned post");
+        if (!isWithinNativeScheduleWindow(post.scheduled_at)) throw new Error("outside Meta's 10 min – 30 day window");
+        const result = (post.result ?? {}) as { native?: PlatformPostResult[] };
+        for (const r of (result.native ?? []).filter((n) => n.native && n.ok && n.post_id)) {
+          const account = accounts.find((a) => a.external_id === r.external_id);
+          if (!account) throw new Error(`Page ${r.external_id} not connected`);
+          await deleteFacebookPostStrict(r.post_id!, decryptAccountToken(account));
+        }
+        const fresh = await submitNativeSchedule(post.project_id, post.media_key, post.caption, post.scheduled_at, post.target_platforms, post.post_type);
+        const { error } = await db.from("scheduled_posts").update({ result: { ...result, native: fresh } }).eq("id", rowId);
+        if (error) throw new Error(error.message);
+        results.push({ id: rowId, ok: fresh.every((f) => f.ok), native: fresh.map((f) => (f.ok ? f.post_id : `FAIL ${f.error}`)) });
+      } catch (e) {
+        results.push({ id: rowId, ok: false, error: e instanceof Error ? e.message : String(e) });
+      }
+    }
+    return NextResponse.json({ results });
+  }
   const results = await Promise.all(
     (ids ?? []).map(async (id) => {
       const account = accounts.find((a) => a.external_id === id.split("_")[0]);
