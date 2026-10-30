@@ -14,6 +14,7 @@ import { restorePublishedMedia } from "@/lib/social-media-restore";
 import { watchDriveStories } from "@/lib/story-watchdog";
 import { sendUploadReports } from "@/lib/upload-digest";
 import { verifyFacebookPosts } from "@/lib/social-verify";
+import { sendMorningReport } from "@/lib/morning-report";
 import { alertHeldPosts, holdLimitMs, HOLD_RETRY_MS, isRateLimited, isRetryable, isWaitingToRetry, type HoldInfo } from "@/lib/social-connection-hold";
 
 // Cron runs every 15 min (vercel.json) but a batch of due posts still fires
@@ -319,5 +320,13 @@ export async function GET(request: Request) {
     console.error("[social-cron] Facebook check failed:", error);
   }
 
-  return NextResponse.json({ checked: due.length, processed: results.length, deferred, backedOff, results, instagramTokensRefreshed, storyFoldersSynced, storyAlerts, uploadReports, facebookChecked });
+  // The morning report: once a day from 8 AM PKT.
+  let morningReport = false;
+  try {
+    morningReport = await sendMorningReport();
+  } catch (error) {
+    console.error("[social-cron] morning report failed:", error);
+  }
+
+  return NextResponse.json({ checked: due.length, processed: results.length, deferred, backedOff, results, instagramTokensRefreshed, storyFoldersSynced, storyAlerts, uploadReports, facebookChecked, morningReport });
 }
