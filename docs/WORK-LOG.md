@@ -4,6 +4,24 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-30 — Facebook posts stuck in Meta's scheduler; every FB post now checked on Facebook (c3dc725, 2e2aa3d)
+- **Found:** Shoaib saw no FB posts since 23 Oct on Avalon, Danish Construction and Eventia.
+  - An audit of every Page found 36 posts (Avalon 7, Eventia 7, Danish 7, Silver Sand 6, Elegant 4 + 3 reels, Avenza Land 2). They were handed to Meta's own scheduler before the 24 Oct login checkpoint/reconnect, and sat in `/{page}/scheduled_posts` past their time without publishing.
+  - The Planner showed them as posted. IG, LinkedIn and GBP were fine.
+- **Fixed the same day:**
+  - The stuck drafts were deleted.
+  - The 5 Jummah posts were re-sent first; the other 28 went out across the evening, FB only.
+  - All 62 upcoming native drafts were re-submitted with the current Page tokens.
+  - The temporary cron-auth route `app/api/social/fb-audit` (GET audit, POST delete/resubmit) is still deployed.
+- **Re-sent rows lost their image:** "Missing or invalid image file", because the upload is deleted after posting. Fix c544c8c: `restorePublishedMedia` now also takes the image from the row's own IG/FB copy.
+- **For good:** `lib/social-verify.ts` runs at the end of every social cron.
+  - From 20 min after a post's time (for 3 days) it looks each FB result up on Facebook.
+  - Live → `verified_at`. Stuck or missing → cancel the draft, post it live now (2 per run), and email Shoaib.
+  - Lookup errors are retried; after 4 tries they're in the email.
+  - "Missing" counts only when the token can still read the Page, so a permission problem never double-posts.
+  - The cron keeps a posted row's upload until its native FB copy is verified, so a stuck Reel can still be re-sent.
+- **Open:** Elegant reels ROOM-201 (28 Oct) and ROOM-103 (29 Oct) never reached FB, and their videos are gone (they're on IG). They need the files again.
+
 ## 2026-10-30 — Portal uploads: one report per session, not one email per upload
 - Shoaib asked for no alert on every single upload (e.g. Fatima uploading one post at a time). He wants one combined report saying which projects' posts were uploaded.
 - **On upload or fix:** a portal upload or fixed re-upload marks its post with `scheduled_posts.client_activity` (who, when, note, what was fixed).
