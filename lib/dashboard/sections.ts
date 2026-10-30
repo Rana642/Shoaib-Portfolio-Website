@@ -197,8 +197,8 @@ export const SECTIONS: Section[] = [
     app: "socially-snap",
     label: "Marketing",
     icon: Megaphone,
-    description: "Insights, YouTube, ads and Google Business.",
-    match: [`${D}/social`, `${D}/ads`, `${D}/gbp`, `${D}/youtube`],
+    description: "Insights, YouTube and Meta ads.",
+    match: [`${D}/social`, `${D}/ads`, `${D}/youtube`],
     groups: [
       {
         title: "Social",
@@ -208,14 +208,22 @@ export const SECTIONS: Section[] = [
         ],
       },
       {
-        title: "Ads & listings",
-        items: [
-          { href: `${D}/ads`, label: "Meta Ads", icon: Megaphone },
-          { href: `${D}/gbp`, label: "Google Business", icon: MapPin },
-        ],
+        title: "Ads",
+        items: [{ href: `${D}/ads`, label: "Meta Ads", icon: Megaphone }],
       },
       { title: "Setup", items: [{ href: `${D}/social`, label: "Connections", icon: Link2, exact: true }] },
     ],
+  },
+  {
+    // Its own app in the Socially Snap dropdown (Shoaib, 2026-10-30), out of
+    // Marketing. One page, so no tabs.
+    key: "gbp",
+    app: "socially-snap",
+    label: "Google Business",
+    icon: MapPin,
+    description: "Reviews, replies and posts for every connected Google Business Profile.",
+    match: [`${D}/gbp`],
+    groups: [{ title: "Google Business", items: [{ href: `${D}/gbp`, label: "Google Business", icon: MapPin }] }],
   },
   {
     key: "whatsapp",
