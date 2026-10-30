@@ -158,7 +158,10 @@ export async function ingestWebhook(payload: { entry?: { changes?: Change[] }[] 
         });
         if (error) continue; // duplicate delivery (wamid unique)
 
-        const update: Record<string, unknown> = { last_message_at: at, last_inbound_at: at };
+        // An "errors" event is Meta saying it couldn't deliver something to us — not a guest
+        // message, so it must not open the 24-hour reply window.
+        const update: Record<string, unknown> =
+          m.type === "errors" ? { last_message_at: at } : { last_message_at: at, last_inbound_at: at };
         // First touch wins: the website Ref, or the Click-to-WhatsApp ad.
         if (!contact.ref_source) {
           const ref = parseRef(body);
@@ -212,6 +215,7 @@ export async function ingestWebhook(payload: { entry?: { changes?: Change[] }[] 
               : { status: s.status },
           )
           .eq("wamid", s.id);
+        if (s.status === "failed") await undoFailedReply(s.id, why?.code);
         await broadcastReceipt(s.id, s.status, s.errors?.[0]?.message ?? s.errors?.[0]?.title);
       }
 
@@ -288,6 +292,25 @@ export async function markReplied(contactId: string, at: string) {
       ...(data?.intervened_at ? {} : { intervened_at: at }),
     })
     .eq("id", contactId);
+}
+
+/**
+ * A send Meta accepted can still fail afterwards. Then the chat was never really
+ * answered: take back the Intervened mark that this message set, and if Meta says the
+ * reply window is closed (131047), close it here too so the inbox asks for a template.
+ */
+async function undoFailedReply(wamid: string, code?: number) {
+  const { data: m } = await db
+    .from("wa_messages")
+    .select("contact_id, sent_at, direction")
+    .eq("wamid", wamid)
+    .maybeSingle();
+  if (!m || m.direction !== "out") return;
+  const { data: c } = await db.from("wa_contacts").select("intervened_at").eq("id", m.contact_id).single();
+  const patch: Record<string, unknown> = {};
+  if (c?.intervened_at && new Date(c.intervened_at).getTime() === new Date(m.sent_at).getTime()) patch.intervened_at = null;
+  if (code === 131047) patch.last_inbound_at = null;
+  if (Object.keys(patch).length) await db.from("wa_contacts").update(patch).eq("id", m.contact_id);
 }
 
 /** Minutes a guest waits unanswered before the chat moves to Requesting. */
