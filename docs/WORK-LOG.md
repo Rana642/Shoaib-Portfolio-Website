@@ -4,6 +4,17 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-31 (evening) — where to pick up: App Review video on the home PC
+- **Next:** record the Meta App Review video. The plan, captions, test Page (Ads by Shoaib + @adsbyshoaib) and open decisions are in the vault memory `meta-app-review-video`. Do NOT submit without Shoaib.
+- **Facebook logins now:** 15 of 16 Pages are on Shoaib's login.
+  - Eventia (FB + IG) and Danish (FB) were moved there at 17:10 (fb-audit POST `move` → `saveFacebookPageMappings`).
+  - Only Hotel Avalon is on Ajaz Hussain's login (slot 2). Ajaz should give Shoaib access, then move it.
+- **Meta app hourly limit hit (#4)** around 17:00 from debug_token and /me bursts. Login health, the broken count and token owners are now cached (a362241). Page-token posting was unaffected: 11 posts went out OK in the 90 minutes after.
+- **fb_login_name:** only the real profile name is saved (eaf17a8). It had briefly been "Facebook login 1" when /me failed.
+- **Still open:**
+  - Elegant reels ROOM-201/103 need the video files again.
+  - The temporary `/api/social/fb-audit` route (cron-auth; debug, choices, move) is still deployed.
+
 ## 2026-10-31 — Facebook logins: see and choose which login each Page uses (a33744e)
 - **What broke:** Ajaz Hussain (the second login, the same FB user as "Ijaz Danish") reconnected at 16:21. "Newest login wins" then moved 9 Pages onto his token.
   - His login never granted `pages_read_user_content`. It had been dropped from the login scope on 10-28.
