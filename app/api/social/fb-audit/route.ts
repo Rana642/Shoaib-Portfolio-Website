@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isCronRequest } from "@/lib/cron-auth";
 import { db } from "@/lib/dashboard/db";
-import { decryptAccountToken, facebookPageChoices, listAllSocialAccounts } from "@/lib/social-accounts";
+import { decryptAccountToken, facebookPageChoices, listAllSocialAccounts, saveFacebookPageMappings } from "@/lib/social-accounts";
 import { decryptToken } from "@/lib/social-crypto";
 import { GRAPH_BASE, deleteFacebookPostStrict } from "@/lib/social-fb";
 import { getScheduledPost } from "@/lib/scheduled-posts";
@@ -131,7 +131,23 @@ export async function GET(request: Request) {
  *  to Meta again with the Page's current token, at the same time. Keep to ~3 rows per call (60 s limit). */
 export async function POST(request: Request) {
   if (!(await isCronRequest(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { ids, resubmit } = (await request.json()) as { ids?: string[]; resubmit?: string[] };
+  const { ids, resubmit, move } = (await request.json()) as {
+    ids?: string[];
+    resubmit?: string[];
+    /** Same as picking these Pages in Import Pages with a login chosen (saveFacebookPageMappings). */
+    move?: { page_id: string; project_id: string; login_slot: 1 | 2 }[];
+  };
+  if (move?.length) {
+    const valid = move.every(
+      (m) => /^\d{1,30}$/.test(m.page_id) && /^[0-9a-f-]{36}$/.test(m.project_id) && (m.login_slot === 1 || m.login_slot === 2)
+    );
+    if (!valid) return NextResponse.json({ error: "Invalid move data." }, { status: 400 });
+    try {
+      return NextResponse.json({ changed: await saveFacebookPageMappings(move) });
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 400 });
+    }
+  }
   const accounts = (await listAllSocialAccounts()).filter((a) => a.platform === "facebook" && a.is_active);
   if (resubmit?.length) {
     const results = [];
