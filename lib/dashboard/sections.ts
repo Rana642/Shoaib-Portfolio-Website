@@ -14,7 +14,6 @@ import {
   KeyRound,
   LayoutDashboard,
   LayoutGrid,
-  Link2,
   MapPin,
   Megaphone,
   MessageCircle,
@@ -47,7 +46,8 @@ import {
  * entry per section; inside a section its pages are tabs across the top of
  * the page (components/dashboard/SectionNav). A section's own setup lives
  * in its last group ("Setup"), pinned to the right of the tabs — so bank
- * accounts sit in Finance, social connections in Marketing, and so on.
+ * accounts sit in Finance, WhatsApp numbers in WhatsApp, and so on (social
+ * logins have their own Socially Snap → Settings → Integrations).
  * Page URLs are unchanged — a section just claims the paths that start
  * with one of its `match` prefixes; when two sections claim a path, the
  * longer (more specific) prefix wins (Planner's /social/planner over
@@ -198,7 +198,7 @@ export const SECTIONS: Section[] = [
     label: "Marketing",
     icon: Megaphone,
     description: "Insights, YouTube and Meta ads.",
-    match: [`${D}/social`, `${D}/ads`, `${D}/youtube`],
+    match: [`${D}/social/insights`, `${D}/ads`, `${D}/youtube`],
     groups: [
       {
         title: "Social",
@@ -211,7 +211,6 @@ export const SECTIONS: Section[] = [
         title: "Ads",
         items: [{ href: `${D}/ads`, label: "Meta Ads", icon: Megaphone }],
       },
-      { title: "Setup", items: [{ href: `${D}/social`, label: "Connections", icon: Link2, exact: true }] },
     ],
   },
   {
@@ -256,6 +255,20 @@ export const SECTIONS: Section[] = [
         ],
       },
     ],
+  },
+  {
+    // The Socially Snap apps' own settings, last in the dropdown (Shoaib,
+    // 2026-10-31). Integrations (the old Marketing → Connections page, same
+    // URL — every OAuth callback returns there) shows every login and
+    // connected account with its health in one place. More tabs (alerts, …)
+    // join this section later.
+    key: "socially-settings",
+    app: "socially-snap",
+    label: "Settings",
+    icon: SettingsIcon,
+    description: "Integrations: every login and connected account, and whether it's working.",
+    match: [`${D}/social`],
+    groups: [{ title: "Settings", items: [{ href: `${D}/social`, label: "Integrations", icon: Plug, exact: true }] }],
   },
   {
     // One home for the industry systems we run for clients (Shoaib,

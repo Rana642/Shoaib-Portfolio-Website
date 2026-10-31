@@ -430,7 +430,7 @@ export default async function InsightsPage({
         {sections.length === 0 ? (
           <EmptyState
             title="No Facebook, Instagram or LinkedIn Page on this project"
-            description="Map a Page (and its linked Instagram) or a LinkedIn Company Page to this project on the Connections page first."
+            description="Map a Page (and its linked Instagram) or a LinkedIn Company Page to this project in Settings → Integrations first."
             action={<LinkButton href="/dashboard/social">Go to Connections</LinkButton>}
           />
         ) : (

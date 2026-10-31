@@ -33,6 +33,17 @@ type ImportState =
   | { provider: "facebook"; pages: PageChoice[] }
   | { provider: "linkedin"; orgs: DiscoveredOrganization[] };
 
+/** A login Meta has blocked: posts held since `since` (lib/social-connection-hold.ts). */
+export type BlockedInfo = { since: string; posts: number; accounts: string };
+/** A Facebook login's health on the Integrations page. */
+export type LoginHealth = { pages: number; blocked: BlockedInfo | null };
+/** Another app's setup, shown as a small link card (Google Business, WhatsApp). */
+export type OtherApp = { key: string; title: string; detail: string; href: string };
+
+// Fixed locale + zone so server and browser render the same string (no hydration mismatch).
+const pktTime = (iso: string) =>
+  new Date(iso).toLocaleString("en-GB", { timeZone: "Asia/Karachi", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true });
+
 const byKey = (key: PlatformKey) => PLATFORMS.find((p) => p.key === key) as PlatformDef;
 
 export default function ConnectionsHub({
@@ -42,6 +53,10 @@ export default function ConnectionsHub({
   youtubeSubscribers,
   facebookLogin,
   facebookLogin2,
+  facebookHealth,
+  facebookHealth2,
+  otherBlocked = [],
+  otherApps = [],
   linkedinLogin,
   clientsMissingProject,
   initialProjectId,
@@ -56,6 +71,11 @@ export default function ConnectionsHub({
   facebookLogin: WorkspaceLogin;
   /** A second Facebook profile with access to other clients' Pages. */
   facebookLogin2: WorkspaceLogin;
+  facebookHealth?: LoginHealth;
+  facebookHealth2?: LoginHealth;
+  /** Blocked logins that aren't one of the two Facebook logins (Instagram Login accounts…). */
+  otherBlocked?: (BlockedInfo & { name: string })[];
+  otherApps?: OtherApp[];
   linkedinLogin: WorkspaceLogin;
   clientsMissingProject: string[];
   initialProjectId: string | null;
@@ -254,6 +274,7 @@ export default function ConnectionsHub({
             title="Facebook Business login"
             subtitle="Discovers every Page & linked Instagram you admin"
             login={facebookLogin}
+            health={facebookHealth}
             primary={{ label: facebookLogin.connectedAt ? "Reconnect" : "Connect with Facebook", href: "/api/dashboard/social/facebook/authorize" }}
             onImport={facebookLogin.connectedAt ? () => openImport("facebook") : undefined}
             importing={loading === "facebook"}
@@ -263,6 +284,7 @@ export default function ConnectionsHub({
             title="Second Facebook login"
             subtitle="Another profile with access to client Pages. Import Pages lists both logins' Pages."
             login={facebookLogin2}
+            health={facebookHealth2}
             primary={{ label: facebookLogin2.connectedAt ? "Reconnect" : "Connect second profile", href: "/api/dashboard/social/facebook/authorize?slot=2" }}
             onImport={facebookLogin2.connectedAt ? () => openImport("facebook") : undefined}
             importing={loading === "facebook"}
@@ -288,6 +310,26 @@ export default function ConnectionsHub({
             importing={loading === "linkedin"}
           />
         </div>
+        {otherBlocked.map((b) => (
+          <p key={b.name} role="alert" className="mt-4 text-small text-red-700 bg-red-500/10 border border-red-600/20 rounded-lg px-4 py-3">
+            <span className="font-semibold">{b.name}: stopped since {pktTime(b.since)}</span> — {b.posts} post{b.posts === 1 ? "" : "s"} on hold ({b.accounts}). Reconnect it below.
+          </p>
+        ))}
+        {otherApps.length > 0 && (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 mt-4">
+            {otherApps.map((app) => (
+              <a key={app.key} href={app.href} className="group">
+                <Card className="p-4 flex items-center justify-between gap-3 transition-colors group-hover:border-ink/25">
+                  <div>
+                    <p className="font-semibold text-small">{app.title}</p>
+                    <p className="text-tag text-ink-subtle mt-0.5">{app.detail} · managed in its own app</p>
+                  </div>
+                  <ArrowUpRight className="size-4 text-ink-subtle" aria-hidden />
+                </Card>
+              </a>
+            ))}
+          </div>
+        )}
         {error && (
           <p className="mt-4 text-small text-red-700 bg-red-500/10 border border-red-600/20 rounded-lg px-4 py-3">{error}</p>
         )}
@@ -430,6 +472,7 @@ function LoginCard({
   title,
   subtitle,
   login,
+  health,
   primary,
   onImport,
   importing,
@@ -440,6 +483,8 @@ function LoginCard({
   title: string;
   subtitle: string;
   login: WorkspaceLogin;
+  /** Pages it serves and whether Meta has it blocked (Facebook logins). */
+  health?: LoginHealth;
   primary?: { label: string; href: string };
   onImport?: () => void;
   importing: boolean;
@@ -458,24 +503,38 @@ function LoginCard({
     status = "pending";
     pillLabel = "Expires soon";
   }
+  const blocked = login.connectedAt ? health?.blocked : null;
 
   return (
-    <Card className="p-5">
+    <Card className={cn("p-5", blocked && "border-red-600/40")}>
       <div className="flex items-start gap-4">
         <PlatformChip platform={platform} />
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-semibold">{title}</p>
-            <StatusPill status={status} label={pillLabel} />
+            {blocked ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-red-600/30 bg-red-500/10 px-2.5 py-1 text-tag font-medium text-red-700 whitespace-nowrap">
+                <span className="size-1.5 rounded-full bg-red-600" aria-hidden />
+                Reconnect needed
+              </span>
+            ) : (
+              <StatusPill status={status} label={pillLabel} />
+            )}
           </div>
           <p className="text-tag text-ink-subtle mt-1">{subtitle}</p>
           <p className="text-small text-ink-muted mt-2">
             {login.connectedAt
-              ? `${login.accountName ? `${login.accountName} · ` : ""}Connected ${fmt(login.connectedAt)}${login.expiresAt ? ` · valid until ${fmt(login.expiresAt)}` : ""}`
+              ? `${login.accountName ? `${login.accountName} · ` : ""}${health && health.pages ? `${health.pages} Page${health.pages === 1 ? "" : "s"} · ` : ""}Connected ${fmt(login.connectedAt)}${login.expiresAt ? ` · valid until ${fmt(login.expiresAt)}` : ""}`
               : login.pendingApproval
                 ? "Waiting on the platform's API access review."
                 : "Not connected yet."}
           </p>
+          {blocked && (
+            <p role="alert" className="text-small text-red-700 bg-red-500/10 border border-red-600/20 rounded-lg px-3 py-2 mt-3">
+              <span className="font-semibold">Stopped since {pktTime(blocked.since)}</span> — {blocked.posts} post{blocked.posts === 1 ? "" : "s"} on hold: {blocked.accounts}.
+              {" "}Log in at facebook.com as {login.accountName ?? "this profile"}, finish any security check, then press Reconnect and select all Pages. The held posts go out by themselves.
+            </p>
+          )}
           {hint && <p className="text-tag text-ink-subtle mt-1">{hint}</p>}
           <div className="flex flex-wrap gap-2 mt-4">
             {onImport && (

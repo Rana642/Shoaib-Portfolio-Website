@@ -200,7 +200,7 @@ export async function verifyFacebookPosts(deadline: number): Promise<number> {
           "",
           ...report,
           "",
-          `Planner: ${siteUrl}/dashboard/social`,
+          `Planner: ${siteUrl}/dashboard/social/planner`,
         ].join("\n"),
       })
       .catch(() => {});

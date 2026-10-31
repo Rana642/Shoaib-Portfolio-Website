@@ -40,7 +40,7 @@ export default async function HeldPostsBanner() {
           <p className="mt-1">
             {blockedLoginFix(login)} The held posts then go out by themselves.{" "}
             <Link href="/dashboard/social" className="font-semibold underline underline-offset-2">
-              Open Social
+              Open Integrations
             </Link>
           </p>
         </div>

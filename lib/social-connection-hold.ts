@@ -161,9 +161,9 @@ export function blockedLoginTitle(login: BlockedLogin): string {
 
 /** What to do about it, naming the profile to log in with. */
 export function blockedLoginFix(login: BlockedLogin): string {
-  if (login.kind === "instagram") return `Reconnect ${login.name} with Instagram on the Social page.`;
+  if (login.kind === "instagram") return `Reconnect ${login.name} with Instagram in Socially Snap → Settings → Integrations.`;
   const who = login.name ? `as ${login.name}` : "with the profile that connected these Pages";
-  return `Log in at facebook.com ${who}, finish the security check, then reconnect that login on the Social page.`;
+  return `Log in at facebook.com ${who}, finish the security check, then reconnect that login in Socially Snap → Settings → Integrations.`;
 }
 
 /** "Hotel Avalon Suites (Facebook, Instagram) · Danish Construction (Facebook)" */

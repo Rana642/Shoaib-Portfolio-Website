@@ -5,10 +5,11 @@ import ConnectionsHub, { type HubAccount } from "@/components/dashboard/social/c
 import { getTikTokAccountSummary } from "@/lib/social-tiktok";
 import { getYouTubeChannelSummary } from "@/lib/social-youtube";
 import { listFacebookLogins } from "@/lib/social-accounts";
+import { heldPostsSummary, blockedAccountsLine, type BlockedLogin } from "@/lib/social-connection-hold";
 import type { ClientSocialAccount } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Connections" };
+export const metadata = { title: "Integrations" };
 
 export default async function SocialConnectionsPage({
   searchParams,
@@ -35,7 +36,11 @@ export default async function SocialConnectionsPage({
     db.from("social_connections").select("connected_at, fb_token_expires_at, li_connected_at, li_token_expires_at").eq("id", 1).maybeSingle(),
     listFacebookLogins(),
   ]);
-  const { data: gbp } = await db.from("gbp_connections").select("project_id, locations, selected_location");
+  const [{ data: gbp }, { count: waNumbers }, held] = await Promise.all([
+    db.from("gbp_connections").select("project_id, locations, selected_location"),
+    db.from("wa_accounts").select("id", { count: "exact", head: true }),
+    heldPostsSummary().catch(() => ({ count: 0, error: null, logins: [] as BlockedLogin[] })),
+  ]);
 
   const allAccounts = (accounts ?? []) as ClientSocialAccount[];
   const tiktokAccounts = allAccounts.filter((a) => a.platform === "tiktok");
@@ -62,6 +67,21 @@ export default async function SocialConnectionsPage({
   const fb2 = fbLogins.find((l) => l.slot === 2)!;
   const fb1Name = fbLogins.find((l) => l.slot === 1)?.name ?? null;
 
+  // Each Facebook login's health: how many Pages it serves, and whether Meta
+  // has it blocked (posts held — lib/social-connection-hold.ts).
+  const healthOf = (name: string | null) => {
+    const blocked = name ? held.logins.find((l) => l.kind === "facebook" && l.name === name) : undefined;
+    return {
+      pages: name ? allAccounts.filter((a) => a.platform === "facebook" && a.fb_login_name === name).length : 0,
+      blocked: blocked ? { since: blocked.since, posts: blocked.count, accounts: blockedAccountsLine(blocked) } : null,
+    };
+  };
+  // Instagram Login accounts (and logins whose profile isn't recorded) that are blocked.
+  const otherBlocked = held.logins
+    .filter((l) => l.kind === "instagram" || (l.name !== fb1Name && l.name !== fb2.name))
+    .map((l) => ({ name: l.kind === "instagram" ? `Instagram login ${l.name}` : (l.name ?? "A Facebook profile"), since: l.since, posts: l.count, accounts: blockedAccountsLine(l) }));
+  const gbpProjects = new Set(((gbp ?? []) as { project_id: string; selected_location: string | null }[]).filter((g) => g.selected_location).map((g) => g.project_id)).size;
+
   // Never ship encrypted tokens to the browser — the hub only needs identity.
   const hubAccounts: HubAccount[] = allAccounts.map(({ id, project_id, platform, label, external_id }) => ({
     id,
@@ -86,8 +106,8 @@ export default async function SocialConnectionsPage({
   return (
     <>
       <PageHeader
-        title="Connections"
-        description="Link each client project to its social and ad platforms. Workspace logins discover accounts once; projects pick what they use."
+        title="Integrations"
+        description="Every login and connected account in one place, and whether it's working. Workspace logins discover accounts once; each client project picks what it uses."
       />
       {params.li === "connected" && (
         <div className="rounded-lg border border-green-600/25 bg-green-500/10 text-green-800 px-4 py-3 text-small mb-6">
@@ -116,6 +136,13 @@ export default async function SocialConnectionsPage({
           expiresSoon: fb2.expiresAt ? new Date(fb2.expiresAt).getTime() - now < 14 * 86_400_000 : false,
           accountName: fb2.name,
         }}
+        facebookHealth={healthOf(fb1Name)}
+        facebookHealth2={healthOf(fb2.name)}
+        otherBlocked={otherBlocked}
+        otherApps={[
+          { key: "gbp", title: "Google Business", detail: `${gbpProjects} project${gbpProjects === 1 ? "" : "s"} with a location`, href: "/dashboard/gbp" },
+          { key: "whatsapp", title: "WhatsApp numbers", detail: `${waNumbers ?? 0} number${waNumbers === 1 ? "" : "s"} connected`, href: "/dashboard/whatsapp/numbers" },
+        ]}
         linkedinLogin={{
           provider: "linkedin",
           connectedAt: connection?.li_connected_at ?? null,

@@ -123,7 +123,7 @@ export async function getFreshInstagramLoginToken(account: ClientSocialAccount):
   const token = decryptAccountToken(account);
   const expiresAt = account.token_expires_at ? new Date(account.token_expires_at).getTime() : Infinity;
   const left = expiresAt - Date.now();
-  if (left <= 0) throw new Error(`The Instagram login for ${account.label} expired — log in with Instagram again on the Connections page.`);
+  if (left <= 0) throw new Error(`The Instagram login for ${account.label} expired — log in with Instagram again in Settings → Integrations.`);
   const age = LIFETIME_MS - left;
   if (left > REFRESH_WHEN_LEFT_MS || age < DAY_MS) return token;
   try {

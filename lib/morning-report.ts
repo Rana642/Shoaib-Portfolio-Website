@@ -209,7 +209,7 @@ export async function buildMorningReport(now = Date.now()): Promise<{ subject: s
 
   const problems = failed.length + held.length;
   const subject = `Subah ki report · ${dayLabel(today)}: kal ${postsLive} post${postsLive === 1 ? "" : "s"} live${problems ? `, ${problems} ${problems === 1 ? "masla" : "masle"}` : ", sab theek"}`;
-  const text = [`Planner ki subah ki report: ${dayLabel(today)}`, ...lines, "", `Planner: ${siteUrl}/dashboard/social`].join("\n");
+  const text = [`Planner ki subah ki report: ${dayLabel(today)}`, ...lines, "", `Planner: ${siteUrl}/dashboard/social/planner`].join("\n");
   return { subject, text };
 }
 
