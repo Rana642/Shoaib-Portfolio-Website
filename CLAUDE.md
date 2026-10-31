@@ -15,3 +15,15 @@ Key rules:
 - Brand voice: first person "I", never "we"; no "freelancer"/"solo" references; use "independent practice".
 - Tailwind v4: design tokens live in `app/globals.css` under `@theme` (no tailwind.config.ts).
 - Push to GitHub after each completed phase.
+
+## Two-PC sync (home + office) — Shoaib's standing rule
+
+Shoaib works on this project from a home PC and an office PC. Git is the bridge.
+
+- **Session start:** run `git pull --autostash`, then read the top entries of `docs/WORK-LOG.md` so you know what the other PC did. Resolve any conflict by keeping both sides.
+- **When Shoaib writes "Done"** (this PC's work for the day is finished), do all of this at once, without asking:
+  1. Add or extend today's dated entry in `docs/WORK-LOG.md` (what was done, what is pending, gotchas) and update the memory/vault as in the auto-sync rule.
+  2. `git pull --autostash`, commit everything that belongs to the project, and `git push`.
+  3. Reply with one line: the commit hash, and that the other PC will see it after its next pull.
+- **What to commit:** source, docs, public assets, lockfile changes that match a real dependency change. **Never commit** `.env*`, keys/tokens, `.claude/settings.local.json`, or large client/working folders (e.g. `Meezab Knowledge base/`, `client-briefs/`); list anything skipped in the reply instead of adding it. Commit messages are plain; end with the usual co-author line.
+- Never force-push, and never drop a stash without Shoaib's say-so.

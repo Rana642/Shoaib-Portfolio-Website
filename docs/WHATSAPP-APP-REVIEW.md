@@ -1,5 +1,7 @@
 # WhatsApp App Review — Socially Snap (app 1891824261787767)
 
+**Status (2026-10-26): APPROVED by Meta** (submission of 25 Oct 2026; both permissions approved).
+
 **Goal:** get **Advanced Access** for `whatsapp_business_messaging` and `whatsapp_business_management`. After approval the "Connect a WhatsApp number" button (Embedded Signup + coexistence QR) starts working for clients. Before that it shows "can't onboard customers right now" — that is expected, and the recordings below do NOT need it.
 
 **Where to submit:** Meta App Dashboard → Socially Snap → App Review → Permissions and Features → request Advanced Access for each permission. Each one needs a **description** and a **screencast**.
