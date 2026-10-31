@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, ChevronDown, LayoutGrid, LoaderCircle, Rows3, Settings2 } from "lucide-react";
+import { ArrowUpRight, ChevronDown, LayoutGrid, LoaderCircle, Rows3, Settings2, TriangleAlert } from "lucide-react";
 import {
   connectFacebook,
   connectLinkedIn,
@@ -469,6 +469,58 @@ function ViewTab({
   );
 }
 
+/** A small warning sign whose details open above it on hover, focus or click
+ *  (click keeps them open — phones have no hover). */
+function IssuePopover({ tone, children }: { tone: "error" | "warning"; children: React.ReactNode }) {
+  const [hover, setHover] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  const open = hover || pinned;
+
+  useEffect(() => {
+    if (!pinned) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !ref.current?.contains(e.target as Node)) setPinned(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [pinned]);
+
+  return (
+    <span ref={ref} className="relative inline-flex" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <button
+        type="button"
+        onClick={() => setPinned((p) => !p)}
+        onFocus={() => setHover(true)}
+        onBlur={() => setHover(false)}
+        aria-expanded={open}
+        aria-label={tone === "error" ? "Why this login stopped" : "About the held posts"}
+        className={cn(
+          "inline-flex size-7 items-center justify-center rounded-full transition-colors cursor-pointer",
+          tone === "error" ? "text-red-600 hover:bg-red-500/10" : "text-ink/70 hover:bg-citrus/20"
+        )}
+      >
+        <TriangleAlert className="size-4" aria-hidden />
+      </button>
+      {open && (
+        <span
+          role="tooltip"
+          className={cn(
+            "absolute bottom-full left-1/2 z-50 mb-2 w-80 max-w-[80vw] -translate-x-1/2 rounded-xl border bg-white px-4 py-3 text-small text-ink shadow-xl",
+            tone === "error" ? "border-red-600/25" : "border-citrus/50"
+          )}
+        >
+          {children}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function LoginCard({
   platform,
   title,
@@ -507,6 +559,19 @@ function LoginCard({
   }
   const broken = Boolean(login.connectedAt && health?.broken);
   const blocked = login.connectedAt ? health?.blocked : null;
+  // The details sit behind a small warning sign — hover or click opens them
+  // above the card (Shoaib, 2026-10-31: nothing written inside the card).
+  const issue = broken ? (
+    <>
+      <span className="font-semibold text-red-700">Meta has stopped this login{blocked ? ` since ${pktTime(blocked.since)}` : ""}</span>
+      {blocked ? ` — ${blocked.posts} post${blocked.posts === 1 ? "" : "s"} on hold: ${blocked.accounts}.` : "."}
+      {" "}Make sure {login.accountName ?? "this profile"} still has its role on the app (or has passed any security check at facebook.com), then press Reconnect and select all Pages. Held posts go out by themselves.
+    </>
+  ) : blocked ? (
+    <>
+      {blocked.posts} post{blocked.posts === 1 ? "" : "s"} held since {pktTime(blocked.since)} ({blocked.accounts}). This login works now, so they go out on the next runs. Nothing to do.
+    </>
+  ) : null;
 
   return (
     <Card className={cn("p-5", broken && "border-red-600/40")}>
@@ -525,6 +590,7 @@ function LoginCard({
             ) : (
               <StatusPill status={status} label={pillLabel} />
             )}
+            {issue && <IssuePopover tone={broken ? "error" : "warning"}>{issue}</IssuePopover>}
           </div>
           <p className="text-tag text-ink-subtle mt-1">{subtitle}</p>
           <p className="text-small text-ink-muted mt-2">
@@ -534,18 +600,6 @@ function LoginCard({
                 ? "Waiting on the platform's API access review."
                 : "Not connected yet."}
           </p>
-          {broken && (
-            <p role="alert" className="text-small text-red-700 bg-red-500/10 border border-red-600/20 rounded-lg px-3 py-2 mt-3">
-              <span className="font-semibold">Meta has stopped this login{blocked ? ` since ${pktTime(blocked.since)}` : ""}</span>
-              {blocked ? ` — ${blocked.posts} post${blocked.posts === 1 ? "" : "s"} on hold: ${blocked.accounts}.` : "."}
-              {" "}Make sure {login.accountName ?? "this profile"} still has its role on the app (or has passed any security check at facebook.com), then press Reconnect and select all Pages. Held posts go out by themselves.
-            </p>
-          )}
-          {!broken && blocked && (
-            <p className="text-small text-ink bg-citrus/15 border border-citrus/40 rounded-lg px-3 py-2 mt-3">
-              {blocked.posts} post{blocked.posts === 1 ? "" : "s"} held since {pktTime(blocked.since)} ({blocked.accounts}). This login works now, so they go out on the next runs. Nothing to do.
-            </p>
-          )}
           {hint && <p className="text-tag text-ink-subtle mt-1">{hint}</p>}
           <div className="flex flex-wrap gap-2 mt-4">
             {onImport && (
