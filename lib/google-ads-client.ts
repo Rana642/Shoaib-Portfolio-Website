@@ -3,9 +3,11 @@ import { getGoogleAccessToken } from "./google-oauth-token";
 import { getVaultCredential } from "./marketing-vault";
 
 // Google Ads API versions sunset on a strict ~1yr schedule — v19/v20/v21
-// are already gone (404, not a JSON error) as of 2026-09-16; verified live
-// against the real API (not just docs, which can lag) that v22-v25 all work.
-const API_VERSION = "v22";
+// are already gone (404, not a JSON error) as of 2026-09-16. v22 answers
+// UNSUPPORTED_VERSION as of 2026-10-31; v23-v26 verified live against the real
+// API (not just docs, which can lag), and Keyword Planner generateKeywordIdeas
+// works on v25. Using v25; check again before ~Oct 2027.
+const API_VERSION = "v25";
 const BASE = `https://googleads.googleapis.com/${API_VERSION}`;
 
 async function headers(loginCustomerId?: string): Promise<Record<string, string>> {
