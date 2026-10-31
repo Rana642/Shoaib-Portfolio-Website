@@ -50,7 +50,8 @@ export default function DashboardShell({
   email: string;
   children: React.ReactNode;
   /** A notice above the content of Overview and the Planner only. Unused since the
-   *  connection pop-up (ConnectionAlert) replaced the held-posts banner on 2026-10-31. */
+   *  held-posts banner was removed on 2026-10-31 (broken logins now show as a red
+   *  badge on Socially Snap → Settings and a warning sign on Integrations). */
   banner?: React.ReactNode;
   /** The client portal: same shell, its own sidebar items + sections, no PWA. */
   portal?: { nav: NavItem[]; sections?: Section[] };

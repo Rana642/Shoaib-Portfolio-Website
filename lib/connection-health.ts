@@ -5,9 +5,10 @@ import { blockedAccountsLine, heldPostsSummary, type BlockedLogin } from "./soci
 import type { ClientSocialAccount } from "./dashboard/types";
 
 /**
- * Every connection that is broken right now — for the dashboard's pop-up and
- * the red badge on Socially Snap → Settings (Shoaib, 2026-10-31: "alert pop mai
- * ana chaiye jahan jahan bhi connection kharab hai").
+ * Every connection that is broken right now — counted for the red badge on
+ * Socially Snap → Settings (Shoaib, 2026-10-31). The details themselves sit
+ * behind a warning sign on the Integrations page (no page-wide pop-up: he
+ * asked for it to be removed).
  *
  * - A Facebook login Meta has stopped (debug_token: invalid, or no permissions
  *   left), with the posts held behind it.
