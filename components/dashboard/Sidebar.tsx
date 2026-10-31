@@ -19,7 +19,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { APP_GROUPS, SECTIONS, inSection, matchStrength } from "@/lib/dashboard/sections";
-import { CountBadge, QuickTools, useAttentionCounts } from "@/components/dashboard/SidebarTools";
+import { ALERT_BADGES, CountBadge, QuickTools, useAttentionCounts } from "@/components/dashboard/SidebarTools";
 import { authCookieOptions } from "@/lib/auth-cookies";
 
 export type NavItem =
@@ -244,6 +244,7 @@ export default function Sidebar({
                         count={item.children.reduce((n, c) => n + (c.badge ? (counts[c.badge] ?? 0) : 0), 0)}
                         rail={false}
                         active={false}
+                        alert={item.children.some((c) => c.badge && ALERT_BADGES.has(c.badge) && counts[c.badge])}
                       />
                     )}
                     <ChevronDown
@@ -273,7 +274,7 @@ export default function Sidebar({
                           >
                             {child.icon && <child.icon className="size-4 shrink-0" aria-hidden />}
                             {child.label}
-                            {child.badge && <CountBadge count={counts[child.badge]} rail={false} active={childActive} />}
+                            {child.badge && <CountBadge count={counts[child.badge]} rail={false} active={childActive} alert={ALERT_BADGES.has(child.badge)} />}
                           </Link>
                         );
                       })}
@@ -306,7 +307,7 @@ export default function Sidebar({
               >
                 <item.icon className="size-4 shrink-0" aria-hidden />
                 {!rail && item.label}
-                {item.badge && <CountBadge count={counts[item.badge]} rail={rail} active={active} />}
+                {item.badge && <CountBadge count={counts[item.badge]} rail={rail} active={active} alert={ALERT_BADGES.has(item.badge)} />}
               </Link>
             );
           })}

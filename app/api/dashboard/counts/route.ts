@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/dashboard/auth";
 import { db } from "@/lib/dashboard/db";
 import { todayPk } from "@/lib/finance";
+import { brokenConnections } from "@/lib/connection-health";
 
 /**
  * What needs Shoaib's attention, per sidebar section — head-only counts, so
@@ -20,7 +21,7 @@ export async function GET() {
     return error ? 0 : (n ?? 0);
   };
 
-  const [receipts, overdueInvoices, lateInvoices, dueBills, unreadChats, postsToCaption, failedPosts, submissions, leads] = await Promise.all([
+  const [receipts, overdueInvoices, lateInvoices, dueBills, unreadChats, postsToCaption, failedPosts, submissions, leads, broken] = await Promise.all([
     count(db.from("payment_receipts").select("id", head).eq("status", "pending")),
     count(db.from("invoices").select("id", head).eq("status", "overdue")),
     count(db.from("invoices").select("id", head).in("status", ["sent", "partially_paid"]).lt("due_date", today)),
@@ -30,6 +31,8 @@ export async function GET() {
     count(db.from("scheduled_posts").select("id", head).eq("status", "failed")),
     count(db.from("vault_submissions").select("id", head).eq("status", "received")),
     db.from("contacts").select("created_at").order("created_at", { ascending: false }).limit(50),
+    // Broken logins (red badge on Socially Snap → Settings); cached a minute in the lib.
+    brokenConnections().catch(() => []),
   ]);
 
   return NextResponse.json(
@@ -38,6 +41,7 @@ export async function GET() {
       whatsapp: unreadChats,
       planner: postsToCaption + failedPosts,
       clients: submissions,
+      integrations: broken.length,
       leadTimes: ((leads.data ?? []) as { created_at: string }[]).map((l) => l.created_at),
     },
     { headers: { "Cache-Control": "no-store" } }

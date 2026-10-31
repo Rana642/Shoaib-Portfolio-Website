@@ -117,7 +117,7 @@ export function useAttentionCounts(enabled: boolean): Record<string, number> {
       try {
         const res = await fetch("/api/dashboard/counts", { cache: "no-store" });
         if (!res.ok) return;
-        const j = (await res.json()) as { finance: number; whatsapp: number; planner: number; clients: number; leadTimes: string[] };
+        const j = (await res.json()) as { finance: number; whatsapp: number; planner: number; clients: number; integrations?: number; leadTimes: string[] };
         let seen = Date.now();
         try {
           seen = Date.parse(localStorage.getItem(LEADS_SEEN_KEY) ?? "") || seen;
@@ -125,7 +125,7 @@ export function useAttentionCounts(enabled: boolean): Record<string, number> {
           /* ignore */
         }
         const sales = j.leadTimes.filter((t) => Date.parse(t) > seen).length;
-        setCounts({ sales, clients: j.clients, finance: j.finance, planner: j.planner, whatsapp: j.whatsapp });
+        setCounts({ sales, clients: j.clients, finance: j.finance, planner: j.planner, whatsapp: j.whatsapp, "socially-settings": j.integrations ?? 0 });
       } catch {
         /* offline — keep the last counts */
       }
@@ -138,19 +138,27 @@ export function useAttentionCounts(enabled: boolean): Record<string, number> {
   return counts;
 }
 
-/** The little count on a sidebar item (a dot on the icon rail). */
-export function CountBadge({ count, rail, active }: { count: number | undefined; rail: boolean; active: boolean }) {
+/** Badges that mean something is broken (red), not just waiting (citrus). */
+export const ALERT_BADGES = new Set(["socially-settings"]);
+
+/** The little count on a sidebar item (a dot on the icon rail). `alert`: red. */
+export function CountBadge({ count, rail, active, alert = false }: { count: number | undefined; rail: boolean; active: boolean; alert?: boolean }) {
   if (!count) return null;
   if (rail) {
-    return <span className={cn("absolute top-1.5 right-2 size-2 rounded-full", active ? "bg-ink" : "bg-citrus")} aria-label={`${count} waiting`} />;
+    return (
+      <span
+        className={cn("absolute top-1.5 right-2 size-2 rounded-full", alert ? "bg-red-600" : active ? "bg-ink" : "bg-citrus")}
+        aria-label={`${count} ${alert ? "broken" : "waiting"}`}
+      />
+    );
   }
   return (
     <span
       className={cn(
         "ml-auto min-w-5 rounded-full px-1.5 py-0.5 text-center text-[11px] font-semibold leading-none",
-        active ? "bg-ink text-cloud" : "bg-citrus text-ink"
+        alert ? "bg-red-600 text-white" : active ? "bg-ink text-cloud" : "bg-citrus text-ink"
       )}
-      aria-label={`${count} waiting`}
+      aria-label={`${count} ${alert ? "broken" : "waiting"}`}
     >
       {count > 99 ? "99+" : count}
     </span>

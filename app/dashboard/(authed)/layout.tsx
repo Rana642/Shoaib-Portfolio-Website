@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { redirect } from "next/navigation";
 import DashboardShell from "@/components/dashboard/DashboardShell";
-import HeldPostsBanner from "@/components/dashboard/HeldPostsBanner";
+import ConnectionAlert from "@/components/dashboard/ConnectionAlert";
 import { getAdminUser } from "@/lib/dashboard/auth";
 
 export const metadata: Metadata = {
@@ -37,8 +37,10 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
   if (!user) redirect("/dashboard/login");
 
   return (
-    <DashboardShell email={user.email ?? ""} banner={<HeldPostsBanner />}>
+    <DashboardShell email={user.email ?? ""}>
       {children}
+      {/* A broken connection pops up on any page, once per session. */}
+      <ConnectionAlert />
     </DashboardShell>
   );
 }

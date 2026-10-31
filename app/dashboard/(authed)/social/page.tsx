@@ -6,6 +6,7 @@ import { getTikTokAccountSummary } from "@/lib/social-tiktok";
 import { getYouTubeChannelSummary } from "@/lib/social-youtube";
 import { listFacebookLogins } from "@/lib/social-accounts";
 import { heldPostsSummary, blockedAccountsLine, type BlockedLogin } from "@/lib/social-connection-hold";
+import { loginNames } from "@/lib/connection-health";
 import type { ClientSocialAccount } from "@/lib/dashboard/types";
 
 export const dynamic = "force-dynamic";
@@ -66,11 +67,9 @@ export default async function SocialConnectionsPage({
   const fbExpiresSoon = fbExpiresAt ? new Date(fbExpiresAt).getTime() - now < 14 * 86_400_000 : false;
   const fb1 = fbLogins.find((l) => l.slot === 1)!;
   const fb2 = fbLogins.find((l) => l.slot === 2)!;
-  const fb1Name = fb1.name;
   // A broken login can't tell us its name any more (no permissions left), so
-  // fall back to the profile recorded on the Pages it imported.
-  const recordedNames = [...new Set(allAccounts.map((a) => a.fb_login_name).filter((n): n is string => Boolean(n)))];
-  const fb2Name = fb2.connectedAt ? (fb2.name ?? (recordedNames.filter((n) => n !== fb1Name).length === 1 ? recordedNames.find((n) => n !== fb1Name)! : null)) : null;
+  // loginNames falls back to the profile recorded on the Pages it imported.
+  const { 1: fb1Name, 2: fb2Name } = loginNames(fbLogins, allAccounts);
 
   // Each Facebook login's health: how many Pages it serves, whether Meta says
   // it still works (debug_token), and posts held behind it (lib/social-connection-hold.ts).
