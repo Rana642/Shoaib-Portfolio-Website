@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isCronRequest } from "@/lib/cron-auth";
 import { db } from "@/lib/dashboard/db";
 import { decryptAccountToken, listAllSocialAccounts } from "@/lib/social-accounts";
+import { decryptToken } from "@/lib/social-crypto";
 import { GRAPH_BASE, deleteFacebookPostStrict } from "@/lib/social-fb";
 import { getScheduledPost } from "@/lib/scheduled-posts";
 import { isWithinNativeScheduleWindow, submitNativeSchedule, type PlatformPostResult } from "@/lib/social-post";
@@ -20,8 +21,42 @@ async function graph(path: string, token: string): Promise<Graph & Record<string
   return body;
 }
 
+/** `?debug=1`: Meta's debug_token for every stored Facebook login and Page token (validity, error, scopes —
+ *  never the tokens), plus the app's own status. For "why did this login stop working". */
+async function debugTokens() {
+  const appToken = `${process.env.META_APP_ID}|${process.env.META_APP_SECRET}`;
+  const inspect = async (token: string) => {
+    const res = await fetch(`${GRAPH_BASE}/debug_token?input_token=${encodeURIComponent(token)}&access_token=${encodeURIComponent(appToken)}`);
+    const body = (await res.json().catch(() => ({}))) as { data?: Record<string, unknown>; error?: { message?: string } };
+    if (body.error) return { lookup_error: body.error.message };
+    const d = body.data ?? {};
+    return {
+      is_valid: d.is_valid,
+      error: d.error,
+      type: d.type,
+      user_id: d.user_id,
+      profile_id: d.profile_id,
+      expires_at: d.expires_at,
+      data_access_expires_at: d.data_access_expires_at,
+      scopes: d.scopes,
+    };
+  };
+  const { data: logins } = await db.from("social_connections").select("id, fb_user_id, fb_user_token_encrypted, connected_at");
+  const loginReports = await Promise.all(
+    ((logins ?? []) as { id: number; fb_user_id: string | null; fb_user_token_encrypted: string | null; connected_at: string | null }[])
+      .filter((l) => l.fb_user_token_encrypted)
+      .map(async (l) => ({ slot: l.id, fb_user_id: l.fb_user_id, connected_at: l.connected_at, ...(await inspect(decryptToken(l.fb_user_token_encrypted!))) }))
+  );
+  const pages = (await listAllSocialAccounts()).filter((a) => a.platform === "facebook" && a.is_active);
+  const pageReports = await Promise.all(pages.map(async (a) => ({ page: a.label, login: a.fb_login_name ?? null, ...(await inspect(decryptAccountToken(a))) })));
+  const appRes = await fetch(`${GRAPH_BASE}/${process.env.META_APP_ID}?fields=name,category,link,privacy_policy_url,terms_of_service_url,user_support_url,app_domains,restrictions&access_token=${encodeURIComponent(appToken)}`);
+  const app = await appRes.json().catch(() => ({}));
+  return { app, logins: loginReports, pages: pageReports };
+}
+
 export async function GET(request: Request) {
   if (!(await isCronRequest(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (new URL(request.url).searchParams.get("debug") === "1") return NextResponse.json(await debugTokens());
   const since = new URL(request.url).searchParams.get("since") ?? "2026-10-20";
 
   const accounts = (await listAllSocialAccounts()).filter((a) => a.platform === "facebook" && a.is_active);
