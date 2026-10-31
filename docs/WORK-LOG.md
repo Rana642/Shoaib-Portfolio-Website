@@ -4,6 +4,16 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-31 — Socially Snap → Settings → Integrations; Ijaz login lost its tester role (0ecd372, 4f19ca7)
+- **Integrations:** Connections left Marketing and is now Socially Snap Apps → **Settings** → Integrations. The URL is unchanged (`/dashboard/social`).
+  - Each Facebook login card shows its Page count, and a red "Reconnect needed" while Meta has it blocked.
+  - Small cards link to Google Business and WhatsApp numbers.
+- **Broken login, 30 Oct ~7 pm:** Ijaz Danish's Facebook login kept a valid token with **zero scopes**, so the Avalon, Eventia and Danish Page tokens failed with error 190.
+  - Cause: App roles showed **0 Testers**. The app has been Live since 9 Oct with no Advanced Access, so only people with a role can grant permissions. Meta moved app roles into Business Suite around then.
+  - Facebook Login also showed "Feature unavailable … updating additional details". Fix: add Ijaz back as Tester; he reconnects with all Pages. The real fix is App Review (`docs/meta-app-review.md`).
+- **Cron fix (4f19ca7):** a blocked login is now tracked per account. Before, one blocked Page held back every other held post in the run, which kept TONI&GUY Stories waiting all night.
+- **Audit route:** `/api/social/fb-audit?debug=1` runs `debug_token` on every stored login and Page token (validity and scopes, never the tokens).
+
 ## 2026-10-30 — Morning report email (5fe341a)
 - Shoaib chose a free code report over an AI agent team.
 - `lib/morning-report.ts` runs from the social cron and sends one email per PKT day, from 8 AM.
