@@ -105,6 +105,26 @@ export async function facebookMe(token: string): Promise<{ id: string; name: str
   return graphGet<{ id: string; name: string }>("/me", { fields: "id,name", access_token: token });
 }
 
+/** Does a login still work, asked from Meta itself (debug_token with the app
+ *  token)? A token can stay "valid" while it has lost every permission — what
+ *  happened to the second login on 2026-10-30 when its profile lost its app
+ *  role — so working = valid AND at least one permission. Null when the app
+ *  secret isn't configured or Meta didn't answer. */
+export async function facebookLoginWorks(token: string): Promise<boolean | null> {
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appId || !appSecret) return null;
+  try {
+    const { data } = await graphGet<{ data?: { is_valid?: boolean; scopes?: string[] } }>("/debug_token", {
+      input_token: token,
+      access_token: `${appId}|${appSecret}`,
+    });
+    return Boolean(data?.is_valid && data.scopes?.length);
+  } catch {
+    return null;
+  }
+}
+
 export type DiscoveredPage = {
   page_id: string;
   name: string;

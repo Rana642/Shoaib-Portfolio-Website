@@ -35,8 +35,10 @@ type ImportState =
 
 /** A login Meta has blocked: posts held since `since` (lib/social-connection-hold.ts). */
 export type BlockedInfo = { since: string; posts: number; accounts: string };
-/** A Facebook login's health on the Integrations page. */
-export type LoginHealth = { pages: number; blocked: BlockedInfo | null };
+/** A Facebook login's health on the Integrations page. `broken`: Meta says the
+ *  login itself no longer works (debug_token). `blocked`: posts held behind it —
+ *  with a working login those are only waiting for their next try. */
+export type LoginHealth = { pages: number; broken: boolean; blocked: BlockedInfo | null };
 /** Another app's setup, shown as a small link card (Google Business, WhatsApp). */
 export type OtherApp = { key: string; title: string; detail: string; href: string };
 
@@ -503,20 +505,23 @@ function LoginCard({
     status = "pending";
     pillLabel = "Expires soon";
   }
+  const broken = Boolean(login.connectedAt && health?.broken);
   const blocked = login.connectedAt ? health?.blocked : null;
 
   return (
-    <Card className={cn("p-5", blocked && "border-red-600/40")}>
+    <Card className={cn("p-5", broken && "border-red-600/40")}>
       <div className="flex items-start gap-4">
         <PlatformChip platform={platform} />
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-semibold">{title}</p>
-            {blocked ? (
+            {broken ? (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-red-600/30 bg-red-500/10 px-2.5 py-1 text-tag font-medium text-red-700 whitespace-nowrap">
                 <span className="size-1.5 rounded-full bg-red-600" aria-hidden />
                 Reconnect needed
               </span>
+            ) : blocked ? (
+              <StatusPill status="pending" label="Posts retrying" />
             ) : (
               <StatusPill status={status} label={pillLabel} />
             )}
@@ -529,10 +534,16 @@ function LoginCard({
                 ? "Waiting on the platform's API access review."
                 : "Not connected yet."}
           </p>
-          {blocked && (
+          {broken && (
             <p role="alert" className="text-small text-red-700 bg-red-500/10 border border-red-600/20 rounded-lg px-3 py-2 mt-3">
-              <span className="font-semibold">Stopped since {pktTime(blocked.since)}</span> — {blocked.posts} post{blocked.posts === 1 ? "" : "s"} on hold: {blocked.accounts}.
-              {" "}Log in at facebook.com as {login.accountName ?? "this profile"}, finish any security check, then press Reconnect and select all Pages. The held posts go out by themselves.
+              <span className="font-semibold">Meta has stopped this login{blocked ? ` since ${pktTime(blocked.since)}` : ""}</span>
+              {blocked ? ` — ${blocked.posts} post${blocked.posts === 1 ? "" : "s"} on hold: ${blocked.accounts}.` : "."}
+              {" "}Make sure {login.accountName ?? "this profile"} still has its role on the app (or has passed any security check at facebook.com), then press Reconnect and select all Pages. Held posts go out by themselves.
+            </p>
+          )}
+          {!broken && blocked && (
+            <p className="text-small text-ink bg-citrus/15 border border-citrus/40 rounded-lg px-3 py-2 mt-3">
+              {blocked.posts} post{blocked.posts === 1 ? "" : "s"} held since {pktTime(blocked.since)} ({blocked.accounts}). This login works now, so they go out on the next runs. Nothing to do.
             </p>
           )}
           {hint && <p className="text-tag text-ink-subtle mt-1">{hint}</p>}

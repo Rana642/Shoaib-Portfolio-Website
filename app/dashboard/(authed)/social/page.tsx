@@ -64,21 +64,27 @@ export default async function SocialConnectionsPage({
   // eslint-disable-next-line react-hooks/purity -- server component, rendered per request
   const now = Date.now();
   const fbExpiresSoon = fbExpiresAt ? new Date(fbExpiresAt).getTime() - now < 14 * 86_400_000 : false;
+  const fb1 = fbLogins.find((l) => l.slot === 1)!;
   const fb2 = fbLogins.find((l) => l.slot === 2)!;
-  const fb1Name = fbLogins.find((l) => l.slot === 1)?.name ?? null;
+  const fb1Name = fb1.name;
+  // A broken login can't tell us its name any more (no permissions left), so
+  // fall back to the profile recorded on the Pages it imported.
+  const recordedNames = [...new Set(allAccounts.map((a) => a.fb_login_name).filter((n): n is string => Boolean(n)))];
+  const fb2Name = fb2.connectedAt ? (fb2.name ?? (recordedNames.filter((n) => n !== fb1Name).length === 1 ? recordedNames.find((n) => n !== fb1Name)! : null)) : null;
 
-  // Each Facebook login's health: how many Pages it serves, and whether Meta
-  // has it blocked (posts held — lib/social-connection-hold.ts).
-  const healthOf = (name: string | null) => {
+  // Each Facebook login's health: how many Pages it serves, whether Meta says
+  // it still works (debug_token), and posts held behind it (lib/social-connection-hold.ts).
+  const healthOf = (name: string | null, works: boolean | null) => {
     const blocked = name ? held.logins.find((l) => l.kind === "facebook" && l.name === name) : undefined;
     return {
       pages: name ? allAccounts.filter((a) => a.platform === "facebook" && a.fb_login_name === name).length : 0,
+      broken: works === false,
       blocked: blocked ? { since: blocked.since, posts: blocked.count, accounts: blockedAccountsLine(blocked) } : null,
     };
   };
   // Instagram Login accounts (and logins whose profile isn't recorded) that are blocked.
   const otherBlocked = held.logins
-    .filter((l) => l.kind === "instagram" || (l.name !== fb1Name && l.name !== fb2.name))
+    .filter((l) => l.kind === "instagram" || (l.name !== fb1Name && l.name !== fb2Name))
     .map((l) => ({ name: l.kind === "instagram" ? `Instagram login ${l.name}` : (l.name ?? "A Facebook profile"), since: l.since, posts: l.count, accounts: blockedAccountsLine(l) }));
   const gbpProjects = new Set(((gbp ?? []) as { project_id: string; selected_location: string | null }[]).filter((g) => g.selected_location).map((g) => g.project_id)).size;
 
@@ -134,10 +140,10 @@ export default async function SocialConnectionsPage({
           connectedAt: fb2.connectedAt,
           expiresAt: fb2.expiresAt,
           expiresSoon: fb2.expiresAt ? new Date(fb2.expiresAt).getTime() - now < 14 * 86_400_000 : false,
-          accountName: fb2.name,
+          accountName: fb2Name,
         }}
-        facebookHealth={healthOf(fb1Name)}
-        facebookHealth2={healthOf(fb2.name)}
+        facebookHealth={healthOf(fb1Name, fb1.works)}
+        facebookHealth2={healthOf(fb2Name, fb2.works)}
         otherBlocked={otherBlocked}
         otherApps={[
           { key: "gbp", title: "Google Business", detail: `${gbpProjects} project${gbpProjects === 1 ? "" : "s"} with a location`, href: "/dashboard/gbp" },

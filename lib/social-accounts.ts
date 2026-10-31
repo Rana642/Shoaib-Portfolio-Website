@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "./dashboard/db";
 import { encryptToken, decryptToken } from "./social-crypto";
-import { exchangeForLongLivedUserToken, facebookMe, listManagedPages, type DiscoveredPage } from "./social-fb";
+import { exchangeForLongLivedUserToken, facebookLoginWorks, facebookMe, listManagedPages, type DiscoveredPage } from "./social-fb";
 import { listManagedOrganizations, type DiscoveredOrganization } from "./social-linkedin";
 import type { ClientSocialAccount, SocialPlatform } from "./dashboard/types";
 
@@ -86,23 +86,26 @@ export async function connectFacebookAccount(shortLivedToken: string, slot: Face
   return listManagedPages(access_token);
 }
 
-/** Both Facebook logins for the Connections page, with whose profile each
- *  is (asked live — the name isn't stored). */
-export async function listFacebookLogins(): Promise<{ slot: FacebookLoginSlot; connectedAt: string | null; expiresAt: string | null; name: string | null }[]> {
+/** Both Facebook logins for the Integrations page, with whose profile each
+ *  is (asked live — the name isn't stored) and whether it still works
+ *  (facebookLoginWorks; null = couldn't tell). */
+export async function listFacebookLogins(): Promise<
+  { slot: FacebookLoginSlot; connectedAt: string | null; expiresAt: string | null; name: string | null; works: boolean | null }[]
+> {
   const { data } = await db.from("social_connections").select("id, fb_user_token_encrypted, fb_token_expires_at, connected_at").order("id");
   const rows = (data ?? []) as { id: number; fb_user_token_encrypted: string | null; fb_token_expires_at: string | null; connected_at: string | null }[];
   return Promise.all(
     ([1, 2] as const).map(async (slot) => {
       const r = rows.find((x) => x.id === slot);
       let name: string | null = null;
+      let works: boolean | null = null;
       if (r?.fb_user_token_encrypted) {
-        try {
-          name = (await facebookMe(decryptToken(r.fb_user_token_encrypted))).name;
-        } catch {
-          name = null;
-        }
+        const token = decryptToken(r.fb_user_token_encrypted);
+        const [me, ok] = await Promise.all([facebookMe(token).catch(() => null), facebookLoginWorks(token)]);
+        name = me?.name ?? null;
+        works = ok;
       }
-      return { slot, connectedAt: r?.fb_user_token_encrypted ? r.connected_at : null, expiresAt: r?.fb_token_expires_at ?? null, name };
+      return { slot, connectedAt: r?.fb_user_token_encrypted ? r.connected_at : null, expiresAt: r?.fb_token_expires_at ?? null, name, works };
     })
   );
 }
