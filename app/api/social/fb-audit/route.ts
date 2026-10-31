@@ -48,7 +48,20 @@ async function debugTokens() {
       .map(async (l) => ({ slot: l.id, fb_user_id: l.fb_user_id, connected_at: l.connected_at, ...(await inspect(decryptToken(l.fb_user_token_encrypted!))) }))
   );
   const pages = (await listAllSocialAccounts()).filter((a) => a.platform === "facebook" && a.is_active);
-  const pageReports = await Promise.all(pages.map(async (a) => ({ page: a.label, login: a.fb_login_name ?? null, ...(await inspect(decryptAccountToken(a))) })));
+  // Which Instagram account Facebook sees linked to each Page (why an Instagram doesn't import).
+  const linkedInstagram = async (pageId: string, token: string) => {
+    const res = await fetch(
+      `${GRAPH_BASE}/${pageId}?fields=instagram_business_account{id,username},connected_instagram_account{id,username}&access_token=${encodeURIComponent(token)}`
+    );
+    const body = (await res.json().catch(() => ({}))) as Record<string, unknown> & { error?: { message?: string } };
+    return body.error ? { ig_error: body.error.message } : { ig_business: body.instagram_business_account ?? null, ig_connected: body.connected_instagram_account ?? null };
+  };
+  const pageReports = await Promise.all(
+    pages.map(async (a) => {
+      const token = decryptAccountToken(a);
+      return { page: a.label, login: a.fb_login_name ?? null, ...(await inspect(token)), ...(await linkedInstagram(a.external_id, token)) };
+    })
+  );
   const appRes = await fetch(`${GRAPH_BASE}/${process.env.META_APP_ID}?fields=name,category,link,privacy_policy_url,terms_of_service_url,user_support_url,app_domains,restrictions&access_token=${encodeURIComponent(appToken)}`);
   const app = await appRes.json().catch(() => ({}));
   return { app, logins: loginReports, pages: pageReports };
