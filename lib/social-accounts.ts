@@ -153,12 +153,21 @@ async function storedFacebookLogins() {
   return Promise.all(
     rows.map(async (r) => {
       const token = decryptToken(r.fb_user_token_encrypted!);
-      const [me, info] = await Promise.all([facebookMe(token).catch(() => null), facebookTokenInfo(token)]);
+      // /me sometimes fails once (seen 2026-10-31) — one retry before giving up.
+      const [me, info] = await Promise.all([
+        facebookMe(token)
+          .catch(() => facebookMe(token))
+          .catch(() => null),
+        facebookTokenInfo(token),
+      ]);
       return {
         slot: r.id as FacebookLoginSlot,
         token,
         connectedAt: r.connected_at,
+        /** For display; a placeholder when Meta didn't say. */
         name: me?.name ?? `Facebook login ${r.id}`,
+        /** The profile's real name, or null — only this is ever saved as fb_login_name. */
+        realName: me?.name ?? null,
         userId: info?.userId ?? me?.id ?? r.fb_user_id,
         scopes: info ? info.scopes : null,
       };
@@ -171,7 +180,7 @@ type LoginRef = { slot: FacebookLoginSlot; name: string | null; userId: string |
 
 /** One login that reaches a Page: its token for that Page and the needed
  *  permissions it lacks for the Page (`missing`) and its Instagram (`igMissing`). */
-type PageSource = { slot: FacebookLoginSlot; name: string; missing: string[]; igMissing: string[]; page: DiscoveredPage };
+type PageSource = { slot: FacebookLoginSlot; name: string; realName: string | null; missing: string[]; igMissing: string[]; page: DiscoveredPage };
 
 /** Every Page the stored logins reach, with each login that reaches it — a
  *  Page both profiles admin comes back twice, once per login. Tokens stay here. */
@@ -184,7 +193,14 @@ async function discoverPagesByLogin(): Promise<{ byPage: Map<string, PageSource[
     try {
       for (const page of await listManagedPages(l.token)) {
         const list = byPage.get(page.page_id) ?? [];
-        list.push({ slot: l.slot, name: l.name, missing: missingOf(l.scopes, PAGE_SCOPES_NEEDED), igMissing: missingOf(l.scopes, INSTAGRAM_SCOPES_NEEDED), page });
+        list.push({
+          slot: l.slot,
+          name: l.name,
+          realName: l.realName,
+          missing: missingOf(l.scopes, PAGE_SCOPES_NEEDED),
+          igMissing: missingOf(l.scopes, INSTAGRAM_SCOPES_NEEDED),
+          page,
+        });
         byPage.set(page.page_id, list);
       }
     } catch (e) {
@@ -318,23 +334,23 @@ export async function saveFacebookPageMappings(mappings: { page_id: string; proj
   const find = (projectId: string, platform: string, externalId: string) =>
     existing.find((r) => r.project_id === projectId && r.platform === platform && r.external_id === externalId);
 
-  const inserts: { project_id: string; platform: SocialPlatform; label: string; external_id: string; access_token_encrypted: string; fb_login_name: string }[] = [];
-  const moves: { id: string; token: string; login: string }[] = [];
+  const inserts: { project_id: string; platform: SocialPlatform; label: string; external_id: string; access_token_encrypted: string; fb_login_name: string | null }[] = [];
+  const moves: { id: string; token: string; login: string | null }[] = [];
   for (const { project_id, page_id, login_slot, source, igId, igSource } of picks) {
     const fb = find(project_id, "facebook", page_id);
     if (!fb) {
-      inserts.push({ project_id, platform: "facebook", label: source.page.name, external_id: page_id, access_token_encrypted: encryptToken(source.page.page_access_token), fb_login_name: source.name });
+      inserts.push({ project_id, platform: "facebook", label: source.page.name, external_id: page_id, access_token_encrypted: encryptToken(source.page.page_access_token), fb_login_name: source.realName });
     } else if (login_slot && ownerOf("facebook", page_id)?.slot !== login_slot) {
-      moves.push({ id: fb.id, token: source.page.page_access_token, login: source.name });
+      moves.push({ id: fb.id, token: source.page.page_access_token, login: source.realName });
     }
     if (igId && igSource) {
       const ig = find(project_id, "instagram", igId);
       // An Instagram the project already has through Instagram Login is left
       // alone — adding it again would post everything twice.
       if (!ig) {
-        inserts.push({ project_id, platform: "instagram", label: `${source.page.name} (Instagram)`, external_id: igId, access_token_encrypted: encryptToken(igSource.page.page_access_token), fb_login_name: igSource.name });
+        inserts.push({ project_id, platform: "instagram", label: `${source.page.name} (Instagram)`, external_id: igId, access_token_encrypted: encryptToken(igSource.page.page_access_token), fb_login_name: igSource.realName });
       } else if (!ig.token_expires_at && login_slot && igSource.slot === login_slot && ownerOf("instagram", igId)?.slot !== login_slot) {
-        moves.push({ id: ig.id, token: igSource.page.page_access_token, login: igSource.name });
+        moves.push({ id: ig.id, token: igSource.page.page_access_token, login: igSource.realName });
       }
     }
   }
@@ -344,7 +360,10 @@ export async function saveFacebookPageMappings(mappings: { page_id: string; proj
     if (error) throw new Error(error.message);
   }
   for (const m of moves) {
-    const { error } = await db.from("client_social_accounts").update({ access_token_encrypted: encryptToken(m.token), fb_login_name: m.login }).eq("id", m.id);
+    const { error } = await db
+      .from("client_social_accounts")
+      .update({ access_token_encrypted: encryptToken(m.token), ...(m.login ? { fb_login_name: m.login } : {}) })
+      .eq("id", m.id);
     if (error) throw new Error(error.message);
   }
   ownersCache = null;
@@ -584,8 +603,9 @@ export async function refreshFacebookPageTokens(): Promise<{ updated: number; mo
     await db.from("client_social_accounts").update({ access_token_encrypted: encryptToken(pick.page.page_access_token) }).eq("id", a.id);
     // Separate and unchecked: fb_login_name comes from a later migration, and
     // a database without it must still get the fresh token above. It names the
-    // profile for blocked-login alerts (lib/social-connection-hold.ts).
-    await db.from("client_social_accounts").update({ fb_login_name: pick.name }).eq("id", a.id);
+    // profile for blocked-login alerts (lib/social-connection-hold.ts) — only
+    // a real name, never the "Facebook login N" placeholder.
+    if (pick.realName) await db.from("client_social_accounts").update({ fb_login_name: pick.realName }).eq("id", a.id);
     if (currentSlot !== null && pick.slot !== currentSlot) moved.push(`${a.label} → ${pick.name}`);
     updated++;
   }
