@@ -18,7 +18,19 @@ import type { ScheduledPost } from "./dashboard/types";
  * story per post (unique story_of_post_id).
  */
 
+/**
+ * Projects that opt out of the standing rule above. CLIF (Serge, 2026-11-01):
+ * a Story is never published as a side effect of a post — every Story
+ * campaign needs its own content approval and publication approval. Their
+ * Stories are only ever scheduled on purpose (post_type "story"), which this
+ * function never touches.
+ */
+const NO_AUTO_STORY_PROJECT_IDS = new Set([
+  "28d48765-41cf-47d8-b414-c22414301223", // Clif - Come Live in France
+]);
+
 export async function queueStoryCopy(post: ScheduledPost): Promise<"queued" | "skipped"> {
+  if (NO_AUTO_STORY_PROJECT_IDS.has(post.project_id)) return "skipped";
   if ((post.post_type ?? "post") === "story" || post.story_of_post_id) return "skipped";
   const accounts = await listSocialAccountsForProject(post.project_id);
   let platforms = ["facebook", "instagram"].filter((p) => accounts.some((a) => a.platform === p));
