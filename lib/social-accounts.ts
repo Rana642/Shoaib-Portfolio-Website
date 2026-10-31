@@ -1,7 +1,16 @@
 import "server-only";
 import { db } from "./dashboard/db";
 import { encryptToken, decryptToken } from "./social-crypto";
-import { exchangeForLongLivedUserToken, facebookLoginWorks, facebookMe, listManagedPages, type DiscoveredPage } from "./social-fb";
+import {
+  exchangeForLongLivedUserToken,
+  facebookMe,
+  facebookTokenInfo,
+  INSTAGRAM_SCOPES_NEEDED,
+  listManagedPages,
+  PAGE_SCOPES_NEEDED,
+  type DiscoveredPage,
+  type PageChoice,
+} from "./social-fb";
 import { listManagedOrganizations, type DiscoveredOrganization } from "./social-linkedin";
 import type { ClientSocialAccount, SocialPlatform } from "./dashboard/types";
 
@@ -86,28 +95,178 @@ export async function connectFacebookAccount(shortLivedToken: string, slot: Face
   return listManagedPages(access_token);
 }
 
+/** Needed permissions a token's scopes lack (none known = nothing reported missing). */
+const missingOf = (scopes: string[] | null, needed: string[]) => (scopes ? needed.filter((s) => !scopes.includes(s)) : []);
+
+export type FacebookLoginStatus = {
+  slot: FacebookLoginSlot;
+  connectedAt: string | null;
+  expiresAt: string | null;
+  name: string | null;
+  /** The Facebook user behind it — matches a stored Page token to its login. */
+  userId: string | null;
+  /** Meta says it still works (valid AND some permission); null = couldn't tell. */
+  works: boolean | null;
+  /** Permissions the Planner needs that this login hasn't granted. */
+  missing: string[];
+};
+
 /** Both Facebook logins for the Integrations page, with whose profile each
- *  is (asked live — the name isn't stored) and whether it still works
- *  (facebookLoginWorks; null = couldn't tell). */
-export async function listFacebookLogins(): Promise<
-  { slot: FacebookLoginSlot; connectedAt: string | null; expiresAt: string | null; name: string | null; works: boolean | null }[]
-> {
-  const { data } = await db.from("social_connections").select("id, fb_user_token_encrypted, fb_token_expires_at, connected_at").order("id");
-  const rows = (data ?? []) as { id: number; fb_user_token_encrypted: string | null; fb_token_expires_at: string | null; connected_at: string | null }[];
+ *  is (asked live — the name isn't stored), whether it still works and which
+ *  needed permissions it lacks (debug_token). */
+export async function listFacebookLogins(): Promise<FacebookLoginStatus[]> {
+  const { data } = await db.from("social_connections").select("id, fb_user_id, fb_user_token_encrypted, fb_token_expires_at, connected_at").order("id");
+  const rows = (data ?? []) as { id: number; fb_user_id: string | null; fb_user_token_encrypted: string | null; fb_token_expires_at: string | null; connected_at: string | null }[];
   return Promise.all(
     ([1, 2] as const).map(async (slot) => {
       const r = rows.find((x) => x.id === slot);
       let name: string | null = null;
       let works: boolean | null = null;
+      let missing: string[] = [];
       if (r?.fb_user_token_encrypted) {
         const token = decryptToken(r.fb_user_token_encrypted);
-        const [me, ok] = await Promise.all([facebookMe(token).catch(() => null), facebookLoginWorks(token)]);
+        const [me, info] = await Promise.all([facebookMe(token).catch(() => null), facebookTokenInfo(token)]);
         name = me?.name ?? null;
-        works = ok;
+        works = info ? info.valid && info.scopes.length > 0 : null;
+        missing = info?.valid ? missingOf(info.scopes, [...PAGE_SCOPES_NEEDED, ...INSTAGRAM_SCOPES_NEEDED]) : [];
       }
-      return { slot, connectedAt: r?.fb_user_token_encrypted ? r.connected_at : null, expiresAt: r?.fb_token_expires_at ?? null, name, works };
+      return {
+        slot,
+        connectedAt: r?.fb_user_token_encrypted ? r.connected_at : null,
+        expiresAt: r?.fb_token_expires_at ?? null,
+        name,
+        userId: r?.fb_user_token_encrypted ? r.fb_user_id : null,
+        works,
+        missing,
+      };
     })
   );
+}
+
+/** Every stored Facebook login, decrypted, with whose profile it is and the
+ *  permissions it holds (null = Meta didn't say). Server only. */
+async function storedFacebookLogins() {
+  const { data } = await db.from("social_connections").select("id, fb_user_id, fb_user_token_encrypted, connected_at").order("id");
+  const rows = ((data ?? []) as { id: number; fb_user_id: string | null; fb_user_token_encrypted: string | null; connected_at: string | null }[]).filter(
+    (r) => r.fb_user_token_encrypted && (r.id === 1 || r.id === 2)
+  );
+  return Promise.all(
+    rows.map(async (r) => {
+      const token = decryptToken(r.fb_user_token_encrypted!);
+      const [me, info] = await Promise.all([facebookMe(token).catch(() => null), facebookTokenInfo(token)]);
+      return {
+        slot: r.id as FacebookLoginSlot,
+        token,
+        connectedAt: r.connected_at,
+        name: me?.name ?? `Facebook login ${r.id}`,
+        userId: info?.userId ?? me?.id ?? r.fb_user_id,
+        scopes: info ? info.scopes : null,
+      };
+    })
+  );
+}
+type StoredLogin = Awaited<ReturnType<typeof storedFacebookLogins>>[number];
+/** What's needed to tell which login a stored token came from. */
+type LoginRef = { slot: FacebookLoginSlot; name: string | null; userId: string | null };
+
+/** One login that reaches a Page: its token for that Page and the needed
+ *  permissions it lacks for the Page (`missing`) and its Instagram (`igMissing`). */
+type PageSource = { slot: FacebookLoginSlot; name: string; missing: string[]; igMissing: string[]; page: DiscoveredPage };
+
+/** Every Page the stored logins reach, with each login that reaches it — a
+ *  Page both profiles admin comes back twice, once per login. Tokens stay here. */
+async function discoverPagesByLogin(): Promise<{ byPage: Map<string, PageSource[]>; logins: StoredLogin[] }> {
+  const logins = await storedFacebookLogins();
+  if (!logins.length) throw new Error("No Facebook connection saved yet — connect one first.");
+  const byPage = new Map<string, PageSource[]>();
+  const errors: string[] = [];
+  for (const l of logins) {
+    try {
+      for (const page of await listManagedPages(l.token)) {
+        const list = byPage.get(page.page_id) ?? [];
+        list.push({ slot: l.slot, name: l.name, missing: missingOf(l.scopes, PAGE_SCOPES_NEEDED), igMissing: missingOf(l.scopes, INSTAGRAM_SCOPES_NEEDED), page });
+        byPage.set(page.page_id, list);
+      }
+    } catch (e) {
+      errors.push(`Facebook login ${l.slot}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  if (!byPage.size && errors.length) throw new Error(errors.join(" · "));
+  return { byPage, logins };
+}
+
+/** Which login a Page (or its Instagram) should hang off: the one already
+ *  holding it when it lacks nothing, else the one lacking the fewest needed
+ *  permissions (the current one, then login 1, on a tie). Never "the login
+ *  just reconnected wins" — on 2026-10-31 that moved 9 Pages to a login that
+ *  hadn't granted pages_read_user_content and broke their Facebook insights. */
+function bestSource(sources: PageSource[], currentSlot: FacebookLoginSlot | null, which: "missing" | "igMissing" = "missing"): PageSource {
+  const current = sources.find((s) => s.slot === currentSlot);
+  if (current && current[which].length === 0) return current;
+  return [...sources].sort(
+    (a, b) => a[which].length - b[which].length || Number(b.slot === currentSlot) - Number(a.slot === currentSlot) || a.slot - b.slot
+  )[0];
+}
+
+/** For each stored Page/Instagram token: the login it came from (debug_token
+ *  user → login), whether it still works, and the needed permissions it lacks.
+ *  Keyed by client_social_accounts.id. */
+async function storedTokenOwners(logins: LoginRef[]) {
+  const { data } = await db
+    .from("client_social_accounts")
+    .select("id, platform, external_id, access_token_encrypted, token_expires_at, fb_login_name")
+    .in("platform", ["facebook", "instagram"])
+    .eq("is_active", true);
+  const rows = ((data ?? []) as { id: string; platform: string; external_id: string; access_token_encrypted: string; token_expires_at: string | null; fb_login_name: string | null }[]).filter(
+    (a) => !(a.platform === "instagram" && a.token_expires_at) // Instagram Login accounts have their own token
+  );
+  const out = new Map<string, { platform: string; external_id: string; slot: FacebookLoginSlot | null; name: string | null; valid: boolean; missing: string[] }>();
+  await Promise.all(
+    rows.map(async (a) => {
+      const info = await facebookTokenInfo(decryptToken(a.access_token_encrypted));
+      const login = info?.userId ? logins.find((l) => l.userId === info.userId) : undefined;
+      out.set(a.id, {
+        platform: a.platform,
+        external_id: a.external_id,
+        slot: login?.slot ?? null,
+        name: login?.name ?? a.fb_login_name,
+        valid: info ? info.valid : true,
+        missing: info?.valid ? missingOf(info.scopes, a.platform === "facebook" ? PAGE_SCOPES_NEEDED : INSTAGRAM_SCOPES_NEEDED) : [],
+      });
+    })
+  );
+  return out;
+}
+
+/** The import dialog's list: every Page the logins reach, the logins that
+ *  reach it, and — once imported — the login its stored token came from. */
+export async function facebookPageChoices(): Promise<PageChoice[]> {
+  const { byPage, logins } = await discoverPagesByLogin();
+  const owners = await storedTokenOwners(logins);
+  const boundByPage = new Map([...owners.values()].filter((o) => o.platform === "facebook").map((o) => [o.external_id, o]));
+  return [...byPage.values()].map((sources) => {
+    const page = sources[0].page;
+    const bound = boundByPage.get(page.page_id);
+    return {
+      page_id: page.page_id,
+      name: page.name,
+      instagram_business_account_id: sources.find((s) => s.page.instagram_business_account_id)?.page.instagram_business_account_id ?? null,
+      logins: sources.map((s) => ({ slot: s.slot, name: s.name, missing: s.missing })),
+      bound: bound ? { slot: bound.slot, name: bound.name, missing: bound.missing, valid: bound.valid } : null,
+    };
+  });
+}
+
+/** Integrations: for each Facebook/Instagram account, the login its token
+ *  came from and what's wrong with that token, if anything. Cached briefly —
+ *  one debug_token per account. Cleared when tokens change. */
+let ownersCache: { at: number; value: Record<string, { via: string | null; valid: boolean; missing: string[] }> } | null = null;
+export async function facebookAccountOwners(logins: LoginRef[]) {
+  if (ownersCache && Date.now() - ownersCache.at < 120_000) return ownersCache.value;
+  const owners = await storedTokenOwners(logins);
+  const value = Object.fromEntries([...owners].map(([id, o]) => [id, { via: o.name, valid: o.valid, missing: o.missing }]));
+  ownersCache = { at: Date.now(), value };
+  return value;
 }
 
 /** Removes the second Facebook login. Pages already imported through it keep
@@ -118,79 +277,78 @@ export async function disconnectFacebookLogin(slot: FacebookLoginSlot) {
   if (error) throw new Error(error.message);
 }
 
-/** Re-discovers Pages with every stored Facebook login, one list without
- *  duplicates (a Page both profiles can reach comes from login 1). */
-export async function rediscoverFacebookPages(): Promise<DiscoveredPage[]> {
-  const { data } = await db.from("social_connections").select("id, fb_user_token_encrypted").order("id");
-  const logins = ((data ?? []) as { id: number; fb_user_token_encrypted: string | null }[]).filter((r) => r.fb_user_token_encrypted);
-  if (!logins.length) throw new Error("No Facebook connection saved yet — connect one first.");
-  const pages: DiscoveredPage[] = [];
-  const seen = new Set<string>();
-  const errors: string[] = [];
-  for (const login of logins) {
-    try {
-      for (const p of await listManagedPages(decryptToken(login.fb_user_token_encrypted!))) {
-        if (seen.has(p.page_id)) continue;
-        seen.add(p.page_id);
-        pages.push(p);
-      }
-    } catch (e) {
-      errors.push(`Facebook login ${login.id}: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
-  if (!pages.length && errors.length) throw new Error(errors.join(" · "));
-  return pages;
-}
-
 /** Step 2 — persists the project mapping for the Pages picked in the import
  *  dialog (and, where present, their linked Instagram Business Account). A
  *  client with multiple businesses maps different Pages to different
- *  projects. The browser sends only Page ids: Pages and their tokens are
- *  re-discovered here, so a token never passes through the browser.
- *  Nothing a project already has is added twice — so picking a Page that's
- *  already imported adds just its Instagram, when that was linked to the Page
- *  after the first import (Tad Pharma, 2026-10-21). Returns the rows added. */
-export async function saveFacebookPageMappings(mappings: { page_id: string; project_id: string }[]): Promise<number> {
-  const discovered = new Map((await rediscoverFacebookPages()).map((p) => [p.page_id, p]));
-  if (mappings.some((m) => !discovered.has(m.page_id))) {
-    throw new Error("A selected Page isn't reachable through your Facebook logins any more. Reconnect, then import again.");
-  }
-  const pages = mappings.map(({ page_id, project_id }) => ({ page: discovered.get(page_id)!, project_id }));
-  const ids = pages.flatMap(({ page }) => [page.page_id, ...(page.instagram_business_account_id ? [page.instagram_business_account_id] : [])]);
-  // An Instagram account the project already has (e.g. through Instagram
-  // Login) isn't added a second time — it would post everything twice.
+ *  projects. The browser sends only Page ids and, optionally, which login to
+ *  use (`login_slot`): Pages and their tokens are re-discovered here and the
+ *  login is checked against them, so a token never passes through the browser.
+ *  - A new Page takes the chosen login's token, else the best one (bestSource).
+ *  - An already-imported Page with a login chosen is moved to that login (its
+ *    Facebook and Instagram rows on that project) — only when picked in the
+ *    dialog; nothing else is touched (no global token refresh: that was the
+ *    re-bind of 2026-10-31).
+ *  - Nothing a project already has is added twice, so picking an imported
+ *    Page adds just its Instagram when that was linked later (Tad, 2026-10-21).
+ *  Returns how many rows were added or moved. */
+export async function saveFacebookPageMappings(mappings: { page_id: string; project_id: string; login_slot?: FacebookLoginSlot }[]): Promise<number> {
+  const { byPage, logins } = await discoverPagesByLogin();
+  const owners = await storedTokenOwners(logins);
+  const ownerOf = (platform: string, externalId: string) => [...owners.values()].find((o) => o.platform === platform && o.external_id === externalId);
+
+  const picks = mappings.map((m) => {
+    const sources = byPage.get(m.page_id);
+    if (!sources?.length) throw new Error("A selected Page isn't reachable through your Facebook logins any more. Reconnect, then import again.");
+    const source = m.login_slot ? sources.find((s) => s.slot === m.login_slot) : bestSource(sources, ownerOf("facebook", m.page_id)?.slot ?? null);
+    if (!source) throw new Error(`${sources[0].page.name} isn't reachable through that Facebook login. Pick the other login for it.`);
+    // A login can reach the Page without its Instagram (not granted at that
+    // login): the Instagram then takes a token from a login that has it.
+    const igId = sources.find((s) => s.page.instagram_business_account_id)?.page.instagram_business_account_id ?? null;
+    const igSource = source.page.instagram_business_account_id ? source : sources.find((s) => s.page.instagram_business_account_id) ?? null;
+    return { ...m, source, igId, igSource };
+  });
+
+  const ids = picks.flatMap((p) => [p.page_id, ...(p.igId ? [p.igId] : [])]);
   const { data: have } = await db
     .from("client_social_accounts")
-    .select("project_id, platform, external_id")
+    .select("id, project_id, platform, external_id, token_expires_at")
     .in("platform", ["facebook", "instagram"])
     .in("external_id", ids);
-  const taken = new Set(
-    ((have ?? []) as { project_id: string; platform: string; external_id: string }[]).map((r) => `${r.project_id}:${r.platform}:${r.external_id}`)
-  );
-  const rows = pages.flatMap(({ page, project_id }) => {
-    const token = encryptToken(page.page_access_token);
-    const out: {
-      project_id: string;
-      platform: SocialPlatform;
-      label: string;
-      external_id: string;
-      access_token_encrypted: string;
-    }[] = [];
-    if (!taken.has(`${project_id}:facebook:${page.page_id}`)) {
-      out.push({ project_id, platform: "facebook", label: page.name, external_id: page.page_id, access_token_encrypted: token });
+  const existing = (have ?? []) as { id: string; project_id: string; platform: string; external_id: string; token_expires_at: string | null }[];
+  const find = (projectId: string, platform: string, externalId: string) =>
+    existing.find((r) => r.project_id === projectId && r.platform === platform && r.external_id === externalId);
+
+  const inserts: { project_id: string; platform: SocialPlatform; label: string; external_id: string; access_token_encrypted: string; fb_login_name: string }[] = [];
+  const moves: { id: string; token: string; login: string }[] = [];
+  for (const { project_id, page_id, login_slot, source, igId, igSource } of picks) {
+    const fb = find(project_id, "facebook", page_id);
+    if (!fb) {
+      inserts.push({ project_id, platform: "facebook", label: source.page.name, external_id: page_id, access_token_encrypted: encryptToken(source.page.page_access_token), fb_login_name: source.name });
+    } else if (login_slot && ownerOf("facebook", page_id)?.slot !== login_slot) {
+      moves.push({ id: fb.id, token: source.page.page_access_token, login: source.name });
     }
-    const ig = page.instagram_business_account_id;
-    if (ig && !taken.has(`${project_id}:instagram:${ig}`)) {
-      out.push({ project_id, platform: "instagram", label: `${page.name} (Instagram)`, external_id: ig, access_token_encrypted: token });
+    if (igId && igSource) {
+      const ig = find(project_id, "instagram", igId);
+      // An Instagram the project already has through Instagram Login is left
+      // alone — adding it again would post everything twice.
+      if (!ig) {
+        inserts.push({ project_id, platform: "instagram", label: `${source.page.name} (Instagram)`, external_id: igId, access_token_encrypted: encryptToken(igSource.page.page_access_token), fb_login_name: igSource.name });
+      } else if (!ig.token_expires_at && login_slot && igSource.slot === login_slot && ownerOf("instagram", igId)?.slot !== login_slot) {
+        moves.push({ id: ig.id, token: igSource.page.page_access_token, login: igSource.name });
+      }
     }
-    return out;
-  });
-  if (rows.length === 0) return 0;
-  const { error } = await db.from("client_social_accounts").insert(rows);
-  if (error) throw new Error(error.message);
-  // Records which Facebook profile the new accounts hang off (fb_login_name).
-  await refreshFacebookPageTokens().catch(() => {});
-  return rows.length;
+  }
+
+  if (inserts.length) {
+    const { error } = await db.from("client_social_accounts").insert(inserts);
+    if (error) throw new Error(error.message);
+  }
+  for (const m of moves) {
+    const { error } = await db.from("client_social_accounts").update({ access_token_encrypted: encryptToken(m.token), fb_login_name: m.login }).eq("id", m.id);
+    if (error) throw new Error(error.message);
+  }
+  ownersCache = null;
+  return inserts.length + moves.length;
 }
 
 export function decryptAccountToken(account: ClientSocialAccount): string {
@@ -385,55 +543,52 @@ export async function saveLinkedInOrgMappings(mappings: { org: DiscoveredOrganiz
  * Facebook (re)connect. Instagram Login accounts (their own tokens) are
  * left alone.
  */
-export async function refreshFacebookPageTokens(): Promise<{ updated: number; missing: string[] }> {
-  // Newest login first, and the first token found for a Page wins: a Page
-  // both profiles can reach takes its token from the login just reconnected,
-  // so newly granted permissions (e.g. instagram_manage_insights) aren't
-  // overwritten by the other login's older grant.
-  const { data: logins } = await db
-    .from("social_connections")
-    .select("fb_user_token_encrypted")
-    .not("fb_user_token_encrypted", "is", null)
-    .order("connected_at", { ascending: false });
-  // Each token remembers which profile it came from, so a blocked-login
-  // alert can name the profile to fix (lib/social-connection-hold.ts).
-  type Found = { token: string; profile: string };
-  const byPage = new Map<string, Found>();
-  const byIg = new Map<string, Found>();
-  for (const l of logins ?? []) {
-    try {
-      const userToken = decryptToken(l.fb_user_token_encrypted as string);
-      const [me, pages] = await Promise.all([facebookMe(userToken), listManagedPages(userToken)]);
-      for (const p of pages) {
-        const found = { token: p.page_access_token, profile: me.name };
-        if (!byPage.has(p.page_id)) byPage.set(p.page_id, found);
-        if (p.instagram_business_account_id && !byIg.has(p.instagram_business_account_id)) {
-          byIg.set(p.instagram_business_account_id, found);
-        }
-      }
-    } catch {
-      /* a dead login just contributes nothing */
+export async function refreshFacebookPageTokens(): Promise<{ updated: number; moved: string[]; missing: string[] }> {
+  // Each account keeps the login it already hangs off, with a fresh token
+  // from that login — unless that login lacks a needed permission and the
+  // other has more (bestSource). Until 2026-10-31 "the login just reconnected
+  // wins" moved every Page both profiles reach onto the newest login, even one
+  // without pages_read_user_content, and broke 9 Pages' Facebook insights.
+  let found: Awaited<ReturnType<typeof discoverPagesByLogin>>;
+  try {
+    found = await discoverPagesByLogin();
+  } catch {
+    return { updated: 0, moved: [], missing: [] };
+  }
+  const { byPage, logins } = found;
+  const byIg = new Map<string, PageSource[]>();
+  for (const sources of byPage.values()) {
+    for (const s of sources) {
+      const ig = s.page.instagram_business_account_id;
+      if (ig) byIg.set(ig, [...(byIg.get(ig) ?? []), s]);
     }
   }
+  const owners = await storedTokenOwners(logins);
   const { data: accounts } = await db
     .from("client_social_accounts")
     .select("id, platform, label, external_id, token_expires_at")
     .in("platform", ["facebook", "instagram"])
     .eq("is_active", true);
   let updated = 0;
+  const moved: string[] = [];
   const missing: string[] = [];
   for (const a of accounts ?? []) {
     if (a.platform === "instagram" && a.token_expires_at) continue; // Instagram Login account
-    const found = a.platform === "facebook" ? byPage.get(a.external_id) : byIg.get(a.external_id);
-    if (!found) {
+    const sources = a.platform === "facebook" ? byPage.get(a.external_id) : byIg.get(a.external_id);
+    if (!sources?.length) {
       missing.push(a.label);
       continue;
     }
-    await db.from("client_social_accounts").update({ access_token_encrypted: encryptToken(found.token) }).eq("id", a.id);
+    const currentSlot = owners.get(a.id)?.slot ?? null;
+    const pick = bestSource(sources, currentSlot, a.platform === "facebook" ? "missing" : "igMissing");
+    await db.from("client_social_accounts").update({ access_token_encrypted: encryptToken(pick.page.page_access_token) }).eq("id", a.id);
     // Separate and unchecked: fb_login_name comes from a later migration, and
-    // a database without it must still get the fresh token above.
-    await db.from("client_social_accounts").update({ fb_login_name: found.profile }).eq("id", a.id);
+    // a database without it must still get the fresh token above. It names the
+    // profile for blocked-login alerts (lib/social-connection-hold.ts).
+    await db.from("client_social_accounts").update({ fb_login_name: pick.name }).eq("id", a.id);
+    if (currentSlot !== null && pick.slot !== currentSlot) moved.push(`${a.label} → ${pick.name}`);
     updated++;
   }
-  return { updated, missing };
+  ownersCache = null;
+  return { updated, moved, missing };
 }

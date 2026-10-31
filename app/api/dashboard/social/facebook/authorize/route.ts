@@ -26,7 +26,10 @@ export async function GET(request: Request) {
     // see in use (pages_manage_engagement dropped 2026-10-28: no comment
     // replies or moderation here). business_management: Pages a client's
     // Business portfolio shares with us only list in /me/accounts with it.
-    "pages_show_list,pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,instagram_manage_insights,business_management,read_insights"
+    // pages_read_user_content is back (2026-10-31): Insights reads each post's
+    // comment count, which is user content — dropping it broke Facebook
+    // insights (#10) for every Page whose token came from a fresh login.
+    "pages_show_list,pages_manage_posts,pages_read_engagement,pages_read_user_content,instagram_basic,instagram_content_publish,instagram_manage_insights,business_management,read_insights"
   );
   authorizeUrl.searchParams.set("response_type", "code");
   // ?slot=2 connects the second Facebook profile (see connectFacebookAccount).

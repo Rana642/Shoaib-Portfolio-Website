@@ -7,8 +7,11 @@ import { buttonStyles } from "@/components/dashboard/ui";
 import { cn } from "@/lib/utils";
 import type { ConnectionStatus, PlatformDef } from "@/lib/social-platforms";
 import { PlatformChip, StatusPill } from "./platform-ui";
+import IssuePopover from "./IssuePopover";
 
-export type TileAccount = { id: string; label: string; detail?: string };
+/** `problem`: what's wrong with this account's connection (its token's login
+ *  lacks a permission, or the token is dead) — behind a warning sign. */
+export type TileAccount = { id: string; label: string; detail?: string; problem?: string };
 
 export type TileAction =
   | { kind: "link"; label: string; href: string }
@@ -77,6 +80,7 @@ function AccountRow({ account }: { account: TileAccount }) {
           <span className="block text-small font-medium truncate">{account.label}</span>
           {account.detail && <span className="block text-tag text-ink-subtle truncate">{account.detail}</span>}
         </span>
+        {account.problem && <IssuePopover tone="error">{account.problem}</IssuePopover>}
       </span>
       {confirming ? (
         <span className="flex items-center gap-1 shrink-0">

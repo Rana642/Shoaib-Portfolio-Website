@@ -32,8 +32,15 @@ Also:
 
 ## 2. Permissions to request (App Review → Permissions and features → Request advanced access)
 
-The login asks for 8 permissions. `pages_manage_engagement` was **removed** on 2026-10-28 because the app
+The login asks for 9 permissions. `pages_manage_engagement` was **removed** on 2026-10-28 because the app
 doesn't reply to or moderate comments, and Meta rejects permissions it can't see in use. **Don't request it.**
+
+**`pages_read_user_content` is needed after all (2026-10-31).** It was on the "remove" list. The Insights
+post list reads each post's comment count (`comments.summary`), which is user content. Meta refuses that
+call without it (#10). It was dropped from the login on 2026-10-28, and every token from a fresh login
+then broke Facebook insights. It is back in the login scope.
+- **Request it.** Right now it has Standard access only, so it works just for people with a role on the app.
+- **Submitting is Shoaib's decision.**
 
 ### pages_show_list
 > After a Page admin connects with Facebook Login for Business, the app calls `/me/accounts` to list the Facebook Pages (and their linked Instagram professional accounts) that this admin manages. The admin then picks which Page belongs to which client project in our dashboard. The list is only shown to that admin, inside the dashboard.
@@ -46,6 +53,9 @@ doesn't reply to or moderate comments, and Meta rejects permissions it can't see
 
 ### pages_read_engagement
 > The Insights page in the dashboard shows each Page's recent posts with their reactions, comments and shares counts (`/{page}/published_posts`), so the client sees how their posts performed. The app also reads a published post's image and permalink (`full_picture`, `permalink_url`) to show it in the planner and to confirm a scheduled post went out. Nothing is stored. The data is read when the page is opened.
+
+### pages_read_user_content
+> On the dashboard's Insights page, each recent Page post is listed with its number of comments (`/{page}/published_posts` with `comments.summary(total_count)`). The comment count is user-generated content, so reading it needs pages_read_user_content. The app reads only the count, never the text of a comment or who wrote it. Nothing is stored.
 
 ### read_insights
 > Reads Page insights (`/{page}/insights`: views, reach and followers online by hour) for the dashboard's Insights page, and to suggest the best times to post for that Page. The data is only shown to the Page's admin inside the dashboard and is not stored.
@@ -73,10 +83,9 @@ doesn't reply to or moderate comments, and Meta rejects permissions it can't see
 > Reads that account's insights (reach, views, likes, comments, shares, saves, and followers online by hour) for the dashboard's Insights page and best-time-to-post suggestions. Shown only to the account's admin and not stored.
 
 ### Remove from the submission (trash icon). The app doesn't use these.
-Meta pre-fills a long list from the use cases. Remove these 13 from the submission:
+Meta pre-fills a long list from the use cases. Remove these 12 from the submission:
 - Instagram Public Content Access
 - instagram_business_manage_messages
-- pages_read_user_content
 - instagram_branded_content_ads_brand
 - pages_manage_metadata
 - facebook_branded_content_ads_brand
@@ -88,7 +97,7 @@ Meta pre-fills a long list from the use cases. Remove these 13 from the submissi
 - instagram_manage_messages
 - instagram_shopping_tag_products
 
-That leaves **12**: the 8 above, the 3 Instagram Login ones, and `public_profile`. `public_profile` is the default; write "Used to identify the admin who connects (name and ID) so the dashboard shows which profile each Page came from."
+That leaves **13**: the 9 above, the 3 Instagram Login ones, and `public_profile`. `public_profile` is the default; write "Used to identify the admin who connects (name and ID) so the dashboard shows which profile each Page came from."
 
 ## 3. Screen recording (one video covers all of them)
 

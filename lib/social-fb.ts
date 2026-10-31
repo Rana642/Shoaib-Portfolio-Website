@@ -111,19 +111,38 @@ export async function facebookMe(token: string): Promise<{ id: string; name: str
  *  role — so working = valid AND at least one permission. Null when the app
  *  secret isn't configured or Meta didn't answer. */
 export async function facebookLoginWorks(token: string): Promise<boolean | null> {
+  const info = await facebookTokenInfo(token);
+  return info ? info.valid && info.scopes.length > 0 : null;
+}
+
+/** What Meta says about a User or Page token (debug_token with the app
+ *  token): still valid, whose login it came from, which permissions it
+ *  carries. A Page token reports the user whose login produced it — that's
+ *  how a stored Page token is matched to one of the two Facebook logins.
+ *  Null when the app secret isn't configured or Meta didn't answer. */
+export async function facebookTokenInfo(token: string): Promise<{ valid: boolean; userId: string | null; scopes: string[] } | null> {
   const appId = process.env.META_APP_ID;
   const appSecret = process.env.META_APP_SECRET;
   if (!appId || !appSecret) return null;
   try {
-    const { data } = await graphGet<{ data?: { is_valid?: boolean; scopes?: string[] } }>("/debug_token", {
+    const { data } = await graphGet<{ data?: { is_valid?: boolean; user_id?: string; scopes?: string[] } }>("/debug_token", {
       input_token: token,
       access_token: `${appId}|${appSecret}`,
     });
-    return Boolean(data?.is_valid && data.scopes?.length);
+    return { valid: Boolean(data?.is_valid), userId: data?.user_id ?? null, scopes: data?.scopes ?? [] };
   } catch {
     return null;
   }
 }
+
+/** Permissions a Page's token needs for everything the Planner does with it:
+ *  list it, post, read posts and insights. pages_read_user_content: the post
+ *  list on Insights reads comment counts (comments.summary), which is user
+ *  content — without it Meta answers (#10) and Facebook insights break
+ *  (2026-10-31, the 9 Pages whose tokens came from a login that never granted it). */
+export const PAGE_SCOPES_NEEDED = ["pages_show_list", "pages_read_engagement", "pages_read_user_content", "pages_manage_posts", "read_insights"];
+/** Same for an Instagram account reached through its Facebook Page. */
+export const INSTAGRAM_SCOPES_NEEDED = ["instagram_basic", "instagram_content_publish", "instagram_manage_insights"];
 
 export type DiscoveredPage = {
   page_id: string;
@@ -134,9 +153,19 @@ export type DiscoveredPage = {
   instagram_business_account_id: string | null;
 };
 
+/** One of the stored Facebook logins that can reach a Page, as the import
+ *  dialog shows it: which login, whose profile, and the needed permissions
+ *  it hasn't granted (PAGE_SCOPES_NEEDED). */
+export type PageLoginOption = { slot: 1 | 2; name: string; missing: string[] };
+
 /** A discovered Page as the browser sees it (the import dialog) — never its
- *  token. Saving sends Page ids back and the server re-discovers the tokens. */
-export type PageChoice = Omit<DiscoveredPage, "page_access_token">;
+ *  token. Saving sends Page ids (and the chosen login's slot) back and the
+ *  server re-discovers the tokens. `logins`: every login that reaches it.
+ *  `bound`: for an imported Page, the login its stored token came from. */
+export type PageChoice = Omit<DiscoveredPage, "page_access_token"> & {
+  logins?: PageLoginOption[];
+  bound?: { slot: 1 | 2 | null; name: string | null; missing: string[]; valid: boolean } | null;
+};
 
 export const toPageChoice = (p: DiscoveredPage): PageChoice => ({
   page_id: p.page_id,

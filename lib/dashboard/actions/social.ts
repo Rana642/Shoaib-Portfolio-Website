@@ -7,7 +7,7 @@ import { getAdminUser } from "../auth";
 import {
   connectFacebookAccount,
   disconnectFacebookLogin,
-  rediscoverFacebookPages,
+  facebookPageChoices,
   saveFacebookPageMappings,
   connectLinkedInAccount,
   rediscoverLinkedInOrganizations,
@@ -60,15 +60,25 @@ export async function removeSecondFacebookLogin() {
 export async function refreshFacebookPages() {
   await assertAuthed();
   try {
-    const pages = await rediscoverFacebookPages();
-    return { ok: true, pages: pages.map(toPageChoice) };
+    // Each Page with the logins that reach it and, once imported, the login
+    // its token came from — no tokens (see facebookPageChoices).
+    return { ok: true, pages: await facebookPageChoices() };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Couldn't refresh pages." };
   }
 }
 
-// Page ids only — the server re-discovers each Page and its token.
-const mappingSchema = z.array(z.object({ project_id: z.string().uuid(), page_id: z.string().regex(/^\d{1,30}$/) })).max(200);
+// Page ids (and the chosen login's slot) only — the server re-discovers each
+// Page and its token, and checks the Page is reachable through that login.
+const mappingSchema = z
+  .array(
+    z.object({
+      project_id: z.string().uuid(),
+      page_id: z.string().regex(/^\d{1,30}$/),
+      login_slot: z.union([z.literal(1), z.literal(2)]).optional(),
+    })
+  )
+  .max(200);
 
 export async function saveMappings(mappingsJson: string) {
   await assertAuthed();

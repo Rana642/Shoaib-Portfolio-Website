@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, ChevronDown, LayoutGrid, LoaderCircle, Rows3, Settings2, TriangleAlert } from "lucide-react";
+import { ArrowUpRight, ChevronDown, LayoutGrid, LoaderCircle, Rows3, Settings2 } from "lucide-react";
 import {
   connectFacebook,
   connectLinkedIn,
@@ -22,7 +22,8 @@ import type { PageChoice } from "@/lib/social-fb";
 import type { DiscoveredOrganization } from "@/lib/social-linkedin";
 import PlatformTile, { type TileAccount, type TileAction } from "./PlatformTile";
 import ConnectionsMatrix from "./ConnectionsMatrix";
-import ImportModal, { type ImportItem } from "./ImportModal";
+import ImportModal, { type ImportChoice, type ImportItem } from "./ImportModal";
+import IssuePopover from "./IssuePopover";
 import { PlatformChip, StatusPill } from "./platform-ui";
 
 /** Token-free account shape — the page strips encrypted tokens before
@@ -38,7 +39,15 @@ export type BlockedInfo = { since: string; posts: number; accounts: string };
 /** A Facebook login's health on the Integrations page. `broken`: Meta says the
  *  login itself no longer works (debug_token). `blocked`: posts held behind it —
  *  with a working login those are only waiting for their next try. */
-export type LoginHealth = { pages: number; broken: boolean; blocked: BlockedInfo | null };
+export type LoginHealth = {
+  pages: number;
+  broken: boolean;
+  blocked: BlockedInfo | null;
+  /** Permissions the Planner needs that this login hasn't granted (debug_token). */
+  missing?: string[];
+};
+/** A Facebook/Instagram account's stored token: whose login it came from and what's wrong with it. */
+export type AccountOwner = { via: string | null; valid: boolean; missing: string[] };
 /** Another app's setup, shown as a small link card (Google Business, WhatsApp). */
 export type OtherApp = { key: string; title: string; detail: string; href: string };
 
@@ -59,6 +68,7 @@ export default function ConnectionsHub({
   facebookHealth2,
   otherBlocked = [],
   otherApps = [],
+  accountOwners = {},
   linkedinLogin,
   clientsMissingProject,
   initialProjectId,
@@ -78,6 +88,8 @@ export default function ConnectionsHub({
   /** Blocked logins that aren't one of the two Facebook logins (Instagram Login accounts…). */
   otherBlocked?: (BlockedInfo & { name: string })[];
   otherApps?: OtherApp[];
+  /** By account id: the login each Facebook/Instagram token came from, and its problems. */
+  accountOwners?: Record<string, AccountOwner>;
   linkedinLogin: WorkspaceLogin;
   clientsMissingProject: string[];
   initialProjectId: string | null;
@@ -152,6 +164,7 @@ export default function ConnectionsHub({
   const importItems: ImportItem[] = useMemo(() => {
     if (!importing) return [];
     if (importing.provider === "facebook") {
+      const warnOf = (missing: string[]) => (missing.length ? `Hasn't granted ${missing.join(", ")}, so Facebook insights fail through this login` : undefined);
       return importing.pages.map((p) => {
         const existing = accounts.find((a) => a.platform === "facebook" && a.external_id === p.page_id);
         const ig = p.instagram_business_account_id;
@@ -159,13 +172,23 @@ export default function ConnectionsHub({
         // picked again to bring in just its Instagram, on the same project.
         const igMissing =
           existing && ig && !accounts.some((a) => a.platform === "instagram" && a.external_id === ig && a.project_id === existing.project_id);
+        const logins = p.logins?.map((l) => ({ id: String(l.slot), label: l.name, warning: warnOf(l.missing) }));
+        const bound =
+          existing && p.bound
+            ? { id: p.bound.slot ? String(p.bound.slot) : null, label: p.bound.name, warning: !p.bound.valid ? "This Page's token no longer works" : warnOf(p.bound.missing) }
+            : undefined;
+        // An imported Page can also be picked again to choose its login — when
+        // two logins reach it, or the one holding it lacks something.
+        const relogin = Boolean(existing && logins && (logins.length > 1 || bound?.warning));
         return {
           id: p.page_id,
           name: p.name,
           subtitle: ig ? "Facebook Page + Instagram" : "Facebook Page",
           importedTo: existing ? projectLabel(existing.project_id) : undefined,
-          addTo: igMissing ? existing.project_id : undefined,
-          addNote: igMissing ? "its Instagram isn't connected yet — select to add it" : undefined,
+          addTo: existing && (igMissing || relogin) ? existing.project_id : undefined,
+          addNote: igMissing ? "its Instagram isn't connected yet — select to add it" : relogin ? "select it to change its login" : undefined,
+          logins,
+          bound,
         };
       });
     }
@@ -175,31 +198,52 @@ export default function ConnectionsHub({
     });
   }, [importing, accounts, projectLabel]);
 
-  const saveImport = async (mapping: Record<string, string>) => {
+  const saveImport = async (mapping: Record<string, ImportChoice>) => {
     if (!importing) return;
     if (importing.provider === "facebook") {
-      const chosen = importing.pages.filter((p) => mapping[p.page_id]).map((p) => ({ project_id: mapping[p.page_id], page_id: p.page_id }));
+      // Page ids and the chosen login's slot only — the server re-checks both.
+      const chosen = importing.pages
+        .filter((p) => mapping[p.page_id])
+        .map((p) => {
+          const { project, login } = mapping[p.page_id];
+          return { project_id: project, page_id: p.page_id, ...(login ? { login_slot: Number(login) } : {}) };
+        });
       return saveMappings(JSON.stringify(chosen));
     }
     const chosen = importing.orgs
       .filter((o) => mapping[o.organization_urn])
-      .map((o) => ({ project_id: mapping[o.organization_urn], org: o }));
+      .map((o) => ({ project_id: mapping[o.organization_urn].project, org: o }));
     return saveLinkedInMappings(JSON.stringify(chosen));
   };
 
   const tileFor = (def: PlatformDef, pid: string) => {
     const status = statusOf(pid, def.key);
     const rows = rowsFor(pid, def.key);
-    const tileAccounts: TileAccount[] = rows.map((r) => ({
-      id: r.id,
-      label: r.label,
-      detail:
-        def.key === "tiktok" && tiktokFollowers[r.id] != null
-          ? `${tiktokFollowers[r.id]!.toLocaleString()} followers`
-          : def.key === "youtube" && youtubeSubscribers[r.id] != null
-            ? `${youtubeSubscribers[r.id]!.toLocaleString()} subscribers`
-            : undefined,
-    }));
+    const tileAccounts: TileAccount[] = rows.map((r) => {
+      // Facebook/Instagram through a Page: which login's token it runs on, and
+      // a warning when that token is dead or lacks a needed permission.
+      const owner = accountOwners[r.id];
+      const problem = owner
+        ? !owner.valid
+          ? `Its token (via ${owner.via ?? "an unknown login"}) no longer works. Reconnect that login, or use Import Pages to move this Page to the other login.`
+          : owner.missing.length
+            ? `Its token comes from ${owner.via ?? "a login"}, which hasn't granted ${owner.missing.join(", ")} — ${def.key === "facebook" ? "Facebook insights for this Page fail (#10)" : "some Instagram features fail"}. Fix: Import Pages → select this Page → choose a login without ⚠, or reconnect ${owner.via ?? "that login"} (the login now asks for it).`
+            : undefined
+        : undefined;
+      return {
+        id: r.id,
+        label: r.label,
+        detail:
+          def.key === "tiktok" && tiktokFollowers[r.id] != null
+            ? `${tiktokFollowers[r.id]!.toLocaleString()} followers`
+            : def.key === "youtube" && youtubeSubscribers[r.id] != null
+              ? `${youtubeSubscribers[r.id]!.toLocaleString()} subscribers`
+              : owner?.via
+                ? `via ${owner.via}`
+                : undefined,
+        problem,
+      };
+    });
 
     let note: string | undefined;
     let action: TileAction | null = null;
@@ -469,58 +513,6 @@ function ViewTab({
   );
 }
 
-/** A small warning sign whose details open above it on hover, focus or click
- *  (click keeps them open — phones have no hover). */
-function IssuePopover({ tone, children }: { tone: "error" | "warning"; children: React.ReactNode }) {
-  const [hover, setHover] = useState(false);
-  const [pinned, setPinned] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
-  const open = hover || pinned;
-
-  useEffect(() => {
-    if (!pinned) return;
-    const close = (e: MouseEvent | KeyboardEvent) => {
-      if (e instanceof KeyboardEvent ? e.key === "Escape" : !ref.current?.contains(e.target as Node)) setPinned(false);
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", close);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", close);
-    };
-  }, [pinned]);
-
-  return (
-    <span ref={ref} className="relative inline-flex" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-      <button
-        type="button"
-        onClick={() => setPinned((p) => !p)}
-        onFocus={() => setHover(true)}
-        onBlur={() => setHover(false)}
-        aria-expanded={open}
-        aria-label={tone === "error" ? "Why this login stopped" : "About the held posts"}
-        className={cn(
-          "inline-flex size-7 items-center justify-center rounded-full transition-colors cursor-pointer",
-          tone === "error" ? "text-red-600 hover:bg-red-500/10" : "text-ink/70 hover:bg-citrus/20"
-        )}
-      >
-        <TriangleAlert className="size-4" aria-hidden />
-      </button>
-      {open && (
-        <span
-          role="tooltip"
-          className={cn(
-            "absolute bottom-full left-1/2 z-50 mb-2 w-80 max-w-[80vw] -translate-x-1/2 rounded-xl border bg-white px-4 py-3 text-small text-ink shadow-xl",
-            tone === "error" ? "border-red-600/25" : "border-citrus/50"
-          )}
-        >
-          {children}
-        </span>
-      )}
-    </span>
-  );
-}
-
 function LoginCard({
   platform,
   title,
@@ -571,6 +563,12 @@ function LoginCard({
     <>
       {blocked.posts} post{blocked.posts === 1 ? "" : "s"} held since {pktTime(blocked.since)} ({blocked.accounts}). This login works now, so they go out on the next runs. Nothing to do.
     </>
+  ) : login.connectedAt && health?.missing?.length ? (
+    <>
+      <span className="font-semibold">This login hasn&apos;t granted {health.missing.join(", ")}.</span> Pages whose token comes from it can&apos;t do
+      everything (without pages_read_user_content, Facebook insights fail). Press Reconnect — the login now asks for it — and keep every
+      permission ticked.
+    </>
   ) : null;
 
   return (
@@ -587,6 +585,8 @@ function LoginCard({
               </span>
             ) : blocked ? (
               <StatusPill status="pending" label="Posts retrying" />
+            ) : login.connectedAt && health?.missing?.length ? (
+              <StatusPill status="pending" label="Permission missing" />
             ) : (
               <StatusPill status={status} label={pillLabel} />
             )}

@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/dashboard/ui";
 import ConnectionsHub, { type HubAccount } from "@/components/dashboard/social/connections/ConnectionsHub";
 import { getTikTokAccountSummary } from "@/lib/social-tiktok";
 import { getYouTubeChannelSummary } from "@/lib/social-youtube";
-import { listFacebookLogins } from "@/lib/social-accounts";
+import { facebookAccountOwners, listFacebookLogins } from "@/lib/social-accounts";
 import { heldPostsSummary, blockedAccountsLine, type BlockedLogin } from "@/lib/social-connection-hold";
 import { loginNames } from "@/lib/connection-health";
 import type { ClientSocialAccount } from "@/lib/dashboard/types";
@@ -73,14 +73,19 @@ export default async function SocialConnectionsPage({
 
   // Each Facebook login's health: how many Pages it serves, whether Meta says
   // it still works (debug_token), and posts held behind it (lib/social-connection-hold.ts).
-  const healthOf = (name: string | null, works: boolean | null) => {
+  const healthOf = (name: string | null, works: boolean | null, missing: string[]) => {
     const blocked = name ? held.logins.find((l) => l.kind === "facebook" && l.name === name) : undefined;
     return {
       pages: name ? allAccounts.filter((a) => a.platform === "facebook" && a.fb_login_name === name).length : 0,
       broken: works === false,
       blocked: blocked ? { since: blocked.since, posts: blocked.count, accounts: blockedAccountsLine(blocked) } : null,
+      missing,
     };
   };
+  // Which login each Facebook/Instagram token came from, and what it lacks (debug_token, cached briefly).
+  const accountOwners = await facebookAccountOwners(
+    fbLogins.map((l) => ({ slot: l.slot, name: l.slot === 1 ? fb1Name : fb2Name, userId: l.userId }))
+  ).catch(() => ({}));
   // Instagram Login accounts (and logins whose profile isn't recorded) that are blocked.
   const otherBlocked = held.logins
     .filter((l) => l.kind === "instagram" || (l.name !== fb1Name && l.name !== fb2Name))
@@ -141,8 +146,9 @@ export default async function SocialConnectionsPage({
           expiresSoon: fb2.expiresAt ? new Date(fb2.expiresAt).getTime() - now < 14 * 86_400_000 : false,
           accountName: fb2Name,
         }}
-        facebookHealth={healthOf(fb1Name, fb1.works)}
-        facebookHealth2={healthOf(fb2Name, fb2.works)}
+        facebookHealth={healthOf(fb1Name, fb1.works, fb1.missing)}
+        facebookHealth2={healthOf(fb2Name, fb2.works, fb2.missing)}
+        accountOwners={accountOwners}
         otherBlocked={otherBlocked}
         otherApps={[
           { key: "gbp", title: "Google Business", detail: `${gbpProjects} project${gbpProjects === 1 ? "" : "s"} with a location`, href: "/dashboard/gbp" },

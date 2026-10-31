@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isCronRequest } from "@/lib/cron-auth";
 import { db } from "@/lib/dashboard/db";
-import { decryptAccountToken, listAllSocialAccounts } from "@/lib/social-accounts";
+import { decryptAccountToken, facebookPageChoices, listAllSocialAccounts } from "@/lib/social-accounts";
 import { decryptToken } from "@/lib/social-crypto";
 import { GRAPH_BASE, deleteFacebookPostStrict } from "@/lib/social-fb";
 import { getScheduledPost } from "@/lib/scheduled-posts";
@@ -70,6 +70,8 @@ async function debugTokens() {
 export async function GET(request: Request) {
   if (!(await isCronRequest(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (new URL(request.url).searchParams.get("debug") === "1") return NextResponse.json(await debugTokens());
+  // The Import Pages list as the dialog gets it (logins per Page, current login) — no tokens.
+  if (new URL(request.url).searchParams.get("choices") === "1") return NextResponse.json({ choices: await facebookPageChoices() });
   const since = new URL(request.url).searchParams.get("since") ?? "2026-10-20";
 
   const accounts = (await listAllSocialAccounts()).filter((a) => a.platform === "facebook" && a.is_active);
