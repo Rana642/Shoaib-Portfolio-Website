@@ -72,15 +72,21 @@ export async function GET(request: Request) {
   let deferred = 0;
   const startedAt = Date.now();
   // A login was refused / an API limit was hit this run: other posts held
-  // for the same reason needn't try again yet.
-  let metaBlocked = false;
+  // for the same reason needn't try again yet. Blocked logins are tracked
+  // per account — one Page's broken login must not keep posts for Pages on
+  // a working login waiting (2026-10-31: TONI&GUY Stories sat behind
+  // Avalon/Eventia/Danish's blocked login all night).
+  const blockedAccounts = new Set<string>();
   let rateLimited = false;
   let lastHeldId: string | null = null;
   const lateDoneProjects = new Set<string>();
 
   for (const [i, post] of due.entries()) {
     const heldBefore = (post.result as { held?: HoldInfo } | null)?.held;
-    const sameReasonFailedThisRun = heldBefore?.kind === "rate_limited" ? rateLimited : metaBlocked;
+    const sameReasonFailedThisRun =
+      heldBefore?.kind === "rate_limited"
+        ? rateLimited
+        : Boolean(heldBefore?.accounts?.length) && heldBefore!.accounts.every((a) => blockedAccounts.has(a));
     if (heldBefore && (sameReasonFailedThisRun || lateDoneProjects.has(post.project_id))) continue;
     // Only start another post while there's clearly time to finish it —
     // an Instagram publish can take ~30s. A run cut off at maxDuration in
@@ -187,7 +193,7 @@ export async function GET(request: Request) {
       if (blocked.length) {
         const onlyLimits = blocked.every(isRateLimited);
         if (onlyLimits) rateLimited = true;
-        else metaBlocked = true;
+        else for (const r of blocked) if (!isRateLimited(r)) blockedAccounts.add(r.label);
         const since = heldBefore?.since ?? new Date().toISOString();
         if (Date.now() - new Date(since).getTime() < holdLimitMs(post.post_type)) {
           const held: HoldInfo = {
