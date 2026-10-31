@@ -23,7 +23,9 @@ import type { ClientSocialAccount } from "./dashboard/types";
 export type BrokenConnection = { key: string; title: string; detail: string };
 
 const LINKEDIN_WARN_MS = 7 * 86_400_000;
-const CACHE_MS = 60_000;
+// The sidebar polls this; each miss costs Meta platform calls (/me, debug_token)
+// that count against the app's hourly limit — hit on 2026-10-31 (#4). Long cache.
+const CACHE_MS = 15 * 60_000;
 let cache: { at: number; items: BrokenConnection[] } | null = null;
 
 const pkt = (iso: string) =>

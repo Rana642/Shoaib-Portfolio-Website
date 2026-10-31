@@ -84,6 +84,7 @@ export async function connectFacebookAccount(shortLivedToken: string, slot: Face
     fb_token_expires_at: expiresAt,
     connected_at: new Date().toISOString(),
   });
+  loginsCache = null; // the login just changed — show its new health right away
   if (error) {
     throw new Error(
       slot === 2 && /check constraint/i.test(error.message)
@@ -113,8 +114,19 @@ export type FacebookLoginStatus = {
 
 /** Both Facebook logins for the Integrations page, with whose profile each
  *  is (asked live — the name isn't stored), whether it still works and which
- *  needed permissions it lacks (debug_token). */
+ *  needed permissions it lacks (debug_token). Cached 5 minutes per server
+ *  instance: /me and debug_token count against the app's hourly platform
+ *  limit, which ran out on 2026-10-31 (#4). A reconnect clears it. */
+let loginsCache: { at: number; value: FacebookLoginStatus[] } | null = null;
 export async function listFacebookLogins(): Promise<FacebookLoginStatus[]> {
+  if (loginsCache && Date.now() - loginsCache.at < 5 * 60_000) return loginsCache.value;
+  const value = await listFacebookLoginsLive();
+  // Don't keep an answer Meta refused (rate limit): unknown health isn't news.
+  if (value.every((l) => !l.connectedAt || l.works !== null)) loginsCache = { at: Date.now(), value };
+  return value;
+}
+
+async function listFacebookLoginsLive(): Promise<FacebookLoginStatus[]> {
   const { data } = await db.from("social_connections").select("id, fb_user_id, fb_user_token_encrypted, fb_token_expires_at, connected_at").order("id");
   const rows = (data ?? []) as { id: number; fb_user_id: string | null; fb_user_token_encrypted: string | null; fb_token_expires_at: string | null; connected_at: string | null }[];
   return Promise.all(
@@ -278,7 +290,7 @@ export async function facebookPageChoices(): Promise<PageChoice[]> {
  *  one debug_token per account. Cleared when tokens change. */
 let ownersCache: { at: number; value: Record<string, { via: string | null; valid: boolean; missing: string[] }> } | null = null;
 export async function facebookAccountOwners(logins: LoginRef[]) {
-  if (ownersCache && Date.now() - ownersCache.at < 120_000) return ownersCache.value;
+  if (ownersCache && Date.now() - ownersCache.at < 10 * 60_000) return ownersCache.value;
   const owners = await storedTokenOwners(logins);
   const value = Object.fromEntries([...owners].map(([id, o]) => [id, { via: o.name, valid: o.valid, missing: o.missing }]));
   ownersCache = { at: Date.now(), value };
