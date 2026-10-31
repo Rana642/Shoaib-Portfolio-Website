@@ -4,6 +4,21 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-10-31 — Facebook logins: see and choose which login each Page uses (a33744e)
+- **What broke:** Ajaz Hussain (the second login, the same FB user as "Ijaz Danish") reconnected at 16:21. "Newest login wins" then moved 9 Pages onto his token.
+  - His login never granted `pages_read_user_content`. It had been dropped from the login scope on 10-28.
+  - Facebook insights for those Pages failed with #10, because the post list reads comment counts.
+- **Fix:**
+  - The scope is back.
+  - After a reconnect, a Page keeps its current login unless that login lacks a needed permission.
+  - Saving an import no longer refreshes every token.
+  - Import Pages shows "via <login>" per Page, a login choice when two logins reach it, the login an imported Page is on now (with a ⚠ when it lacks something, re-selectable to move it), and a login filter.
+  - Integrations shows "via <login>" and a ⚠ per account. A login missing permissions shows "Permission missing".
+- **Still to do by hand:**
+  - Move Avenza Avenue, Avenza Land, Choppers, Choppers Studio, Elegant and TONI&GUY to "via Shoaib Nabi Noor" in Import Pages.
+  - Ajaz reconnects for Danish, Eventia and Avalon.
+  - App Review should request `pages_read_user_content` (doc updated, not submitted).
+
 ## 2026-10-31 — Socially Snap → Settings → Integrations; Ijaz login lost its tester role (0ecd372, 4f19ca7)
 - **Integrations:** Connections left Marketing and is now Socially Snap Apps → **Settings** → Integrations. The URL is unchanged (`/dashboard/social`).
   - Each Facebook login card shows its Page count, and a red "Reconnect needed" while Meta has it blocked.
