@@ -4,6 +4,27 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-11-02 — connection check, Danish captions, no-emoji rule (office PC, no code changes)
+- **Still next:** the Meta App Review video. It wasn't recorded yet; the plan is in the vault memory `meta-app-review-video`.
+- **Connections, all healthy** (fb-audit `?debug=1` plus a read-only DB check):
+  - **Facebook logins:** both valid, no missing scopes, data access until end of Jan 2027. Ajaz Hussain reconnected on 2 Nov, so Avalon's insights work again.
+  - **Page tokens:** all 16 valid with every scope.
+  - **Instagram Login:** AvenzaLand and Danish run on it, valid to 30 Nov; the cron refreshes them from about 10 Nov.
+  - **LinkedIn:** valid to 27 Dec.
+  - **Held posts:** 0.
+- **Posting 30 Oct to 2 Nov:**
+  - Every post went out, and every Facebook feed post was confirmed live.
+  - Exceptions: 2 Stories from 31 Oct (Danish, TONI) failed on Facebook only, with the (#4) app limit. Shoaib decided not to re-send failed ones: "next se continue".
+- **Danish 85–92 (2–10 Nov):**
+  - Fatima uploaded them on 31 Oct without captions, so today's post was stuck.
+  - Each image was checked, captioned and scheduled at 3:30 PM PKT. The Friday 6 Nov Jummah post goes at 10:30 AM, after Avenza Land at 10:00 and Avalon at 10:15.
+  - Four headlines repeat older posts. The older designs were pulled from public Instagram and compared: they are different designs, not duplicates.
+- **New rule: no emojis in captions**, all projects (KB global rule `captions-no-emojis`).
+  - The 8 Danish captions were rewritten without emojis.
+  - The 58 already-scheduled captions in other projects stay as they are.
+- **Upcoming gaps:** Eventia after 3 Nov, Choppers after 6 Nov, Avalon after 7 Nov, Meezab only 6 Nov, Tad none.
+- **Office PC:** C: was cleaned from 1.6 to 19.5 GB free. VS Code and Codex leftovers were moved to `G:\Backups\C-cleanup-2026-11-02`; delete that folder after about 9 Nov.
+
 ## 2026-10-31 (evening) — where to pick up: App Review video on the home PC
 - **Next:** record the Meta App Review video. The plan, captions, test Page (Ads by Shoaib + @adsbyshoaib) and open decisions are in the vault memory `meta-app-review-video`. Do NOT submit without Shoaib.
 - **Facebook logins now:** 15 of 16 Pages are on Shoaib's login.
