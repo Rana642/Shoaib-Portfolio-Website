@@ -20,8 +20,10 @@ import {
   deleteScheduledPost,
   getScheduledPost,
   dateToScheduledAt,
+  pktToScheduledAt,
   reorderPostsOnDay,
   rescheduleScheduledPost,
+  setPostSchedule,
 } from "../../scheduled-posts";
 import { submitNativeScheduleForPost, rescheduleNativePosts, cancelPostEverywhere } from "../../social-post";
 import { deleteObject } from "../../storage";
@@ -179,6 +181,8 @@ const plannerUploadSchema = z.object({
   media_key: z.string().min(1),
   original_filename: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD"),
+  // Optional time of day typed by hand, in Pakistan time ("HH:MM"). Omitted = the default slot.
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Expected a time as HH:MM").optional(),
   offset_minutes: z.coerce.number().int().min(0).max(1000).default(0),
   caption: z.string().max(2200).optional(),
   // JSON-encoded string[] of platforms to target, or omitted for "all
@@ -202,6 +206,7 @@ export async function createPlannerPost(formData: FormData) {
     media_key: formData.get("media_key"),
     original_filename: formData.get("original_filename"),
     date: formData.get("date"),
+    time: formData.get("time") || undefined,
     offset_minutes: formData.get("offset_minutes") ?? 0,
     caption: formData.get("caption") || undefined,
     platforms: formData.get("platforms") || undefined,
@@ -222,13 +227,21 @@ export async function createPlannerPost(formData: FormData) {
     }
   }
 
+  // A time typed by hand must be in the future: a past time would be picked up by the next cron run at once.
+  if (parsed.data.time && new Date(pktToScheduledAt(parsed.data.date, parsed.data.time)).getTime() <= Date.now()) {
+    return { error: "That date and time has already passed (Pakistan time). Pick a later time." };
+  }
+
   let postId: string;
   try {
     postId = await createScheduledPost({
       project_id: parsed.data.project_id,
       media_key: parsed.data.media_key,
       original_filename: parsed.data.original_filename,
-      scheduled_at: dateToScheduledAt(parsed.data.date, parsed.data.offset_minutes),
+      scheduled_at: parsed.data.time
+        ? pktToScheduledAt(parsed.data.date, parsed.data.time)
+        : dateToScheduledAt(parsed.data.date, parsed.data.offset_minutes),
+      ...(parsed.data.time ? { time_manual: true } : {}),
       caption: parsed.data.caption,
       target_platforms: targetPlatforms,
       ...(parsed.data.post_type !== "post"
@@ -311,6 +324,32 @@ export async function reorderDay(date: string, ids: string[]) {
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Couldn't reorder the posts." };
   }
+}
+
+/** Planner time picker: sets a post's date AND time by hand (time in Pakistan
+ *  time, "HH:MM"). Only for a post that hasn't gone out, and only in the
+ *  future — the cron would otherwise publish it at once. */
+export async function setPostTime(id: string, date: string, time: string) {
+  await assertAuthed();
+  const d = dateSchema.safeParse(date);
+  const t = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).safeParse(time);
+  if (!d.success || !t.success) return { error: "Pick a valid date and time." };
+  const post = await getScheduledPost(id);
+  if (!post) return { error: "Post not found." };
+  if (post.status === "posted" || post.status === "failed") return { error: "This post is already out; its time can't change." };
+  if (new Date(pktToScheduledAt(d.data, t.data)).getTime() <= Date.now()) {
+    return { error: "That date and time has already passed (Pakistan time). Pick a later time." };
+  }
+  try {
+    await setPostSchedule(id, d.data, t.data);
+    // A post already handed to Meta's scheduler needs its draft redone for the new time.
+    await rescheduleNativePosts(id);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't change the time." };
+  }
+  revalidatePath("/dashboard/social/planner");
+  revalidatePath("/dashboard/social/stories");
+  return { ok: true };
 }
 
 /** Drag-and-drop (or a bulk auto-fill correction) moving a post to a

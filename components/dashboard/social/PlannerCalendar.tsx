@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { DayNote } from "@/lib/planner-day-notes";
 import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard, CircleDashed, AlertTriangle, Film, ThumbsUp, LayoutGrid } from "lucide-react";
-import { clearPostChanges, createPlannerPost, deletePost, movePost, reorderDay } from "@/lib/dashboard/actions/social";
+import { clearPostChanges, createPlannerPost, deletePost, movePost, reorderDay, setPostTime } from "@/lib/dashboard/actions/social";
 import { ReplaceImageButton } from "@/components/portal/NeedsChangesAlert";
 import { deletePortalUpload } from "@/lib/portal/planner";
 import PlannerUploader from "@/components/portal/PlannerUploader";
@@ -123,6 +123,80 @@ function dateKey(iso: string): string {
 // on the calendar. Asia/Karachi has no DST, so this is always exactly +5.
 function timeLabel(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZone: "Asia/Karachi" });
+}
+
+// The time picker is only for posts, Stories, Reels and Videos created from
+// 4 Nov 2026 on (Shoaib): everything scheduled before keeps its time and drag
+// behaviour exactly as it was.
+const TIME_EDIT_FROM = "2026-11-04T00:00:00Z";
+
+/** A UTC timestamp as the Pakistan date ("YYYY-MM-DD") and time ("HH:MM") for the inputs. */
+function pktParts(iso: string): { date: string; time: string } {
+  const shifted = new Date(new Date(iso).getTime() + 5 * 3600 * 1000).toISOString();
+  return { date: shifted.slice(0, 10), time: shifted.slice(11, 16) };
+}
+
+/** The time on a week card: plain text for older posts, and for newer ones that
+ *  haven't gone out a button that opens a small date + time form (Pakistan time). */
+function PostTimeEditor({ post, client }: { post: ScheduledPost; client: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const parts = post.scheduled_at ? pktParts(post.scheduled_at) : { date: "", time: "" };
+  const [date, setDate] = useState(parts.date);
+  const [time, setTime] = useState(parts.time);
+  if (!post.scheduled_at) return null;
+
+  const editable =
+    !client && post.created_at >= TIME_EDIT_FROM && post.status !== "posted" && post.status !== "failed";
+  if (!editable) return <p className="text-tag text-ink-subtle">{timeLabel(post.scheduled_at)}</p>;
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setDate(parts.date);
+          setTime(parts.time);
+          setError(null);
+          setOpen(true);
+        }}
+        title="Set the date and time"
+        className="text-tag text-ink-subtle hover:text-ink underline decoration-dotted cursor-pointer"
+      >
+        {timeLabel(post.scheduled_at)}
+      </button>
+    );
+  }
+
+  const save = () =>
+    startTransition(async () => {
+      const res = await setPostTime(post.id, date, time);
+      if (res && "error" in res && res.error) setError(res.error);
+      else setOpen(false);
+    });
+
+  return (
+    <div className="space-y-1 w-full" draggable onDragStart={(e) => e.preventDefault()}>
+      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={cn(inputClasses, "!py-1 !px-1.5 text-tag")} />
+      <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={cn(inputClasses, "!py-1 !px-1.5 text-tag")} />
+      <p className="text-tag text-ink-subtle">Pakistan time</p>
+      {error && <p className="text-tag text-red-700">{error}</p>}
+      <div className="flex gap-1">
+        <button
+          type="button"
+          disabled={pending || !date || !time}
+          onClick={save}
+          className="flex-1 rounded-md bg-ink text-cloud px-2 py-1 text-tag font-medium disabled:opacity-50"
+        >
+          {pending ? "Saving…" : "Save"}
+        </button>
+        <button type="button" disabled={pending} onClick={() => setOpen(false)} className="rounded-md border border-ink/15 px-2 py-1 text-tag">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function monthLabel(d: Date): string {
@@ -673,8 +747,8 @@ function WeekPostCard({
       onDragEnd={onDragEnd}
       {...dropProps}
     >
-      <div className="flex items-center justify-between px-2 pt-1.5 gap-1">
-        {post.scheduled_at && <p className="text-tag text-ink-subtle">{timeLabel(post.scheduled_at)}</p>}
+      <div className="flex flex-wrap items-center justify-between px-2 pt-1.5 gap-1">
+        <PostTimeEditor post={post} client={client} />
         {label && (
           <span className={cn("text-tag font-medium rounded-full px-1.5 py-0.5 shrink-0", label.classes)}>
             {label.text}
@@ -827,6 +901,8 @@ function UploadModal({
   onClose: () => void;
 }) {
   const [caption, setCaption] = useState("");
+  // Optional time of day, Pakistan time ("HH:MM"). Empty = the usual slot.
+  const [time, setTime] = useState("");
   // A photo post, a vertical Reel/Short, a landscape/long Video, or a Story.
   const [kind, setKind] = useState<Kind>(kinds[0]);
   const reelPlatforms = connectedPlatforms.filter((p) => takes(kind, p));
@@ -988,6 +1064,7 @@ function UploadModal({
       fd.set("media_key", mediaKey);
       fd.set("original_filename", file.name);
       fd.set("date", date);
+      if (time) fd.set("time", time);
       // Stories show no caption, so none is sent.
       if (kind !== "story" && caption.trim()) fd.set("caption", caption.trim());
       if (kind !== "post") {
@@ -1209,6 +1286,18 @@ function UploadModal({
                 &quot;{file?.name}&quot; is already scheduled for {duplicateDate} — choose a different image.
               </p>
             )}
+
+            <label className="flex flex-wrap items-center gap-2 text-small">
+              <span className="font-medium">Time</span>
+              <input
+                type="time"
+                className={cn(inputClasses, "!w-32")}
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                disabled={busy}
+              />
+              <span className="text-tag text-ink-subtle">Pakistan time. Leave empty for the usual slot.</span>
+            </label>
 
             {kind !== "story" && (
               <div>

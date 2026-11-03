@@ -141,6 +141,8 @@ export type ScheduledPost = {
   video_privacy?: VideoPrivacy | null;
   /** A Story made automatically from this published post (lib/post-as-story.ts). */
   story_of_post_id?: string | null;
+  /** The time was set by hand in the Planner: drag keeps it, reorder leaves it alone. */
+  time_manual?: boolean | null;
   /** What has to change, while status is "needs_changes" (plain English,
    *  shown to the uploader). */
   review_note?: string | null;

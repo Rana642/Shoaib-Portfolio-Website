@@ -1770,3 +1770,7 @@ create table if not exists retainer_addons (
 );
 alter table retainer_addons enable row level security;
 create index if not exists retainer_addons_parent_idx on retainer_addons (retainer_id);
+
+-- A post whose time was set by hand (Planner time picker, 2026-11-03). Drag keeps that time and
+-- reorder leaves it alone; every older post stays false and behaves exactly as before.
+alter table scheduled_posts add column if not exists time_manual boolean not null default false;

@@ -15,11 +15,21 @@ export function dateToScheduledAt(dateStr: string, offsetMinutes = 0): string {
   return date.toISOString();
 }
 
+/** A date plus a time of day typed in Pakistan time ("HH:MM") → the UTC ISO
+ *  timestamp. Asia/Karachi has no DST, so it is always exactly UTC+5. */
+export function pktToScheduledAt(dateStr: string, timeStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const [hh, mm] = timeStr.split(":").map(Number);
+  return new Date(Date.UTC(y, m - 1, d, hh - 5, mm, 0)).toISOString();
+}
+
 export async function createScheduledPost(input: {
   project_id: string;
   media_key: string;
   original_filename: string;
   scheduled_at: string;
+  /** The time was typed by hand: drag keeps it and reorder leaves it alone. */
+  time_manual?: boolean;
   caption?: string;
   /** null/omitted = every active connected account for the project. */
   target_platforms?: string[] | null;
@@ -39,6 +49,7 @@ export async function createScheduledPost(input: {
       caption: input.caption ?? null,
       status: input.caption || input.reel?.post_type === "story" ? "scheduled" : "pending_caption",
       target_platforms: input.target_platforms ?? null,
+      ...(input.time_manual ? { time_manual: true } : {}),
       // Only sent for portal uploads, so dashboard uploads keep working
       // even before these columns exist.
       ...(input.fromClient ? { uploaded_by_email: input.fromClient.email, client_note: input.fromClient.note } : {}),
@@ -156,14 +167,28 @@ export async function deleteScheduledPost(id: string) {
  *  Published (or failed) posts keep their time. Returns the ids whose time
  *  actually changed. */
 export async function reorderPostsOnDay(dateStr: string, ids: string[]): Promise<string[]> {
-  const { data, error } = await db.from("scheduled_posts").select("id, status, scheduled_at").in("id", ids);
+  const { data, error } = await db.from("scheduled_posts").select("id, status, scheduled_at, time_manual").in("id", ids);
   if (error) throw new Error(error.message);
-  const rows = new Map(((data ?? []) as { id: string; status: string; scheduled_at: string | null }[]).map((r) => [r.id, r]));
+  const rows = new Map(
+    ((data ?? []) as { id: string; status: string; scheduled_at: string | null; time_manual: boolean | null }[]).map((r) => [r.id, r]),
+  );
   const changed: string[] = [];
   let slot = 0;
   for (const id of ids) {
     const row = rows.get(id);
     if (!row || row.status === "posted" || row.status === "failed") continue;
+    // A time set by hand is never re-spaced: it only follows its post to this day.
+    if (row.time_manual && row.scheduled_at) {
+      const t = new Date(row.scheduled_at);
+      const [y, m, d] = dateStr.split("-").map(Number);
+      const keep = new Date(Date.UTC(y, m - 1, d, t.getUTCHours(), t.getUTCMinutes(), 0)).toISOString();
+      if (keep !== new Date(row.scheduled_at).toISOString()) {
+        const { error: upErr } = await db.from("scheduled_posts").update({ scheduled_at: keep }).eq("id", id);
+        if (upErr) throw new Error(upErr.message);
+        changed.push(id);
+      }
+      continue;
+    }
     const at = dateToScheduledAt(dateStr, slot * 5);
     slot++;
     if (row.scheduled_at && new Date(row.scheduled_at).getTime() === new Date(at).getTime()) continue;
@@ -177,9 +202,23 @@ export async function reorderPostsOnDay(dateStr: string, ids: string[]): Promise
 export async function rescheduleScheduledPost(id: string, dateStr: string) {
   const existing = await getScheduledPost(id);
   const prevMinutes = existing?.scheduled_at ? new Date(existing.scheduled_at).getUTCMinutes() : 0;
+  let scheduledAt = dateToScheduledAt(dateStr, prevMinutes);
+  // A time set by hand keeps its hour and minute when the post moves to another day.
+  if (existing?.time_manual && existing.scheduled_at) {
+    const t = new Date(existing.scheduled_at);
+    const [y, m, d] = dateStr.split("-").map(Number);
+    scheduledAt = new Date(Date.UTC(y, m - 1, d, t.getUTCHours(), t.getUTCMinutes(), 0)).toISOString();
+  }
+  const { error } = await db.from("scheduled_posts").update({ scheduled_at: scheduledAt }).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+/** Sets a post's date AND time by hand (Planner time picker). The time is in
+ *  Pakistan time; the post is then flagged so drag and reorder keep it. */
+export async function setPostSchedule(id: string, dateStr: string, timeStr: string) {
   const { error } = await db
     .from("scheduled_posts")
-    .update({ scheduled_at: dateToScheduledAt(dateStr, prevMinutes) })
+    .update({ scheduled_at: pktToScheduledAt(dateStr, timeStr), time_manual: true })
     .eq("id", id);
   if (error) throw new Error(error.message);
 }
