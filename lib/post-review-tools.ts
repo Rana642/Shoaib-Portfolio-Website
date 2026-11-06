@@ -4,6 +4,7 @@ import { clearPostFlag, flagPostsForChanges } from "./post-review";
 import { deleteScheduledPost, getScheduledPost } from "./scheduled-posts";
 import { cancelNativeScheduleStrict } from "./social-post";
 import { deleteObject } from "./storage";
+import { preflightPost } from "./post-preflight";
 
 /**
  * Planner tools shared by the remote MCP (lib/mcp-remote-tools.ts) and the
@@ -55,6 +56,37 @@ Returns: the posts flagged, any skipped (and why), and the emails sent.`,
             : []),
         ];
         return { content: [{ type: "text", text: lines.join("\n") }], structuredContent: out };
+      } catch (error) {
+        return { content: [{ type: "text", text: formatError(error) }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    "social_preflight_post",
+    {
+      title: "Pre-flight Check A Post",
+      description: `Automatic checks on a Planner post BEFORE scheduling it: caption rules (no emojis, forbidden words, repeated words, shouting, odd punctuation), the scheduled time (already past, Friday/Jummah), and duplicates against the project's last 90 days (same image file, near-identical caption). It never changes anything.
+
+It does NOT read the picture: you still look at the image with social_get_post_image (NAP/phone/address, logos, spelling inside the picture). social_set_caption_and_schedule runs these checks itself and appends the result.
+
+Args:
+  - postId (string, UUID)
+  - caption (string, optional): a caption you are about to save; omit to check the saved one.
+  - scheduledAt (string, ISO datetime, optional): the time you are about to save.
+
+Returns: findings, each "FIX" or "CHECK", in English plus Roman Urdu. Pass FIX items to social_request_changes (picture problems) or rewrite the caption.`,
+      inputSchema: {
+        postId: z.string().uuid(),
+        caption: z.string().max(2200).optional(),
+        scheduledAt: z.string().datetime().optional(),
+      },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    async ({ postId, caption, scheduledAt }: { postId: string; caption?: string; scheduledAt?: string }) => {
+      try {
+        const out = await preflightPost({ postId, caption, scheduledAt });
+        return { content: [{ type: "text", text: out.text }], structuredContent: { findings: out.findings } };
       } catch (error) {
         return { content: [{ type: "text", text: formatError(error) }], isError: true };
       }

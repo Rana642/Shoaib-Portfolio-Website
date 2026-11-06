@@ -4,6 +4,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "./dashboard/db";
 import { listPendingCaptionPosts, getScheduledPost, setCaptionAndSchedule, countPostsNeedingChanges } from "./scheduled-posts";
 import { registerPostReviewTools } from "./post-review-tools";
+import { preflightPost } from "./post-preflight";
 import { registerPostListingTools } from "./post-listing-tools";
 import { registerLinkedInPageTools } from "./linkedin-page-tools";
 import { registerSocialInsightsTools } from "./social-insights-tools";
@@ -166,12 +167,17 @@ Returns: confirmation text.`,
         // time/caption): cancel that draft and resubmit, or Meta would still
         // publish the old one too.
         const hadNative = Boolean((post.result as { native?: unknown[] } | null)?.native?.length);
+        // Pre-flight: advisory only (never blocks); a failure here must not stop scheduling.
+        const preflight = await preflightPost({ postId, caption, scheduledAt }).then((o) => o.text, () => "");
         await setCaptionAndSchedule(postId, caption, scheduledAt);
         // Best-effort: hand any eligible Facebook account straight to
         // Meta's own scheduler now rather than waiting for the cron.
         if (hadNative) await rescheduleNativePosts(postId);
         else await submitNativeScheduleForPost(postId);
-        return { content: [{ type: "text", text: `Scheduled for ${scheduledAt ?? post.scheduled_at}.` }] };
+        return { content: [{ type: "text", text: `Scheduled for ${scheduledAt ?? post.scheduled_at}.${preflight ? `
+
+${preflight}
+If a FIX item is right, change it with social_set_caption_and_schedule again (caption) or social_request_changes (picture).` : ""}` }] };
       } catch (error) {
         return { content: [{ type: "text", text: formatError(error) }], isError: true };
       }
