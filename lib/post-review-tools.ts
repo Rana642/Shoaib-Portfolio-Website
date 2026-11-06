@@ -5,6 +5,7 @@ import { deleteScheduledPost, getScheduledPost } from "./scheduled-posts";
 import { cancelNativeScheduleStrict } from "./social-post";
 import { deleteObject } from "./storage";
 import { preflightPost } from "./post-preflight";
+import { pictureCheckBrief } from "./post-picture-check";
 
 /**
  * Planner tools shared by the remote MCP (lib/mcp-remote-tools.ts) and the
@@ -68,7 +69,7 @@ Returns: the posts flagged, any skipped (and why), and the emails sent.`,
       title: "Pre-flight Check A Post",
       description: `Automatic checks on a Planner post BEFORE scheduling it: caption rules (no emojis, forbidden words, repeated words, shouting, odd punctuation), the scheduled time (already past, Friday/Jummah), and duplicates against the project's last 90 days (same image file, near-identical caption). It never changes anything.
 
-It does NOT read the picture: you still look at the image with social_get_post_image (NAP/phone/address, logos, spelling inside the picture). social_set_caption_and_schedule runs these checks itself and appends the result.
+It does NOT read the picture: the picture is checked with social_picture_check (NAP/phone/address, logos, spelling inside the picture). social_set_caption_and_schedule runs these checks itself and appends the result.
 
 Args:
   - postId (string, UUID)
@@ -87,6 +88,32 @@ Returns: findings, each "FIX" or "CHECK", in English plus Roman Urdu. Pass FIX i
       try {
         const out = await preflightPost({ postId, caption, scheduledAt });
         return { content: [{ type: "text", text: out.text }], structuredContent: { findings: out.findings } };
+      } catch (error) {
+        return { content: [{ type: "text", text: formatError(error) }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    "social_picture_check",
+    {
+      title: "Picture Check Brief",
+      description: `The picture guard. Returns the post's picture together with the project's official NAP, its graphic rules and a checklist (NAP match, spelling and grammar of every word including small print, logo, right project/city, date/occasion, imagery, layout). Read the picture against it and report FIX / CHECK items; flag the FIX ones with social_request_changes (English + Roman Urdu). Free: no extra AI service, you do the reading. Use it instead of social_get_post_image when checking a post before scheduling. Read-only; it flags nothing itself.
+
+Args:
+  - postId (string, UUID)`,
+      inputSchema: { postId: z.string().uuid() },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    async ({ postId }: { postId: string }) => {
+      try {
+        const out = await pictureCheckBrief(postId);
+        return {
+          content: [
+            { type: "text" as const, text: out.text },
+            ...(out.image ? [{ type: "image" as const, data: out.image.data, mimeType: out.image.mimeType }] : []),
+          ],
+        };
       } catch (error) {
         return { content: [{ type: "text", text: formatError(error) }], isError: true };
       }
