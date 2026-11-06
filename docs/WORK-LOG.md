@@ -4,6 +4,17 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-11-07 — WhatsApp inbox fixes, Socially Snap sidebar, Planner manual time, guards (home PC)
+- **Two-PC sync rule** added to CLAUDE.md ("Done" = WORK-LOG + pull + commit + push).
+- **WhatsApp inbox:** failure reasons shown, undo for failed replies, "All" tab, business filter always visible.
+- **Sidebar:** "Socially Snap Apps" group (Planner, Marketing, GBP as own section, WhatsApp); held-posts banner only on /dashboard and planner/stories.
+- **Google Ads API** moved to v25. **CLIF** no longer gets an automatic Story per post (`NO_AUTO_STORY_PROJECT_IDS` in lib/post-as-story.ts).
+- **Planner manual time:** new posts, Stories, Reels, Videos can have a hand-set time (`time_manual`, needs the dashboard-schema SQL); older posts unchanged.
+- **Planner pre-flight guard** (86941be): `lib/post-preflight-checks.ts` (pure) + `lib/post-preflight.ts`; tool `social_preflight_post`; `social_set_caption_and_schedule` appends the result (advisory, never blocks). Checks caption (emoji, "dealer", repeated word, punctuation, caps), time (past, Friday), duplicates in 90 days. Test: `npx tsx scripts/test-preflight.mts`.
+- **Picture guard** (a344b44): `social_picture_check` returns the image + official NAP + graphic rules + checklist; Claude does the reading, no paid API.
+- **Graphic Studio** (separate repo): GPT Image 2.6, complexity, markup edit, Exact text phases 1-3, video checks. Own skill `motion-polish` added.
+- **Pending:** Vercel deploy needed for remote MCP to show the new tools; restart local MCP. Not yet built: video guards (loudness, black/frozen frames, caption OCR). Unconfirmed: Socially Snap Overview page, saving Ads by Shoaib contact into Graphic Studio brand. Choppers post 18 waits for designer. Untracked, not committed: client-briefs/, Meezab Knowledge base/, Badge pngs, public/svg|webp, scripts/_dl.mts, docs/META-ADS-APP-REVIEW.md.
+
 ## 2026-11-02 — connection check, Danish captions, no-emoji rule (office PC, no code changes)
 - **Still next:** the Meta App Review video. It wasn't recorded yet; the plan is in the vault memory `meta-app-review-video`.
 - **Connections, all healthy** (fb-audit `?debug=1` plus a read-only DB check):
