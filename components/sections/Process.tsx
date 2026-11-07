@@ -11,7 +11,7 @@ const steps = [
   { title: "Launch and scale", description: "We fix, test, and grow what works." },
 ];
 
-const borderColors = ["border-citrus", "border-cobalt", "border-forest"];
+const badgeColors = ["bg-citrus", "bg-cobalt", "bg-forest"];
 
 export default function Process() {
   return (
@@ -26,15 +26,26 @@ export default function Process() {
           </h2>
         </Reveal>
 
-        <ol className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-14">
+        <ol className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
           {steps.map((step, i) => (
             <Reveal key={step.title} delay={i * 0.08}>
-              <li className={`h-full border-t-2 ${borderColors[i]} pt-6`}>
-                <span className="font-serif italic text-hero text-ink leading-none select-none">
+              <li className="relative h-full flex gap-5 md:block rounded-2xl border border-ink/8 bg-white/60 backdrop-blur-sm p-6 md:p-8 shadow-sm shadow-ink/5">
+                <span
+                  className={`${badgeColors[i]} shrink-0 grid place-items-center size-12 rounded-full font-serif italic text-2xl text-ink shadow-md shadow-ink/15 select-none`}
+                >
                   {i + 1}
                 </span>
-                <h3 className="text-body-lg font-semibold mt-4">{step.title}</h3>
-                <p className="text-body text-ink-muted mt-2">{step.description}</p>
+                <div className="md:mt-6">
+                  <h3 className="text-body-lg font-semibold">{step.title}</h3>
+                  <p className="text-body text-ink-muted mt-2">{step.description}</p>
+                </div>
+                {i < steps.length - 1 && (
+                  <>
+                    {/* mobile: line down to the next step; desktop: line across to it */}
+                    <span aria-hidden className="md:hidden absolute left-12 -translate-x-1/2 top-[4.5rem] -bottom-6 w-px bg-ink/20" />
+                    <span aria-hidden className="hidden md:block absolute left-20 -right-8 top-14 h-px bg-ink/20" />
+                  </>
+                )}
               </li>
             </Reveal>
           ))}
