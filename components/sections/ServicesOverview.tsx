@@ -7,6 +7,7 @@
  */
 import { useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Megaphone, Search, Radar, PanelsTopLeft, Sparkles, ArrowRight } from "lucide-react";
 import Reveal from "@/components/shared/Reveal";
@@ -17,6 +18,13 @@ const iconBySlug: Record<string, typeof Megaphone> = {
   "google-ads": Search,
   "tracking-analytics": Radar,
   "funnels-web": PanelsTopLeft,
+};
+
+const visualBySlug: Record<string, string> = {
+  "meta-ads": "/visuals/svc-meta.webp",
+  "google-ads": "/visuals/svc-google.webp",
+  "tracking-analytics": "/visuals/svc-tracking.webp",
+  "funnels-web": "/visuals/svc-web.webp",
 };
 
 function TiltCard({ children }: { children: React.ReactNode }) {
@@ -69,16 +77,25 @@ export default function ServicesOverview({ services }: { services: Service[] }) 
             return (
               <Reveal key={service.slug} delay={i * 0.08}>
                 <TiltCard>
-                  <Icon className="size-8 text-cobalt" aria-hidden />
-                  <h3 className="font-sans font-semibold text-xl md:text-2xl leading-snug tracking-tight mt-6">{service.title}</h3>
-                  <p className="text-body text-ink-muted mt-3 max-w-md">{service.summary}</p>
-                  <Link
-                    href={`/services/${service.slug}`}
-                    className="group/link inline-flex items-center gap-2 text-small font-medium mt-6 underline-offset-4 decoration-citrus decoration-2 hover:underline"
-                  >
-                    Read more
-                    <ArrowRight className="size-4 transition-transform group-hover/link:translate-x-1" aria-hidden />
-                  </Link>
+                  <div className="flex items-center gap-4 sm:gap-6">
+                    <div className="min-w-0 flex-1">
+                      {!visualBySlug[service.slug] && <Icon className="size-8 text-cobalt mb-4" aria-hidden />}
+                      <h3 className="font-sans font-semibold text-xl md:text-2xl leading-snug tracking-tight">{service.title}</h3>
+                      <p className="text-body text-ink-muted mt-3 max-w-md">{service.summary}</p>
+                      <Link
+                        href={`/services/${service.slug}`}
+                        className="group/link inline-flex items-center gap-2 text-small font-medium mt-6 underline-offset-4 decoration-citrus decoration-2 hover:underline"
+                      >
+                        Read more
+                        <ArrowRight className="size-4 transition-transform group-hover/link:translate-x-1" aria-hidden />
+                      </Link>
+                    </div>
+                    {visualBySlug[service.slug] && (
+                      <div className="relative size-28 sm:size-36 xl:size-44 shrink-0">
+                        <Image src={visualBySlug[service.slug]} alt="" fill sizes="176px" className="object-contain mix-blend-multiply [mask-image:radial-gradient(closest-side,black_72%,transparent)]" />
+                      </div>
+                    )}
+                  </div>
                 </TiltCard>
               </Reveal>
             );

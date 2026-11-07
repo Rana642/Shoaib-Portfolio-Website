@@ -9,7 +9,6 @@ import Button from "@/components/ui/Button";
 const stats = [
   { value: "$2.5M+", label: "Ad spend managed" },
   { value: "6+ yrs", label: "In paid media" },
-  { value: "8", label: "Industries served" },
 ];
 
 const fadeUp = {
@@ -31,7 +30,18 @@ export default function Hero() {
 
   return (
     <section ref={sectionRef} className="relative overflow-hidden">
-      <div className="container-wide grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center pt-8 pb-12 md:pt-12 md:pb-14 lg:pt-10 lg:pb-16">
+      {/* 3D scene (GPT Image 2.6, brand colours): fills the right side on wide screens, fades into the page on the left */}
+      <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 hidden lg:block w-[62%]">
+        <Image
+          src="/visuals/hero-scene.webp"
+          alt=""
+          fill
+          priority
+          sizes="62vw"
+          className="object-cover object-right [mask-image:linear-gradient(to_right,transparent,black_38%)]"
+        />
+      </div>
+      <div className="container-wide relative grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center pt-8 pb-12 md:pt-12 md:pb-14 lg:pt-10 lg:pb-16">
         {/* Text — 60% */}
         <div className="lg:col-span-7">
           <motion.div variants={fadeUp} initial={false} animate="visible" custom={0}>
@@ -117,8 +127,7 @@ export default function Hero() {
           className="lg:col-span-5"
         >
           <div className="hero-tilt relative aspect-[4/5] max-w-[16rem] sm:max-w-sm mx-auto lg:max-w-none">
-            <div aria-hidden className="absolute left-1/2 bottom-[6%] -translate-x-1/2 w-[92%] aspect-square rounded-full bg-citrus/30" />
-            <div aria-hidden className="absolute left-1/2 bottom-[6%] -translate-x-1/2 w-[92%] aspect-square rounded-full border border-cobalt/30 translate-y-3 scale-[1.04]" />
+            <div aria-hidden className="absolute left-1/2 bottom-[6%] -translate-x-1/2 w-[92%] aspect-square rounded-full bg-citrus/30 lg:bg-citrus/20" />
             <Image
               src="/images/shoaib-cutout.png"
               alt="Shoaib Nabi Noor — performance marketing specialist"

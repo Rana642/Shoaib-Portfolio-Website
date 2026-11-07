@@ -12,8 +12,8 @@ export default function FAQ({ faqs }: { faqs: Faq[] }) {
 
   return (
     <section className="py-16 md:py-24">
-      <div className="container-narrow">
-        <Reveal>
+      <div className="container-wide grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16">
+        <Reveal className="lg:col-span-4 lg:sticky lg:top-28 self-start">
           <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
             Questions
           </span>
@@ -22,7 +22,7 @@ export default function FAQ({ faqs }: { faqs: Faq[] }) {
           </h2>
         </Reveal>
 
-        <div className="mt-14 divide-y divide-ink/10 border-y border-ink/10">
+        <div className="lg:col-span-8 divide-y divide-ink/10 border-y border-ink/10">
           {faqs.map((faq, i) => {
             const isOpen = open === i;
             return (

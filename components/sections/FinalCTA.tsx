@@ -1,12 +1,15 @@
 /*
  * DRAFT COPY — final CTA, pending Shoaib's final copy files.
  */
+import Image from "next/image";
 import Button from "@/components/ui/Button";
 import Reveal from "@/components/shared/Reveal";
 
 export default function FinalCTA() {
   return (
     <section className="flex items-center py-20 md:py-28 bg-ink text-cloud relative overflow-hidden">
+      <Image src="/visuals/cta-band.webp" alt="" fill sizes="100vw" className="object-cover object-right opacity-90" aria-hidden />
+      <div aria-hidden className="absolute inset-0 bg-gradient-to-r from-ink/80 via-ink/55 to-transparent" />
       <div
         aria-hidden
         className="absolute -top-32 right-0 size-[30rem] rounded-full bg-citrus/10 blur-3xl"

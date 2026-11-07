@@ -3,6 +3,7 @@
  * Framework: PAS (Problem → Agitate), reader language, pain-first.
  */
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 import AnimatedText from "@/components/ui/AnimatedText";
 import Reveal from "@/components/shared/Reveal";
@@ -20,7 +21,8 @@ const pains = [
 export default function PainPoints() {
   return (
     <section className="py-16 md:py-24">
-      <div className="container-narrow">
+      <div className="container-wide grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center">
+      <div className="lg:col-span-7">
         <Reveal>
           <span className="font-mono uppercase text-tag tracking-widest text-ink-muted">
             Sound familiar?
@@ -56,6 +58,18 @@ export default function PainPoints() {
             If one of these is you, you don't need more ads. You need the leak found.
           </p>
         </Reveal>
+      </div>
+      <Reveal delay={0.15} className="lg:col-span-5">
+        <div className="relative aspect-square max-w-md mx-auto w-full">
+          <Image
+            src="/visuals/problem-leak.webp"
+            alt="A glass funnel with coins slipping out through cracks: ad spend that leaks before it becomes customers"
+            fill
+            sizes="(max-width: 1024px) 80vw, 36vw"
+            className="object-contain mix-blend-multiply [mask-image:radial-gradient(closest-side,black_72%,transparent)]"
+          />
+        </div>
+      </Reveal>
       </div>
     </section>
   );

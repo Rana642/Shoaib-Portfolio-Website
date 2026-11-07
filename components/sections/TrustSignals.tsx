@@ -5,8 +5,6 @@ const signals = [
   "Meta Ads — Certified Media Buyer",
   "Google Ads — Hands-On Media Buyer",
   "GA4 & Tag Manager",
-  "6+ Years in Paid Media",
-  "8 Industries Served",
 ];
 
 export default function TrustSignals() {
