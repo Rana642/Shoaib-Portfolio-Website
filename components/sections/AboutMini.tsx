@@ -10,15 +10,17 @@ export default function AboutMini() {
     <section className="py-16 md:py-24">
       <div className="container-narrow grid grid-cols-1 md:grid-cols-5 gap-12 items-center">
         <Reveal className="md:col-span-2">
-          <div className="relative aspect-square max-w-xs mx-auto md:max-w-none">
-            <div aria-hidden className="absolute inset-x-[6%] bottom-0 top-[12%] rounded-2xl bg-citrus/25" />
-            <Image
-              src="/images/shoaib-cutout.png"
-              alt="Shoaib Nabi Noor"
-              fill
-              sizes="(max-width: 768px) 320px, 33vw"
-              className="object-contain object-bottom drop-shadow-[0_14px_22px_rgba(15,15,20,0.2)]"
-            />
+          <div className="relative aspect-[4/5] max-w-xs mx-auto md:max-w-none">
+            <div aria-hidden className="absolute -right-3 -bottom-3 size-2/3 rounded-3xl bg-citrus/40" />
+            <div className="relative size-full overflow-hidden rounded-3xl shadow-xl shadow-ink/15 ring-1 ring-ink/5">
+              <Image
+                src="/images/portraits/shoaib-navy-light.webp"
+                alt="Shoaib Nabi Noor"
+                fill
+                sizes="(max-width: 768px) 320px, 33vw"
+                className="object-cover object-top"
+              />
+            </div>
           </div>
         </Reveal>
 

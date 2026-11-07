@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus } from "lucide-react";
 import Reveal from "@/components/shared/Reveal";
@@ -20,6 +21,9 @@ export default function FAQ({ faqs }: { faqs: Faq[] }) {
           <h2 className="font-serif italic text-h2 mt-6">
             Asked before, answered honestly<span className="text-citrus">.</span>
           </h2>
+          <div className="relative hidden lg:block aspect-[4/5] max-w-[15rem] mt-10 overflow-hidden rounded-2xl shadow-lg shadow-ink/10 ring-1 ring-ink/5">
+            <Image src="/images/portraits/shoaib-black-office.webp" alt="Shoaib Nabi Noor" fill sizes="240px" className="object-cover object-top" />
+          </div>
         </Reveal>
 
         <div className="lg:col-span-8 divide-y divide-ink/10 border-y border-ink/10">

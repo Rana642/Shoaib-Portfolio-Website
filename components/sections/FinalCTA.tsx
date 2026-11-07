@@ -18,7 +18,8 @@ export default function FinalCTA() {
         aria-hidden
         className="absolute -bottom-40 -left-20 size-[26rem] rounded-full bg-cobalt/15 blur-3xl"
       />
-      <div className="container-narrow text-center relative">
+      <div className="container-wide relative grid grid-cols-1 lg:grid-cols-12 items-center gap-10">
+      <div className="lg:col-span-7 text-center lg:text-left">
         <Reveal>
           <span className="font-mono uppercase text-tag tracking-widest text-cloud/60">
             Your move
@@ -28,12 +29,12 @@ export default function FinalCTA() {
           </h2>
         </Reveal>
         <Reveal delay={0.1}>
-          <p className="text-body-lg text-cloud/70 mt-6 max-w-xl mx-auto">
+          <p className="text-body-lg text-cloud/70 mt-6 max-w-xl mx-auto lg:mx-0">
             One call. I'll show you what I'd fix first, whether we work together or not.
           </p>
         </Reveal>
         <Reveal delay={0.2}>
-          <div className="flex flex-wrap justify-center gap-4 mt-10">
+          <div className="flex flex-wrap justify-center lg:justify-start gap-4 mt-10">
             <Button
               href="/contact"
               withArrow
@@ -52,6 +53,12 @@ export default function FinalCTA() {
             </Button>
           </div>
         </Reveal>
+      </div>
+      <div className="hidden lg:block lg:col-span-5">
+        <div className="relative aspect-[4/5] max-w-sm ml-auto" style={{ maskImage: "radial-gradient(ellipse 72% 78% at 55% 42%, black 52%, transparent 100%)", WebkitMaskImage: "radial-gradient(ellipse 72% 78% at 55% 42%, black 52%, transparent 100%)" }}>
+          <Image src="/images/portraits/shoaib-casual-dark.webp" alt="Shoaib Nabi Noor" fill sizes="384px" className="object-cover object-top" />
+        </div>
+      </div>
       </div>
     </section>
   );

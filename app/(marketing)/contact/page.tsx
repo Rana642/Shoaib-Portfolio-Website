@@ -3,6 +3,7 @@
  * WhatsApp number from build doc.
  */
 import type { Metadata } from "next";
+import Image from "next/image";
 import { Mail, MessageCircle, CalendarClock, MapPin, Clock } from "lucide-react";
 import PageWrapper from "@/components/layout/PageWrapper";
 import Reveal from "@/components/shared/Reveal";
@@ -72,7 +73,18 @@ export default function ContactPage() {
                 first. You'll leave with clarity either way, whether we work together or not.
               </p>
             </Reveal>
-            <div className="pt-4" />
+            <Reveal delay={0.05}>
+              <div className="relative aspect-[16/10] overflow-hidden rounded-2xl shadow-lg shadow-ink/10 ring-1 ring-ink/5">
+                <Image
+                  src="/images/portraits/shoaib-black-office.webp"
+                  alt="Shoaib Nabi Noor"
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 40vw"
+                  className="object-cover object-[50%_14%]"
+                />
+              </div>
+            </Reveal>
+            <div className="pt-2" />
             {channels.map((ch, i) => {
               const Inner = (
                 <>

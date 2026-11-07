@@ -109,15 +109,17 @@ export default function AboutPage() {
           </div>
           <div className="lg:col-span-2">
             <div className="relative aspect-[4/5] max-w-sm mx-auto lg:max-w-none">
-              <div aria-hidden className="absolute inset-x-[4%] bottom-0 top-[14%] rounded-2xl bg-citrus/25" />
-              <Image
-                src="/images/shoaib-cutout.png"
-                alt="Shoaib Nabi Noor"
-                fill
-                priority
-                sizes="(max-width: 1024px) 384px, 40vw"
-                className="object-contain object-bottom drop-shadow-[0_18px_28px_rgba(15,15,20,0.2)]"
-              />
+              <div aria-hidden className="absolute -right-3 -bottom-3 size-2/3 rounded-3xl bg-citrus/40" />
+              <div className="relative size-full overflow-hidden rounded-3xl shadow-xl shadow-ink/15 ring-1 ring-ink/5">
+                <Image
+                  src="/images/portraits/shoaib-navy-light.webp"
+                  alt="Shoaib Nabi Noor"
+                  fill
+                  priority
+                  sizes="(max-width: 1024px) 384px, 40vw"
+                  className="object-cover object-top"
+                />
+              </div>
             </div>
           </div>
         </div>
