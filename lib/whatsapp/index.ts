@@ -128,14 +128,36 @@ type Change = {
     history?: { metadata?: { phase?: number; progress?: number }; threads?: { id: string; messages?: WaMessage[] }[] }[];
     /** Coexistence: the phone's contact list (adds / edits). */
     state_sync?: { type?: string; action?: string; contact?: { full_name?: string; phone_number?: string } }[];
+    /** account_update: a business leaving, an offboarded number, and similar. */
+    event?: string;
+    waba_info?: { waba_id?: string };
+    disconnection_info?: { reason?: string; initiated_by?: string };
   };
 };
 
+/** Socially Snap measures how long Meta takes to report a phone disconnect, and Meta may send
+ *  it here (the app-wide callback). Event words and ids only, so the line is safe in logs. */
+function logAccountUpdate(value: Change["value"], metaTime: number | undefined) {
+  const word = (text: unknown) => (typeof text === "string" && /^[A-Za-z0-9_]{1,60}$/.test(text) ? text : null);
+  console.info(
+    "[whatsapp-webhook] account_update",
+    JSON.stringify({
+      event: word(value?.event),
+      waba_id: word(value?.waba_info?.waba_id),
+      reason: word(value?.disconnection_info?.reason),
+      initiated_by: word(value?.disconnection_info?.initiated_by),
+      meta_time: typeof metaTime === "number" ? new Date(metaTime * 1000).toISOString() : null,
+      delay_seconds: typeof metaTime === "number" ? Math.round(Date.now() / 1000 - metaTime) : null,
+    }),
+  );
+}
+
 /** Store everything one webhook delivery carries. Idempotent on wamid. */
-export async function ingestWebhook(payload: { entry?: { changes?: Change[] }[] }) {
+export async function ingestWebhook(payload: { entry?: { time?: number; changes?: Change[] }[] }) {
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const v = change.value;
+      if (change.field === "account_update") logAccountUpdate(v, entry.time);
       if (!v?.metadata?.phone_number_id) continue;
       const accountId = await accountFor(v.metadata.phone_number_id, v.metadata.display_phone_number);
       const names = new Map((v.contacts ?? []).map((c) => [c.wa_id, c.profile?.name]));
