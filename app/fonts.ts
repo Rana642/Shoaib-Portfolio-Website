@@ -1,21 +1,16 @@
-import { Instrument_Serif, Geist, Geist_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, Inter } from "next/font/google";
 
-export const instrumentSerif = Instrument_Serif({
-  weight: ["400"],
-  style: ["normal", "italic"],
+/** Headings: a clean geometric sans used by modern agencies and SaaS brands. */
+export const headingFont = Plus_Jakarta_Sans({
+  weight: ["500", "600", "700", "800"],
   subsets: ["latin"],
-  variable: "--font-instrument-serif",
+  variable: "--font-heading",
   display: "swap",
 });
 
-export const geist = Geist({
+/** Body, labels and numbers. */
+export const bodyFont = Inter({
   subsets: ["latin"],
-  variable: "--font-geist",
-  display: "swap",
-});
-
-export const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-geist-mono",
+  variable: "--font-body",
   display: "swap",
 });

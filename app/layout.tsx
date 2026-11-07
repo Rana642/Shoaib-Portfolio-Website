@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
-import { instrumentSerif, geist, geistMono } from "./fonts";
+import { headingFont, bodyFont } from "./fonts";
 import JsonLd from "@/components/shared/JsonLd";
 import { organizationSchema } from "@/lib/schema";
 import { SITE_IS_LIVE } from "@/lib/seo";
@@ -23,7 +23,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${instrumentSerif.variable} ${geist.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${headingFont.variable} ${bodyFont.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col noise-overlay">
         <JsonLd data={organizationSchema()} />

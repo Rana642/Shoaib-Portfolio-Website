@@ -71,7 +71,7 @@ export default async function ServiceDetailPage({
               <span className="text-citrus">.</span>
             </h1>
             <p className="text-body-lg font-medium mt-5">
-              <span className="bg-citrus/40 rounded-sm px-1 -mx-1 box-decoration-clone">
+              <span className="font-semibold underline decoration-citrus decoration-2 underline-offset-4">
                 {service.tagline}
               </span>
             </p>

@@ -24,9 +24,10 @@
   --color-ink-faint: rgba(15, 15, 20, 0.1);
 
   /* ── Typography ── */
-  --font-serif: var(--font-instrument-serif), Georgia, serif;
-  --font-sans: var(--font-geist), system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), monospace;
+  /* Token names kept so every existing class still works; the display face is now a bold sans, not an italic serif. */
+  --font-serif: var(--font-heading), system-ui, sans-serif;
+  --font-sans: var(--font-body), system-ui, sans-serif;
+  --font-mono: var(--font-body), system-ui, sans-serif;
 
   --text-hero: clamp(2.5rem, 5vw, 4rem);
   --text-hero--line-height: 1.05;
@@ -54,6 +55,13 @@
 }
 
 @layer base {
+  .font-serif {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .font-mono {
+    font-weight: 600;
+  }
   html {
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -250,4 +258,9 @@
 }
 .sidebar-scroll::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* Display text is upright now: the old italic serif look is retired (unlayered so it beats the italic utility). */
+.font-serif.italic {
+  font-style: normal;
 }

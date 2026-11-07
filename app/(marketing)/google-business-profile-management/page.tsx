@@ -77,7 +77,6 @@ export default function GoogleBusinessProfilePage() {
             <h1 className="font-serif italic text-hero mt-6">
               Be the business people find on{" "}
               <span className="relative whitespace-nowrap">
-                <span className="absolute inset-x-0 bottom-1 h-[38%] bg-citrus/60 -z-10 -rotate-1 rounded-sm" />
                 Google Maps
               </span>
               <span className="text-cobalt">.</span>

@@ -111,7 +111,7 @@ export default async function ServicesPage() {
               </span>
               <h2 className="font-serif italic text-h2 mt-4">{service.title}</h2>
               <p className="text-body-lg font-medium mt-3">
-                <span className="bg-citrus/40 rounded-sm px-1 -mx-1 box-decoration-clone">
+                <span className="font-semibold underline decoration-citrus decoration-2 underline-offset-4">
                   {service.tagline}
                 </span>
               </p>

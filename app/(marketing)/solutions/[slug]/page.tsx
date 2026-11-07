@@ -182,7 +182,7 @@ export default async function SolutionPage({ params }: PageProps<"/solutions/[sl
                     </div>
                     <h3 className="font-sans font-semibold text-xl md:text-2xl leading-snug tracking-tight mt-8">{cs.client}</h3>
                     <p className="text-body font-medium mt-3">
-                      <span className="bg-citrus/40 rounded-sm px-1 -mx-1 box-decoration-clone">
+                      <span className="font-semibold underline decoration-citrus decoration-2 underline-offset-4">
                         {cs.outcome}
                       </span>
                     </p>

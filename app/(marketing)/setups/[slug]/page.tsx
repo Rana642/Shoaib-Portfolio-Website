@@ -174,7 +174,7 @@ export default async function SetupPage({ params }: PageProps<"/setups/[slug]">)
                     </div>
                     <h3 className="font-sans font-semibold text-xl md:text-2xl leading-snug tracking-tight mt-8">{cs.client}</h3>
                     <p className="text-body font-medium mt-3">
-                      <span className="bg-citrus/40 rounded-sm px-1 -mx-1 box-decoration-clone">{cs.outcome}</span>
+                      <span className="font-semibold underline decoration-citrus decoration-2 underline-offset-4">{cs.outcome}</span>
                     </p>
                   </Link>
                 </Reveal>

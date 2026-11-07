@@ -80,7 +80,6 @@ export default async function HotelMarketingPage() {
             <h1 className="font-serif italic text-hero mt-8">
               More direct bookings.{" "}
               <span className="relative whitespace-nowrap">
-                <span className="absolute inset-x-0 bottom-1 h-[38%] bg-citrus/60 -z-10 -rotate-1 rounded-sm" />
                 Less OTA commission
               </span>
               <span className="text-cobalt">.</span>
@@ -158,7 +157,7 @@ export default async function HotelMarketingPage() {
                   </div>
                   <h3 className="font-sans font-semibold text-xl md:text-2xl leading-snug tracking-tight mt-8">{cs.client}</h3>
                   <p className="text-body font-medium mt-3">
-                    <span className="bg-citrus/40 rounded-sm px-1 -mx-1 box-decoration-clone">
+                    <span className="font-semibold underline decoration-citrus decoration-2 underline-offset-4">
                       {cs.outcome}
                     </span>
                   </p>

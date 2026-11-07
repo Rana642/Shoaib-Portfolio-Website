@@ -18,8 +18,16 @@ export default function FinalCTA() {
         aria-hidden
         className="absolute -bottom-40 -left-20 size-[26rem] rounded-full bg-cobalt/15 blur-3xl"
       />
+      {/* Portrait sits flush against the band's right and bottom edges; only its left and top edges fade, so no box is visible */}
+      <div
+        aria-hidden
+        className="hidden lg:block absolute right-0 bottom-0 h-full aspect-[4/5] max-w-[46%]"
+        style={{ maskImage: "linear-gradient(to right, transparent 0%, black 38%), linear-gradient(to bottom, transparent 0%, black 26%)", WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 38%), linear-gradient(to bottom, transparent 0%, black 26%)", maskComposite: "intersect", WebkitMaskComposite: "source-in" }}
+      >
+        <Image src="/images/portraits/shoaib-casual-dark.webp" alt="" fill sizes="480px" className="object-cover object-top" />
+      </div>
       <div className="container-wide relative grid grid-cols-1 lg:grid-cols-12 items-center gap-10">
-      <div className="lg:col-span-7 text-center lg:text-left">
+      <div className="lg:col-span-7 text-center lg:text-left relative">
         <Reveal>
           <span className="font-mono uppercase text-tag tracking-widest text-cloud/60">
             Your move
@@ -53,11 +61,6 @@ export default function FinalCTA() {
             </Button>
           </div>
         </Reveal>
-      </div>
-      <div className="hidden lg:block lg:col-span-5">
-        <div className="relative aspect-[4/5] max-w-sm ml-auto" style={{ maskImage: "radial-gradient(ellipse 72% 78% at 55% 42%, black 52%, transparent 100%)", WebkitMaskImage: "radial-gradient(ellipse 72% 78% at 55% 42%, black 52%, transparent 100%)" }}>
-          <Image src="/images/portraits/shoaib-casual-dark.webp" alt="Shoaib Nabi Noor" fill sizes="384px" className="object-cover object-top" />
-        </div>
       </div>
       </div>
     </section>

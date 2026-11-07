@@ -56,12 +56,10 @@ export default function Hero() {
             initial={false}
             animate="visible"
             custom={1}
-            className="font-serif italic text-[clamp(2.5rem,4.2vw,3.75rem)] leading-[1.05] tracking-[-0.02em] mt-6"
+            className="font-serif font-extrabold text-[clamp(2.4rem,4.4vw,3.9rem)] leading-[1.08] tracking-[-0.03em] mt-6"
           >
             Performance marketing that brings{" "}
             <span className="relative whitespace-nowrap">
-              {/* Citrus marker-highlight keeps text ink for contrast */}
-              <span className="absolute inset-x-0 bottom-1 h-[38%] bg-citrus/60 -z-10 -rotate-1 rounded-sm" />
               customers
             </span>
             , not just clicks<span className="text-cobalt">.</span>
@@ -112,7 +110,7 @@ export default function Hero() {
             {stats.map((stat) => (
               <div key={stat.label}>
                 <dt className="sr-only">{stat.label}</dt>
-                <dd className="font-serif italic text-h2 leading-none">{stat.value}</dd>
+                <dd className="font-serif text-h2 leading-none">{stat.value}</dd>
                 <dd className="font-mono uppercase text-tag tracking-widest text-ink-muted mt-3">
                   {stat.label}
                 </dd>
@@ -136,6 +134,11 @@ export default function Hero() {
               sizes="(max-width: 1024px) 384px, 40vw"
               className="object-contain object-bottom [mask-image:linear-gradient(to_bottom,black_80%,transparent)]"
             />
+            {/* Introduction: who this is, attached to the face */}
+            <div className="absolute bottom-[4%] left-1/2 -translate-x-1/2 lg:left-[-6%] lg:translate-x-0 w-max max-w-[92%] rounded-2xl bg-white/85 backdrop-blur-md border border-ink/10 shadow-lg shadow-ink/10 px-5 py-3.5">
+              <p className="font-serif text-lg leading-tight">Shoaib Nabi Noor</p>
+              <p className="text-small text-ink-muted mt-1">Performance marketing consultant · Multan</p>
+            </div>
           </div>
         </motion.div>
       </div>
