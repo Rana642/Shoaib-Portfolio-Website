@@ -50,6 +50,16 @@ function previewResult(label: string, wouldSend: unknown) {
   };
 }
 
+const WORKSPACE_BASES = {
+  gmail: "https://gmail.googleapis.com/gmail/v1/users/me",
+  google_calendar: "https://www.googleapis.com/calendar/v3",
+  google_docs: "https://docs.googleapis.com/v1",
+  google_sheets: "https://sheets.googleapis.com/v4",
+  google_forms: "https://forms.googleapis.com/v1",
+  google_tasks: "https://tasks.googleapis.com/tasks/v1",
+  google_classroom: "https://classroom.googleapis.com/v1",
+} as const;
+
 export function registerMarketingTools(server: McpServer): void {
   // Google Business Profile (per client project, Socially Snap OAuth client).
   registerGbpTools(server);
@@ -307,6 +317,46 @@ Args:
           requestBody
         );
         return jsonResult(result);
+      } catch (error) {
+        return { content: [{ type: "text", text: formatError(error) }], isError: true };
+      }
+    }
+  );
+
+  // ── Google Workspace REST APIs (Gmail, Calendar, Docs, Sheets, Forms, Tasks, Classroom) ──
+  server.registerTool(
+    "google_workspace_request",
+    {
+      title: "Google Workspace APIs — Gmail/Calendar/Docs/Sheets/Forms/Tasks/Classroom",
+      description: `Passthrough to one Google Workspace REST API, using that service's credential from the API Vault (client_id, client_secret, refresh_token). The Cloud project that issued the OAuth client must have the API enabled.
+
+Services and what path is relative to:
+  - gmail → https://gmail.googleapis.com/gmail/v1/users/me  (e.g. "messages?maxResults=10", "messages/{id}", "labels", "messages/send")
+  - google_calendar → https://www.googleapis.com/calendar/v3  (e.g. "users/me/calendarList", "calendars/primary/events")
+  - google_docs → https://docs.googleapis.com/v1  (e.g. "documents/{id}", "documents/{id}:batchUpdate")
+  - google_sheets → https://sheets.googleapis.com/v4  (e.g. "spreadsheets/{id}/values/Sheet1!A1:D10", "spreadsheets/{id}/values/{range}:append?valueInputOption=USER_ENTERED")
+  - google_forms → https://forms.googleapis.com/v1  (e.g. "forms/{id}", "forms/{id}/responses")
+  - google_tasks → https://tasks.googleapis.com/tasks/v1  (e.g. "users/@me/lists", "lists/{id}/tasks")
+  - google_classroom → https://classroom.googleapis.com/v1  (e.g. "courses", "courses/{id}/courseWork")
+(CalDAV is a different protocol and is not available here.)
+
+Args:
+  - service (string): one of the above.
+  - path (string), method ("GET" | "POST" | "PUT" | "PATCH" | "DELETE"), body (object, optional).
+  - confirm (boolean): required true for anything except GET (sending mail, creating/editing/deleting events, sheet writes, ...). Without it you get a preview of the exact request and nothing is sent.`,
+      inputSchema: {
+        service: z.enum(["gmail", "google_calendar", "google_docs", "google_sheets", "google_forms", "google_tasks", "google_classroom"]),
+        path: z.string().min(1),
+        method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
+        body: z.record(z.string(), z.any()).optional(),
+        confirm: z.boolean().optional(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+    },
+    async ({ service, path, method, body, confirm }: { service: keyof typeof WORKSPACE_BASES; path: string; method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; body?: Record<string, unknown>; confirm?: boolean }) => {
+      try {
+        if (method !== "GET" && !confirm) return previewResult(`${service} ${method} ${path}`, { service, path, method, body: body ?? {} });
+        return jsonResult(await googleApiRequest(service, WORKSPACE_BASES[service], path, method, body));
       } catch (error) {
         return { content: [{ type: "text", text: formatError(error) }], isError: true };
       }

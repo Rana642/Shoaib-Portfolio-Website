@@ -615,6 +615,46 @@ export const API_SERVICE_PRESETS: ApiServicePreset[] = [
     suggestedFields: ["client_id", "client_secret", "refresh_token", "site_url"],
   },
   {
+    value: "gmail",
+    label: "Gmail API",
+    suggestedFields: ["client_id", "client_secret", "refresh_token"],
+  },
+  {
+    value: "google_calendar",
+    label: "Google Calendar API",
+    suggestedFields: ["client_id", "client_secret", "refresh_token"],
+  },
+  {
+    value: "google_caldav",
+    label: "Google CalDAV API (calendar over CalDAV)",
+    suggestedFields: ["client_id", "client_secret", "refresh_token"],
+  },
+  {
+    value: "google_docs",
+    label: "Google Docs API",
+    suggestedFields: ["client_id", "client_secret", "refresh_token"],
+  },
+  {
+    value: "google_sheets",
+    label: "Google Sheets API",
+    suggestedFields: ["client_id", "client_secret", "refresh_token"],
+  },
+  {
+    value: "google_forms",
+    label: "Google Forms API",
+    suggestedFields: ["client_id", "client_secret", "refresh_token"],
+  },
+  {
+    value: "google_tasks",
+    label: "Google Tasks API",
+    suggestedFields: ["client_id", "client_secret", "refresh_token"],
+  },
+  {
+    value: "google_classroom",
+    label: "Google Classroom API",
+    suggestedFields: ["client_id", "client_secret", "refresh_token"],
+  },
+  {
     value: "pagespeed",
     label: "PageSpeed Insights API (Google)",
     suggestedFields: ["api_key"],
