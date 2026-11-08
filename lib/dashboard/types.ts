@@ -615,6 +615,11 @@ export const API_SERVICE_PRESETS: ApiServicePreset[] = [
     suggestedFields: ["client_id", "client_secret", "refresh_token", "site_url"],
   },
   {
+    value: "google_workspace",
+    label: "Google Workspace (one token for Gmail, Calendar, Docs, Sheets, Forms, Tasks, Classroom)",
+    suggestedFields: ["client_id", "client_secret", "refresh_token"],
+  },
+  {
     value: "gmail",
     label: "Gmail API",
     suggestedFields: ["client_id", "client_secret", "refresh_token"],

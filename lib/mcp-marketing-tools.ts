@@ -328,7 +328,7 @@ Args:
     "google_workspace_request",
     {
       title: "Google Workspace APIs — Gmail/Calendar/Docs/Sheets/Forms/Tasks/Classroom",
-      description: `Passthrough to one Google Workspace REST API, using that service's credential from the API Vault (client_id, client_secret, refresh_token). The Cloud project that issued the OAuth client must have the API enabled.
+      description: `Passthrough to one Google Workspace REST API, using that service's credential from the API Vault (client_id, client_secret, refresh_token). A service without its own entry uses the 'google_workspace' entry, or any other Workspace entry (one token covers all of them). The Cloud project that issued the OAuth client must have the API enabled.
 
 Services and what path is relative to:
   - gmail → https://gmail.googleapis.com/gmail/v1/users/me  (e.g. "messages?maxResults=10", "messages/{id}", "labels", "messages/send")
