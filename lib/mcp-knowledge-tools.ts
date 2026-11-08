@@ -1,3 +1,4 @@
+import { kbScope } from "./kb-scope";
 import "server-only";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
@@ -88,7 +89,9 @@ const projectLabel = (p: ProjectRow) =>
  *  same convention as the social MCP tools. */
 async function findProject(name: string): Promise<{ id: string; label: string; name: string }> {
   const { data } = await db.from("client_projects").select("id, name, client_id, clients(name)");
-  const rows = (data ?? []) as ProjectRow[];
+  // Restricted user MCP: only the granted projects exist as far as this request is concerned.
+  const scope = kbScope.getStore();
+  const rows = ((data ?? []) as ProjectRow[]).filter((p) => !scope || scope.allowedProjectIds.has(p.id));
   const needle = name.toLowerCase();
   const matches = rows.filter((p) => p.name.toLowerCase().includes(needle) || projectLabel(p).toLowerCase().includes(needle));
   if (matches.length === 0) throw new Error(`No project matches "${name}". Projects are created on the dashboard's Clients page.`);

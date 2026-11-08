@@ -14,6 +14,11 @@ import { db } from "./dashboard/db";
 const ISSUER = "https://adsbyshoaib.com";
 export const MCP_RESOURCE_URL = `${ISSUER}/api/mcp`;
 export const MCP_METADATA_URL = `${ISSUER}/.well-known/oauth-protected-resource`;
+/** The restricted user MCP: its own resource, its own discovery documents and issuer path. */
+export const MCP_USER_RESOURCE_URL = `${ISSUER}/api/mcp-user`;
+export const MCP_USER_METADATA_URL = `${ISSUER}/.well-known/oauth-protected-resource/api/mcp-user`;
+export const MCP_USER_ISSUER = `${ISSUER}/mcp-user`;
+export const MCP_ISSUER = ISSUER;
 
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 60; // 1 hour
 const REFRESH_TOKEN_TTL_SECONDS = 90 * 24 * 60 * 60; // 90 days
