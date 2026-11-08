@@ -1774,3 +1774,12 @@ create index if not exists retainer_addons_parent_idx on retainer_addons (retain
 -- A post whose time was set by hand (Planner time picker, 2026-11-03). Drag keeps that time and
 -- reorder leaves it alone; every older post stays false and behaves exactly as before.
 alter table scheduled_posts add column if not exists time_manual boolean not null default false;
+
+-- ── Row level security on tables that were left open (2026-11-08, Security Guard SG-020) ──
+-- The public anon key ships to every browser; with RLS off, anyone could read these tables through
+-- the REST API. With RLS on and no policies, only the service role (the app) can reach them.
+alter table social_connections enable row level security;
+alter table scheduled_posts enable row level security;
+alter table mcp_oauth_clients enable row level security;
+alter table mcp_oauth_codes enable row level security;
+alter table mcp_oauth_refresh_tokens enable row level security;
