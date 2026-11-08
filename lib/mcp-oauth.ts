@@ -123,10 +123,14 @@ export function verifyPkce(codeVerifier: string, codeChallenge: string): boolean
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+/** Refresh tokens are stored as a SHA-256 hash (column `token` holds the hash), so a database leak
+ *  does not hand out working tokens. The token itself is 256 random bits, so a plain fast hash is enough. */
+const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
+
 export async function issueRefreshToken(clientId: string): Promise<string> {
   const token = toBase64Url(randomBytes(32));
   const { error } = await db.from("mcp_oauth_refresh_tokens").insert({
-    token,
+    token: hashToken(token),
     client_id: clientId,
     expires_at: new Date(Date.now() + REFRESH_TOKEN_TTL_SECONDS * 1000).toISOString(),
   });
@@ -141,10 +145,10 @@ export async function rotateRefreshToken(oldToken: string, clientId: string): Pr
   const { data, error } = await db
     .from("mcp_oauth_refresh_tokens")
     .select("client_id, expires_at, revoked")
-    .eq("token", oldToken)
+    .eq("token", hashToken(oldToken))
     .maybeSingle();
   if (error || !data || data.client_id !== clientId || data.revoked) return null;
   if (new Date(data.expires_at).getTime() < Date.now()) return null;
-  await db.from("mcp_oauth_refresh_tokens").update({ revoked: true }).eq("token", oldToken);
+  await db.from("mcp_oauth_refresh_tokens").update({ revoked: true }).eq("token", hashToken(oldToken));
   return issueRefreshToken(clientId);
 }
