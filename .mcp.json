@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "adsbyshoaib-local": {
+      "command": "node",
+      "args": ["node_modules/tsx/dist/cli.mjs", "--conditions=react-server", "mcp/index.ts"]
+    }
+  }
+}
