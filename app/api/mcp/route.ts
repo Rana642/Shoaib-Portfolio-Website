@@ -28,7 +28,8 @@ async function handle(request: Request): Promise<Response> {
   const authHeader = request.headers.get("authorization") || "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
   const verified = token ? verifyAccessToken(token) : null;
-  if (!verified) return unauthorized();
+  // Only admin tokens: a restricted user token (aud "user") must never open the admin tools.
+  if (!verified || verified.aud !== "admin") return unauthorized();
 
   const server = new McpServer({ name: "adsbyshoaib-social-mcp-remote", version: "1.0.0" }, { instructions: KB_SERVER_INSTRUCTIONS });
   registerRemoteSocialTools(server);

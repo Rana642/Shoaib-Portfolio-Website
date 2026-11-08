@@ -30,20 +30,23 @@ function fromBase64Url(input: string): Buffer {
   return Buffer.from(padded, "base64");
 }
 
-type AccessTokenPayload = { cid: string; exp: number };
+/** aud "admin" = Shoaib (every token issued before this field existed has none, and means admin);
+ *  aud "user" = a restricted MCP user, with uid = mcp_users.id. The two endpoints each accept only their own audience. */
+type AccessTokenPayload = { cid: string; exp: number; aud?: "admin" | "user"; uid?: string };
+export type VerifiedToken = { clientId: string; aud: "admin" | "user"; userId: string | null };
 
 /** Access tokens are self-verifying (HMAC-signed) so the hot path — every
  *  actual tool call — needs no DB round trip, unlike codes/refresh tokens
  *  which are rare and must be revocable. */
-export function signAccessToken(clientId: string): { token: string; expiresIn: number } {
+export function signAccessToken(clientId: string, userId?: string | null): { token: string; expiresIn: number } {
   if (!rawKey) throw new Error("MCP_OAUTH_SIGNING_KEY is not configured.");
-  const payload: AccessTokenPayload = { cid: clientId, exp: Math.floor(Date.now() / 1000) + ACCESS_TOKEN_TTL_SECONDS };
+  const payload: AccessTokenPayload = { cid: clientId, exp: Math.floor(Date.now() / 1000) + ACCESS_TOKEN_TTL_SECONDS, ...(userId ? { aud: "user", uid: userId } : { aud: "admin" }) };
   const payloadB64 = toBase64Url(JSON.stringify(payload));
   const sig = toBase64Url(createHmac("sha256", rawKey).update(payloadB64).digest());
   return { token: `${payloadB64}.${sig}`, expiresIn: ACCESS_TOKEN_TTL_SECONDS };
 }
 
-export function verifyAccessToken(token: string): { clientId: string } | null {
+export function verifyAccessToken(token: string): VerifiedToken | null {
   if (!rawKey) return null;
   const [payloadB64, sig] = token.split(".");
   if (!payloadB64 || !sig) return null;
@@ -54,7 +57,7 @@ export function verifyAccessToken(token: string): { clientId: string } | null {
   try {
     const payload = JSON.parse(fromBase64Url(payloadB64).toString("utf8")) as AccessTokenPayload;
     if (payload.exp < Math.floor(Date.now() / 1000)) return null;
-    return { clientId: payload.cid };
+    return { clientId: payload.cid, aud: payload.aud === "user" && payload.uid ? "user" : "admin", userId: payload.aud === "user" ? (payload.uid ?? null) : null };
   } catch {
     return null;
   }
@@ -85,6 +88,8 @@ export async function createAuthorizationCode(input: {
   clientId: string;
   redirectUri: string;
   codeChallenge: string;
+  /** Set only by the user MCP's Google sign-in: the mcp_users row that signed in. */
+  userId?: string | null;
 }): Promise<string> {
   const code = toBase64Url(randomBytes(24));
   const { error } = await db.from("mcp_oauth_codes").insert({
@@ -92,6 +97,7 @@ export async function createAuthorizationCode(input: {
     client_id: input.clientId,
     redirect_uri: input.redirectUri,
     code_challenge: input.codeChallenge,
+    user_id: input.userId ?? null,
     expires_at: new Date(Date.now() + AUTH_CODE_TTL_SECONDS * 1000).toISOString(),
   });
   if (error) throw new Error(error.message);
@@ -104,16 +110,16 @@ export async function createAuthorizationCode(input: {
 export async function consumeAuthorizationCode(
   code: string,
   clientId: string
-): Promise<{ redirectUri: string; codeChallenge: string } | null> {
+): Promise<{ redirectUri: string; codeChallenge: string; userId: string | null } | null> {
   const { data, error } = await db
     .from("mcp_oauth_codes")
-    .select("redirect_uri, code_challenge, expires_at, used, client_id")
+    .select("redirect_uri, code_challenge, expires_at, used, client_id, user_id")
     .eq("code", code)
     .maybeSingle();
   if (error || !data || data.client_id !== clientId || data.used) return null;
   if (new Date(data.expires_at).getTime() < Date.now()) return null;
   await db.from("mcp_oauth_codes").update({ used: true }).eq("code", code);
-  return { redirectUri: data.redirect_uri, codeChallenge: data.code_challenge };
+  return { redirectUri: data.redirect_uri, codeChallenge: data.code_challenge, userId: (data.user_id as string | null) ?? null };
 }
 
 export function verifyPkce(codeVerifier: string, codeChallenge: string): boolean {
@@ -127,11 +133,12 @@ export function verifyPkce(codeVerifier: string, codeChallenge: string): boolean
  *  does not hand out working tokens. The token itself is 256 random bits, so a plain fast hash is enough. */
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
-export async function issueRefreshToken(clientId: string): Promise<string> {
+export async function issueRefreshToken(clientId: string, userId?: string | null): Promise<string> {
   const token = toBase64Url(randomBytes(32));
   const { error } = await db.from("mcp_oauth_refresh_tokens").insert({
     token: hashToken(token),
     client_id: clientId,
+    user_id: userId ?? null,
     expires_at: new Date(Date.now() + REFRESH_TOKEN_TTL_SECONDS * 1000).toISOString(),
   });
   if (error) throw new Error(error.message);
@@ -141,14 +148,15 @@ export async function issueRefreshToken(clientId: string): Promise<string> {
 /** Rotates a refresh token (RFC 6749 best practice for public clients) —
  *  the old one is revoked in the same call it's redeemed, so a stolen,
  *  already-used token can't be replayed. */
-export async function rotateRefreshToken(oldToken: string, clientId: string): Promise<string | null> {
+export async function rotateRefreshToken(oldToken: string, clientId: string): Promise<{ token: string; userId: string | null } | null> {
   const { data, error } = await db
     .from("mcp_oauth_refresh_tokens")
-    .select("client_id, expires_at, revoked")
+    .select("client_id, expires_at, revoked, user_id")
     .eq("token", hashToken(oldToken))
     .maybeSingle();
   if (error || !data || data.client_id !== clientId || data.revoked) return null;
   if (new Date(data.expires_at).getTime() < Date.now()) return null;
   await db.from("mcp_oauth_refresh_tokens").update({ revoked: true }).eq("token", hashToken(oldToken));
-  return issueRefreshToken(clientId);
+  const userId = (data.user_id as string | null) ?? null;
+  return { token: await issueRefreshToken(clientId, userId), userId };
 }

@@ -1783,3 +1783,22 @@ alter table scheduled_posts enable row level security;
 alter table mcp_oauth_clients enable row level security;
 alter table mcp_oauth_codes enable row level security;
 alter table mcp_oauth_refresh_tokens enable row level security;
+
+-- ── MCP users (2026-11-09): people who may connect to the restricted user MCP (/api/mcp-user) ──
+-- Shoaib is the admin and is not listed here. A user signs in with Google; the verified email must be
+-- in this table and active. project_ids = the client projects the user may see; groups = tool groups.
+create table if not exists mcp_users (
+  id uuid primary key default gen_random_uuid(),
+  email text not null unique,
+  name text,
+  is_active boolean not null default true,
+  project_ids uuid[] not null default '{}',
+  groups text[] not null default '{kb_read}',
+  created_at timestamptz not null default now(),
+  last_seen_at timestamptz
+);
+alter table mcp_users enable row level security;
+
+-- codes and refresh tokens issued to a user carry that user (null = the admin, as before)
+alter table mcp_oauth_codes add column if not exists user_id uuid references mcp_users (id) on delete cascade;
+alter table mcp_oauth_refresh_tokens add column if not exists user_id uuid references mcp_users (id) on delete cascade;

@@ -29,19 +29,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "invalid_grant", error_description: "PKCE verification failed." }, { status: 400 });
     }
 
-    const { token: access_token, expiresIn } = signAccessToken(clientId);
-    const refresh_token = await issueRefreshToken(clientId);
+    const { token: access_token, expiresIn } = signAccessToken(clientId, stored.userId);
+    const refresh_token = await issueRefreshToken(clientId, stored.userId);
     return NextResponse.json({ access_token, token_type: "Bearer", expires_in: expiresIn, refresh_token });
   }
 
   if (grantType === "refresh_token") {
     const oldRefreshToken = body.get("refresh_token") || "";
-    const newRefreshToken = await rotateRefreshToken(oldRefreshToken, clientId);
-    if (!newRefreshToken) {
+    const rotated = await rotateRefreshToken(oldRefreshToken, clientId);
+    if (!rotated) {
       return NextResponse.json({ error: "invalid_grant", error_description: "Refresh token is invalid, expired, or revoked." }, { status: 400 });
     }
-    const { token: access_token, expiresIn } = signAccessToken(clientId);
-    return NextResponse.json({ access_token, token_type: "Bearer", expires_in: expiresIn, refresh_token: newRefreshToken });
+    const { token: access_token, expiresIn } = signAccessToken(clientId, rotated.userId);
+    return NextResponse.json({ access_token, token_type: "Bearer", expires_in: expiresIn, refresh_token: rotated.token });
   }
 
   return NextResponse.json({ error: "unsupported_grant_type" }, { status: 400 });
