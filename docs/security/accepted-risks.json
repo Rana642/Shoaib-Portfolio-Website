@@ -1,0 +1,39 @@
+[
+  {
+    "rule": "SG-004",
+    "file": "lib/dashboard/actions/(agreement|proposal)-public\\.ts",
+    "reason": "Public by design: the client signs/accepts with an unguessable token link; the token is the authorisation.",
+    "until": "2027-05-08",
+    "by": "Claude triage 2026-11-08 (Shoaib to confirm)"
+  },
+  {
+    "rule": "SG-004",
+    "file": "lib/dashboard/actions/(intakes|onboarding)\\.ts",
+    "match": "IntakeByToken|submitIntake",
+    "reason": "Public by design: intake forms are opened by an unguessable token link.",
+    "until": "2027-05-08",
+    "by": "Claude triage 2026-11-08 (Shoaib to confirm)"
+  },
+  {
+    "rule": "SG-004",
+    "file": "lib/portal/actions\\.ts",
+    "match": "requestPortalPasswordReset|completePortalWelcome",
+    "reason": "Pre-login actions (password reset request, first welcome): cannot require a session by definition. Check they are rate limited.",
+    "until": "2027-05-08",
+    "by": "Claude triage 2026-11-08 (Shoaib to confirm)"
+  },
+  {
+    "rule": "SG-005",
+    "file": "app/api/mcp/oauth/token/route\\.ts",
+    "reason": "OAuth token endpoint: authorisation is the code + PKCE verifier / refresh token it validates.",
+    "until": "2027-05-08",
+    "by": "Claude triage 2026-11-08 (Shoaib to confirm)"
+  },
+  {
+    "rule": "SG-007",
+    "file": "components/shared/JsonLd\\.tsx",
+    "reason": "JSON-LD script from our own data; '<' is escaped so content cannot close the script tag.",
+    "until": "2027-05-08",
+    "by": "Claude triage 2026-11-08"
+  }
+]

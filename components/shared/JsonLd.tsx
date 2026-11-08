@@ -3,7 +3,7 @@ export default function JsonLd({ data }: { data: object | object[] }) {
     <script
       type="application/ld+json"
       // eslint-disable-next-line react/no-danger -- required to inject JSON-LD
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(data).replace(/</g, "\\u003c") }}
     />
   );
 }

@@ -63,3 +63,11 @@ Finish Product Tad pharma/
 
 # Font supplied by Shoaib (10 MB, license: free but redistribution unclear) — not tracked
 Jameel_Noori_Nastaleeq_Regular_724c2425da/
+
+# Security Guard run output (per-machine; summaries are in docs/security/GUARD.md)
+docs/security/reports/
+
+# Local-only: may hold pasted keys or client working data. Never commit.
+.claude/settings.local.json
+client-briefs/
+Meezab Knowledge base/
