@@ -14,7 +14,7 @@ import { decryptField } from "../api-vault-crypto";
  * arrive at /api/whatsapp/webhook and are stored by ingestWebhook().
  */
 
-const GRAPH = "https://graph.facebook.com/v23.0";
+export const GRAPH = "https://graph.facebook.com/v23.0";
 
 /** The token for a number: its own business token (Embedded Signup /
  *  coexistence) or, for the Socially Snap test number, the vault's
