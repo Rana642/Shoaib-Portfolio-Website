@@ -5,6 +5,7 @@ import { listAccessibleCustomers, googleAdsSearch, googleAdsMutate, generateKeyw
 import { googleApiRequest } from "./google-api-passthrough";
 import { metaMarketingRequest, listMetaAdAccounts } from "./meta-marketing-client";
 import { registerGbpTools } from "./mcp-gbp-tools";
+import { runPageSpeed } from "./pagespeed";
 
 /**
  * Full-functionality marketing-API tools: Google Ads (audit/edit/create),
@@ -306,6 +307,35 @@ Args:
           requestBody
         );
         return jsonResult(result);
+      } catch (error) {
+        return { content: [{ type: "text", text: formatError(error) }], isError: true };
+      }
+    }
+  );
+
+  // ── PageSpeed Insights (API key from the vault, read-only) ───────────
+  server.registerTool(
+    "pagespeed_run",
+    {
+      title: "PageSpeed Insights — Test A Page",
+      description: `Runs Google PageSpeed Insights (Lighthouse + real-user Chrome data) on a public URL. Read-only. Needs the 'pagespeed' credential (field api_key) in the API Vault.
+
+Returns a short summary: category scores (0-100), lab metrics (FCP, LCP, TBT, CLS, Speed Index, TTI), real-user Core Web Vitals when Google has data (LCP, INP, CLS, FCP, TTFB, p75 + rating), and the top time-saving opportunities.
+
+Args:
+  - url (string): the full public URL, e.g. "https://adsbyshoaib.com/".
+  - strategy ("mobile" | "desktop", default "mobile"): Google ranks on mobile, so check mobile first.
+  - categories (array, optional): any of "performance" (default), "accessibility", "best-practices", "seo".`,
+      inputSchema: {
+        url: z.string().url(),
+        strategy: z.enum(["mobile", "desktop"]).optional(),
+        categories: z.array(z.enum(["performance", "accessibility", "best-practices", "seo"])).optional(),
+      },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    },
+    async ({ url, strategy, categories }: { url: string; strategy?: "mobile" | "desktop"; categories?: ("performance" | "accessibility" | "best-practices" | "seo")[] }) => {
+      try {
+        return jsonResult(await runPageSpeed({ url, strategy, categories }));
       } catch (error) {
         return { content: [{ type: "text", text: formatError(error) }], isError: true };
       }
