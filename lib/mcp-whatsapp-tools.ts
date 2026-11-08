@@ -6,7 +6,6 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { db } from "./dashboard/db";
 import { GRAPH, replyWindowOpen, sendText, tokenForAccount, markReplied } from "./whatsapp";
-import { listTemplates, sendTemplate } from "./whatsapp/templates";
 import { isStorageConfigured, presignDownload, uploadObject } from "./storage";
 import { rateLimit } from "./rate-limit";
 
@@ -16,15 +15,14 @@ import { rateLimit } from "./rate-limit";
  * first and refuses anything whose account does not belong to an allowed project.
  * To open another project later, add its name to ALLOWED_PROJECT_NAMES.
  *
- * Writes (send text / file / template) need confirm=true, like the other admin tools.
+ * Writes (send text / file) need confirm=true, like the other admin tools.
  * Free-form messages only work inside WhatsApp's 24-hour window after the contact's
- * last message; outside it, use an approved template.
+ * last message. Template messages (business-started, paid) are deliberately not offered:
+ * the contact always writes first, so everything stays free.
  */
 export const ALLOWED_PROJECT_NAMES = ["Ads by Shoaib"];
 /** Shoaib's own WhatsApp number (the one Claude sends task notices to). */
 const OWNER_WA_ID = "923017461642";
-/** Approved utility template (one variable) used to reach Shoaib when the 24-hour window is closed. */
-const OWNER_TEMPLATE = "claude_task_update";
 const MAX_FILE_BYTES = 16 * 1024 * 1024;
 
 type Account = { id: string; label: string | null; display_phone: string | null; phone_number_id: string };
@@ -188,7 +186,7 @@ Args: messageId (from wa_get_messages)${local ? ", savePath (optional folder or 
     "wa_send_text",
     {
       title: "WhatsApp: Send A Text",
-      description: `Sends a free-form text from the Ads by Shoaib number to an EXISTING chat. Works only inside the 24-hour window after the contact's last message (otherwise use wa_send_template). Without confirm=true it only shows a preview.
+      description: `Sends a free-form text from the Ads by Shoaib number to an EXISTING chat. Works only inside the 24-hour window after the contact's last message (otherwise the contact has to message first). Without confirm=true it only shows a preview.
 
 Args: contactId or phone, text (max 4000), confirm (boolean).`,
       inputSchema: { ...chatRef, text: z.string().min(1).max(4000), confirm: z.boolean().optional() },
@@ -211,7 +209,7 @@ Args: contactId or phone, text (max 4000), confirm (boolean).`,
     "wa_notify_owner",
     {
       title: "WhatsApp: Message Shoaib",
-      description: `Sends a short text to Shoaib's own WhatsApp (923017461642) from the Ads by Shoaib number: use it to send him a task update, a result, a question or a link. No confirm needed (it only goes to him). Free-form text works if he messaged this number in the last 24 hours; otherwise it falls back to the approved template \"claude_task_update\" (if it exists), else it tells you the window is closed.
+      description: `Sends a short text to Shoaib's own WhatsApp (923017461642) from the Ads by Shoaib number: use it to send him a task update, a result, a question or a link. No confirm needed (it only goes to him). It is a free reply: it only works within 24 hours of Shoaib's last message to this number (he starts, Claude answers). Outside that window it refuses; templates are deliberately NOT used because they cost money.
 
 Args: text (max 1500).`,
       inputSchema: { text: z.string().min(1).max(1500) },
@@ -226,12 +224,7 @@ Args: text (max 1500).`,
           if ("error" in r) return fail(r.error);
           return text("Sent to Shoaib.");
         }
-        // Window closed: fall back to the approved one-variable template, if it exists.
-        const t = (await listTemplates(chat.account_id, true)).find((x) => x.name === OWNER_TEMPLATE && x.vars === 1);
-        if (!t) return fail(`The 24-hour window is closed and the approved template "${OWNER_TEMPLATE}" (one variable) does not exist yet. Shoaib can reopen the window by sending any message to the Ads by Shoaib number, or the template can be created and approved.`);
-        const flat = body.replace(/\s+/g, " ").trim().slice(0, 500); // template variables cannot hold line breaks, tabs or runs of spaces
-        const r = await sendTemplate(chat.id, t.name, t.language, [flat]);
-        return "error" in r ? fail(r.error) : text(`Sent to Shoaib as the "${OWNER_TEMPLATE}" template (the window was closed).`);
+        return fail("The 24-hour window is closed. This number never starts a conversation (templates are off to keep it free), so Shoaib has to message the Ads by Shoaib number first; after his message Claude can reply for 24 hours.");
       } catch (e) {
         return fail(e);
       }
@@ -242,7 +235,7 @@ Args: text (max 1500).`,
     "wa_send_media",
     {
       title: "WhatsApp: Send A File",
-      description: `Sends an image, document, audio or video from the Ads by Shoaib number to an EXISTING chat (24-hour window rule as for text). Max 16 MB. Give the file as ONE of: url (public https link), base64 (+ filename and mimeType)${local ? ", or filePath (a file on this PC)" : ""}. Without confirm=true it only shows a preview.
+      description: `Sends an image, document, audio or video from the Ads by Shoaib number to an EXISTING chat (same 24-hour rule as for text). Max 16 MB. Give the file as ONE of: url (public https link), base64 (+ filename and mimeType)${local ? ", or filePath (a file on this PC)" : ""}. Without confirm=true it only shows a preview.
 
 Args: contactId or phone, kind ("image" | "document" | "audio" | "video"), url | base64 | ${local ? "filePath | " : ""}filename, mimeType, caption (max 1000, not for audio), confirm.`,
       inputSchema: {
@@ -262,7 +255,7 @@ Args: contactId or phone, kind ("image" | "document" | "audio" | "video"), url |
       try {
         const chat = await resolveChat({ contactId: a.contactId, phone: a.phone });
         const account = await accountOf(chat.account_id);
-        if (!replyWindowOpen(chat.last_inbound_at)) throw new Error("The 24-hour reply window is closed: the contact has to message first (or send an approved template).");
+        if (!replyWindowOpen(chat.last_inbound_at)) throw new Error("The 24-hour reply window is closed: the contact has to message first (templates are off to keep it free).");
         let buffer: Buffer;
         let mime = a.mimeType ?? "application/octet-stream";
         let filename = a.filename ?? "file";
@@ -309,48 +302,6 @@ Args: contactId or phone, kind ("image" | "document" | "audio" | "video"), url |
         await db.from("wa_messages").insert({ account_id: account.id, contact_id: chat.id, wamid, direction: "out", via: "api", type: a.kind, body: a.caption ?? filename, status: "sent", sent_at: at, raw: { [a.kind]: { id: uj.id, filename, mime_type: mime } } });
         await markReplied(chat.id, at);
         return text(`Sent ${a.kind} "${filename}".`);
-      } catch (e) {
-        return fail(e);
-      }
-    }
-  );
-
-  server.registerTool(
-    "wa_list_templates",
-    {
-      title: "WhatsApp: Approved Templates",
-      description: "Lists the APPROVED message templates of the Ads by Shoaib number (name, language, text, number of variables). Templates are the only way to message a contact outside the 24-hour window. Read-only.",
-      inputSchema: {},
-      annotations: READ,
-    },
-    async () => {
-      try {
-        const out = [];
-        for (const a of await allowedAccounts()) for (const t of await listTemplates(a.id, true)) out.push({ name: t.name, language: t.language, category: t.category, variables: t.vars, header: t.header, body: t.body, footer: t.footer });
-        return json(out);
-      } catch (e) {
-        return fail(e);
-      }
-    }
-  );
-
-  server.registerTool(
-    "wa_send_template",
-    {
-      title: "WhatsApp: Send A Template",
-      description: `Sends an approved template to an EXISTING chat; works even when the 24-hour window is closed. Without confirm=true it only shows a preview.
-
-Args: contactId or phone, name, language (e.g. "en"), params (strings for {{1}}, {{2}}...), confirm.`,
-      inputSchema: { ...chatRef, name: z.string().min(1).max(100), language: z.string().min(2).max(10), params: z.array(z.string().max(500)).max(10).optional(), confirm: z.boolean().optional() },
-      annotations: WRITE,
-    },
-    async ({ contactId, phone, name, language, params, confirm }: Ref & { name: string; language: string; params?: string[]; confirm?: boolean }) => {
-      try {
-        const chat = await resolveChat({ contactId, phone });
-        if (!confirm) return preview(`Template "${name}" (${language}) to ${chat.name ?? chat.wa_id}:`, { to: chat.wa_id, params: params ?? [] });
-        if (!(await rateLimit("wa-mcp-send", 60, 3600))) throw new Error("Rate limit: at most 60 sends per hour through the MCP.");
-        const r = await sendTemplate(chat.id, name, language, params ?? []);
-        return "error" in r ? fail(r.error) : text("Sent.");
       } catch (e) {
         return fail(e);
       }
