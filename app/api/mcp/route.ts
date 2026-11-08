@@ -5,6 +5,7 @@ import { registerRemoteSocialTools } from "@/lib/mcp-remote-tools";
 import { registerMarketingTools } from "@/lib/mcp-marketing-tools";
 import { registerKnowledgeTools, KB_SERVER_INSTRUCTIONS } from "@/lib/mcp-knowledge-tools";
 import { registerWhatsAppTools } from "@/lib/mcp-whatsapp-tools";
+import { registerMcpUserAdminTools } from "@/lib/mcp-user-admin-tools";
 
 /**
  * Remote MCP endpoint for Claude web/mobile/desktop custom connectors —
@@ -36,6 +37,7 @@ async function handle(request: Request): Promise<Response> {
   registerMarketingTools(server);
   registerKnowledgeTools(server);
   registerWhatsAppTools(server);
+  registerMcpUserAdminTools(server);
 
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
   await server.connect(transport);

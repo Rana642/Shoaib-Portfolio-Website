@@ -51,6 +51,29 @@ export function signAccessToken(clientId: string, userId?: string | null): { tok
   return { token: `${payloadB64}.${sig}`, expiresIn: ACCESS_TOKEN_TTL_SECONDS };
 }
 
+/** Signed, short-lived blob carried through the Google sign-in round trip as OAuth `state`. The "state:" prefix keeps it from ever verifying as an access token. */
+export function signState(data: Record<string, string>, ttlSeconds = 600): string {
+  if (!rawKey) throw new Error("MCP_OAUTH_SIGNING_KEY is not configured.");
+  const payloadB64 = toBase64Url(JSON.stringify({ ...data, exp: Math.floor(Date.now() / 1000) + ttlSeconds }));
+  return `${payloadB64}.${toBase64Url(createHmac("sha256", rawKey).update("state:" + payloadB64).digest())}`;
+}
+
+export function verifyState(blob: string): Record<string, string> | null {
+  if (!rawKey) return null;
+  const [payloadB64, sig] = blob.split(".");
+  if (!payloadB64 || !sig) return null;
+  const a = Buffer.from(sig);
+  const b = Buffer.from(toBase64Url(createHmac("sha256", rawKey).update("state:" + payloadB64).digest()));
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  try {
+    const data = JSON.parse(fromBase64Url(payloadB64).toString("utf8")) as Record<string, string | number>;
+    if (Number(data.exp) < Math.floor(Date.now() / 1000)) return null;
+    return Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)]));
+  } catch {
+    return null;
+  }
+}
+
 export function verifyAccessToken(token: string): VerifiedToken | null {
   if (!rawKey) return null;
   const [payloadB64, sig] = token.split(".");

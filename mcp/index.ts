@@ -38,6 +38,7 @@ const { registerSocialTools } = await import("./tools/social.js");
 const { registerMarketingTools } = await import("./tools/marketing.js");
 const { registerKnowledgeTools, KB_SERVER_INSTRUCTIONS } = await import("./tools/knowledge.js");
 const { registerWhatsAppTools } = await import("./tools/whatsapp.js");
+const { registerMcpUserAdminTools } = await import("./tools/user-admin.js");
 
 const server = new McpServer(
   { name: "adsbyshoaib-social-mcp-server", version: "1.0.0" },
@@ -48,6 +49,7 @@ registerSocialTools(server);
 registerMarketingTools(server);
 registerKnowledgeTools(server);
 registerWhatsAppTools(server, { local: true });
+registerMcpUserAdminTools(server);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

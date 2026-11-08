@@ -620,6 +620,11 @@ export const API_SERVICE_PRESETS: ApiServicePreset[] = [
     suggestedFields: ["client_id", "client_secret", "refresh_token"],
   },
   {
+    value: "mcp_signin",
+    label: "User MCP sign-in (Google OAuth web client: client_id + client_secret)",
+    suggestedFields: ["client_id", "client_secret"],
+  },
+  {
     value: "gmail",
     label: "Gmail API",
     suggestedFields: ["client_id", "client_secret", "refresh_token"],
