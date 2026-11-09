@@ -21,6 +21,13 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - Danish Constructions story: Instagram, still queued at writing
   Only the failed platform was retried, by marking the successful ones done.
 - A review found 3 issues before push, all fixed: late posts were refused as "in the past"; a live Facebook post could be deleted; caption edits could duplicate a half-sent post.
+- **Bulk upload from Google Drive** (`lib/planner-drive.ts`, Bulk upload window): paste a folder link shared as "Anyone with the link", then Fetch, then Import.
+  - Images become posts and MP4/MOV videos become Reels. Each gets a free day the same way as a PC upload. Files already on the planner (same name) are skipped.
+  - Limits: images 25 MB, videos 100 MB. Bigger videos go up from the PC.
+  - The server checks type, size and length with Drive itself. A Reel goes only to the chosen platforms its length fits: FB 3–90 s, IG 3–900 s, YT up to 180 s, TikTok up to 600 s.
+  - One file per request, so one failure doesn't stop the rest.
+  - The folder link is remembered per project in the browser. It uses the `google_drive` key in the API Vault, the same one the Stories sync uses.
+  - **Not tested locally:** `.env.local` has no `API_VAULT_ENCRYPTION_KEY`. Test Fetch on live first; it only reads. Shoaib's folders: Hotel Elegant `1QP8W4h6mpXcGlPpc0a6wfzRwsFwAgavK`, Silver Sand `1uTKatocglUB2CIvXUWhfHJaCf9YS-2MZ`.
 
 ## 2026-11-07 — WhatsApp inbox fixes, Socially Snap sidebar, Planner manual time, guards (home PC)
 - **Two-PC sync rule** added to CLAUDE.md ("Done" = WORK-LOG + pull + commit + push).

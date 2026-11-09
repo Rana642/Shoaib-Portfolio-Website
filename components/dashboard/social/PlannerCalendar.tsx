@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { DayNote } from "@/lib/planner-day-notes";
 import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard, CircleDashed, AlertTriangle, Film, ThumbsUp, LayoutGrid, Download, Send, X } from "lucide-react";
-import { clearPostChanges, createPlannerPost, deletePost, movePost, postDownloadUrl, publishPostNow, reorderDay, setPostTime, updatePostCaption } from "@/lib/dashboard/actions/social";
+import { clearPostChanges, createPlannerPost, deletePost, importDriveFileForBulk, listDriveFolderForBulk, movePost, postDownloadUrl, publishPostNow, reorderDay, setPostTime, updatePostCaption } from "@/lib/dashboard/actions/social";
+import type { DriveImportFile } from "@/lib/planner-drive";
 import type { Finding } from "@/lib/post-preflight-checks";
 import type { PlatformPostResult } from "@/lib/social-post";
 import { ReplaceImageButton } from "@/components/portal/NeedsChangesAlert";
@@ -1640,6 +1641,13 @@ function dayOfWeek(dateStr: string): number {
  *  batch fills whatever gaps already exist in the calendar first, then
  *  continues into fresh dates once those run out, rather than stacking a
  *  second post onto a day some earlier batch (or a manual add) already used. */
+/** Reel length each platform takes (the same as REEL_SECONDS in lib/planner-drive.ts). */
+const REEL_SECONDS_CLIENT: Record<string, [number, number]> = { facebook: [3, 90], instagram: [3, 900], youtube: [0, 180], tiktok: [0, 600] };
+const reelFitsClient = (platform: string, seconds: number | null) => {
+  const limits = REEL_SECONDS_CLIENT[platform];
+  return Boolean(limits) && (seconds === null || (seconds >= limits[0] && seconds <= limits[1]));
+};
+
 function planBulkDates(fileNames: string[], startDate: string, occupiedDates: Set<string>): string[] {
   const fridayIdx: number[] = [];
   const otherIdx: number[] = [];
@@ -1694,6 +1702,90 @@ function BulkUploadModal({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // From Google Drive: the folder link (remembered per project on this browser) and what it holds.
+  const driveKey = `planner-drive-folder:${projectId}`;
+  const [driveLink, setDriveLink] = useState(() => {
+    try {
+      return window.localStorage.getItem(driveKey) ?? "";
+    } catch {
+      return "";
+    }
+  });
+  const [driveFiles, setDriveFiles] = useState<DriveImportFile[] | null>(null);
+  const [driveNotes, setDriveNotes] = useState<string[]>([]);
+
+  const fetchDrive = async () => {
+    setError(null);
+    setStatus(null);
+    setBusy(true);
+    try {
+      const res = await listDriveFolderForBulk(driveLink);
+      if ("error" in res) throw new Error(res.error);
+      try {
+        window.localStorage.setItem(driveKey, driveLink);
+      } catch {
+        /* remembering the link is only a convenience */
+      }
+      const sorted = [...res.files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      const already = sorted.filter((f) => existingByFilename.has(f.name));
+      setDriveFiles(sorted.filter((f) => !existingByFilename.has(f.name)));
+      setDriveNotes([
+        ...(already.length ? [`Already on the planner, skipped: ${already.map((f) => `${f.name} (${existingByFilename.get(f.name)})`).join(", ")}`] : []),
+        ...(res.unsupported.length ? [`Not an image or MP4/MOV video, skipped: ${res.unsupported.join(", ")}`] : []),
+        ...(res.tooBig.length ? [`Too big (images 25 MB, videos 100 MB from Drive), skipped: ${res.tooBig.join(", ")}`] : []),
+      ]);
+    } catch (err) {
+      setDriveFiles(null);
+      setError(err instanceof Error ? err.message : "Couldn't read the folder.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const importDrive = async () => {
+    if (!driveFiles?.length) return;
+    if (connectedPlatforms.length > 0 && selectedPlatforms.size === 0) {
+      setError("Select at least one platform to post to.");
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    // Each file goes only to the chosen platforms that take it; a Reel only to those its length fits.
+    const chosen = selectedPlatforms.size > 0 ? [...selectedPlatforms] : connectedPlatforms;
+    const targetsFor = (file: DriveImportFile) => {
+      // Nothing connected yet: the same as a PC upload, the post waits with no platforms picked.
+      if (connectedPlatforms.length === 0) return { fit: [file.kind], all: true };
+      const fit = chosen.filter((p) => takes(file.kind, p) && (file.kind !== "reel" || reelFitsClient(p, file.seconds)));
+      const everywhere = connectedPlatforms.filter((p) => takes(file.kind, p));
+      return { fit, all: fit.length === everywhere.length && selectedPlatforms.size === connectedPlatforms.length };
+    };
+    const ready = driveFiles.filter((f) => targetsFor(f).fit.length > 0);
+    const skipped = driveFiles.filter((f) => targetsFor(f).fit.length === 0).map((f) => `${f.name}: no chosen platform takes it${f.kind === "reel" ? " at this length" : ""}`);
+    const dates = planBulkDates(ready.map((f) => f.name), startDate, new Set(occupiedDates.keys()));
+    const failed: string[] = [...skipped];
+    try {
+      for (const [i, file] of ready.entries()) {
+        setStatus(`Importing ${file.name} (${i + 1}/${ready.length})…`);
+        const { fit, all } = targetsFor(file);
+        try {
+          const res = await importDriveFileForBulk({ projectId, fileId: file.id, date: dates[i], platforms: all ? null : fit });
+          if ("error" in res) failed.push(`${file.name}: ${res.error}`);
+        } catch {
+          failed.push(`${file.name}: took too long or the connection dropped`);
+        }
+      }
+    } finally {
+      setBusy(false);
+      setDriveFiles(null);
+    }
+    const done = driveFiles.length - failed.length;
+    if (failed.length) {
+      setError(`Imported ${done} of ${driveFiles.length}. Not imported: ${failed.join("; ")}`);
+      setStatus(null);
+    } else {
+      setStatus(`Imported ${done} file(s) from Drive.`);
+    }
+  };
 
   const togglePlatform = (platform: string) => {
     setSelectedPlatforms((prev) => {
@@ -1843,6 +1935,45 @@ function BulkUploadModal({
             onChange={(e) => onFiles(e.target.files)}
           />
         </label>
+
+        <div className="space-y-2 border-t border-ink/10 pt-4">
+          <p className="text-small font-medium">Or from a Google Drive folder</p>
+          <p className="text-tag text-ink-muted">Share the folder as &quot;Anyone with the link&quot;. Images become posts, MP4/MOV videos (up to 100 MB) become Reels; the same rules as above.</p>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              className={cn(inputClasses, "flex-1")}
+              placeholder="https://drive.google.com/drive/folders/…"
+              value={driveLink}
+              onChange={(e) => {
+                setDriveLink(e.target.value);
+                setDriveFiles(null);
+              }}
+              disabled={busy}
+            />
+            <button type="button" onClick={fetchDrive} disabled={busy || !driveLink.trim()} className={buttonStyles.secondary}>
+              Fetch
+            </button>
+          </div>
+          {driveFiles && (
+            <div className="space-y-2">
+              <p className="text-small">
+                {driveFiles.filter((f) => f.kind === "post").length} image(s), {driveFiles.filter((f) => f.kind === "reel").length} video(s) to import
+              </p>
+              {driveNotes.map((note) => (
+                <p key={note} className="text-tag text-ink-muted">
+                  {note}
+                </p>
+              ))}
+              {driveFiles.length > 0 && (
+                <button type="button" onClick={importDrive} disabled={busy} className={buttonStyles.primary}>
+                  {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : null}
+                  Import {driveFiles.length} file(s)
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
         {status && <p className="text-small text-ink-muted">{status}</p>}
         {error && (

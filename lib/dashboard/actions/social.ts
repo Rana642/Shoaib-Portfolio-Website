@@ -31,6 +31,7 @@ import { publishNow, type PublishNowResult } from "../../social-publish-now";
 import { preflightPost } from "../../post-preflight";
 import type { Finding } from "../../post-preflight-checks";
 import { presignDownload } from "../../storage";
+import { importDriveFile, listDriveImport, type DriveImportList } from "../../planner-drive";
 import { submitNativeScheduleForPost, rescheduleNativePosts, cancelPostEverywhere } from "../../social-post";
 import { deleteObject } from "../../storage";
 import { clearPostFlag } from "../../post-review";
@@ -426,5 +427,37 @@ export async function postDownloadUrl(id: string): Promise<{ url: string } | { e
     return { url: await presignDownload(post.media_key, post.original_filename || "post", 300) };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Couldn't get the file." };
+  }
+}
+
+/** Bulk upload from Google Drive, step 1: what's in the folder (lib/planner-drive.ts). */
+export async function listDriveFolderForBulk(link: string): Promise<DriveImportList | { error: string }> {
+  await assertAuthed();
+  if (typeof link !== "string" || link.length > 500) return { error: "Paste a Google Drive folder link." };
+  try {
+    return await listDriveImport(link);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't read the Drive folder." };
+  }
+}
+
+/** Bulk upload from Google Drive, step 2: one file onto the planner, the same as a PC upload. */
+export async function importDriveFileForBulk(input: { projectId: string; fileId: string; date: string; platforms: string[] | null }): Promise<{ ok: true } | { error: string }> {
+  await assertAuthed();
+  const parsed = z
+    .object({
+      projectId: z.string().uuid(),
+      fileId: z.string().regex(/^[A-Za-z0-9_-]{10,100}$/),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      platforms: z.array(z.string().max(40)).max(10).nullable(),
+    })
+    .safeParse(input);
+  if (!parsed.success) return { error: "Invalid file." };
+  try {
+    await importDriveFile(parsed.data);
+    revalidatePath("/dashboard/social/planner");
+    return { ok: true };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't import the file." };
   }
 }

@@ -70,15 +70,15 @@ export function parseDriveFolderId(input: string): string | null {
   return /^[a-zA-Z0-9_-]{10,}$/.test(s) ? s : null;
 }
 
-async function apiKey(): Promise<string> {
+export async function apiKey(): Promise<string> {
   const cred = await getVaultCredential("google_drive").catch(() => ({}) as Record<string, string>);
   if (!cred.api_key) throw new Error("Add a Google API key as service 'google_drive' (field 'api_key') in the API Vault.");
   return cred.api_key;
 }
 
-type DriveFile = { id: string; name: string; mimeType: string; size?: string; videoMediaMetadata?: { durationMillis?: string } };
+export type DriveFile = { id: string; name: string; mimeType: string; size?: string; videoMediaMetadata?: { durationMillis?: string } };
 
-async function listFolder(folderId: string, key: string): Promise<DriveFile[]> {
+export async function listFolder(folderId: string, key: string): Promise<DriveFile[]> {
   const files: DriveFile[] = [];
   let pageToken = "";
   do {
@@ -103,7 +103,7 @@ async function listFolder(folderId: string, key: string): Promise<DriveFile[]> {
   return files;
 }
 
-async function downloadFile(fileId: string, key: string): Promise<Buffer> {
+export async function downloadFile(fileId: string, key: string): Promise<Buffer> {
   const res = await fetch(`${DRIVE}/files/${fileId}?alt=media&acknowledgeAbuse=true&supportsAllDrives=true&key=${key}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Couldn't download from Drive (HTTP ${res.status}).`);
   // When Drive throttles, it answers 200 with an HTML "Sorry…" page instead of the file.
