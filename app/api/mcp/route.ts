@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { verifyAccessToken, MCP_METADATA_URL } from "@/lib/mcp-oauth";
 import { registerRemoteSocialTools } from "@/lib/mcp-remote-tools";
+import { PLANNER_INSTRUCTIONS } from "@/lib/mcp-planner-tools";
 import { registerMarketingTools } from "@/lib/mcp-marketing-tools";
 import { registerKnowledgeTools, KB_SERVER_INSTRUCTIONS } from "@/lib/mcp-knowledge-tools";
 import { registerWhatsAppTools } from "@/lib/mcp-whatsapp-tools";
@@ -32,7 +33,8 @@ async function handle(request: Request): Promise<Response> {
   // Only admin tokens: a restricted user token (aud "user") must never open the admin tools.
   if (!verified || verified.aud !== "admin") return unauthorized();
 
-  const server = new McpServer({ name: "adsbyshoaib-social-mcp-remote", version: "1.0.0" }, { instructions: KB_SERVER_INSTRUCTIONS });
+  const server = new McpServer({ name: "adsbyshoaib-social-mcp-remote", version: "1.0.0" }, { instructions: `${KB_SERVER_INSTRUCTIONS}
+${PLANNER_INSTRUCTIONS}` });
   registerRemoteSocialTools(server);
   registerMarketingTools(server);
   registerKnowledgeTools(server);

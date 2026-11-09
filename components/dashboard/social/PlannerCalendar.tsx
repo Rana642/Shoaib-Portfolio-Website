@@ -7,6 +7,7 @@ import type { DayNote } from "@/lib/planner-day-notes";
 import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard, CircleDashed, AlertTriangle, Film, ThumbsUp, LayoutGrid, Download, Send, X } from "lucide-react";
 import { clearPostChanges, createPlannerPost, deletePost, importDriveFileForBulk, listDriveFolderForBulk, movePost, postDownloadUrl, publishPostNow, reorderDay, setPostTime, updatePostCaption } from "@/lib/dashboard/actions/social";
 import type { DriveImportFile } from "@/lib/planner-drive";
+import { lengthFits, planBulkDates, takes } from "@/lib/planner-rules";
 import type { Finding } from "@/lib/post-preflight-checks";
 import type { PlatformPostResult } from "@/lib/social-post";
 import { ReplaceImageButton } from "@/components/portal/NeedsChangesAlert";
@@ -19,19 +20,8 @@ import type { PostType, ProjectOption, ScheduledPost } from "@/lib/dashboard/typ
 
 type PostWithUrl = ScheduledPost & { imageUrl: string | null; coverUrl?: string | null };
 
-/** Which platforms take each kind (matches lib/social-post.ts): a photo post
- *  goes everywhere except YouTube; Reels to Facebook, Instagram, YouTube (as
- *  a Short) and TikTok; Videos to YouTube, Facebook and TikTok; Stories to
- *  Facebook and Instagram. */
+/** Which platforms take each kind: lib/planner-rules.ts (shared with the MCP tools). */
 type Kind = PostType;
-const KIND_PLATFORMS: Record<Exclude<Kind, "post">, string[]> = {
-  reel: ["facebook", "instagram", "youtube", "tiktok"],
-  video: ["youtube", "facebook", "tiktok"],
-  story: ["facebook", "instagram"],
-};
-const VIDEO_ONLY_PLATFORMS = ["youtube"];
-const takes = (kind: Kind, platform: string) =>
-  kind === "post" ? !VIDEO_ONLY_PLATFORMS.includes(platform) : KIND_PLATFORMS[kind].includes(platform);
 const kindOf = (post: ScheduledPost): Kind => post.post_type ?? "post";
 
 /** The Posts Planner's tabs across the top; Posts / Stories is the toggle on
@@ -216,11 +206,6 @@ function toKey(d: Date): string {
 
 /** "YYYY-MM-DD" + n days, in UTC so it can't drift across a DST-less
  *  server clock. */
-function addDays(dateStr: string, n: number): string {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  return toKey(new Date(Date.UTC(y, m - 1, d + n)));
-}
-
 function startOfWeek(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - d.getUTCDay()));
 }
@@ -1623,53 +1608,7 @@ function UploadModal({
   );
 }
 
-function dayOfWeek(dateStr: string): number {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun … 5=Fri … 6=Sat
-}
-
-/** Assigns each filename a date starting from `startDate`, one per day —
- *  except any filename containing "Friday" (Shoaib's own naming convention
- *  for recurring Jummah/Friday content), which is held back for the next
- *  actual Friday instead of just falling wherever it lands in sequence.
- *  Everything else fills in around those Fridays in filename order. A
- *  Friday with no Friday-named file left stays empty on purpose — Shoaib
- *  adds something there himself rather than a regular file filling the
- *  gap automatically. */
-/** `occupiedDates` — dates that already have at least one post — are
- *  skipped entirely (for both the Friday and regular queues) so a new bulk
- *  batch fills whatever gaps already exist in the calendar first, then
- *  continues into fresh dates once those run out, rather than stacking a
- *  second post onto a day some earlier batch (or a manual add) already used. */
-/** Reel length each platform takes (the same as REEL_SECONDS in lib/planner-drive.ts). */
-const REEL_SECONDS_CLIENT: Record<string, [number, number]> = { facebook: [3, 90], instagram: [3, 900], youtube: [0, 180], tiktok: [0, 600] };
-const reelFitsClient = (platform: string, seconds: number | null) => {
-  const limits = REEL_SECONDS_CLIENT[platform];
-  return Boolean(limits) && (seconds === null || (seconds >= limits[0] && seconds <= limits[1]));
-};
-
-function planBulkDates(fileNames: string[], startDate: string, occupiedDates: Set<string>): string[] {
-  const fridayIdx: number[] = [];
-  const otherIdx: number[] = [];
-  fileNames.forEach((name, i) => (/friday/i.test(name) ? fridayIdx : otherIdx).push(i));
-
-  const dates = new Array<string>(fileNames.length);
-  let cursor = startDate;
-  let fi = 0;
-  let oi = 0;
-  while (fi < fridayIdx.length || oi < otherIdx.length) {
-    if (!occupiedDates.has(cursor)) {
-      if (dayOfWeek(cursor) === 5) {
-        if (fi < fridayIdx.length) dates[fridayIdx[fi++]] = cursor;
-        // else: leave this Friday empty rather than using a regular file.
-      } else if (oi < otherIdx.length) {
-        dates[otherIdx[oi++]] = cursor;
-      }
-    }
-    cursor = addDays(cursor, 1);
-  }
-  return dates;
-}
+// The one-per-day date planner (Fridays for "friday" files) is planBulkDates in lib/planner-rules.ts.
 
 /** Bulk import: pick a start date and drop in a whole batch (e.g. a
  *  client's 30-day content pack) — each file lands one per day in filename
@@ -1755,7 +1694,7 @@ function BulkUploadModal({
     const targetsFor = (file: DriveImportFile) => {
       // Nothing connected yet: the same as a PC upload, the post waits with no platforms picked.
       if (connectedPlatforms.length === 0) return { fit: [file.kind], all: true };
-      const fit = chosen.filter((p) => takes(file.kind, p) && (file.kind !== "reel" || reelFitsClient(p, file.seconds)));
+      const fit = chosen.filter((p) => takes(file.kind, p) && (file.kind !== "reel" || lengthFits("reel", p, file.seconds)));
       const everywhere = connectedPlatforms.filter((p) => takes(file.kind, p));
       return { fit, all: fit.length === everywhere.length && selectedPlatforms.size === connectedPlatforms.length };
     };

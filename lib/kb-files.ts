@@ -96,6 +96,38 @@ export function verifyUploadToken(token: string): UploadTokenPayload | null {
 
 export const kbUploadUrl = (token: string) => `${SITE}/kb-upload/${token}`;
 
+// ── planner upload links (social_create_upload_link) ─────────────────
+
+/** What a planner upload link fixes: the project and how the post is added. */
+export type PlannerUploadTokenPayload = {
+  p: string; // project id
+  d?: string | null; // date YYYY-MM-DD (null = next free day)
+  t?: string | null; // time HH:MM, Pakistan time
+  pl?: string[] | null; // platforms (null = every connected one that takes it)
+  k?: "post" | "reel" | "story" | "video" | null; // kind (null = post for a picture, Reel for a video)
+  c?: string | null; // caption
+  e: number; // expiry (unix seconds)
+};
+
+export function signPlannerUploadToken(payload: Omit<PlannerUploadTokenPayload, "e">, ttlSeconds = 3600): string {
+  const body = Buffer.from(JSON.stringify({ ...payload, e: Math.floor(Date.now() / 1000) + ttlSeconds })).toString("base64url");
+  return `${body}.${sign("planner-upload", body)}`;
+}
+
+export function verifyPlannerUploadToken(token: string): PlannerUploadTokenPayload | null {
+  if (!secret) return null;
+  const [body, sig] = token.split(".");
+  if (!body || !sig || !safeEqual(sig, sign("planner-upload", body))) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as PlannerUploadTokenPayload;
+    return payload.e >= Math.floor(Date.now() / 1000) ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
+export const plannerUploadUrl = (token: string) => `${SITE}/planner-upload/${token}`;
+
 // ── direct uploads (a shell PUTs the file, then calls the finish URL) ──
 
 /** One file of a direct upload: where the PUT lands (key, under

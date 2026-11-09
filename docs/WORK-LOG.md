@@ -27,7 +27,19 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - The server checks type, size and length with Drive itself. A Reel goes only to the chosen platforms its length fits: FB 3–90 s, IG 3–900 s, YT up to 180 s, TikTok up to 600 s.
   - One file per request, so one failure doesn't stop the rest.
   - The folder link is remembered per project in the browser. It uses the `google_drive` key in the API Vault, the same one the Stories sync uses.
-  - **Not tested locally:** `.env.local` has no `API_VAULT_ENCRYPTION_KEY`. Test Fetch on live first; it only reads. Shoaib's folders: Hotel Elegant `1QP8W4h6mpXcGlPpc0a6wfzRwsFwAgavK`, Silver Sand `1uTKatocglUB2CIvXUWhfHJaCf9YS-2MZ`.
+  - **Not tested locally:** `.env.local` has no `API_VAULT_ENCRYPTION_KEY`.
+- **Planner from ChatGPT/Claude (MCP)**, so everything the dashboard does can be done from a chat. Same rules as the dashboard (`lib/planner-intake.ts`); the shared rules are in `lib/planner-rules.ts`: which platform takes what, video length, one free day per file.
+  - `social_add_post` puts one picture or video on a project's planner. The file comes from the chat as `file` or from a link as `url` (a Drive file link works).
+    - ChatGPT passes chat files through `_meta["openai/fileParams"]`, as `{download_url, file_id}`.
+    - Optional settings: post, Reel, Story or video; date and time (PKT); platforms; caption.
+    - With a caption it is scheduled, unless pre-flight finds a FIX; then it waits without a caption.
+    - `publishNow` publishes it after the checks.
+    - Generic chat names ("image.png") get a dated name. The same file name twice is refused.
+  - `social_import_drive_folder`: the Bulk upload from Drive. It lists first; `confirm` imports in parts of about 25 s, and calling again continues.
+  - `social_update_post` changes the day, time, platforms or kind (post↔story, reel↔story↔video). A Facebook draft is redone only while it can be changed safely.
+  - `social_create_upload_link` is the fallback when a chat can't pass the file. It gives a 1-hour page (`/planner-upload/<token>`, API `/api/planner/upload`); files go to `social/<project>/link-…`.
+  - `lib/safe-fetch.ts`: the https-only, no-private-address download, now shared with the KB tools. It has a size cap.
+  - **Not tested live yet:** whether a picture ChatGPT made itself reaches the tool. The forums say it works, but OpenAI doesn't document it. The mobile app was reported to send only a file id; use the upload link there. `.env.local` also has no `MCP_OAUTH_SIGNING_KEY`, so upload links only work on live. Test Fetch on live first; it only reads. Shoaib's folders: Hotel Elegant `1QP8W4h6mpXcGlPpc0a6wfzRwsFwAgavK`, Silver Sand `1uTKatocglUB2CIvXUWhfHJaCf9YS-2MZ`.
 
 ## 2026-11-07 — WhatsApp inbox fixes, Socially Snap sidebar, Planner manual time, guards (home PC)
 - **Two-PC sync rule** added to CLAUDE.md ("Done" = WORK-LOG + pull + commit + push).

@@ -4,8 +4,7 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { extname } from "node:path";
-import dns from "node:dns/promises";
-import net from "node:net";
+import { fetchPublicUrl } from "./safe-fetch";
 import sharp from "sharp";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "./dashboard/db";
@@ -116,43 +115,6 @@ const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").repla
 
 // ── file intake (base64 / public URL / local path on stdio only) ─────────
 
-function isPrivateIp(ip: string): boolean {
-  const lower = ip.toLowerCase();
-  if (lower.startsWith("::ffff:") && net.isIPv4(lower.slice(7))) return isPrivateIp(lower.slice(7));
-  if (net.isIPv4(ip)) {
-    const [a, b] = ip.split(".").map(Number);
-    return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
-  }
-  return lower === "::1" || lower === "::" || lower.startsWith("fc") || lower.startsWith("fd") || lower.startsWith("fe80");
-}
-
-/** https-only fetch that refuses private/loopback hosts (also after redirects). */
-async function fetchPublicUrl(rawUrl: string): Promise<Buffer> {
-  let url = new URL(rawUrl);
-  for (let hop = 0; hop < 4; hop++) {
-    if (url.protocol !== "https:") throw new Error("Only https:// URLs are allowed.");
-    const host = url.hostname.replace(/^\[|\]$/g, "");
-    if (net.isIP(host)) {
-      if (isPrivateIp(host)) throw new Error("That URL points to a private address.");
-    } else {
-      const addrs = await dns.lookup(host, { all: true });
-      if (addrs.length === 0 || addrs.some((a) => isPrivateIp(a.address))) throw new Error("That URL's host is not publicly reachable.");
-    }
-    const res = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(15_000), headers: { "User-Agent": "adsbyshoaib-knowledge-base/1.0" } });
-    const location = res.headers.get("location");
-    if (res.status >= 300 && res.status < 400 && location) {
-      url = new URL(location, url);
-      continue;
-    }
-    if (!res.ok) throw new Error(`Could not download the file: HTTP ${res.status}.`);
-    if (Number(res.headers.get("content-length") ?? 0) > MAX_FETCH_BYTES) throw new Error("File is larger than 12 MB.");
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length > MAX_FETCH_BYTES) throw new Error("File is larger than 12 MB.");
-    return buf;
-  }
-  throw new Error("Too many redirects.");
-}
-
 type FileSource = { dataBase64?: string; sourceUrl?: string; filePath?: string };
 
 async function loadFile(src: FileSource, allowLocalFiles: boolean): Promise<{ buffer: Buffer; mime: string; ext: string }> {
@@ -164,7 +126,7 @@ async function loadFile(src: FileSource, allowLocalFiles: boolean): Promise<{ bu
     if (raw.length > MAX_BASE64_BYTES * 1.4) throw new Error("dataBase64 is too large (~3 MB max) — use sourceUrl for bigger files.");
     buffer = Buffer.from(raw, "base64");
   } else if (src.sourceUrl) {
-    buffer = await fetchPublicUrl(src.sourceUrl);
+    buffer = (await fetchPublicUrl(src.sourceUrl, MAX_FETCH_BYTES)).buffer;
   } else {
     if (!allowLocalFiles) throw new Error("filePath is only available on the local MCP server.");
     buffer = await readFile(src.filePath!);

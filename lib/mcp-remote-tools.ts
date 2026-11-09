@@ -12,6 +12,7 @@ import { fetchObject } from "./storage";
 import { rescheduleNativePosts, submitNativeScheduleForPost } from "./social-post";
 import { registerBestTimeTool } from "./social-best-times";
 import { publishNow } from "./social-publish-now";
+import { registerPlannerTools } from "./mcp-planner-tools";
 
 /**
  * The remote (Claude web/mobile/desktop) counterpart to mcp/tools/social.ts
@@ -217,6 +218,7 @@ If a FIX item is right, change it with social_set_caption_and_schedule again (ca
     }
   );
 
+  registerPlannerTools(server);
   registerPostReviewTools(server);
   registerBestTimeTool(server);
   registerPostListingTools(server);

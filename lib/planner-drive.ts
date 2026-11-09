@@ -2,6 +2,7 @@ import "server-only";
 import { apiKey, downloadFile, listFolder, parseDriveFolderId } from "@/lib/story-drive";
 import { uploadObject } from "@/lib/storage";
 import { createScheduledPost, dateToScheduledAt } from "@/lib/scheduled-posts";
+import { lengthFits } from "@/lib/planner-rules";
 
 /**
  * Bulk upload from a public Google Drive folder (Shoaib, 2026-11-09): the same
@@ -18,18 +19,6 @@ const MB = 1024 * 1024;
 // download and re-upload within one request; bigger ones go up from the PC.
 const MAX_IMAGE = 25 * MB;
 const MAX_VIDEO = 100 * MB;
-
-/** Reel length each platform takes, in seconds (the composer's own limits). */
-export const REEL_SECONDS: Record<string, [number, number]> = {
-  facebook: [3, 90],
-  instagram: [3, 900],
-  youtube: [0, 180],
-  tiktok: [0, 600],
-};
-export const reelFits = (platform: string, seconds: number | null) => {
-  const limits = REEL_SECONDS[platform];
-  return Boolean(limits) && (seconds === null || (seconds >= limits[0] && seconds <= limits[1]));
-};
 
 export type DriveImportFile = { id: string; name: string; mimeType: string; size: number; kind: "post" | "reel"; seconds: number | null };
 export type DriveImportList = { files: DriveImportFile[]; unsupported: string[]; tooBig: string[] };
@@ -58,7 +47,7 @@ export async function listDriveImport(link: string): Promise<DriveImportList> {
 type FileMeta = { name: string; mimeType: string; size?: string; videoMediaMetadata?: { durationMillis?: string } };
 
 // Drive's own word on the file, so nothing the browser sent decides its type or size.
-async function fileMeta(fileId: string, key: string): Promise<FileMeta> {
+export async function fileMeta(fileId: string, key: string): Promise<FileMeta> {
   const q = new URLSearchParams({ fields: "name,mimeType,size,videoMediaMetadata(durationMillis)", supportsAllDrives: "true", key });
   const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?${q}`, { cache: "no-store" });
   if (!res.ok) throw new Error(res.status === 404 ? "File not found in Drive." : `Google Drive: HTTP ${res.status}`);
@@ -81,7 +70,7 @@ export async function importDriveFile(input: { projectId: string; fileId: string
     if (input.platforms.length === 0) throw new Error(`${meta.name}: none of the selected platforms take this.`);
     const ms = Number(meta.videoMediaMetadata?.durationMillis ?? NaN);
     const seconds = Number.isFinite(ms) ? ms / 1000 : null;
-    if (isVideo && input.platforms.some((p) => !reelFits(p, seconds))) throw new Error(`${meta.name}: its length doesn't fit every selected platform.`);
+    if (isVideo && input.platforms.some((p) => !lengthFits("reel", p, seconds))) throw new Error(`${meta.name}: its length doesn't fit every selected platform.`);
   }
 
   const body = await downloadFile(input.fileId, key);
