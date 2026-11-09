@@ -119,13 +119,16 @@ export async function verifyFacebookPosts(deadline: number): Promise<number> {
   const now = Date.now();
   const { data } = await db
     .from("scheduled_posts")
-    .select("id, project_id, status, post_type, scheduled_at, original_filename, caption, media_key, cover_key, result, project:client_projects(name)")
+    .select("id, project_id, status, post_type, scheduled_at, original_filename, caption, media_key, cover_key, result, claimed_until, project:client_projects(name)")
     .in("post_type", ["post", "reel"])
     .in("status", ["posted", "failed", "scheduled"])
     .gte("scheduled_at", new Date(now - WINDOW_MS).toISOString())
     .lte("scheduled_at", new Date(now - GRACE_MS).toISOString())
     .order("scheduled_at", { ascending: true });
-  const rows = ((data ?? []) as unknown as Row[]).filter((r) => fbEntries(r).some(unverified));
+  // A post being published right now (claimed by the cron or "Publish now") is checked next run.
+  const rows = ((data ?? []) as unknown as (Row & { claimed_until?: string | null })[]).filter(
+    (r) => !(r.claimed_until && new Date(r.claimed_until).getTime() > now) && fbEntries(r).some(unverified),
+  );
 
   const report: string[] = [];
   let checked = 0;

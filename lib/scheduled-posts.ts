@@ -124,8 +124,22 @@ export async function setCaptionAndSchedule(id: string, caption: string, schedul
  *  'scheduled' (the cron still owns whatever's left, e.g. Instagram, and
  *  flips status once that's done too). */
 export async function recordNativeScheduleResult(id: string, nativeResults: unknown) {
-  const { error } = await db.from("scheduled_posts").update({ result: { native: nativeResults } }).eq("id", id);
+  // Merged, not replaced: live, pending, gbp or held from an earlier run must survive.
+  const { data, error: readErr } = await db.from("scheduled_posts").select("result").eq("id", id).maybeSingle();
+  if (readErr) throw new Error(readErr.message);
+  const current = (data?.result as Record<string, unknown> | null) ?? {};
+  const { error } = await db.from("scheduled_posts").update({ result: { ...current, native: nativeResults } }).eq("id", id);
   if (error) throw new Error(error.message);
+}
+
+/** Whether a post's Facebook draft at Meta can still be redone: its time is
+ *  clearly ahead and nothing has gone out for it yet. Otherwise a redo could
+ *  delete a Facebook post that is already live, or post the rest again. */
+export function nativeDraftChangeable(post: ScheduledPost): boolean {
+  const ahead = Boolean(post.scheduled_at) && new Date(post.scheduled_at!).getTime() > Date.now() + 2 * 60_000;
+  const result = (post.result as { live?: unknown[]; pending?: Record<string, unknown>; gbp?: unknown; held?: unknown } | null) ?? {};
+  const started = Boolean(result.live?.length) || Object.keys(result.pending ?? {}).length > 0 || Boolean(result.gbp) || Boolean(result.held);
+  return ahead && !started;
 }
 
 export async function listDuePosts(): Promise<ScheduledPost[]> {

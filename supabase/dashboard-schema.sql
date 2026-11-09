@@ -1775,6 +1775,7 @@ create index if not exists retainer_addons_parent_idx on retainer_addons (retain
 -- reorder leaves it alone; every older post stays false and behaves exactly as before.
 alter table scheduled_posts add column if not exists time_manual boolean not null default false;
 
+<<<<<<< Updated upstream
 -- ── Row level security on tables that were left open (2026-11-08, Security Guard SG-020) ──
 -- The public anon key ships to every browser; with RLS off, anyone could read these tables through
 -- the REST API. With RLS on and no policies, only the service role (the app) can reach them.
@@ -1802,3 +1803,8 @@ alter table mcp_users enable row level security;
 -- codes and refresh tokens issued to a user carry that user (null = the admin, as before)
 alter table mcp_oauth_codes add column if not exists user_id uuid references mcp_users (id) on delete cascade;
 alter table mcp_oauth_refresh_tokens add column if not exists user_id uuid references mcp_users (id) on delete cascade;
+=======
+-- "Publish now" (2026-11-09): the cron and the Planner button claim a due post before publishing,
+-- so the same post can't go out twice. Empty except for the two minutes a publish takes.
+alter table scheduled_posts add column if not exists claimed_until timestamptz;
+>>>>>>> Stashed changes

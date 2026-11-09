@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "./dashboard/db";
-import { listPendingCaptionPosts, getScheduledPost, setCaptionAndSchedule, countPostsNeedingChanges } from "./scheduled-posts";
+import { listPendingCaptionPosts, getScheduledPost, setCaptionAndSchedule, countPostsNeedingChanges, nativeDraftChangeable } from "./scheduled-posts";
 import { registerPostReviewTools } from "./post-review-tools";
 import { preflightPost } from "./post-preflight";
 import { registerPostListingTools } from "./post-listing-tools";
@@ -11,6 +11,7 @@ import { registerSocialInsightsTools } from "./social-insights-tools";
 import { fetchObject } from "./storage";
 import { rescheduleNativePosts, submitNativeScheduleForPost } from "./social-post";
 import { registerBestTimeTool } from "./social-best-times";
+import { publishNow } from "./social-publish-now";
 
 /**
  * The remote (Claude web/mobile/desktop) counterpart to mcp/tools/social.ts
@@ -171,13 +172,45 @@ Returns: confirmation text.`,
         const preflight = await preflightPost({ postId, caption, scheduledAt }).then((o) => o.text, () => "");
         await setCaptionAndSchedule(postId, caption, scheduledAt);
         // Best-effort: hand any eligible Facebook account straight to
-        // Meta's own scheduler now rather than waiting for the cron.
-        if (hadNative) await rescheduleNativePosts(postId);
-        else await submitNativeScheduleForPost(postId);
+        // Meta's own scheduler now rather than waiting for the cron. Only
+        // while nothing has gone out yet: a redo could delete a live
+        // Facebook post or send the rest again.
+        const updated = await getScheduledPost(postId);
+        if (updated && nativeDraftChangeable({ ...updated, result: post.result })) {
+          if (hadNative) await rescheduleNativePosts(postId);
+          else await submitNativeScheduleForPost(postId);
+        }
         return { content: [{ type: "text", text: `Scheduled for ${scheduledAt ?? post.scheduled_at}.${preflight ? `
 
 ${preflight}
 If a FIX item is right, change it with social_set_caption_and_schedule again (caption) or social_request_changes (picture).` : ""}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: formatError(error) }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    "social_publish_now",
+    {
+      title: "Publish a planner post now",
+      description:
+        "Publishes one scheduled Planner post at once instead of at its time. The same pre-flight checks as scheduling run first: any FIX item stops it (fix with social_set_caption_and_schedule or social_request_changes); CHECK items stop it until you look and call again with confirmChecks true. A Facebook copy already scheduled on Meta is cancelled first so it never goes out twice. Answers each platform's result.",
+      inputSchema: {
+        postId: z.string().uuid(),
+        confirmChecks: z.boolean().optional().describe("true after you have looked at the CHECK items and they are fine"),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    },
+    async ({ postId, confirmChecks }: { postId: string; confirmChecks?: boolean }) => {
+      try {
+        const res = await publishNow(postId, confirmChecks ?? false);
+        const list = (items: { severity: string; en: string; ur: string }[]) => items.map((f) => `- ${f.severity.toUpperCase()}: ${f.en} (${f.ur})`).join("\n");
+        if (res.status === "error") return { content: [{ type: "text", text: `Not published: ${res.message}` }], isError: true };
+        if (res.status === "blocked") return { content: [{ type: "text", text: `Not published, fix these first:\n${list(res.findings)}` }], isError: true };
+        if (res.status === "confirm") return { content: [{ type: "text", text: `Not published yet. Look at these, then call again with confirmChecks true if they are fine:\n${list(res.findings)}` }] };
+        const lines = res.platforms.map((p) => `- ${p.platform} ${p.label}: ${p.ok ? "OK" : `FAILED ${p.error ?? ""}`}`).join("\n");
+        return { content: [{ type: "text", text: `${res.ok ? "Published." : "Published with problems."}${res.note ? ` ${res.note}` : ""}\n${lines}` }] };
       } catch (error) {
         return { content: [{ type: "text", text: formatError(error) }], isError: true };
       }

@@ -4,6 +4,24 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-11-09 — Planner: Publish now, post details window (office PC)
+- **Post details:** click a post's picture or caption on the Planner (admin) to open it. You can:
+  - see it whole and change its time
+  - edit and save the caption; the pre-flight findings show at once
+  - **Publish now**, **Download** (only while the file is still here, so not for posted posts), and **Delete** (two clicks)
+- **Publish now** (`lib/social-publish-now.ts`):
+  - It runs the same checks as scheduling, judged as going out now. A FIX item blocks; CHECK items need "Publish anyway".
+  - A Facebook draft whose time is still ahead is cancelled first. One whose time has come is left alone, so a live post is never deleted.
+  - It then runs the cron's own publish code. MCP tool: `social_publish_now`.
+- **Shared publish code:** the cron's loop body is now `publishOne` in `lib/social-publish.ts`. The cron and Publish now both claim a post first (`scheduled_posts.claimed_until`, SQL run by Shoaib 9 Nov), so a post can't go out twice. The Facebook check skips claimed rows.
+- **Caption edits** (the new window and MCP `social_set_caption_and_schedule`) redo the Facebook draft only while the time is ahead and nothing has gone out. `recordNativeScheduleResult` now merges instead of replacing, so live, pending, gbp and held entries survive.
+- **Retried today:** 3 posts failed on one platform each since 2 Nov:
+  - Avenza Avenue: Instagram, posted on retry
+  - Hotel Avalon: Google Business, posted on retry
+  - Danish Constructions story: Instagram, still queued at writing
+  Only the failed platform was retried, by marking the successful ones done.
+- A review found 3 issues before push, all fixed: late posts were refused as "in the past"; a live Facebook post could be deleted; caption edits could duplicate a half-sent post.
+
 ## 2026-11-07 — WhatsApp inbox fixes, Socially Snap sidebar, Planner manual time, guards (home PC)
 - **Two-PC sync rule** added to CLAUDE.md ("Done" = WORK-LOG + pull + commit + push).
 - **WhatsApp inbox:** failure reasons shown, undo for failed replies, "All" tab, business filter always visible.

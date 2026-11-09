@@ -4,8 +4,10 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { DayNote } from "@/lib/planner-day-notes";
-import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard, CircleDashed, AlertTriangle, Film, ThumbsUp, LayoutGrid } from "lucide-react";
-import { clearPostChanges, createPlannerPost, deletePost, movePost, reorderDay, setPostTime } from "@/lib/dashboard/actions/social";
+import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard, CircleDashed, AlertTriangle, Film, ThumbsUp, LayoutGrid, Download, Send, X } from "lucide-react";
+import { clearPostChanges, createPlannerPost, deletePost, movePost, postDownloadUrl, publishPostNow, reorderDay, setPostTime, updatePostCaption } from "@/lib/dashboard/actions/social";
+import type { Finding } from "@/lib/post-preflight-checks";
+import type { PlatformPostResult } from "@/lib/social-post";
 import { ReplaceImageButton } from "@/components/portal/NeedsChangesAlert";
 import { deletePortalUpload } from "@/lib/portal/planner";
 import PlannerUploader from "@/components/portal/PlannerUploader";
@@ -288,6 +290,9 @@ export default function PlannerCalendar({
     return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   });
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
+  // The post open in the details window, by id so a refresh shows its new state.
+  const [detailsId, setDetailsId] = useState<string | null>(null);
+  const detailsPost = detailsId ? (posts.find((p) => p.id === detailsId) ?? null) : null;
   const [uploadDate, setUploadDate] = useState<string | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
@@ -547,6 +552,7 @@ export default function PlannerCalendar({
                         key={p.id}
                         post={p}
                         client={isClient}
+                        onOpen={isClient ? undefined : () => setDetailsId(p.id)}
                         dropProps={cardDropProps(key, dayPosts, p)}
                         dropLine={dropTarget?.id === p.id ? (dropTarget.after ? "after" : "before") : null}
                         onDragEnd={() => setDropTarget(null)}
@@ -622,7 +628,7 @@ export default function PlannerCalendar({
                   )}
                   <div className="flex flex-wrap gap-1">
                     {dayPosts.map((p) => (
-                      <DayPostThumb key={p.id} post={p} client={isClient} />
+                      <DayPostThumb key={p.id} post={p} client={isClient} onOpen={isClient ? undefined : () => setDetailsId(p.id)} />
                     ))}
                   </div>
                 </div>
@@ -631,6 +637,8 @@ export default function PlannerCalendar({
           </div>
         </Card>
       )}
+
+      {detailsPost && !isClient && <PostDetails key={detailsPost.id} post={detailsPost} onClose={() => setDetailsId(null)} />}
 
       {uploadDate && isClient && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" onClick={() => setUploadDate(null)}>
@@ -719,9 +727,12 @@ function WeekPostCard({
   dropProps,
   dropLine = null,
   onDragEnd,
+  onOpen,
 }: {
   post: PostWithUrl;
   client?: boolean;
+  /** Opens the post's details window (admin). */
+  onOpen?: () => void;
   /** Drop handlers for reordering within the day (admin week view). */
   dropProps?: React.HTMLAttributes<HTMLDivElement>;
   /** Where a dragged post would land relative to this card. */
@@ -755,11 +766,20 @@ function WeekPostCard({
           </span>
         )}
       </div>
-      <div className="p-1.5 pt-1">
-        <PostMedia post={post} ring={ring} className="w-full aspect-square rounded" />
-      </div>
-      {post.caption && (
-        <p className="text-tag text-ink-muted px-2 pb-1.5 line-clamp-2">{post.caption}</p>
+      {onOpen ? (
+        <button type="button" onClick={onOpen} className="block w-full text-left rounded focus-visible:outline-2 focus-visible:outline-ink" aria-label="Open post details">
+          <div className="p-1.5 pt-1">
+            <PostMedia post={post} ring={ring} className="w-full aspect-square rounded" />
+          </div>
+          {post.caption && <p className="text-tag text-ink-muted px-2 pb-1.5 line-clamp-2">{post.caption}</p>}
+        </button>
+      ) : (
+        <>
+          <div className="p-1.5 pt-1">
+            <PostMedia post={post} ring={ring} className="w-full aspect-square rounded" />
+          </div>
+          {post.caption && <p className="text-tag text-ink-muted px-2 pb-1.5 line-clamp-2">{post.caption}</p>}
+        </>
       )}
       {post.status === "needs_changes" && post.review_note && <NeedsChangesNote post={post} client={client} />}
       {post.uploaded_by_email && (
@@ -779,6 +799,171 @@ function WeekPostCard({
           {pending ? <LoaderCircle className="size-3 animate-spin" aria-hidden /> : <Trash2 className="size-3" aria-hidden />}
         </button>
       )}
+    </div>
+  );
+}
+
+type PlatformResult = Pick<PlatformPostResult, "platform" | "label" | "ok" | "error">;
+
+/** One post opened from the calendar (admin): see it whole, fix the caption or
+ *  time, download the file, publish it now, or delete it (Shoaib, 2026-11-09). */
+function PostDetails({ post, onClose }: { post: PostWithUrl; onClose: () => void }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [caption, setCaption] = useState(post.caption ?? "");
+  const [findings, setFindings] = useState<Finding[] | null>(null);
+  const [needsConfirm, setNeedsConfirm] = useState(false);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [justPublished, setJustPublished] = useState<PlatformResult[] | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const out = post.status === "posted" || post.status === "failed";
+  const label = STATUS_LABEL[post.status];
+  const results = justPublished ?? (post.result as { platforms?: PlatformResult[] } | null)?.platforms ?? null;
+  const captionChanged = caption.trim() !== (post.caption ?? "").trim();
+
+  const publish = (confirmChecks: boolean) =>
+    startTransition(async () => {
+      setMessage(null);
+      const res = await publishPostNow(post.id, confirmChecks);
+      if (res.status === "blocked") {
+        setFindings(res.findings);
+        setNeedsConfirm(false);
+        setMessage({ ok: false, text: "Not published. Fix these first. (Pehle yeh theek karein.)" });
+      } else if (res.status === "confirm") {
+        setFindings(res.findings);
+        setNeedsConfirm(true);
+        setMessage({ ok: false, text: "Look at these before it goes out. (Bhejne se pehle dekh lein.)" });
+      } else if (res.status === "error") {
+        setMessage({ ok: false, text: res.message });
+      } else {
+        setFindings(null);
+        setNeedsConfirm(false);
+        setJustPublished(res.platforms);
+        setMessage({ ok: res.ok, text: res.ok ? "Published." : (res.note ?? "Published, but some platforms failed.") });
+        router.refresh();
+      }
+    });
+
+  const saveCaption = () =>
+    startTransition(async () => {
+      setMessage(null);
+      const res = await updatePostCaption(post.id, caption);
+      if ("error" in res) return setMessage({ ok: false, text: res.error });
+      setFindings(res.findings.length ? res.findings : null);
+      setNeedsConfirm(false);
+      setMessage({ ok: true, text: res.findings.length ? "Caption saved. Look at the notes below." : "Caption saved." });
+      router.refresh();
+    });
+
+  const download = () =>
+    startTransition(async () => {
+      const res = await postDownloadUrl(post.id);
+      if ("error" in res) return setMessage({ ok: false, text: res.error });
+      window.location.href = res.url;
+    });
+
+  const remove = () =>
+    startTransition(async () => {
+      await deletePost(post.id);
+      onClose();
+      router.refresh();
+    });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" onClick={onClose}>
+      <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Post details">
+        <div className="flex items-center justify-between gap-3 border-b border-ink/10 px-5 py-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <h2 className="text-body font-medium truncate">{KIND_NAME[kindOf(post)].replace(/^./, (c) => c.toUpperCase())}</h2>
+            {label && <span className={cn("text-tag font-medium rounded-full px-2 py-0.5", label.classes)}>{label.text}</span>}
+          </div>
+          <button type="button" onClick={onClose} className="text-ink-subtle hover:text-ink" aria-label="Close">
+            <X className="size-5" aria-hidden />
+          </button>
+        </div>
+
+        <div className="grid gap-5 p-5 md:grid-cols-2">
+          <div className="space-y-3">
+            <PostMedia post={post} ring={STATUS_RING[post.status] ?? "ring-ink/20"} className="w-full aspect-square rounded-lg" />
+            <PostTimeEditor post={post} client={false} />
+            {post.status === "needs_changes" && post.review_note && (
+              <p className="text-small text-orange-800 flex gap-1.5">
+                <AlertTriangle className="size-4 shrink-0 mt-0.5" aria-hidden />
+                {post.review_note}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <label className="block space-y-1.5">
+              <span className="text-small font-medium">Caption</span>
+              <textarea value={caption} onChange={(e) => setCaption(e.target.value)} disabled={out || pending} rows={9} maxLength={2200} className={cn(inputClasses, "w-full")} />
+            </label>
+            {!out && (
+              <button type="button" onClick={saveCaption} disabled={pending || !captionChanged || !caption.trim()} className={buttonStyles.secondary}>
+                Save caption
+              </button>
+            )}
+
+            {findings && (
+              <ul className="space-y-1.5 rounded-lg border border-ink/10 p-3">
+                {findings.map((f) => (
+                  <li key={f.code + f.en} className={cn("text-small flex gap-1.5", f.severity === "fix" ? "text-red-700" : "text-orange-800")}>
+                    <AlertTriangle className="size-4 shrink-0 mt-0.5" aria-hidden />
+                    <span>
+                      {f.en} <span className="text-ink-muted">({f.ur})</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {results && results.length > 0 && (
+              <ul className="space-y-1 rounded-lg border border-ink/10 p-3">
+                {results.map((r) => (
+                  <li key={r.platform + r.label} className="text-small flex items-start gap-1.5">
+                    {r.ok ? <Check className="size-4 shrink-0 mt-0.5 text-green-700" aria-hidden /> : <AlertTriangle className="size-4 shrink-0 mt-0.5 text-red-700" aria-hidden />}
+                    <span>
+                      {PLATFORM_LABELS[r.platform] ?? r.platform} · {r.label}
+                      {!r.ok && r.error && <span className="block text-red-700">{r.error}</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {message && <p className={cn("text-small", message.ok ? "text-green-700" : "text-red-700")}>{message.text}</p>}
+
+            <div className="flex flex-wrap gap-2 border-t border-ink/10 pt-4">
+              {post.status === "scheduled" && (
+                <button type="button" onClick={() => publish(needsConfirm)} disabled={pending || captionChanged} className={buttonStyles.primary} title={captionChanged ? "Save the caption first" : undefined}>
+                  {pending ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Send className="size-4" aria-hidden />}
+                  {needsConfirm ? "Publish anyway" : "Publish now"}
+                </button>
+              )}
+              {post.status !== "posted" && (
+                <button type="button" onClick={download} disabled={pending} className={buttonStyles.secondary}>
+                  <Download className="size-4" aria-hidden />
+                  Download
+                </button>
+              )}
+              {post.status !== "posted" &&
+                (confirmDelete ? (
+                  <button type="button" onClick={remove} disabled={pending} className={cn(buttonStyles.secondary, "text-red-700")}>
+                    <Trash2 className="size-4" aria-hidden />
+                    Yes, delete it
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => setConfirmDelete(true)} disabled={pending} className={cn(buttonStyles.secondary, "text-red-700")}>
+                    <Trash2 className="size-4" aria-hidden />
+                    Delete
+                  </button>
+                ))}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -818,7 +1003,7 @@ function NeedsChangesNote({ post, client }: { post: PostWithUrl; client: boolean
   );
 }
 
-function DayPostThumb({ post, client = false }: { post: PostWithUrl; client?: boolean }) {
+function DayPostThumb({ post, client = false, onOpen }: { post: PostWithUrl; client?: boolean; onOpen?: () => void }) {
   const [pending, startTransition] = useTransition();
   const ring = STATUS_RING[post.status] ?? "ring-ink/20";
   const removable = !client || clientCanRemove(post);
@@ -837,7 +1022,13 @@ function DayPostThumb({ post, client = false }: { post: PostWithUrl; client?: bo
       draggable={!client}
       onDragStart={client ? undefined : (e) => e.dataTransfer.setData(DRAG_MIME, post.id)}
     >
-      <PostMedia post={post} ring={ring} className="size-9 rounded" badge={false} />
+      {onOpen ? (
+        <button type="button" onClick={onOpen} className="block rounded focus-visible:outline-2 focus-visible:outline-ink" aria-label="Open post details">
+          <PostMedia post={post} ring={ring} className="size-9 rounded" badge={false} />
+        </button>
+      ) : (
+        <PostMedia post={post} ring={ring} className="size-9 rounded" badge={false} />
+      )}
       {post.post_type === "reel" && (
         <Clapperboard className="absolute bottom-0.5 right-0.5 size-3 text-cloud drop-shadow" aria-label="Reel" />
       )}

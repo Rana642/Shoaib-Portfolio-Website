@@ -24,7 +24,13 @@ import {
   reorderPostsOnDay,
   rescheduleScheduledPost,
   setPostSchedule,
+  setCaptionAndSchedule,
+  nativeDraftChangeable,
 } from "../../scheduled-posts";
+import { publishNow, type PublishNowResult } from "../../social-publish-now";
+import { preflightPost } from "../../post-preflight";
+import type { Finding } from "../../post-preflight-checks";
+import { presignDownload } from "../../storage";
 import { submitNativeScheduleForPost, rescheduleNativePosts, cancelPostEverywhere } from "../../social-post";
 import { deleteObject } from "../../storage";
 import { clearPostFlag } from "../../post-review";
@@ -364,4 +370,61 @@ export async function movePost(id: string, date: string) {
   // would still fire the stale one too.
   await rescheduleNativePosts(id);
   revalidatePath("/dashboard/social/planner");
+}
+
+/** Planner "Publish now": checks first, then out at once (lib/social-publish-now.ts). */
+export async function publishPostNow(id: string, confirmChecks = false): Promise<PublishNowResult> {
+  await assertAuthed();
+  if (!z.string().uuid().safeParse(id).success) return { status: "error", message: "Post not found." };
+  try {
+    return await publishNow(id, confirmChecks);
+  } catch (error) {
+    return { status: "error", message: error instanceof Error ? error.message : "Couldn't publish the post." };
+  }
+  finally {
+    revalidatePath("/dashboard/social/planner");
+    revalidatePath("/dashboard/social/stories");
+  }
+}
+
+/** Planner "Edit caption": saves it and, if the post was already handed to
+ *  Meta's scheduler, redoes that draft with the new words. Returns the
+ *  pre-flight findings for the new caption so mistakes show at once. */
+export async function updatePostCaption(id: string, caption: string): Promise<{ ok: true; findings: Finding[] } | { error: string }> {
+  await assertAuthed();
+  const parsed = z.object({ id: z.string().uuid(), caption: z.string().trim().min(1, "Write a caption.").max(2200) }).safeParse({ id, caption });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const post = await getScheduledPost(parsed.data.id);
+  if (!post) return { error: "Post not found." };
+  if (post.status === "posted" || post.status === "failed") return { error: "This post is already out; its caption can't change here." };
+  try {
+    const hadNative = Boolean((post.result as { native?: unknown[] } | null)?.native?.length);
+    await setCaptionAndSchedule(parsed.data.id, parsed.data.caption);
+    // Only a post whose time is ahead and that hasn't gone out anywhere gets its
+    // Facebook draft redone; a late or half-sent one keeps what Meta already has.
+    if (nativeDraftChangeable(post)) {
+      if (hadNative) await rescheduleNativePosts(parsed.data.id);
+      else await submitNativeScheduleForPost(parsed.data.id);
+    }
+    const { findings } = await preflightPost({ postId: parsed.data.id }).catch(() => ({ findings: [] as Finding[] }));
+    revalidatePath("/dashboard/social/planner");
+    return { ok: true, findings };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't save the caption." };
+  }
+}
+
+/** Planner "Download": a short-lived link to the post's file, while it's still
+ *  here. Posted posts' files are removed once the platforms have them. */
+export async function postDownloadUrl(id: string): Promise<{ url: string } | { error: string }> {
+  await assertAuthed();
+  if (!z.string().uuid().safeParse(id).success) return { error: "Post not found." };
+  const post = await getScheduledPost(id);
+  if (!post) return { error: "Post not found." };
+  if (post.status === "posted") return { error: "This post's file was removed after it went out." };
+  try {
+    return { url: await presignDownload(post.media_key, post.original_filename || "post", 300) };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't get the file." };
+  }
 }

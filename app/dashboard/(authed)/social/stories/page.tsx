@@ -9,6 +9,9 @@ const DRIVE_NOTICE: Record<string, string> = {
   removed: "Folder disconnected. Stories already on the calendar stay.",
 };
 
+
+// "Publish now" runs here and can wait ~30 s on an Instagram upload.
+export const maxDuration = 60;
 export default async function StoriesPage({ searchParams }: { searchParams: Promise<{ project?: string; drive?: string; drive_error?: string }> }) {
   const { project, drive, drive_error } = await searchParams;
   const driveNotice = drive_error
