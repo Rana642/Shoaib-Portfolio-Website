@@ -57,7 +57,7 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - 29.png deleted: it showed a fake 4.8★ / "4-star hotel". It went back to the designer; the corrected file will come back.
   - 23.png (5 Dec) waits for a caption: its "executive rooms / free meeting room" offer must be confirmed by the hotel first.
   - Audit: 0 to fix. 11 Dec has no Jummah post and 10 Dec no post. The next stock fills them (Shoaib's call).
-  - Open: which landline is right, 061 4503355 (designs) or 061-451-8061 (captions)?
+  - Landline settled by Shoaib: **061 4503355** (as on the designs). 061-451-8061 was wrong. It was replaced in all 26 scheduled captions (the 23 new ones, plus 10.mp4, 28.png and 29.png from before), in the project's caption guide (`posting_instructions`) and in the KB `nap` doc.
 
 ## 2026-11-09 — Planner: Publish now, post details window (office PC)
 - **Post details:** click a post's picture or caption on the Planner (admin) to open it. You can:
