@@ -9,6 +9,7 @@ import { resend, isResendConfigured, fromEmail, toEmail } from "@/lib/resend";
 import { deleteObject } from "@/lib/storage";
 import { plannerDayLabel, replaceFlaggedPostMedia } from "@/lib/post-review";
 import { markClientActivity } from "@/lib/upload-digest";
+import { DuplicateMediaError } from "@/lib/media-fingerprint";
 
 // Client-portal uploads: final, approved graphics go straight onto the
 // planner as ordinary 'pending_caption' posts. Nothing publishes until the
@@ -47,6 +48,7 @@ export async function createPortalUploads(input: z.infer<typeof uploadSchema>) {
 
   const email = ctx.user.email ?? "client";
   const ids: string[] = [];
+  const repeats: string[] = [];
   for (const [i, file] of files.entries()) {
     const post = {
       project_id: projectId,
@@ -56,7 +58,13 @@ export async function createPortalUploads(input: z.infer<typeof uploadSchema>) {
     };
     try {
       ids.push(await createScheduledPost({ ...post, fromClient: { email, note: note || null } }));
-    } catch {
+    } catch (error) {
+      // Already on the planner (the same file, whatever its name): not added twice.
+      if (error instanceof DuplicateMediaError) {
+        repeats.push(file.name);
+        await deleteObject(file.key).catch(() => undefined);
+        continue;
+      }
       // Before the uploader/note columns exist: still save the post itself.
       try {
         ids.push(await createScheduledPost(post));
@@ -66,6 +74,7 @@ export async function createPortalUploads(input: z.infer<typeof uploadSchema>) {
     }
   }
   const created = ids.length;
+  if (created === 0) return { error: `${repeats.join(", ")} ${repeats.length === 1 ? "is" : "are"} already on the planner.` };
 
   // Reported in one email when this person's upload session ends
   // (lib/upload-digest.ts). Only before that column exists: email now.
@@ -89,7 +98,7 @@ export async function createPortalUploads(input: z.infer<typeof uploadSchema>) {
 
   revalidatePath("/portal/planner");
   revalidatePath("/dashboard/social/planner");
-  return { ok: true, created };
+  return { ok: true, created, repeats };
 }
 
 /** A client can take back their own upload while it's still waiting for a

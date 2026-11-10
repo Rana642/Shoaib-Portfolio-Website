@@ -85,11 +85,12 @@ export async function fetchObject(key: string): Promise<{ buffer: Buffer; conten
 
 /** Size and type of a stored object without downloading it, or null when
  *  it isn't there. */
-export async function headObject(key: string): Promise<{ size: number; contentType: string } | null> {
+export async function headObject(key: string): Promise<{ size: number; contentType: string; etag: string | null } | null> {
   if (!client) throw new Error("Object storage is not configured.");
   try {
     const res = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
-    return { size: Number(res.ContentLength ?? 0), contentType: res.ContentType || "application/octet-stream" };
+    // For a file put up in one piece the ETag is its MD5 (multipart ones carry a "-N" suffix).
+    return { size: Number(res.ContentLength ?? 0), contentType: res.ContentType || "application/octet-stream", etag: res.ETag?.replace(/"/g, "") ?? null };
   } catch (error) {
     const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
     if (status === 404 || (error as { name?: string }).name === "NotFound") return null;

@@ -4,6 +4,27 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-11-10 — Planner: duplicates by content, Audit button (office PC)
+- **Why:** the Hotel Elegant November Drive folder showed only 15 of 30 files. 15 had the same names as September posts (1.png, Friday-1.png…) and were skipped as duplicates, but the content is new. Monthly folders reuse names.
+- **Duplicates are now judged by content, never by name** (`lib/media-fingerprint.ts`):
+  - Every post stores `media_md5` (exact file) and `media_phash` (how a picture looks). Drive imports also store `media_seconds` and `source_drive_id`. These stay after a posted file is deleted.
+  - `createScheduledPost` refuses the same file when it is already on the planner, or was posted in the last 90 days. A failed post may be uploaded again. Stories are compared only with Stories.
+  - The PC Bulk upload re-plans its days after a refused repeat, so no day stays empty. The portal skips repeats and tells the client. The Drive Fetch uses Drive's MD5 and file id.
+  - Posts from before this get their MD5 from the storage ETag, saved on first use. The pre-flight check is now by content too; a same name with content that can't be compared is a CHECK.
+- **Audit button** on the Planner (`lib/planner-audit.ts`, `PlannerAudit.tsx`). It checks:
+  - the same file twice, or a picture that looks the same
+  - Drive folder files left behind (with Import)
+  - platforms that can't take a post, or aren't connected
+  - the Friday rule; two posts on a day; empty days
+  - caption mistakes, posts waiting for a caption, missed and failed posts
+- **What gets fixed how:**
+  - "Fix safe ones" only drops a platform that can't take the post, or takes emoji out of a caption (the words stay).
+  - Remove, Move and Import are always a click.
+  - MCP: `social_audit_planner` and `social_audit_fix`.
+- **SQL:** Shoaib must run the 4 columns + 2 indexes at the end of `supabase/dashboard-schema.sql`. Until then nothing is compared, and the posts still save.
+- **Hotel Elegant audit (local, read-only):** 20 scheduled posts (10.jpg … 29.png, 10 Nov–2 Dec) have emoji in their captions; "Fix safe ones" clears them. Fridays 13, 20 and 27 Nov have no Jummah post. The September 28.png (scheduled 1 Dec) is still to be deleted by Shoaib from the Planner; my delete was blocked.
+- **Gotcha:** a broken `.next/dev/types/routes.d.ts` (dev server) makes `tsc` stop at syntax errors and skip the real typecheck. Delete `.next/dev/types` before trusting a clean run.
+
 ## 2026-11-09 — Planner: Publish now, post details window (office PC)
 - **Post details:** click a post's picture or caption on the Planner (admin) to open it. You can:
   - see it whole and change its time

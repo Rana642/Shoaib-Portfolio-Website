@@ -1806,3 +1806,13 @@ alter table mcp_oauth_refresh_tokens add column if not exists user_id uuid refer
 -- "Publish now" (2026-11-09): the cron and the Planner button claim a due post before publishing,
 -- so the same post can't go out twice. Empty except for the two minutes a publish takes.
 alter table scheduled_posts add column if not exists claimed_until timestamptz;
+
+-- Duplicates by content, not file name (2026-11-09): monthly folders reuse names (1.png, Friday-1.png…)
+-- for new posts. media_md5 = the exact file, media_phash = a picture's look (near-copies), kept after
+-- a posted file is deleted; source_drive_id = the Drive file a post came from (nothing left behind).
+alter table scheduled_posts add column if not exists media_md5 text;
+alter table scheduled_posts add column if not exists media_phash text;
+alter table scheduled_posts add column if not exists media_seconds numeric;
+alter table scheduled_posts add column if not exists source_drive_id text;
+create index if not exists scheduled_posts_project_md5_idx on scheduled_posts (project_id, media_md5) where media_md5 is not null;
+create index if not exists scheduled_posts_project_drive_idx on scheduled_posts (project_id, source_drive_id) where source_drive_id is not null;

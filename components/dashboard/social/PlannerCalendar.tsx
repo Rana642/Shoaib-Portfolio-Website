@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { DayNote } from "@/lib/planner-day-notes";
-import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard, CircleDashed, AlertTriangle, Film, ThumbsUp, LayoutGrid, Download, Send, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard, CircleDashed, AlertTriangle, Film, ThumbsUp, LayoutGrid, Download, Send, X, ShieldCheck } from "lucide-react";
 import { clearPostChanges, createPlannerPost, deletePost, importDriveFileForBulk, listDriveFolderForBulk, movePost, postDownloadUrl, publishPostNow, reorderDay, setPostTime, updatePostCaption } from "@/lib/dashboard/actions/social";
 import type { DriveImportFile } from "@/lib/planner-drive";
 import { lengthFits, planBulkDates, takes } from "@/lib/planner-rules";
@@ -13,6 +13,7 @@ import type { PlatformPostResult } from "@/lib/social-post";
 import { ReplaceImageButton } from "@/components/portal/NeedsChangesAlert";
 import { deletePortalUpload } from "@/lib/portal/planner";
 import PlannerUploader from "@/components/portal/PlannerUploader";
+import PlannerAudit from "@/components/dashboard/social/PlannerAudit";
 import { inputClasses, buttonStyles, Card } from "@/components/dashboard/ui";
 import { cn } from "@/lib/utils";
 import { FacebookIcon, InstagramIcon, LinkedinIcon, TikTokIcon, YoutubeIcon } from "@/components/ui/SocialIcons";
@@ -281,6 +282,7 @@ export default function PlannerCalendar({
   const detailsPost = detailsId ? (posts.find((p) => p.id === detailsId) ?? null) : null;
   const [uploadDate, setUploadDate] = useState<string | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
   const [, startMoveTransition] = useTransition();
 
@@ -295,17 +297,8 @@ export default function PlannerCalendar({
     return map;
   }, [visiblePosts]);
 
-  // Filename → the date it's already scheduled on, so a bulk upload can
-  // recognize "this exact file was already added before" (e.g. Shoaib
-  // re-selecting the same content-pack folder by mistake) instead of
-  // silently creating a duplicate post.
-  const existingByFilename = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const p of posts) {
-      if (p.original_filename && p.scheduled_at) map.set(p.original_filename, dateKey(p.scheduled_at));
-    }
-    return map;
-  }, [posts]);
+  // Duplicates are found by content on the server (lib/media-fingerprint.ts),
+  // never by file name: monthly folders reuse 1.png, Friday-1.png… for new posts.
 
   const todayKey = new Date().toISOString().slice(0, 10);
   const goToToday = () => {
@@ -503,6 +496,12 @@ export default function PlannerCalendar({
               Bulk upload
             </button>
           )}
+          {!isClient && (
+            <button type="button" onClick={() => setAuditOpen(true)} className={buttonStyles.secondary}>
+              <ShieldCheck className="size-4" aria-hidden />
+              Audit
+            </button>
+          )}
         </div>
       </div>
 
@@ -644,8 +643,18 @@ export default function PlannerCalendar({
           kinds={modalKinds}
           projectId={selectedProjectId}
           connectedPlatforms={connectedPlatforms}
-          existingByFilename={existingByFilename}
           onClose={() => setUploadDate(null)}
+        />
+      )}
+      {auditOpen && !isClient && (
+        <PlannerAudit
+          key={selectedProjectId}
+          projectId={selectedProjectId}
+          onClose={() => setAuditOpen(false)}
+          onOpenPost={(id) => {
+            setAuditOpen(false);
+            setDetailsId(id);
+          }}
         />
       )}
       {bulkOpen && (
@@ -653,7 +662,6 @@ export default function PlannerCalendar({
           projectId={selectedProjectId}
           connectedPlatforms={connectedPlatforms}
           occupiedDates={postsByDate}
-          existingByFilename={existingByFilename}
           onClose={() => setBulkOpen(false)}
         />
       )}
@@ -1063,7 +1071,6 @@ function UploadModal({
   kinds,
   projectId,
   connectedPlatforms,
-  existingByFilename,
   onClose,
 }: {
   date: string;
@@ -1072,9 +1079,6 @@ function UploadModal({
   kinds: Kind[];
   projectId: string;
   connectedPlatforms: string[];
-  /** Filename → date it's already scheduled on — warns instead of letting
-   *  the same image get queued twice. */
-  existingByFilename: Map<string, string>;
   onClose: () => void;
 }) {
   const [caption, setCaption] = useState("");
@@ -1097,7 +1101,6 @@ function UploadModal({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [duplicateDate, setDuplicateDate] = useState<string | null>(null);
 
   const togglePlatform = (platform: string) => {
     if (!takes(kind, platform)) return;
@@ -1119,7 +1122,6 @@ function UploadModal({
     });
     setCoverFile(null);
     setVideoSeconds(null);
-    setDuplicateDate(null);
     setError(null);
     setSelectedPlatforms(new Set(connectedPlatforms.filter((p) => takes(next, p))));
   };
@@ -1150,7 +1152,6 @@ function UploadModal({
       probe.src = probeUrl;
     }
     setFile(picked);
-    setDuplicateDate(existingByFilename.get(picked.name) ?? null);
     setPreviewUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
       return URL.createObjectURL(picked);
@@ -1212,10 +1213,6 @@ function UploadModal({
         setError(`TikTok takes videos up to 10 minutes; this video is ${secs}s. Untick TikTok or trim it.`);
         return;
       }
-    }
-    if (duplicateDate) {
-      setError(`"${file.name}" is already scheduled for ${duplicateDate} — choose a different file.`);
-      return;
     }
     setError(null);
     setBusy(true);
@@ -1458,12 +1455,6 @@ function UploadModal({
               </>
             )}
 
-            {duplicateDate && (
-              <p className="text-small text-red-700 bg-red-500/10 border border-red-600/20 rounded-lg px-4 py-3">
-                &quot;{file?.name}&quot; is already scheduled for {duplicateDate} — choose a different image.
-              </p>
-            )}
-
             <label className="flex flex-wrap items-center gap-2 text-small">
               <span className="font-medium">Time</span>
               <input
@@ -1598,7 +1589,7 @@ function UploadModal({
             {status}
             {error && <span className="text-red-700">{error}</span>}
           </div>
-          <button type="button" onClick={onSubmit} disabled={busy || !!duplicateDate} className={buttonStyles.primary}>
+          <button type="button" onClick={onSubmit} disabled={busy} className={buttonStyles.primary}>
             {busy && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
             Schedule
           </button>
@@ -1621,7 +1612,6 @@ function BulkUploadModal({
   projectId,
   connectedPlatforms,
   occupiedDates,
-  existingByFilename,
   onClose,
 }: {
   projectId: string;
@@ -1629,9 +1619,6 @@ function BulkUploadModal({
   /** Dates that already have at least one post — gap-filled before the
    *  batch spills into fresh dates. */
   occupiedDates: Map<string, unknown>;
-  /** Filename → date it's already scheduled on — files matching one of
-   *  these are skipped rather than re-uploaded as a duplicate. */
-  existingByFilename: Map<string, string>;
   onClose: () => void;
 }) {
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -1658,18 +1645,17 @@ function BulkUploadModal({
     setStatus(null);
     setBusy(true);
     try {
-      const res = await listDriveFolderForBulk(driveLink);
+      const res = await listDriveFolderForBulk(projectId, driveLink);
       if ("error" in res) throw new Error(res.error);
       try {
         window.localStorage.setItem(driveKey, driveLink);
       } catch {
         /* remembering the link is only a convenience */
       }
-      const sorted = [...res.files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-      const already = sorted.filter((f) => existingByFilename.has(f.name));
-      setDriveFiles(sorted.filter((f) => !existingByFilename.has(f.name)));
+      setDriveFiles(res.files);
       setDriveNotes([
-        ...(already.length ? [`Already on the planner, skipped: ${already.map((f) => `${f.name} (${existingByFilename.get(f.name)})`).join(", ")}`] : []),
+        ...(res.duplicates.length ? [`Already on the planner (the same file, checked by content), skipped: ${res.duplicates.join("; ")}`] : []),
+        ...(res.nameNotes.length ? [`Same name as an older post but a different file, so these are imported: ${res.nameNotes.join(", ")}`] : []),
         ...(res.unsupported.length ? [`Not an image or MP4/MOV video, skipped: ${res.unsupported.join(", ")}`] : []),
         ...(res.tooBig.length ? [`Too big (images 25 MB, videos 100 MB from Drive), skipped: ${res.tooBig.join(", ")}`] : []),
       ]);
@@ -1750,20 +1736,12 @@ function BulkUploadModal({
       // guaranteed to match visual/alphabetical order across browsers.
       const sorted = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
-      // Skip any file that's already been uploaded before (e.g. Shoaib
-      // re-selecting the same content-pack folder) instead of creating a
-      // duplicate post — surfaced afterward as its already-scheduled date.
-      const alreadyScheduled: { name: string; date: string }[] = [];
-      const fileArr = sorted.filter((file) => {
-        const existingDate = existingByFilename.get(file.name);
-        if (existingDate) {
-          alreadyScheduled.push({ name: file.name, date: existingDate });
-          return false;
-        }
-        return true;
-      });
-
-      const dates = planBulkDates(fileArr.map((f) => f.name), startDate, new Set(occupiedDates.keys()));
+      // A file already on the planner (the same content, whatever its name) is
+      // refused by the server and left out; the days are planned again after
+      // it, so no day is left empty.
+      const repeats: string[] = [];
+      const fileArr = sorted;
+      const used = new Set(occupiedDates.keys());
       // Only send `platforms` when it's a strict subset of every connected
       // platform — otherwise omit it so a post keeps meaning "everywhere
       // this project is connected" even if a new platform gets connected later.
@@ -1785,15 +1763,22 @@ function BulkUploadModal({
         fd.set("project_id", projectId);
         fd.set("media_key", urlBody.key);
         fd.set("original_filename", file.name);
-        fd.set("date", dates[i]);
+        const date = planBulkDates(fileArr.slice(i).map((f) => f.name), startDate, used)[0];
+        fd.set("date", date);
         if (isSubset) fd.set("platforms", JSON.stringify([...selectedPlatforms]));
         const result = await createPlannerPost(fd);
-        if (result?.error) throw new Error(result.error);
+        if (result?.error) {
+          if ("duplicate" in result && result.duplicate) {
+            repeats.push(`${file.name}: ${result.error}`);
+            continue;
+          }
+          throw new Error(result.error);
+        }
+        used.add(date);
       }
 
-      if (alreadyScheduled.length > 0) {
-        const list = alreadyScheduled.map((s) => `${s.name} (already on ${s.date})`).join(", ");
-        setStatus(`Uploaded ${fileArr.length} new file(s). Skipped ${alreadyScheduled.length} already scheduled: ${list}`);
+      if (repeats.length > 0) {
+        setStatus(`Uploaded ${fileArr.length - repeats.length} new file(s). Already on the planner, not added again: ${repeats.join(" ")}`);
       } else {
         onClose();
       }

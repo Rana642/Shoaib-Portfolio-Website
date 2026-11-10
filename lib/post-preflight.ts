@@ -24,13 +24,13 @@ export async function preflightPost(input: { postId: string; caption?: string; s
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await db
     .from("scheduled_posts")
-    .select("id, original_filename, media_key, caption, scheduled_at")
+    .select("*")
     .eq("project_id", post.project_id)
     .gte("created_at", since)
     .neq("id", post.id)
     .limit(500);
   if (error) throw new Error(error.message);
-  findings.push(...checkDuplicates({ id: post.id, original_filename: post.original_filename, media_key: post.media_key, caption }, (data ?? []) as PastPost[]));
+  findings.push(...checkDuplicates({ id: post.id, original_filename: post.original_filename, media_key: post.media_key, caption, media_md5: (post as { media_md5?: string | null }).media_md5 ?? null }, (data ?? []) as PastPost[]));
 
   return { findings, text: formatFindings(findings) };
 }

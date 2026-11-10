@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import { db } from "@/lib/dashboard/db";
 import { deleteObject, fetchObject, uploadObject } from "@/lib/storage";
 import { apiKey, downloadFile } from "@/lib/story-drive";
-import { fileMeta, importDriveFile, listDriveImport } from "@/lib/planner-drive";
+import { checkDriveFolder, fileMeta, importDriveFile } from "@/lib/planner-drive";
+import { DuplicateMediaError, fingerprintBuffer, findContentMatch } from "@/lib/media-fingerprint";
 import { fetchPublicUrl } from "@/lib/safe-fetch";
 import { GBP_PLATFORM, gbpPlannerLocation } from "@/lib/gbp";
 import {
@@ -287,10 +288,18 @@ export async function addPlannerPost(input: {
   const { list, target, dropped } = pickPlatforms(kind, await connectedPlatforms(input.projectId), input.platforms ?? null, media.seconds);
   for (const d of dropped) notes.push(`Left out: ${d}`);
 
-  // Same file twice is the duplicate the Planner refuses too.
+  // Duplicates by content, not name: the same file already on the planner (or
+  // posted in the last 90 days) is refused; a picture that only LOOKS the same
+  // is added with a note to look at it.
   const posts = await projectPosts(input.projectId);
-  const same = posts.find((p) => p.original_filename.toLowerCase() === media.name.toLowerCase());
-  if (same) throw new Error(`"${media.name}" is already on this project's planner${same.scheduled_at ? ` (${pktDate(same.scheduled_at)})` : ""}, post ${same.id}. Pass fileName to add it under another name if it really is a new post.`);
+  const fingerprint = await fingerprintBuffer(media.buffer, media.video, media.seconds);
+  const exact = await findContentMatch(input.projectId, fingerprint, { story: kind === "story" });
+  if (exact) {
+    if (media.storageKey) await deleteObject(media.storageKey).catch(() => undefined);
+    throw new DuplicateMediaError(exact);
+  }
+  const lookalike = media.video ? null : await findContentMatch(input.projectId, { phash: fingerprint.phash }, { story: kind === "story", looks: true });
+  if (lookalike) notes.push(`Check: a picture that looks the same is ${lookalike.status === "posted" ? "already posted" : "on the planner"}: ${lookalike.original_filename}${lookalike.scheduled_at ? ` (${pktDate(lookalike.scheduled_at)})` : ""}. Remove one if it is a repeat.`);
 
   if (input.time && !TIME.test(input.time)) throw new Error(`"${input.time}" isn't a time (HH:MM, 24-hour, Pakistan time).`);
   if (input.time && !input.date) throw new Error("Give the date (YYYY-MM-DD) together with the time.");
@@ -320,6 +329,7 @@ export async function addPlannerPost(input: {
       scheduled_at: scheduledAt,
       ...(input.time ? { time_manual: true } : {}),
       target_platforms: target,
+      fingerprint,
       ...(kind !== "post"
         ? {
             reel: {
@@ -463,28 +473,23 @@ export async function updatePlannerPost(input: {
 export type DriveFolderPlan = {
   ready: { id: string; name: string; kind: "post" | "reel"; platforms: string[]; target: string[] | null }[];
   skipped: string[];
+  /** Same name as an older post whose content can't be compared: imported, worth a look. */
+  nameNotes: string[];
 };
 
 async function planDriveFolder(projectId: string, link: string, platforms: string[] | null): Promise<DriveFolderPlan & { connected: string[] }> {
-  const list = await listDriveImport(link);
-  const posts = await projectPosts(projectId);
-  const names = new Map(posts.map((p) => [p.original_filename.toLowerCase(), p.scheduled_at]));
+  const check = await checkDriveFolder(projectId, link);
   const connected = await connectedPlatforms(projectId);
   // A wrong platform name fails once here, not once per file.
   const unknown = (platforms ?? []).map(normalize).filter((p) => !connected.includes(p));
   if (unknown.length) throw new Error(`Not connected for this project: ${unknown.join(", ")}. Connected: ${connected.join(", ") || "none"}.`);
   const skipped: string[] = [
-    ...list.unsupported.map((n) => `${n}: not a JPG/PNG/WebP picture or MP4/MOV video`),
-    ...list.tooBig.map((n) => `${n}: too big (pictures 25 MB, videos 100 MB from Drive)`),
+    ...check.duplicates,
+    ...check.unsupported.map((n) => `${n}: not a JPG/PNG/WebP picture or MP4/MOV video`),
+    ...check.tooBig.map((n) => `${n}: too big (pictures 25 MB, videos 100 MB from Drive)`),
   ];
   const ready: DriveFolderPlan["ready"] = [];
-  const sorted = [...list.files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-  for (const f of sorted) {
-    if (names.has(f.name.toLowerCase())) {
-      const at = names.get(f.name.toLowerCase());
-      skipped.push(`${f.name}: already on the planner${at ? ` (${pktDate(at)})` : ""}`);
-      continue;
-    }
+  for (const f of check.files) {
     try {
       const picked = pickPlatforms(f.kind, connected, platforms, f.seconds);
       ready.push({ id: f.id, name: f.name, kind: f.kind, platforms: picked.list, target: picked.target });
@@ -492,7 +497,7 @@ async function planDriveFolder(projectId: string, link: string, platforms: strin
       skipped.push(`${f.name}: ${error instanceof Error ? error.message : "no platform takes it"}`);
     }
   }
-  return { ready, skipped, connected };
+  return { ready, skipped, nameNotes: check.nameNotes, connected };
 }
 
 /**

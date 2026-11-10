@@ -145,14 +145,28 @@ export type PastPost = {
   media_key: string;
   caption: string | null;
   scheduled_at: string | null;
+  /** The file's MD5 (lib/media-fingerprint.ts); null for posts from before it. */
+  media_md5?: string | null;
 };
 
-/** Same file, same picture key or a near-identical caption among the project's recent posts. */
-export function checkDuplicates(self: { id: string; original_filename: string; media_key: string; caption: string }, others: PastPost[]): Finding[] {
+/** The same picture (by content), a same-named file whose content can't be compared, or a near-identical caption among the project's recent posts. */
+export function checkDuplicates(self: { id: string; original_filename: string; media_key: string; caption: string; media_md5?: string | null }, others: PastPost[]): Finding[] {
   const out: Finding[] = [];
   const day = (p: PastPost) => (p.scheduled_at ? p.scheduled_at.slice(0, 10) : "no date");
 
-  const sameFile = others.filter((p) => p.id !== self.id && (p.media_key === self.media_key || p.original_filename.toLowerCase() === self.original_filename.toLowerCase()));
+  // By content, never by name alone: monthly folders reuse names (1.png, Friday-1.png…) for new posts.
+  const sameFile = others.filter((p) => p.id !== self.id && (p.media_key === self.media_key || (Boolean(self.media_md5) && p.media_md5 === self.media_md5)));
+  const sameNameOnly = others.filter(
+    (p) => p.id !== self.id && !sameFile.includes(p) && p.original_filename.toLowerCase() === self.original_filename.toLowerCase() && !(self.media_md5 && p.media_md5)
+  );
+  if (sameNameOnly.length && !sameFile.length) {
+    out.push({
+      code: "same-name",
+      severity: "check",
+      en: `Another post of this project has the same file name (${sameNameOnly.slice(0, 3).map((p) => `${p.original_filename}, ${day(p)}`).join("; ")}) and its content can't be compared. Make sure this is a new picture.`,
+      ur: `Is project ki ek aur post ka file naam same hai. Dekh lein ke ye nayi tasveer hai.`,
+    });
+  }
   if (sameFile.length) {
     out.push({
       code: "duplicate-image",

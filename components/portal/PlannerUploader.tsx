@@ -81,7 +81,9 @@ export default function PlannerUploader({
       setProgress("Adding to the planner…");
       const res = await createPortalUploads({ projectId, date, note: note.trim() || null, files: uploaded });
       if ("error" in res && res.error) throw new Error(res.error);
-      setDone(`${uploaded.length} graphic${uploaded.length === 1 ? "" : "s"} added to the planner.`);
+      const added = "created" in res && typeof res.created === "number" ? res.created : uploaded.length;
+      const repeats = "repeats" in res && Array.isArray(res.repeats) ? res.repeats : [];
+      setDone(`${added} graphic${added === 1 ? "" : "s"} added to the planner.${repeats.length ? ` Already there, not added again: ${repeats.join(", ")}.` : ""}`);
       setPicked([]);
       setNote("");
       router.refresh();

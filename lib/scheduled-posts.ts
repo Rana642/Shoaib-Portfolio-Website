@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "./dashboard/db";
 import type { ScheduledPost } from "./dashboard/types";
+import { DuplicateMediaError, findContentMatch, fingerprintStored, type Fingerprint } from "./media-fingerprint";
 
 // Default time-of-day for a planner post that only specifies a date, in
 // Pakistan time (UTC+5) converted to the UTC hour Vercel Cron runs in.
@@ -38,10 +39,28 @@ export async function createScheduledPost(input: {
   /** A video Reel (with an optional cover image) or a Story, instead of a
    *  photo post. Stories carry no caption, so they're scheduled right away. */
   reel?: { post_type?: "reel" | "story" | "video"; cover_key: string | null; video_title?: string | null; video_privacy?: string | null };
+  /** What the file is, when the caller already has its bytes; otherwise read from storage. */
+  fingerprint?: Fingerprint | null;
+  /** The Google Drive file it was imported from. */
+  source_drive_id?: string | null;
 }): Promise<string> {
-  const { data, error } = await db
+  // Duplicates by content, never by name (2026-11-09): the same file already on
+  // the planner, or posted in the last 90 days, is refused.
+  const fp = input.fingerprint ?? (await fingerprintStored(input.media_key).catch(() => null));
+  if (fp?.md5) {
+    const match = await findContentMatch(input.project_id, fp, { story: input.reel?.post_type === "story" });
+    if (match) throw new DuplicateMediaError(match);
+  }
+  const extra = {
+    ...(fp?.md5 ? { media_md5: fp.md5 } : {}),
+    ...(fp?.phash ? { media_phash: fp.phash } : {}),
+    ...(fp?.seconds != null ? { media_seconds: Math.round(fp.seconds * 10) / 10 } : {}),
+    ...(input.source_drive_id ? { source_drive_id: input.source_drive_id } : {}),
+  };
+  const insert = (withExtra: boolean) => db
     .from("scheduled_posts")
     .insert({
+      ...(withExtra ? extra : {}),
       project_id: input.project_id,
       media_key: input.media_key,
       original_filename: input.original_filename,
@@ -61,7 +80,11 @@ export async function createScheduledPost(input: {
     })
     .select("id")
     .single();
-  if (error) {
+  let { data, error } = await insert(true);
+  // Before the fingerprint columns exist: the post itself still saves.
+  if (error && Object.keys(extra).length && /media_md5|media_phash|media_seconds|source_drive_id/.test(error.message)) ({ data, error } = await insert(false));
+  if (error || !data) {
+    if (!error) throw new Error("The post wasn't saved.");
     if (input.reel && /post_type|cover_key/.test(error.message)) {
       throw new Error("Reels need the database update first (scheduled_posts.post_type / cover_key — see supabase/dashboard-schema.sql).");
     }

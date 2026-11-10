@@ -31,7 +31,9 @@ import { publishNow, type PublishNowResult } from "../../social-publish-now";
 import { preflightPost } from "../../post-preflight";
 import type { Finding } from "../../post-preflight-checks";
 import { presignDownload } from "../../storage";
-import { importDriveFile, listDriveImport, type DriveImportList } from "../../planner-drive";
+import { checkDriveFolder, importDriveFile, type DriveFolderCheck } from "../../planner-drive";
+import { DuplicateMediaError } from "../../media-fingerprint";
+import { applyAuditAction, auditPlanner, fixSafeAuditItems, type AuditAction, type AuditResult } from "../../planner-audit";
 import { submitNativeScheduleForPost, rescheduleNativePosts, cancelPostEverywhere } from "../../social-post";
 import { deleteObject } from "../../storage";
 import { clearPostFlag } from "../../post-review";
@@ -263,6 +265,11 @@ export async function createPlannerPost(formData: FormData) {
         : {}),
     });
   } catch (error) {
+    // The same file is already on the planner: the copy just uploaded isn't kept.
+    if (error instanceof DuplicateMediaError) {
+      for (const key of [parsed.data.media_key, parsed.data.cover_key].filter((k): k is string => Boolean(k))) await deleteObject(key).catch(() => undefined);
+      return { error: error.message, duplicate: true };
+    }
     return { error: error instanceof Error ? error.message : "Couldn't queue the upload." };
   }
   // Best-effort: hand any eligible Facebook account straight to Meta's own
@@ -431,11 +438,13 @@ export async function postDownloadUrl(id: string): Promise<{ url: string } | { e
 }
 
 /** Bulk upload from Google Drive, step 1: what's in the folder (lib/planner-drive.ts). */
-export async function listDriveFolderForBulk(link: string): Promise<DriveImportList | { error: string }> {
+export async function listDriveFolderForBulk(projectId: string, link: string): Promise<DriveFolderCheck | { error: string }> {
   await assertAuthed();
+  if (!z.string().uuid().safeParse(projectId).success) return { error: "Pick a project first." };
   if (typeof link !== "string" || link.length > 500) return { error: "Paste a Google Drive folder link." };
   try {
-    return await listDriveImport(link);
+    // Already-there files are found by content (Drive's MD5 and file id), not by name.
+    return await checkDriveFolder(projectId, link);
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Couldn't read the Drive folder." };
   }
@@ -459,5 +468,55 @@ export async function importDriveFileForBulk(input: { projectId: string; fileId:
     return { ok: true };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Couldn't import the file." };
+  }
+}
+
+/** Planner audit (lib/planner-audit.ts): the project's planner against our rules. */
+export async function auditPlannerProject(projectId: string, folderLink: string | null): Promise<AuditResult | { error: string }> {
+  await assertAuthed();
+  if (!z.string().uuid().safeParse(projectId).success) return { error: "Pick a project first." };
+  if (folderLink !== null && (typeof folderLink !== "string" || folderLink.length > 500)) return { error: "That isn't a Drive folder link." };
+  try {
+    return await auditPlanner(projectId, { folderLink });
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "The audit didn't run." };
+  }
+}
+
+const auditActionSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("remove"), postId: z.string().uuid() }),
+  z.object({ type: z.literal("move"), postId: z.string().uuid(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
+  z.object({ type: z.literal("import"), fileId: z.string().regex(/^[A-Za-z0-9_-]{10,100}$/), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), platforms: z.array(z.string().max(40)).max(10).nullable() }),
+  z.object({ type: z.literal("fix-platforms"), postId: z.string().uuid(), platforms: z.array(z.string().max(40)).min(1).max(10) }),
+  z.object({ type: z.literal("strip-emoji"), postId: z.string().uuid() }),
+  z.object({ type: z.literal("open"), postId: z.string().uuid() }),
+]);
+
+/** One audit fix, by click (Remove, Move, Import, Fix). */
+export async function applyPlannerAuditAction(projectId: string, action: AuditAction): Promise<{ ok: true; message: string } | { error: string }> {
+  await assertAuthed();
+  const parsed = auditActionSchema.safeParse(action);
+  if (!z.string().uuid().safeParse(projectId).success || !parsed.success) return { error: "That fix can't be done." };
+  try {
+    const message = await applyAuditAction(projectId, parsed.data);
+    revalidatePath("/dashboard/social/planner");
+    revalidatePath("/dashboard/social/stories");
+    return { ok: true, message };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "That fix didn't work." };
+  }
+}
+
+/** "Fix safe ones": a fresh audit, then only the fixes that can't lose anything. */
+export async function fixSafePlannerAudit(projectId: string, folderLink: string | null): Promise<{ done: string[]; failed: string[] } | { error: string }> {
+  await assertAuthed();
+  if (!z.string().uuid().safeParse(projectId).success) return { error: "Pick a project first." };
+  try {
+    const { items } = await auditPlanner(projectId, { folderLink });
+    const res = await fixSafeAuditItems(projectId, items);
+    revalidatePath("/dashboard/social/planner");
+    return res;
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "The fixes didn't run." };
   }
 }

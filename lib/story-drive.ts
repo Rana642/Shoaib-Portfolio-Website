@@ -76,7 +76,7 @@ export async function apiKey(): Promise<string> {
   return cred.api_key;
 }
 
-export type DriveFile = { id: string; name: string; mimeType: string; size?: string; videoMediaMetadata?: { durationMillis?: string } };
+export type DriveFile = { id: string; name: string; mimeType: string; size?: string; md5Checksum?: string; videoMediaMetadata?: { durationMillis?: string } };
 
 export async function listFolder(folderId: string, key: string): Promise<DriveFile[]> {
   const files: DriveFile[] = [];
@@ -84,7 +84,7 @@ export async function listFolder(folderId: string, key: string): Promise<DriveFi
   do {
     const q = new URLSearchParams({
       q: `'${folderId}' in parents and trashed = false`,
-      fields: "nextPageToken, files(id, name, mimeType, size, videoMediaMetadata(durationMillis))",
+      fields: "nextPageToken, files(id, name, mimeType, size, md5Checksum, videoMediaMetadata(durationMillis))",
       pageSize: "1000",
       supportsAllDrives: "true",
       includeItemsFromAllDrives: "true",
