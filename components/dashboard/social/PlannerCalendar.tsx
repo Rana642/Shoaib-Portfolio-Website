@@ -1852,25 +1852,31 @@ function BulkUploadModal({
     let folderCheck = "";
     let leftBehind = false;
     try {
-      // Drive slows down after many downloads in a row: those files get one more try after a pause.
-      const slowed: { file: DriveImportFile; date: string }[] = [];
+      // Drive slows down after about 25 downloads in a row (seen 10 Nov on both hotels'
+      // folders): those files wait and try again, longer each round (1, 2, then 4 minutes).
+      let slowed: { file: DriveImportFile; date: string }[] = [];
       for (const [i, file] of ready.entries()) {
         setStatus(`Importing ${file.name} (${i + 1}/${ready.length})…`);
         const err = await importOne(file, dates[i]);
         if (err && /limiting downloads/i.test(err)) slowed.push({ file, date: dates[i] });
         else if (err) failed.push(`${file.name}: ${err}`);
       }
-      if (slowed.length) {
-        for (let s = 30; s > 0; s--) {
-          setStatus(`Google Drive slowed down. Trying ${slowed.length} file(s) again in ${s} s…`);
+      for (const pause of [60, 120, 240]) {
+        if (!slowed.length) break;
+        for (let s = pause; s > 0; s--) {
+          setStatus(`Google Drive slowed down. Trying ${slowed.length} file(s) again in ${s} s… (keep this window open)`);
           await new Promise((r) => setTimeout(r, 1000));
         }
+        const still: typeof slowed = [];
         for (const [i, { file, date }] of slowed.entries()) {
           setStatus(`Trying again: ${file.name} (${i + 1}/${slowed.length})…`);
           const err = await importOne(file, date);
-          if (err) failed.push(`${file.name}: ${err}`);
+          if (err && /limiting downloads/i.test(err)) still.push({ file, date });
+          else if (err) failed.push(`${file.name}: ${err}`);
         }
+        slowed = still;
       }
+      for (const { file } of slowed) failed.push(`${file.name}: Google Drive is still limiting downloads. Press Fetch and Import again in a few minutes.`);
       // Is every file of the folder on the planner now? Checked by content, not by name.
       setStatus("Checking the folder against the planner…");
       const check = await verifyDriveImportForBulk(projectId, driveLink);
