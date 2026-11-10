@@ -1894,7 +1894,7 @@ function BulkUploadModal({
     }
     const done = driveFiles.length - failed.length;
     if (failed.length || leftBehind) {
-      setError(`Imported ${done} of ${driveFiles.length}.${failed.length ? ` Not imported: ${failed.join("; ")}.` : ""}${folderCheck}`);
+      setError(`Imported ${done} of ${driveFiles.length}.${failed.length ? ` Not imported: ${failed.map((f) => f.replace(/\.+$/, "")).join("; ")}.` : ""}${folderCheck}`);
       setStatus(null);
     } else {
       setStatus(`Imported ${done} file(s) from Drive.${folderCheck}`);
