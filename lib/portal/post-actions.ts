@@ -5,7 +5,9 @@ import { z } from "zod";
 import { db } from "@/lib/dashboard/db";
 import { can, canSeeProject, getPortalUser, type PortalContext } from "@/lib/portal/auth";
 import type { PortalFeature } from "@/lib/portal/features";
-import { getScheduledPost } from "@/lib/scheduled-posts";
+import { createScheduledPost, dateToScheduledAt, getScheduledPost, pktToScheduledAt, setCaptionAndSchedule } from "@/lib/scheduled-posts";
+import { DuplicateMediaError } from "@/lib/media-fingerprint";
+import { preflightPost } from "@/lib/post-preflight";
 import { presignDownload } from "@/lib/storage";
 import { changePostCaption, changePostTime, removePost, replacePostMedia } from "@/lib/planner-post-ops";
 import { deleteObject } from "@/lib/storage";
@@ -149,5 +151,126 @@ export async function portalReplacePostFile(postId: string, key: string, name: s
     const { count } = await db.from("scheduled_posts").select("id", { count: "exact", head: true }).eq("media_key", key);
     if (!count && key.startsWith(`social/${found.post.project_id}/`)) await deleteObject(key).catch(() => undefined);
     return { error: error instanceof Error ? error.message : "Couldn't change the file." };
+  }
+}
+
+export type PortalNewPostResult =
+  | { status: "scheduled"; postId: string; findings: Finding[] }
+  | { status: "published"; postId: string; ok: boolean; note: string | null }
+  | { status: "confirm"; postId: string; findings: Finding[] }
+  | { status: "blocked"; postId: string; findings: Finding[] }
+  | { status: "error"; message: string };
+
+/**
+ * The portal's Add post with the client's own caption (Shoaib, 2026-11-10):
+ * "Schedule" (Edit posts) or "Publish now" (Publish now), one file at a time.
+ * The file is already in storage (portal upload URL). Same checks as the
+ * dashboard: a FIX finding leaves it on the planner waiting for a caption;
+ * CHECK findings need "Publish anyway" before it goes out now.
+ */
+export async function portalCreatePost(input: {
+  projectId: string;
+  file: { key: string; name: string };
+  date: string;
+  time?: string | null;
+  caption: string;
+  action: "schedule" | "publish";
+}): Promise<PortalNewPostResult> {
+  const parsed = z
+    .object({
+      projectId: z.string().uuid(),
+      file: z.object({ key: z.string().min(1).max(512), name: z.string().min(1).max(300) }),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullish(),
+      caption: z.string().trim().min(1, "Write a caption.").max(2200),
+      action: z.enum(["schedule", "publish"]),
+    })
+    .safeParse(input);
+  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? "That post couldn't be read." };
+  const { projectId, file, date, time, caption, action } = parsed.data;
+  const ctx = await getPortalUser();
+  if (!ctx) return { status: "error", message: "Your session has ended. Sign in again." };
+  if (!can(ctx, action === "publish" ? "publish_posts" : "edit_posts")) return { status: "error", message: action === "publish" ? "Publishing isn't switched on for you." : "Scheduling isn't switched on for you." };
+  const { data: project } = await db.from("client_projects").select("id").eq("id", projectId).eq("client_id", ctx.clientId).maybeSingle();
+  if (!project || !canSeeProject(ctx, projectId)) return { status: "error", message: "That project isn't one of yours." };
+  if (!file.key.startsWith(`social/${projectId}/`) || file.key.includes("..")) return { status: "error", message: "That file couldn't be read." };
+
+  const scheduledAt = time ? pktToScheduledAt(date, time) : dateToScheduledAt(date);
+  if (action === "schedule" && new Date(scheduledAt).getTime() <= Date.now() + 60_000) {
+    await deleteObject(file.key).catch(() => undefined);
+    return { status: "error", message: time ? "That time has already passed (Pakistan time). Pick a later time." : "The usual time (10:00 AM) has passed for that day. Pick a time." };
+  }
+
+  let postId: string;
+  try {
+    postId = await createScheduledPost({
+      project_id: projectId,
+      media_key: file.key,
+      original_filename: file.name,
+      scheduled_at: scheduledAt,
+      ...(time ? { time_manual: true } : {}),
+      fromClient: { email: ctx.user.email ?? "client", note: null },
+    });
+  } catch (error) {
+    await deleteObject(file.key).catch(() => undefined);
+    return { status: "error", message: error instanceof DuplicateMediaError ? error.message : error instanceof Error ? error.message : "Couldn't add the post." };
+  }
+  const by = ctx.user.email ?? "client";
+  const mark = (what: string) => markClientActivity([postId], { at: new Date().toISOString(), by, kind: "upload", note: what });
+
+  // The checks first, judged for when it goes out; a FIX keeps it off the schedule.
+  const { findings } = await preflightPost({ postId, caption, scheduledAt: action === "publish" ? new Date().toISOString() : scheduledAt }).catch(() => ({ findings: [] as Finding[] }));
+  const fixes = findings.filter((f) => f.severity === "fix");
+  const checks = findings.filter((f) => f.severity !== "fix" && f.code !== "no-caption");
+  if (fixes.length) {
+    await mark("added, waiting for a caption (the client's caption had a mistake)");
+    refresh();
+    return { status: "blocked", postId, findings: fixes };
+  }
+
+  try {
+    if (action === "schedule") {
+      await changePostCaption(postId, caption);
+      await mark(`added and scheduled by the client for ${date}${time ? ` ${time}` : ""}`);
+      refresh();
+      return { status: "scheduled", postId, findings: checks };
+    }
+    if (checks.length) {
+      await mark("added, waiting for the client to confirm Publish now");
+      refresh();
+      return { status: "confirm", postId, findings: checks };
+    }
+    return await publishWithCaption(postId, caption, by);
+  } catch (error) {
+    refresh();
+    return { status: "error", message: error instanceof Error ? error.message : "Couldn't finish the post." };
+  }
+}
+
+/** Sets the caption and sends the post out now (checks already passed or confirmed). */
+async function publishWithCaption(postId: string, caption: string, by: string): Promise<PortalNewPostResult> {
+  // No Facebook draft at Meta first: it would only be cancelled again.
+  await setCaptionAndSchedule(postId, caption);
+  const res = await publishNow(postId, true);
+  await markClientActivity([postId], { at: new Date().toISOString(), by, kind: "upload", note: res.status === "published" ? "added and published now by the client" : "added; Publish now didn't go through" });
+  refresh();
+  if (res.status === "published") return { status: "published", postId, ok: res.ok, note: res.note };
+  // Not out: it mustn't slip out later on the cron either, so it waits for a caption again.
+  await db.from("scheduled_posts").update({ status: "pending_caption" }).eq("id", postId).eq("status", "scheduled");
+  if (res.status === "error") return { status: "error", message: `${res.message} It waits on the planner.` };
+  return { status: res.status, postId, findings: res.findings };
+}
+
+/** "Publish anyway" after the CHECK findings of a new post. */
+export async function portalConfirmNewPost(postId: string, caption: string): Promise<PortalNewPostResult> {
+  const found = await portalPost(postId, "publish_posts");
+  if ("error" in found) return { status: "error", message: found.error };
+  const parsed = z.string().trim().min(1).max(2200).safeParse(caption);
+  if (!parsed.success) return { status: "error", message: "Write a caption." };
+  if (found.post.status !== "pending_caption") return { status: "error", message: "This post isn't waiting any more." };
+  try {
+    return await publishWithCaption(postId, parsed.data, found.ctx.user.email ?? "client");
+  } catch (error) {
+    return { status: "error", message: error instanceof Error ? error.message : "Couldn't publish the post." };
   }
 }

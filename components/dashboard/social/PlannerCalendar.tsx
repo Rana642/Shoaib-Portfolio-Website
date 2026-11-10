@@ -639,7 +639,7 @@ export default function PlannerCalendar({
       {uploadDate && isClient && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" onClick={() => setUploadDate(null)}>
           <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <PlannerUploader key={uploadDate} projectId={selectedProjectId} defaultDate={uploadDate} onDone={() => setUploadDate(null)} />
+            <PlannerUploader key={uploadDate} projectId={selectedProjectId} defaultDate={uploadDate} onDone={() => setUploadDate(null)} canSchedule={Boolean(clientCan?.edit)} canPublish={Boolean(clientCan?.publish)} />
             <div className="flex justify-end mt-3">
               <button type="button" onClick={() => setUploadDate(null)} className={buttonStyles.secondary}>
                 Close

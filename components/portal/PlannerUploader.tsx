@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ImageUp, LoaderCircle, X } from "lucide-react";
+import { AlertTriangle, CalendarClock, Check, ImageUp, LoaderCircle, Send, X } from "lucide-react";
 import { Card, Field, buttonStyles, inputClasses } from "@/components/dashboard/ui";
 import { createPortalUploads } from "@/lib/portal/planner";
+import { portalConfirmNewPost, portalCreatePost, type PortalNewPostResult } from "@/lib/portal/post-actions";
+import type { Finding } from "@/lib/post-preflight-checks";
 
 const TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_BYTES = 25 * 1024 * 1024;
@@ -18,9 +20,15 @@ export default function PlannerUploader({
   projectId,
   defaultDate,
   onDone,
+  canSchedule = false,
+  canPublish = false,
 }: {
   projectId: string;
   defaultDate: string;
+  /** "Edit posts": one graphic with the client's own caption, scheduled. */
+  canSchedule?: boolean;
+  /** "Publish now": one graphic with the client's own caption, out at once. */
+  canPublish?: boolean;
   /** Called after a successful upload (the planner's "Add" dialog closes). */
   onDone?: () => void;
 }) {
@@ -34,6 +42,10 @@ export default function PlannerUploader({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [caption, setCaption] = useState("");
+  const [time, setTime] = useState("");
+  const [findings, setFindings] = useState<Finding[] | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
 
   // Free the preview object URLs when they're no longer shown.
   useEffect(() => () => picked.forEach((p) => URL.revokeObjectURL(p.preview)), [picked]);
@@ -90,6 +102,85 @@ export default function PlannerUploader({
       onDone?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed — please try again.");
+    } finally {
+      setBusy(false);
+      setProgress(null);
+    }
+  };
+
+  // One graphic with the client's own caption: Schedule ("Edit posts") or
+  // Publish now ("Publish now"), with the dashboard's checks (lib/portal/post-actions.ts).
+  const ownCaption = canSchedule || canPublish;
+  const finish = (res: PortalNewPostResult) => {
+    if (res.status === "error") return setError(res.message);
+    if (res.status === "blocked") {
+      setFindings(res.findings);
+      setError("Not scheduled: fix the caption first. The graphic is on the planner, waiting for a caption. (Pehle caption theek karein.)");
+      setPicked([]);
+      router.refresh();
+      return;
+    }
+    if (res.status === "confirm") {
+      setFindings(res.findings);
+      setConfirmId(res.postId);
+      setDone("Look at these before it goes out. (Bhejne se pehle dekh lein.)");
+      setPicked([]);
+      router.refresh();
+      return;
+    }
+    setConfirmId(null);
+    setPicked([]);
+    setCaption("");
+    setTime("");
+    router.refresh();
+    if (res.status === "published") {
+      setFindings(null);
+      setDone(res.ok ? "Published." : (res.note ?? "Published, but some platforms failed."));
+      return;
+    }
+    setFindings(res.findings.length ? res.findings : null);
+    setDone(res.findings.length ? "Scheduled. Look at the notes below." : "Scheduled.");
+    if (!res.findings.length) onDone?.();
+  };
+
+  const sendOne = async (action: "schedule" | "publish") => {
+    setError(null);
+    setDone(null);
+    setFindings(null);
+    if (picked.length !== 1) return setError("Schedule and Publish now work with one graphic at a time.");
+    if (!caption.trim()) return setError("Write a caption first.");
+    if (!date) return setError("Pick the day it should go out.");
+    setBusy(true);
+    try {
+      const file = picked[0].file;
+      setProgress("Uploading…");
+      const res = await fetch("/api/portal/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, type: file.type, size: file.size, projectId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed.");
+      const put = await fetch(data.url, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+      if (!put.ok) throw new Error(`Couldn't upload "${file.name}".`);
+      setProgress(action === "publish" ? "Publishing…" : "Scheduling…");
+      finish(await portalCreatePost({ projectId, file: { key: data.key, name: file.name }, date, time: time || null, caption, action }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That didn't work. Please try again.");
+    } finally {
+      setBusy(false);
+      setProgress(null);
+    }
+  };
+
+  const publishAnyway = async () => {
+    if (!confirmId) return;
+    setBusy(true);
+    setError(null);
+    setDone(null);
+    setProgress("Publishing…");
+    try {
+      finish(await portalConfirmNewPost(confirmId, caption));
     } finally {
       setBusy(false);
       setProgress(null);
@@ -173,6 +264,29 @@ export default function PlannerUploader({
         </Field>
       </div>
 
+      {ownCaption && picked.length <= 1 && (
+        <div className="grid grid-cols-1 sm:grid-cols-[12rem_minmax(0,1fr)] gap-4 mt-4">
+          <Field label="Time (optional)" htmlFor="upload-time" hint="Pakistan time. Empty = the usual slot.">
+            <input id="upload-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className={inputClasses} />
+          </Field>
+          <Field label="Caption (for Schedule or Publish now)" htmlFor="upload-caption" hint="Leave it empty and press Upload if I should write it.">
+            <textarea id="upload-caption" rows={4} maxLength={2200} value={caption} onChange={(e) => setCaption(e.target.value)} className={inputClasses} />
+          </Field>
+        </div>
+      )}
+
+      {findings && (
+        <ul className="mt-4 space-y-1.5 rounded-lg border border-ink/10 p-3">
+          {findings.map((f) => (
+            <li key={f.code + f.en} className={`text-small flex gap-1.5 ${f.severity === "fix" ? "text-red-700" : "text-orange-800"}`}>
+              <AlertTriangle className="size-4 shrink-0 mt-0.5" aria-hidden />
+              <span>
+                {f.en} <span className="text-ink-muted">({f.ur})</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
       {error && <p className="text-small text-red-700 bg-red-500/10 border border-red-600/20 rounded-lg px-4 py-3 mt-4">{error}</p>}
       {done && (
         <p className="flex items-center gap-2 text-small mt-4">
@@ -181,10 +295,33 @@ export default function PlannerUploader({
         </p>
       )}
 
-      <button type="button" onClick={upload} disabled={busy || picked.length === 0} className={`${buttonStyles.primary} mt-5`}>
-        {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <ImageUp className="size-4" aria-hidden />}
-        {progress ?? (picked.length > 1 ? `Upload ${picked.length} graphics` : "Upload")}
-      </button>
+      <div className="flex flex-wrap gap-2 mt-5">
+        {confirmId ? (
+          <button type="button" onClick={publishAnyway} disabled={busy} className={buttonStyles.primary}>
+            {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Send className="size-4" aria-hidden />}
+            {progress ?? "Publish anyway"}
+          </button>
+        ) : (
+          <>
+            <button type="button" onClick={upload} disabled={busy || picked.length === 0} className={ownCaption ? buttonStyles.secondary : buttonStyles.primary}>
+              {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <ImageUp className="size-4" aria-hidden />}
+              {progress ?? (picked.length > 1 ? `Upload ${picked.length} graphics` : "Upload")}
+            </button>
+            {canSchedule && picked.length <= 1 && (
+              <button type="button" onClick={() => sendOne("schedule")} disabled={busy || picked.length !== 1 || !caption.trim()} className={buttonStyles.primary}>
+                <CalendarClock className="size-4" aria-hidden />
+                Schedule
+              </button>
+            )}
+            {canPublish && picked.length <= 1 && (
+              <button type="button" onClick={() => sendOne("publish")} disabled={busy || picked.length !== 1 || !caption.trim()} className={buttonStyles.primary}>
+                <Send className="size-4" aria-hidden />
+                Publish now
+              </button>
+            )}
+          </>
+        )}
+      </div>
     </Card>
   );
 }

@@ -47,6 +47,10 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - A Facebook draft at Meta is redone with the new file, and is refused when the post's time is close.
   - A held post goes back to waiting for a caption. The old file is deleted unless a Story still uses it.
   - The portal upload URL now also takes MP4/MOV up to 100 MB, for "Edit posts".
+- **Portal Add post with the client's own caption:** with one graphic, there is a Time field and a Caption field. "Schedule" needs Edit posts and "Publish now" needs Publish now. The plain "Upload" still waits for Shoaib's caption.
+  - The server side is `portalCreatePost` and `portalConfirmNewPost` in `lib/portal/post-actions.ts`.
+  - Pre-flight runs first. A FIX keeps the post on the planner, waiting for a caption. CHECK items need "Publish anyway" before it goes out now, and until then the post waits, so it can't slip out on the cron.
+  - Each one shows in the activity report.
 - **Gotcha:** a broken `.next/dev/types/routes.d.ts` (dev server) makes `tsc` stop at syntax errors and skip the real typecheck. Delete `.next/dev/types` before trusting a clean run.
 
 ## 2026-11-09 — Planner: Publish now, post details window (office PC)
