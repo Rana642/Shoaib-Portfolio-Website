@@ -1805,8 +1805,14 @@ function BulkUploadModal({
         /* remembering the link is only a convenience */
       }
       setDriveFiles(res.files);
+      // "1.png: The same file is on the planner: 1.png (2026-11-14)" reads as just "1.png (14 Nov)".
+      const short = res.duplicates.map((d) => {
+        const m = /^(.+?): The same file is (?:on the planner|already posted): .+? \((\d{4}-\d{2}-\d{2})\)$/.exec(d);
+        return m ? `${m[1]} (${new Date(`${m[2]}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })})` : d;
+      });
       setDriveNotes([
-        ...(res.duplicates.length ? [`Already on the planner (the same file, checked by content), skipped: ${res.duplicates.join("; ")}`] : []),
+        ...(res.duplicates.length && !res.files.length ? [`All ${res.duplicates.length} file(s) of this folder are already on the planner. Nothing new to import.`] : []),
+        ...(res.duplicates.length ? [`Already on the planner (checked by content), skipped: ${short.join(", ")}`] : []),
         ...(res.nameNotes.length ? [`Same name as an older post but a different file, so these are imported: ${res.nameNotes.join(", ")}`] : []),
         ...(res.unsupported.length ? [`Not an image or MP4/MOV video, skipped: ${res.unsupported.join(", ")}`] : []),
         ...(res.tooBig.length ? [`Too big (images 25 MB, videos 100 MB from Drive), skipped: ${res.tooBig.join(", ")}`] : []),
