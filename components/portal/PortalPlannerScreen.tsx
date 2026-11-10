@@ -97,6 +97,7 @@ export default async function PortalPlannerScreen({ project, section }: { projec
       <PlannerCalendar
         mode="client"
         canUpload={canUpload}
+        clientCan={{ edit: can(ctx, "edit_posts"), publish: can(ctx, "publish_posts") }}
         plannerPath={section === "stories" ? "/portal/stories" : "/portal/planner"}
         section={section}
         switchPaths={{ feed: "/portal/planner", stories: canView ? "/portal/stories" : null }}

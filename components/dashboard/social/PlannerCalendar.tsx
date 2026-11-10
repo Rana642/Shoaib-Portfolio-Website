@@ -14,6 +14,7 @@ import { ReplaceImageButton } from "@/components/portal/NeedsChangesAlert";
 import { deletePortalUpload } from "@/lib/portal/planner";
 import PlannerUploader from "@/components/portal/PlannerUploader";
 import PlannerAudit from "@/components/dashboard/social/PlannerAudit";
+import { portalDeletePost, portalDownloadUrl, portalPublishNow, portalSetPostTime, portalUpdateCaption } from "@/lib/portal/post-actions";
 import { inputClasses, buttonStyles, Card } from "@/components/dashboard/ui";
 import { cn } from "@/lib/utils";
 import { FacebookIcon, InstagramIcon, LinkedinIcon, TikTokIcon, YoutubeIcon } from "@/components/ui/SocialIcons";
@@ -132,7 +133,7 @@ function pktParts(iso: string): { date: string; time: string } {
 
 /** The time on a week card: plain text for older posts, and for newer ones that
  *  haven't gone out a button that opens a small date + time form (Pakistan time). */
-function PostTimeEditor({ post, client }: { post: ScheduledPost; client: boolean }) {
+function PostTimeEditor({ post, client, clientEdit = false }: { post: ScheduledPost; client: boolean; clientEdit?: boolean }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -142,7 +143,7 @@ function PostTimeEditor({ post, client }: { post: ScheduledPost; client: boolean
   if (!post.scheduled_at) return null;
 
   const editable =
-    !client && post.created_at >= TIME_EDIT_FROM && post.status !== "posted" && post.status !== "failed";
+    (!client || clientEdit) && post.created_at >= TIME_EDIT_FROM && post.status !== "posted" && post.status !== "failed";
   if (!editable) return <p className="text-tag text-ink-subtle">{timeLabel(post.scheduled_at)}</p>;
 
   if (!open) {
@@ -165,7 +166,7 @@ function PostTimeEditor({ post, client }: { post: ScheduledPost; client: boolean
 
   const save = () =>
     startTransition(async () => {
-      const res = await setPostTime(post.id, date, time);
+      const res = await (client ? portalSetPostTime : setPostTime)(post.id, date, time);
       if (res && "error" in res && res.error) setError(res.error);
       else setOpen(false);
     });
@@ -218,6 +219,7 @@ export default function PlannerCalendar({
   connectedPlatforms,
   mode = "admin",
   canUpload = true,
+  clientCan,
   plannerPath = "/dashboard/social/planner",
   dayNotes = {},
   weatherCity = null,
@@ -236,6 +238,8 @@ export default function PlannerCalendar({
   mode?: "admin" | "client";
   /** Client mode: whether they may add graphics (the "uploads" feature). */
   canUpload?: boolean;
+  /** Client mode: "Edit posts" (caption, day/time, delete) and "Publish now", each a portal switch. */
+  clientCan?: { edit: boolean; publish: boolean };
   /** Where switching project navigates. */
   plannerPath?: string;
   /** Pakistan holidays + the project's city weather, by YYYY-MM-DD. */
@@ -250,6 +254,8 @@ export default function PlannerCalendar({
   switchPaths?: { feed: string | null; stories: string | null };
 }) {
   const isClient = mode === "client";
+  // A client with "Edit posts" or "Publish now" opens the same post window as the dashboard.
+  const clientOpens = isClient && Boolean(clientCan?.edit || clientCan?.publish);
   const isStories = section === "stories";
   // Client uploads (PlannerUploader) are photo posts, so the Stories Planner is view-only for them.
   const canAdd = !isClient ? true : canUpload && !isStories;
@@ -540,7 +546,7 @@ export default function PlannerCalendar({
                         key={p.id}
                         post={p}
                         client={isClient}
-                        onOpen={isClient ? undefined : () => setDetailsId(p.id)}
+                        onOpen={isClient && !clientOpens ? undefined : () => setDetailsId(p.id)}
                         dropProps={cardDropProps(key, dayPosts, p)}
                         dropLine={dropTarget?.id === p.id ? (dropTarget.after ? "after" : "before") : null}
                         onDragEnd={() => setDropTarget(null)}
@@ -616,7 +622,7 @@ export default function PlannerCalendar({
                   )}
                   <div className="flex flex-wrap gap-1">
                     {dayPosts.map((p) => (
-                      <DayPostThumb key={p.id} post={p} client={isClient} onOpen={isClient ? undefined : () => setDetailsId(p.id)} />
+                      <DayPostThumb key={p.id} post={p} client={isClient} onOpen={isClient && !clientOpens ? undefined : () => setDetailsId(p.id)} />
                     ))}
                   </div>
                 </div>
@@ -626,7 +632,9 @@ export default function PlannerCalendar({
         </Card>
       )}
 
-      {detailsPost && !isClient && <PostDetails key={detailsPost.id} post={detailsPost} onClose={() => setDetailsId(null)} />}
+      {detailsPost && (!isClient || clientOpens) && (
+        <PostDetails key={detailsPost.id} post={detailsPost} client={isClient ? clientCan : undefined} onClose={() => setDetailsId(null)} />
+      )}
 
       {uploadDate && isClient && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" onClick={() => setUploadDate(null)}>
@@ -802,9 +810,13 @@ function WeekPostCard({
 
 type PlatformResult = Pick<PlatformPostResult, "platform" | "label" | "ok" | "error">;
 
-/** One post opened from the calendar (admin): see it whole, fix the caption or
- *  time, download the file, publish it now, or delete it (Shoaib, 2026-11-09). */
-function PostDetails({ post, onClose }: { post: PostWithUrl; onClose: () => void }) {
+/** One post opened from the calendar: see it whole, fix the caption or time,
+ *  download the file, publish it now, or delete it (Shoaib, 2026-11-09). In the
+ *  client portal (`client`) the same window runs the portal's own actions, and
+ *  only what that client's switches allow (2026-11-10). */
+function PostDetails({ post, onClose, client }: { post: PostWithUrl; onClose: () => void; client?: { edit: boolean; publish: boolean } }) {
+  const canEdit = !client || client.edit;
+  const canPublish = !client || client.publish;
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [caption, setCaption] = useState(post.caption ?? "");
@@ -815,14 +827,14 @@ function PostDetails({ post, onClose }: { post: PostWithUrl; onClose: () => void
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const out = post.status === "posted" || post.status === "failed";
-  const label = STATUS_LABEL[post.status];
+  const label = (client ? CLIENT_STATUS_LABEL : STATUS_LABEL)[post.status];
   const results = justPublished ?? (post.result as { platforms?: PlatformResult[] } | null)?.platforms ?? null;
   const captionChanged = caption.trim() !== (post.caption ?? "").trim();
 
   const publish = (confirmChecks: boolean) =>
     startTransition(async () => {
       setMessage(null);
-      const res = await publishPostNow(post.id, confirmChecks);
+      const res = await (client ? portalPublishNow : publishPostNow)(post.id, confirmChecks);
       if (res.status === "blocked") {
         setFindings(res.findings);
         setNeedsConfirm(false);
@@ -845,7 +857,7 @@ function PostDetails({ post, onClose }: { post: PostWithUrl; onClose: () => void
   const saveCaption = () =>
     startTransition(async () => {
       setMessage(null);
-      const res = await updatePostCaption(post.id, caption);
+      const res = await (client ? portalUpdateCaption : updatePostCaption)(post.id, caption);
       if ("error" in res) return setMessage({ ok: false, text: res.error });
       setFindings(res.findings.length ? res.findings : null);
       setNeedsConfirm(false);
@@ -855,14 +867,19 @@ function PostDetails({ post, onClose }: { post: PostWithUrl; onClose: () => void
 
   const download = () =>
     startTransition(async () => {
-      const res = await postDownloadUrl(post.id);
+      const res = await (client ? portalDownloadUrl : postDownloadUrl)(post.id);
       if ("error" in res) return setMessage({ ok: false, text: res.error });
       window.location.href = res.url;
     });
 
   const remove = () =>
     startTransition(async () => {
-      await deletePost(post.id);
+      if (client) {
+        const res = await portalDeletePost(post.id);
+        if ("error" in res) return setMessage({ ok: false, text: res.error });
+      } else {
+        await deletePost(post.id);
+      }
       onClose();
       router.refresh();
     });
@@ -883,7 +900,7 @@ function PostDetails({ post, onClose }: { post: PostWithUrl; onClose: () => void
         <div className="grid gap-5 p-5 md:grid-cols-2">
           <div className="space-y-3">
             <PostMedia post={post} ring={STATUS_RING[post.status] ?? "ring-ink/20"} className="w-full aspect-square rounded-lg" />
-            <PostTimeEditor post={post} client={false} />
+            <PostTimeEditor post={post} client={Boolean(client)} clientEdit={Boolean(client?.edit)} />
             {post.status === "needs_changes" && post.review_note && (
               <p className="text-small text-orange-800 flex gap-1.5">
                 <AlertTriangle className="size-4 shrink-0 mt-0.5" aria-hidden />
@@ -895,9 +912,9 @@ function PostDetails({ post, onClose }: { post: PostWithUrl; onClose: () => void
           <div className="space-y-4">
             <label className="block space-y-1.5">
               <span className="text-small font-medium">Caption</span>
-              <textarea value={caption} onChange={(e) => setCaption(e.target.value)} disabled={out || pending} rows={9} maxLength={2200} className={cn(inputClasses, "w-full")} />
+              <textarea value={caption} onChange={(e) => setCaption(e.target.value)} disabled={out || pending || !canEdit} rows={9} maxLength={2200} className={cn(inputClasses, "w-full")} />
             </label>
-            {!out && (
+            {!out && canEdit && (
               <button type="button" onClick={saveCaption} disabled={pending || !captionChanged || !caption.trim()} className={buttonStyles.secondary}>
                 Save caption
               </button>
@@ -933,7 +950,7 @@ function PostDetails({ post, onClose }: { post: PostWithUrl; onClose: () => void
             {message && <p className={cn("text-small", message.ok ? "text-green-700" : "text-red-700")}>{message.text}</p>}
 
             <div className="flex flex-wrap gap-2 border-t border-ink/10 pt-4">
-              {post.status === "scheduled" && (
+              {post.status === "scheduled" && canPublish && (
                 <button type="button" onClick={() => publish(needsConfirm)} disabled={pending || captionChanged} className={buttonStyles.primary} title={captionChanged ? "Save the caption first" : undefined}>
                   {pending ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Send className="size-4" aria-hidden />}
                   {needsConfirm ? "Publish anyway" : "Publish now"}
@@ -946,6 +963,8 @@ function PostDetails({ post, onClose }: { post: PostWithUrl; onClose: () => void
                 </button>
               )}
               {post.status !== "posted" &&
+                canEdit &&
+                !(client && post.status === "failed") &&
                 (confirmDelete ? (
                   <button type="button" onClick={remove} disabled={pending} className={cn(buttonStyles.secondary, "text-red-700")}>
                     <Trash2 className="size-4" aria-hidden />

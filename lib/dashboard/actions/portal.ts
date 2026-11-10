@@ -27,7 +27,7 @@ async function assertAuthed() {
 const uuid = z.string().uuid();
 const memberSchema = z.object({
   role: z.enum(["owner", "member"]),
-  permissions: z.array(z.enum(DELEGABLE as [PortalFeature, ...PortalFeature[]])).max(10),
+  permissions: z.array(z.enum(DELEGABLE as [PortalFeature, ...PortalFeature[]])).max(20),
   projectIds: z.array(uuid).max(100).nullable(),
 });
 
@@ -35,7 +35,7 @@ const memberSchema = z.object({
 export async function setPortalFeatures(clientId: string, features: string[]) {
   await assertAuthed();
   const parsed = z
-    .object({ clientId: uuid, features: z.array(z.enum(FEATURE_KEYS as [PortalFeature, ...PortalFeature[]])).max(10) })
+    .object({ clientId: uuid, features: z.array(z.enum(FEATURE_KEYS as [PortalFeature, ...PortalFeature[]])).max(20) })
     .safeParse({ clientId, features });
   if (!parsed.success) return { error: "Couldn't read those features." };
   const { error } = await db.from("clients").update({ portal_features: parsed.data.features }).eq("id", parsed.data.clientId);

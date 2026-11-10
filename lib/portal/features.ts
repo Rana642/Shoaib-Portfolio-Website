@@ -14,6 +14,8 @@ export const PORTAL_FEATURES = [
   { key: "intakes", label: "Fill intake forms", hint: "Set-up forms I send for their projects." },
   { key: "planner", label: "See the content planner", hint: "Their scheduled and posted content." },
   { key: "uploads", label: "Upload graphics", hint: "Final, approved images straight onto the planner." },
+  { key: "edit_posts", label: "Edit posts", hint: "Change a caption or the day and time, or delete a post that hasn't gone out (with the planner)." },
+  { key: "publish_posts", label: "Publish now", hint: "Send a scheduled post out at once, after the same checks (with the planner)." },
   { key: "credentials", label: "Send accounts / logins", hint: "Send me logins or confirm access, encrypted." },
   { key: "whatsapp", label: "WhatsApp inbox", hint: "Their WhatsApp chats: reply to guests and mark bookings." },
   { key: "bookings", label: "See bookings", hint: "Website + WhatsApp bookings and which ad each came from." },

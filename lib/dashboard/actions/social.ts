@@ -17,27 +17,23 @@ import {
 } from "../../social-accounts";
 import {
   createScheduledPost,
-  deleteScheduledPost,
   getScheduledPost,
   dateToScheduledAt,
   pktToScheduledAt,
   reorderPostsOnDay,
   rescheduleScheduledPost,
-  setPostSchedule,
-  setCaptionAndSchedule,
-  nativeDraftChangeable,
 } from "../../scheduled-posts";
 import { publishNow, type PublishNowResult } from "../../social-publish-now";
-import { preflightPost } from "../../post-preflight";
 import type { Finding } from "../../post-preflight-checks";
 import { presignDownload, uploadObject } from "../../storage";
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
+import { changePostCaption, changePostTime, removePost } from "../../planner-post-ops";
 import { loadMedia } from "../../planner-intake";
 import { checkDriveFolder, importDriveFile, verifyDriveImport, type DriveFolderCheck, type DriveImportCheck } from "../../planner-drive";
 import { describeMatch, DuplicateMediaError, findContentMatch, fingerprintBuffer } from "../../media-fingerprint";
 import { applyAuditAction, auditPlanner, fixSafeAuditItems, type AuditAction, type AuditResult } from "../../planner-audit";
-import { submitNativeScheduleForPost, rescheduleNativePosts, cancelPostEverywhere } from "../../social-post";
+import { submitNativeScheduleForPost, rescheduleNativePosts } from "../../social-post";
 import { deleteObject } from "../../storage";
 import { clearPostFlag } from "../../post-review";
 import { toPageChoice } from "../../social-fb";
@@ -284,27 +280,8 @@ export async function createPlannerPost(formData: FormData) {
 
 export async function deletePost(id: string) {
   await assertAuthed();
-  const post = await getScheduledPost(id);
-
-  // If this was already handed to Meta's own scheduler, that draft has to be
-  // cancelled too — otherwise it still fires at the original time even
-  // though it's gone from here (a surprise post on a real client Page).
-  await cancelPostEverywhere(id);
-
-  // Best-effort media cleanup — never block the delete on a storage hiccup,
-  // and this post was never actually posted, so nothing on Meta's side needs
-  // the original file anymore either way.
-  if (post) {
-    for (const key of [post.media_key, post.cover_key].filter((k): k is string => Boolean(k))) {
-      try {
-        await deleteObject(key);
-      } catch {
-        /* orphaned object, not fatal */
-      }
-    }
-  }
-
-  await deleteScheduledPost(id);
+  // Its Facebook draft first (or it still fires), then the files and the post (lib/planner-post-ops.ts).
+  await removePost(id);
   revalidatePath("/dashboard/social/planner");
 }
 
@@ -351,16 +328,9 @@ export async function setPostTime(id: string, date: string, time: string) {
   const d = dateSchema.safeParse(date);
   const t = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).safeParse(time);
   if (!d.success || !t.success) return { error: "Pick a valid date and time." };
-  const post = await getScheduledPost(id);
-  if (!post) return { error: "Post not found." };
-  if (post.status === "posted" || post.status === "failed") return { error: "This post is already out; its time can't change." };
-  if (new Date(pktToScheduledAt(d.data, t.data)).getTime() <= Date.now()) {
-    return { error: "That date and time has already passed (Pakistan time). Pick a later time." };
-  }
   try {
-    await setPostSchedule(id, d.data, t.data);
-    // A post already handed to Meta's scheduler needs its draft redone for the new time.
-    await rescheduleNativePosts(id);
+    // Shared with the client portal (lib/planner-post-ops.ts).
+    await changePostTime(id, d.data, t.data);
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Couldn't change the time." };
   }
@@ -405,19 +375,9 @@ export async function updatePostCaption(id: string, caption: string): Promise<{ 
   await assertAuthed();
   const parsed = z.object({ id: z.string().uuid(), caption: z.string().trim().min(1, "Write a caption.").max(2200) }).safeParse({ id, caption });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const post = await getScheduledPost(parsed.data.id);
-  if (!post) return { error: "Post not found." };
-  if (post.status === "posted" || post.status === "failed") return { error: "This post is already out; its caption can't change here." };
   try {
-    const hadNative = Boolean((post.result as { native?: unknown[] } | null)?.native?.length);
-    await setCaptionAndSchedule(parsed.data.id, parsed.data.caption);
-    // Only a post whose time is ahead and that hasn't gone out anywhere gets its
-    // Facebook draft redone; a late or half-sent one keeps what Meta already has.
-    if (nativeDraftChangeable(post)) {
-      if (hadNative) await rescheduleNativePosts(parsed.data.id);
-      else await submitNativeScheduleForPost(parsed.data.id);
-    }
-    const { findings } = await preflightPost({ postId: parsed.data.id }).catch(() => ({ findings: [] as Finding[] }));
+    // Shared with the client portal (lib/planner-post-ops.ts).
+    const { findings } = await changePostCaption(parsed.data.id, parsed.data.caption);
     revalidatePath("/dashboard/social/planner");
     return { ok: true, findings };
   } catch (error) {

@@ -21,7 +21,9 @@ export type ClientActivity = {
   at: string;
   /** The portal user's email. */
   by: string;
-  kind: "upload" | "fix";
+  /** upload / fix: a new or replaced graphic. edit / move / publish: the portal's
+   *  "Edit posts" and "Publish now" (caption changed, day/time moved, sent out now). */
+  kind: "upload" | "fix" | "edit" | "move" | "publish";
   note?: string | null;
   /** For a fix: the image it replaced and what needed changing. */
   fixed?: { from: string; issue: string | null };
@@ -71,14 +73,20 @@ export async function sendUploadReports(): Promise<number> {
 
     const summary = projectList.map(([pid, list]) => `${projectName.get(pid) ?? "A project"} ${list.length}`).join(" · ");
     const uploads = rows.filter((r) => r.client_activity.kind === "upload").length;
-    const fixes = rows.length - uploads;
-    const counts = [uploads && `${uploads} post${uploads === 1 ? "" : "s"}`, fixes && `${fixes} fix${fixes === 1 ? "" : "es"}`].filter(Boolean).join(" + ");
+    const fixes = rows.filter((r) => r.client_activity.kind === "fix").length;
+    const changes = rows.length - uploads - fixes;
+    const counts = [uploads && `${uploads} post${uploads === 1 ? "" : "s"}`, fixes && `${fixes} fix${fixes === 1 ? "" : "es"}`, changes && `${changes} change${changes === 1 ? "" : "s"}`]
+      .filter(Boolean)
+      .join(" + ");
 
     const lines: string[] = [];
     for (const [pid, list] of projectList) {
       const added = list.filter((r) => r.client_activity.kind === "upload");
       const fixed = list.filter((r) => r.client_activity.kind === "fix");
-      lines.push(`${projectName.get(pid) ?? "A project"}: ${[added.length && `${added.length} new`, fixed.length && `${fixed.length} fixed`].filter(Boolean).join(", ")}`);
+      const changed = list.filter((r) => !["upload", "fix"].includes(r.client_activity.kind));
+      lines.push(
+        `${projectName.get(pid) ?? "A project"}: ${[added.length && `${added.length} new`, fixed.length && `${fixed.length} fixed`, changed.length && `${changed.length} changed`].filter(Boolean).join(", ")}`
+      );
       const byDay = new Map<string, string[]>();
       for (const r of added) {
         const day = plannerDayLabel(r.scheduled_at);
@@ -89,7 +97,8 @@ export async function sendUploadReports(): Promise<number> {
         const f = r.client_activity.fixed;
         lines.push(`  Fixed: ${f?.from ?? "a post"} → ${r.original_filename} (${plannerDayLabel(r.scheduled_at)})${f?.issue ? ` — needed: ${f.issue}` : ""}`);
       }
-      for (const note of new Set(list.map((r) => r.client_activity.note).filter(Boolean))) lines.push(`  Note: ${note}`);
+      for (const r of changed) lines.push(`  Changed: ${r.original_filename} (${plannerDayLabel(r.scheduled_at)}): ${r.client_activity.note ?? r.client_activity.kind}`);
+      for (const note of new Set(list.filter((r) => !changed.includes(r)).map((r) => r.client_activity.note).filter(Boolean))) lines.push(`  Note: ${note}`);
       lines.push("");
     }
 
@@ -97,12 +106,12 @@ export async function sendUploadReports(): Promise<number> {
     const { error: sendError } = await resend.emails.send({
       from: fromEmail,
       to: toEmail,
-      subject: `Upload report: ${who} — ${counts} (${summary})`,
+      subject: `${changes && !uploads && !fixes ? "Portal changes" : "Upload report"}: ${who} — ${counts} (${summary})`,
       text: [
-        `${who}${client ? ` (${client})` : ""} uploaded through the client portal, ${pktTime(first)}${last - first > 60_000 ? ` – ${pktTime(last).split(", ").pop()}` : ""} (PKT):`,
+        `${who}${client ? ` (${client})` : ""} ${uploads || fixes ? "uploaded" : "made changes"} through the client portal, ${pktTime(first)}${last - first > 60_000 ? ` – ${pktTime(last).split(", ").pop()}` : ""} (PKT):`,
         ``,
         ...lines,
-        `They're on the Planner, waiting for captions: ${siteUrl}/dashboard/social/planner`,
+        `${uploads || fixes ? "They're on the Planner, waiting for captions" : "See the Planner"}: ${siteUrl}/dashboard/social/planner`,
       ].join("\n"),
     });
     if (sendError) continue; // the marks stay, so the next run tries again

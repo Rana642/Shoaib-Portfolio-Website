@@ -21,7 +21,7 @@ async function ownerContext(): Promise<PortalContext | { error: string }> {
 
 async function validAccess(ctx: PortalContext, permissions: unknown, projectIds: unknown) {
   const parsed = z
-    .object({ permissions: z.array(z.string()).max(10), projectIds: z.array(z.string().uuid()).max(100).nullable() })
+    .object({ permissions: z.array(z.string()).max(20), projectIds: z.array(z.string().uuid()).max(100).nullable() })
     .safeParse({ permissions, projectIds });
   if (!parsed.success) return { ok: false, error: "Couldn't read that access." } as const;
 
