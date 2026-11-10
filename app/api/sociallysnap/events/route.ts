@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -8,7 +8,8 @@ export const runtime = "nodejs";
  * workspace with a real number never sends its chats to a third party. It checks
  * X-SociallySnap-Signature (t=<unix>,v1=<hex HMAC-SHA256 of "<t>.<raw body>">, several
  * v1 values while a secret rotates) against SOCIALLYSNAP_WEBHOOK_SECRET and logs ONLY
- * the event type and ids: never message text, names or phone numbers.
+ * the event type and ids: never message text, names or phone numbers. Meta's message ids
+ * (wamid) carry the customer's number in their base64, so they are logged only as a short hash.
  * Separate from /api/whatsapp/webhook (the live +92 311 inbox), which it never touches.
  */
 
@@ -37,6 +38,11 @@ type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const list = (v: unknown): Obj[] => (Array.isArray(v) ? v.slice(0, MAX_ITEMS).map(obj) : []);
 const str = (v: unknown): string | undefined => (typeof v === "string" || typeof v === "number" ? String(v).slice(0, 200) : undefined);
+// Same wamid, same hash, so a message's statuses can still be matched up.
+const wamidHash = (v: unknown): string | undefined => {
+  const id = str(v);
+  return id ? `wamid#${createHash("sha256").update(id).digest("hex").slice(0, 12)}` : undefined;
+};
 
 /** Ids, types, statuses and error codes only — the parts needed to test, nothing a person wrote. */
 function summarize(value: unknown): Obj {
@@ -48,7 +54,7 @@ function summarize(value: unknown): Obj {
       const type = str(m.type) ?? "";
       const part = obj(m[type]);
       // Media messages carry an id the developer downloads with GET /v1/media/{id}/download.
-      return { id: str(m.id), type, ...(str(part.id) ? { media_id: str(part.id), mime_type: str(part.mime_type) } : {}) };
+      return { id: wamidHash(m.id), type, ...(str(part.id) ? { media_id: str(part.id), mime_type: str(part.mime_type) } : {}) };
     });
   }
   const statuses = list(v.statuses);
@@ -56,7 +62,7 @@ function summarize(value: unknown): Obj {
     out.statuses = statuses.map((s) => {
       const pricing = obj(s.pricing);
       const errors = list(s.errors).map((e) => e.code).filter((c) => c !== undefined);
-      return { id: str(s.id), status: str(s.status), ...(errors.length ? { errors } : {}), ...(pricing.billable !== undefined ? { billable: pricing.billable, category: str(pricing.category) } : {}) };
+      return { id: wamidHash(s.id), status: str(s.status), ...(errors.length ? { errors } : {}), ...(pricing.billable !== undefined ? { billable: pricing.billable, category: str(pricing.category) } : {}) };
     });
   }
   // account_update and template status, category and quality changes.
