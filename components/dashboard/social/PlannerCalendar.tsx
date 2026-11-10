@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { DayNote } from "@/lib/planner-day-notes";
 import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard, CircleDashed, AlertTriangle, Film, ThumbsUp, LayoutGrid, Download, Send, X, ShieldCheck } from "lucide-react";
-import { clearPostChanges, createPlannerPost, deletePost, importDriveFileForBulk, listDriveFolderForBulk, movePost, postDownloadUrl, publishPostNow, reorderDay, setPostTime, updatePostCaption } from "@/lib/dashboard/actions/social";
+import { clearPostChanges, createPlannerPost, deletePost, importDriveFileForBulk, listDriveFolderForBulk, movePost, verifyDriveImportForBulk, postDownloadUrl, publishPostNow, reorderDay, setPostTime, updatePostCaption } from "@/lib/dashboard/actions/social";
 import type { DriveImportFile } from "@/lib/planner-drive";
 import { lengthFits, planBulkDates, takes } from "@/lib/planner-rules";
 import type { Finding } from "@/lib/post-preflight-checks";
@@ -1688,27 +1688,58 @@ function BulkUploadModal({
     const skipped = driveFiles.filter((f) => targetsFor(f).fit.length === 0).map((f) => `${f.name}: no chosen platform takes it${f.kind === "reel" ? " at this length" : ""}`);
     const dates = planBulkDates(ready.map((f) => f.name), startDate, new Set(occupiedDates.keys()));
     const failed: string[] = [...skipped];
+    const importOne = async (file: DriveImportFile, date: string): Promise<string | null> => {
+      const { fit, all } = targetsFor(file);
+      try {
+        const res = await importDriveFileForBulk({ projectId, fileId: file.id, date, platforms: all ? null : fit });
+        return "error" in res ? res.error : null;
+      } catch {
+        return "took too long or the connection dropped";
+      }
+    };
+    let folderCheck = "";
+    let leftBehind = false;
     try {
+      // Drive slows down after many downloads in a row: those files get one more try after a pause.
+      const slowed: { file: DriveImportFile; date: string }[] = [];
       for (const [i, file] of ready.entries()) {
         setStatus(`Importing ${file.name} (${i + 1}/${ready.length})…`);
-        const { fit, all } = targetsFor(file);
-        try {
-          const res = await importDriveFileForBulk({ projectId, fileId: file.id, date: dates[i], platforms: all ? null : fit });
-          if ("error" in res) failed.push(`${file.name}: ${res.error}`);
-        } catch {
-          failed.push(`${file.name}: took too long or the connection dropped`);
+        const err = await importOne(file, dates[i]);
+        if (err && /limiting downloads/i.test(err)) slowed.push({ file, date: dates[i] });
+        else if (err) failed.push(`${file.name}: ${err}`);
+      }
+      if (slowed.length) {
+        for (let s = 30; s > 0; s--) {
+          setStatus(`Google Drive slowed down. Trying ${slowed.length} file(s) again in ${s} s…`);
+          await new Promise((r) => setTimeout(r, 1000));
         }
+        for (const [i, { file, date }] of slowed.entries()) {
+          setStatus(`Trying again: ${file.name} (${i + 1}/${slowed.length})…`);
+          const err = await importOne(file, date);
+          if (err) failed.push(`${file.name}: ${err}`);
+        }
+      }
+      // Is every file of the folder on the planner now? Checked by content, not by name.
+      setStatus("Checking the folder against the planner…");
+      const check = await verifyDriveImportForBulk(projectId, driveLink);
+      if ("error" in check) folderCheck = ` The folder check didn't run: ${check.error}`;
+      else {
+        leftBehind = check.leftBehind.length > 0;
+        folderCheck = leftBehind
+          ? ` Not on the planner yet: ${check.leftBehind.join(", ")}. Press Fetch, then Import again.`
+          : ` Checked: all ${check.total} file(s) of the folder are on the planner.`;
+        if (check.cantTake.length) folderCheck += ` Can't go on the planner: ${check.cantTake.join(", ")}.`;
       }
     } finally {
       setBusy(false);
       setDriveFiles(null);
     }
     const done = driveFiles.length - failed.length;
-    if (failed.length) {
-      setError(`Imported ${done} of ${driveFiles.length}. Not imported: ${failed.join("; ")}`);
+    if (failed.length || leftBehind) {
+      setError(`Imported ${done} of ${driveFiles.length}.${failed.length ? ` Not imported: ${failed.join("; ")}.` : ""}${folderCheck}`);
       setStatus(null);
     } else {
-      setStatus(`Imported ${done} file(s) from Drive.`);
+      setStatus(`Imported ${done} file(s) from Drive.${folderCheck}`);
     }
   };
 

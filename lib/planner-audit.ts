@@ -5,8 +5,7 @@ import { deleteScheduledPost, getScheduledPost, nativeDraftChangeable } from "@/
 import { cancelPostEverywhere, rescheduleNativePosts } from "@/lib/social-post";
 import { checkCaption, type Finding } from "@/lib/post-preflight-checks";
 import { fingerprintStored, hashDistance, SAME_LOOK_BITS } from "@/lib/media-fingerprint";
-import { checkDriveFolder, importDriveFile } from "@/lib/planner-drive";
-import { connectedPlatforms, pickPlatforms, updatePlannerPost } from "@/lib/planner-intake";
+import { connectedPlatforms, updatePlannerPost } from "@/lib/planner-intake";
 import { lengthProblem, planBulkDates, pktToday, pktTomorrow, takes } from "@/lib/planner-rules";
 import type { PostType, ScheduledPost } from "@/lib/dashboard/types";
 
@@ -31,7 +30,6 @@ import type { PostType, ScheduledPost } from "@/lib/dashboard/types";
 export type AuditAction =
   | { type: "remove"; postId: string }
   | { type: "move"; postId: string; date: string }
-  | { type: "import"; fileId: string; date: string; platforms: string[] | null }
   | { type: "fix-platforms"; postId: string; platforms: string[] }
   | { type: "strip-emoji"; postId: string }
   | { type: "open"; postId: string };
@@ -46,7 +44,7 @@ export type AuditItem = {
   safe?: boolean;
 };
 
-export type AuditResult = { items: AuditItem[]; checked: number; backfilled: number; folderChecked: boolean };
+export type AuditResult = { items: AuditItem[]; checked: number; backfilled: number };
 
 type Row = ScheduledPost & { media_md5?: string | null; media_phash?: string | null; media_seconds?: number | null; created_at?: string; claimed_until?: string | null };
 
@@ -113,7 +111,7 @@ function removable(a: Row, b: Row): Row | null {
   return null;
 }
 
-export async function auditPlanner(projectId: string, opts: { folderLink?: string | null } = {}): Promise<AuditResult> {
+export async function auditPlanner(projectId: string): Promise<AuditResult> {
   const rows = await loadRows(projectId);
   const backfilled = await backfill(rows, 20_000);
   const connected = await connectedPlatforms(projectId);
@@ -166,38 +164,7 @@ export async function auditPlanner(projectId: string, opts: { folderLink?: strin
     });
   }
 
-  // 2. The Drive folder: every file is on the planner (by Drive id or content), or listed as a repeat.
-  let folderChecked = false;
-  if (opts.folderLink?.trim()) {
-    try {
-      const check = await checkDriveFolder(projectId, opts.folderLink);
-      folderChecked = true;
-      for (const f of check.files) {
-        try {
-          const picked = pickPlatforms(f.kind, connected, null, f.seconds);
-          items.push({
-            key: `drive:${f.id}`,
-            severity: "fix",
-            title: `Not on the planner yet: ${f.name}`,
-            detail: `In the Drive folder but not on the planner. Import puts it on the next free day (${f.kind === "reel" ? "Reel" : "picture post"} → ${picked.list.join(", ") || "waits for a connection"}).`,
-            action: { type: "import", fileId: f.id, date: takeDay(/friday/i.test(f.name)), platforms: picked.target },
-          });
-        } catch (error) {
-          items.push({ key: `drive:${f.id}`, severity: "check", title: `Not on the planner: ${f.name}`, detail: error instanceof Error ? error.message : "No connected platform takes it." });
-        }
-      }
-      if (check.unsupported.length || check.tooBig.length) {
-        items.push({
-          key: "drive-skipped",
-          severity: "info",
-          title: "Drive files the planner can't take",
-          detail: [...check.unsupported.map((n) => `${n} (not a JPG/PNG/WebP or MP4/MOV)`), ...check.tooBig.map((n) => `${n} (too big: pictures 25 MB, videos 100 MB; videos go up from the PC)`)].join(", "),
-        });
-      }
-    } catch (error) {
-      items.push({ key: "drive-error", severity: "check", title: "The Drive folder couldn't be read", detail: error instanceof Error ? error.message : String(error) });
-    }
-  }
+  // (A Drive folder is checked right after its import, in the Bulk upload: lib/planner-drive.ts verifyDriveImport.)
 
   // 3. Platforms: each one can take the post; length fits; still connected.
   for (const p of upcoming) {
@@ -293,7 +260,7 @@ export async function auditPlanner(projectId: string, opts: { folderLink?: strin
 
   const order = { fix: 0, check: 1, info: 2 } as const;
   items.sort((a, b) => order[a.severity] - order[b.severity]);
-  return { items, checked: rows.length, backfilled, folderChecked };
+  return { items, checked: rows.length, backfilled };
 }
 
 /** Removes a post that hasn't gone out: its Facebook draft first, then the post and its files. */
@@ -348,9 +315,6 @@ export async function applyAuditAction(projectId: string, action: AuditAction): 
       if (post.status === "scheduled" && native.length) await rescheduleNativePosts(post.id);
       return "Emoji taken out of the caption.";
     }
-    case "import":
-      await importDriveFile({ projectId, fileId: action.fileId, date: action.date, platforms: action.platforms });
-      return `Imported for ${action.date}.`;
     case "open":
       return "Open it on the Planner.";
   }

@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LoaderCircle, X } from "lucide-react";
 import { applyPlannerAuditAction, auditPlannerProject, fixSafePlannerAudit } from "@/lib/dashboard/actions/social";
 import type { AuditAction, AuditItem, AuditResult } from "@/lib/planner-audit";
-import { inputClasses, buttonStyles } from "@/components/dashboard/ui";
+import { buttonStyles } from "@/components/dashboard/ui";
 import { cn } from "@/lib/utils";
 
 const SEVERITY: Record<AuditItem["severity"], { label: string; chip: string }> = {
@@ -20,8 +20,6 @@ function actionLabel(a: AuditAction): string {
       return "Remove";
     case "move":
       return `Move to ${a.date}`;
-    case "import":
-      return `Import for ${a.date}`;
     case "fix-platforms":
       return "Fix";
     case "strip-emoji":
@@ -32,33 +30,25 @@ function actionLabel(a: AuditAction): string {
 }
 
 /**
- * The Planner audit window (Shoaib, 2026-11-09): checks the project's planner
- * against our rules after an upload (lib/planner-audit.ts). "Fix safe ones"
- * only drops platforms that can't take a post; removing, moving and importing
- * are a click each, and Remove asks twice.
+ * The Planner audit window (Shoaib, 2026-11-09): checks the posts on the
+ * project's planner against our rules (lib/planner-audit.ts). A Drive folder
+ * is checked right after its import, in the Bulk upload window. "Fix safe
+ * ones" only drops platforms that can't take a post and takes emoji out of
+ * captions; removing and moving are a click each, and Remove asks twice.
  */
 export default function PlannerAudit({ projectId, onClose, onOpenPost }: { projectId: string; onClose: () => void; onOpenPost: (id: string) => void }) {
   const router = useRouter();
-  const driveKey = `planner-drive-folder:${projectId}`;
-  const [folder, setFolder] = useState(() => {
-    try {
-      return window.localStorage.getItem(driveKey) ?? "";
-    } catch {
-      return "";
-    }
-  });
   const [result, setResult] = useState<AuditResult | null>(null);
   const [busy, setBusy] = useState<string | null>("audit");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [confirmKey, setConfirmKey] = useState<string | null>(null);
-  const folderAtOpen = useRef(folder.trim() || null);
 
   const run = async (note?: string) => {
     setBusy("audit");
     setError(null);
     try {
-      const res = await auditPlannerProject(projectId, folder.trim() || null);
+      const res = await auditPlannerProject(projectId);
       if ("error" in res) throw new Error(res.error);
       setResult(res);
       if (note) setMessage(note);
@@ -72,7 +62,7 @@ export default function PlannerAudit({ projectId, onClose, onOpenPost }: { proje
   // The first audit runs when the window opens; "Check again" runs it after that.
   useEffect(() => {
     let live = true;
-    auditPlannerProject(projectId, folderAtOpen.current)
+    auditPlannerProject(projectId)
       .then((res) => {
         if (!live) return;
         if ("error" in res) setError(res.error);
@@ -115,7 +105,7 @@ export default function PlannerAudit({ projectId, onClose, onOpenPost }: { proje
     setError(null);
     setMessage(null);
     try {
-      const res = await fixSafePlannerAudit(projectId, folder.trim() || null);
+      const res = await fixSafePlannerAudit(projectId);
       if ("error" in res) throw new Error(res.error);
       router.refresh();
       await run(`Fixed ${res.done.length}.${res.failed.length ? ` Not fixed: ${res.failed.join("; ")}` : ""}`);
@@ -135,34 +125,18 @@ export default function PlannerAudit({ projectId, onClose, onOpenPost }: { proje
           <div>
             <p className="font-medium">Planner audit</p>
             <p className="text-small text-ink-muted mt-1">
-              Checks this project&apos;s planner against the rules: the same content twice, Drive files left behind, platforms, Fridays, days and captions.
+              Checks the posts on this project&apos;s planner against the rules: the same content twice, platforms, Fridays, days and captions.
             </p>
           </div>
-          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-ink/5" aria-label="Close">
-            <X className="size-5" aria-hidden />
-          </button>
-        </div>
-
-        <div className="px-6 py-4 space-y-2 border-b border-ink/10">
-          <label className="text-small font-medium" htmlFor="audit-folder">
-            Drive folder (optional)
-          </label>
-          <div className="flex gap-2">
-            <input
-              id="audit-folder"
-              type="url"
-              className={cn(inputClasses, "flex-1")}
-              placeholder="https://drive.google.com/drive/folders/…"
-              value={folder}
-              onChange={(e) => setFolder(e.target.value)}
-              disabled={Boolean(busy)}
-            />
+          <div className="flex items-center gap-2 shrink-0">
             <button type="button" onClick={() => run()} disabled={Boolean(busy)} className={buttonStyles.secondary}>
               {busy === "audit" && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
-              {result ? "Check again" : "Run audit"}
+              Check again
+            </button>
+            <button type="button" onClick={onClose} className="p-1 rounded hover:bg-ink/5" aria-label="Close">
+              <X className="size-5" aria-hidden />
             </button>
           </div>
-          <p className="text-tag text-ink-muted">With a folder, every file in it is checked: on the planner, a repeat, or left behind.</p>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
@@ -170,7 +144,7 @@ export default function PlannerAudit({ projectId, onClose, onOpenPost }: { proje
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-small">
                 <span className="font-medium">{counts.fix}</span> to fix, <span className="font-medium">{counts.check}</span> to check, {counts.info} note(s)
-                <span className="text-ink-muted"> · {result!.checked} posts checked{result!.folderChecked ? ", folder checked" : ""}</span>
+                <span className="text-ink-muted"> · {result!.checked} posts checked</span>
               </p>
               {safeCount > 0 && (
                 <button type="button" onClick={fixSafe} disabled={Boolean(busy)} className={buttonStyles.primary}>

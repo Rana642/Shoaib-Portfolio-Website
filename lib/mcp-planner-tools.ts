@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "./dashboard/db";
+import { verifyDriveImport } from "./planner-drive";
 import { addPlannerPost, importDriveFolder, loadMedia, pickPlatforms, connectedPlatforms, pktWhen, resolveProject, updatePlannerPost, type AddPostResult } from "./planner-intake";
 import { publishNow } from "./social-publish-now";
 import { plannerUploadUrl, signPlannerUploadToken } from "./kb-files";
@@ -16,7 +17,7 @@ import { applyAuditAction, auditPlanner, fixSafeAuditItems, type AuditItem } fro
  */
 
 export const PLANNER_INSTRUCTIONS =
-  "Planner from the chat (social_* tools): social_add_post puts one picture or video on a project's planner (pass the chat's file as `file`, or a link as `url`; a Google Drive file link works). A whole Drive folder goes with social_import_drive_folder: call it first without confirm, show the user the list, and import only after they say yes. social_update_post changes a post's day, time, platforms or kind; social_set_caption_and_schedule its caption; social_publish_now publishes it at once. When a file from the chat can't be passed (or the tool says the file didn't arrive), use social_create_upload_link and give the user the link. After any upload, run social_audit_planner (with the Drive folder link when there is one) and show the user what it found; social_audit_fix applies one item (a Remove only after the user says yes). Duplicates are judged by content, never by file name. Before publishNow (or social_publish_now), tell the user the project, platforms and caption and get a clear yes. The caption and the words on a picture are the approved words from the knowledge base (Content is OURS); never invent them.";
+  "Planner from the chat (social_* tools): social_add_post puts one picture or video on a project's planner (pass the chat's file as `file`, or a link as `url`; a Google Drive file link works). A whole Drive folder goes with social_import_drive_folder: call it first without confirm, show the user the list, and import only after they say yes. social_update_post changes a post's day, time, platforms or kind; social_set_caption_and_schedule its caption; social_publish_now publishes it at once. When a file from the chat can't be passed (or the tool says the file didn't arrive), use social_create_upload_link and give the user the link. After any upload, run social_audit_planner and show the user what it found (a Drive import checks its own folder at the end); social_audit_fix applies one item (a Remove only after the user says yes). Duplicates are judged by content, never by file name. Before publishNow (or social_publish_now), tell the user the project, platforms and caption and get a clear yes. The caption and the words on a picture are the approved words from the knowledge base (Content is OURS); never invent them.";
 
 const ok = (text: string) => ({ content: [{ type: "text" as const, text }] });
 const fail = (error: unknown) => ({ content: [{ type: "text" as const, text: `Error: ${error instanceof Error ? error.message : String(error)}` }], isError: true });
@@ -163,7 +164,17 @@ Args: project, folderLink, startDate (YYYY-MM-DD, default tomorrow), platforms (
         }
         const done = res.imported.map((f) => `- ${f.name} → ${f.date}`).join("\n");
         const failed = res.failed.length ? `\n\nNot imported:\n${res.failed.map((s) => `- ${s}`).join("\n")}` : "";
-        const more = res.remaining > 0 ? `\n\n${res.remaining} file(s) left: call again with the same arguments to continue.` : "\n\nAll done. They wait for captions (social_list_pending_posts). Run social_audit_planner with this folder link to confirm nothing was left behind.";
+        let more = `\n\n${res.remaining} file(s) left: call again with the same arguments to continue.`;
+        if (res.remaining === 0) {
+          // Every file of the folder on the planner now? By Drive id or content, never by name.
+          const check = await verifyDriveImport(project.id, args.folderLink).catch(() => null);
+          more = !check
+            ? "\n\nThe folder check after the import didn't run; call this again (without confirm) to see what is left."
+            : check.leftBehind.length
+              ? `\n\nNot on the planner yet: ${check.leftBehind.join(", ")}. Call again with confirm true to try them again.`
+              : `\n\nChecked: all ${check.total} file(s) of the folder are on the planner. They wait for captions (social_list_pending_posts).`;
+          if (check?.cantTake.length) more += ` Can't go on the planner: ${check.cantTake.join(", ")}.`;
+        }
         return ok(`${project.label}: imported ${res.imported.length}.${done ? `\n${done}` : ""}${failed}${skipped}${more}`);
       } catch (error) {
         return fail(error);
@@ -251,14 +262,13 @@ Args: project, and optionally postType, date, time (Pakistan time), platforms, c
     "social_audit_planner",
     {
       title: "Audit a project's Planner",
-      description: `Checks a project's Planner against our rules, like the Audit button on the dashboard: the same content twice (by file content, never by name), Drive folder files left behind (pass folderLink), platforms that can't take a post or aren't connected, the Friday rule (Jummah posts on Fridays only), two posts on one day and empty days, caption mistakes, posts waiting for a caption, missed and failed posts.
+      description: `Checks a project's Planner against our rules, like the Audit button on the dashboard: the same content twice (by file content, never by name), platforms that can't take a post or aren't connected, the Friday rule (Jummah posts on Fridays only), two posts on one day and empty days, caption mistakes, posts waiting for a caption, missed and failed posts.
 
 Run it after every upload or import and show the user the result. Each fixable item has a key: apply it with social_audit_fix. fixSafe true applies only the safe fixes (dropping a platform that can't take the post, taking emoji out of a caption; the words stay), nothing that removes or moves a post.
 
-Args: project, folderLink (optional), fixSafe (optional).`,
+Args: project, fixSafe (optional).`,
       inputSchema: {
         project: z.string().min(2).max(200),
-        folderLink: z.string().min(10).max(500).optional(),
         fixSafe: z.boolean().optional(),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
@@ -268,12 +278,12 @@ Args: project, folderLink (optional), fixSafe (optional).`,
         const project = await resolveProject(args.project);
         let note = "";
         if (args.fixSafe) {
-          const first = await auditPlanner(project.id, { folderLink: args.folderLink ?? null });
+          const first = await auditPlanner(project.id);
           const fixed = await fixSafeAuditItems(project.id, first.items);
           note = `Safe fixes: ${fixed.done.length} done${fixed.failed.length ? `, not done: ${fixed.failed.join("; ")}` : ""}.\n\n`;
         }
-        const res = await auditPlanner(project.id, { folderLink: args.folderLink ?? null });
-        const scope = `${res.checked} posts checked${res.folderChecked ? ", folder checked" : ""}`;
+        const res = await auditPlanner(project.id);
+        const scope = `${res.checked} posts checked`;
         if (res.items.length === 0) return ok(`${note}${project.label}: all clear (${scope}).`);
         const count = (s: AuditItem["severity"]) => res.items.filter((i) => i.severity === s).length;
         return ok(
@@ -289,20 +299,19 @@ Args: project, folderLink (optional), fixSafe (optional).`,
     "social_audit_fix",
     {
       title: "Apply one Planner audit fix",
-      description: `Applies one item from social_audit_planner by its key: Remove (a duplicate that hasn't gone out; only after the user said yes), Move (to the free day shown), Import (a Drive file left behind), Fix (drop a platform that can't take the post) or Remove emoji (from a caption; the words stay). The audit runs again first, so the fix matches the planner as it is now.
+      description: `Applies one item from social_audit_planner by its key: Remove (a duplicate that hasn't gone out; only after the user said yes), Move (to the free day shown), Fix (drop a platform that can't take the post) or Remove emoji (from a caption; the words stay). The audit runs again first, so the fix matches the planner as it is now.
 
-Args: project, key (from social_audit_planner), folderLink (needed for Drive "Import" items).`,
+Args: project, key (from social_audit_planner).`,
       inputSchema: {
         project: z.string().min(2).max(200),
         key: z.string().min(3).max(200),
-        folderLink: z.string().min(10).max(500).optional(),
       },
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     },
     async (args) => {
       try {
         const project = await resolveProject(args.project);
-        const res = await auditPlanner(project.id, { folderLink: args.folderLink ?? null });
+        const res = await auditPlanner(project.id);
         const item = res.items.find((i) => i.key === args.key);
         if (!item) return ok(`Nothing to do: "${args.key}" isn't in the audit any more (already fixed, or the planner changed). Run social_audit_planner again.`);
         if (!item.action || item.action.type === "open") return ok(`${item.title}: this one needs a look on the Planner (open the post).`);

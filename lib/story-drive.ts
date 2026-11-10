@@ -104,8 +104,25 @@ export async function listFolder(folderId: string, key: string): Promise<DriveFi
 }
 
 export async function downloadFile(fileId: string, key: string): Promise<Buffer> {
-  const res = await fetch(`${DRIVE}/files/${fileId}?alt=media&acknowledgeAbuse=true&supportsAllDrives=true&key=${key}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Couldn't download from Drive (HTTP ${res.status}).`);
+  // Many downloads in a row make Drive answer 403/429 for a while (2026-11-10: the last 6
+  // of a 29-file import). Wait and try again before giving up, and say why if it still fails.
+  let res: Response | null = null;
+  for (const wait of [0, 4000, 10000]) {
+    if (wait) await new Promise((r) => setTimeout(r, wait));
+    res = await fetch(`${DRIVE}/files/${fileId}?alt=media&acknowledgeAbuse=true&supportsAllDrives=true&key=${key}`, { cache: "no-store" });
+    if (res.ok || ![403, 429, 500, 502, 503].includes(res.status)) break;
+  }
+  if (!res || !res.ok) {
+    const body = res ? await res.json().catch(() => null) : null;
+    const reason = (body as { error?: { errors?: { reason?: string }[]; message?: string } } | null)?.error;
+    const why = reason?.errors?.[0]?.reason ?? reason?.message ?? "";
+    const limited = res?.status === 429 || (res?.status === 403 && (!why || /rate|quota|limit/i.test(why)));
+    throw new Error(
+      limited
+        ? `Google Drive is limiting downloads right now${why ? ` (${why})` : ""}. Try again in a few minutes.`
+        : `Couldn't download from Drive (HTTP ${res?.status ?? "no answer"}${why ? `, ${why}` : ""}).`
+    );
+  }
   // When Drive throttles, it answers 200 with an HTML "Sorry…" page instead of the file.
   const type = res.headers.get("content-type") ?? "";
   if (!/^(video|image)\//.test(type)) throw new Error("Google Drive is limiting downloads right now — it will be retried on the next sync.");

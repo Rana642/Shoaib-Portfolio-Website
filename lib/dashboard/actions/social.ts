@@ -31,7 +31,7 @@ import { publishNow, type PublishNowResult } from "../../social-publish-now";
 import { preflightPost } from "../../post-preflight";
 import type { Finding } from "../../post-preflight-checks";
 import { presignDownload } from "../../storage";
-import { checkDriveFolder, importDriveFile, type DriveFolderCheck } from "../../planner-drive";
+import { checkDriveFolder, importDriveFile, verifyDriveImport, type DriveFolderCheck, type DriveImportCheck } from "../../planner-drive";
 import { DuplicateMediaError } from "../../media-fingerprint";
 import { applyAuditAction, auditPlanner, fixSafeAuditItems, type AuditAction, type AuditResult } from "../../planner-audit";
 import { submitNativeScheduleForPost, rescheduleNativePosts, cancelPostEverywhere } from "../../social-post";
@@ -472,12 +472,11 @@ export async function importDriveFileForBulk(input: { projectId: string; fileId:
 }
 
 /** Planner audit (lib/planner-audit.ts): the project's planner against our rules. */
-export async function auditPlannerProject(projectId: string, folderLink: string | null): Promise<AuditResult | { error: string }> {
+export async function auditPlannerProject(projectId: string): Promise<AuditResult | { error: string }> {
   await assertAuthed();
   if (!z.string().uuid().safeParse(projectId).success) return { error: "Pick a project first." };
-  if (folderLink !== null && (typeof folderLink !== "string" || folderLink.length > 500)) return { error: "That isn't a Drive folder link." };
   try {
-    return await auditPlanner(projectId, { folderLink });
+    return await auditPlanner(projectId);
   } catch (error) {
     return { error: error instanceof Error ? error.message : "The audit didn't run." };
   }
@@ -486,13 +485,12 @@ export async function auditPlannerProject(projectId: string, folderLink: string 
 const auditActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("remove"), postId: z.string().uuid() }),
   z.object({ type: z.literal("move"), postId: z.string().uuid(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
-  z.object({ type: z.literal("import"), fileId: z.string().regex(/^[A-Za-z0-9_-]{10,100}$/), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), platforms: z.array(z.string().max(40)).max(10).nullable() }),
   z.object({ type: z.literal("fix-platforms"), postId: z.string().uuid(), platforms: z.array(z.string().max(40)).min(1).max(10) }),
   z.object({ type: z.literal("strip-emoji"), postId: z.string().uuid() }),
   z.object({ type: z.literal("open"), postId: z.string().uuid() }),
 ]);
 
-/** One audit fix, by click (Remove, Move, Import, Fix). */
+/** One audit fix, by click (Remove, Move, Fix, Remove emoji). */
 export async function applyPlannerAuditAction(projectId: string, action: AuditAction): Promise<{ ok: true; message: string } | { error: string }> {
   await assertAuthed();
   const parsed = auditActionSchema.safeParse(action);
@@ -508,15 +506,26 @@ export async function applyPlannerAuditAction(projectId: string, action: AuditAc
 }
 
 /** "Fix safe ones": a fresh audit, then only the fixes that can't lose anything. */
-export async function fixSafePlannerAudit(projectId: string, folderLink: string | null): Promise<{ done: string[]; failed: string[] } | { error: string }> {
+export async function fixSafePlannerAudit(projectId: string): Promise<{ done: string[]; failed: string[] } | { error: string }> {
   await assertAuthed();
   if (!z.string().uuid().safeParse(projectId).success) return { error: "Pick a project first." };
   try {
-    const { items } = await auditPlanner(projectId, { folderLink });
+    const { items } = await auditPlanner(projectId);
     const res = await fixSafeAuditItems(projectId, items);
     revalidatePath("/dashboard/social/planner");
     return res;
   } catch (error) {
     return { error: error instanceof Error ? error.message : "The fixes didn't run." };
+  }
+}
+
+/** Bulk upload from Google Drive, step 3: every file of the folder on the planner now? (by content) */
+export async function verifyDriveImportForBulk(projectId: string, link: string): Promise<DriveImportCheck | { error: string }> {
+  await assertAuthed();
+  if (!z.string().uuid().safeParse(projectId).success || typeof link !== "string" || link.length > 500) return { error: "Invalid folder." };
+  try {
+    return await verifyDriveImport(projectId, link);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't read the Drive folder." };
   }
 }

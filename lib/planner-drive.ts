@@ -142,3 +142,20 @@ export async function importDriveFile(input: { projectId: string; fileId: string
     throw error;
   }
 }
+
+export type DriveImportCheck = { total: number; onPlanner: number; leftBehind: string[]; cantTake: string[] };
+
+/**
+ * After an import: is every file of the folder on the planner? Matched by the
+ * Drive file id or the content (MD5), never by name. A file the same as
+ * another one in the folder counts as there.
+ */
+export async function verifyDriveImport(projectId: string, link: string): Promise<DriveImportCheck> {
+  const check = await checkDriveFolder(projectId, link);
+  return {
+    total: check.files.length + check.duplicates.length,
+    onPlanner: check.duplicates.length,
+    leftBehind: check.files.map((f) => f.name),
+    cantTake: [...check.unsupported.map((n) => `${n} (not a JPG/PNG/WebP or MP4/MOV)`), ...check.tooBig.map((n) => `${n} (too big from Drive; upload it from the PC)`)],
+  };
+}

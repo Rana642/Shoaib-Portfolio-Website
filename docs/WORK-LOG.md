@@ -23,6 +23,11 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - MCP: `social_audit_planner` and `social_audit_fix`.
 - **SQL:** Shoaib must run the 4 columns + 2 indexes at the end of `supabase/dashboard-schema.sql`. Until then nothing is compared, and the posts still save.
 - **Hotel Elegant audit (local, read-only):** 20 scheduled posts (10.jpg … 29.png, 10 Nov–2 Dec) have emoji in their captions; "Fix safe ones" clears them. Fridays 13, 20 and 27 Nov have no Jummah post. The September 28.png (scheduled 1 Dec) is still to be deleted by Shoaib from the Planner; my delete was blocked.
+- **Later the same day (Shoaib):**
+  - The Audit is only for posts on the planner; the Drive field is gone from it.
+  - The Drive import now checks the folder against the planner itself when it ends (`verifyDriveImport`, by Drive id or content). It reports any file left behind.
+  - Drive answered 403 for the last 6 of 29 downloads (rate limit). `downloadFile` now retries after 4 s and 10 s and says why. The Bulk upload tries the slowed files once more after 30 s.
+  - Hotel Elegant: 23 imported (3–29 Dec). 9.png was skipped as the same file as a post already on the planner. 32.png, 33.png and Friday-1…4 are still to import: Fetch, then Import again. The Friday files will fill 13, 20 and 27 Nov and 4 Dec.
 - **Gotcha:** a broken `.next/dev/types/routes.d.ts` (dev server) makes `tsc` stop at syntax errors and skip the real typecheck. Delete `.next/dev/types` before trusting a clean run.
 
 ## 2026-11-09 — Planner: Publish now, post details window (office PC)
