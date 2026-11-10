@@ -28,6 +28,15 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - The Drive import now checks the folder against the planner itself when it ends (`verifyDriveImport`, by Drive id or content). It reports any file left behind.
   - Drive answered 403 for the last 6 of 29 downloads (rate limit). `downloadFile` now retries after 4 s and 10 s and says why. The Bulk upload tries the slowed files once more after 30 s.
   - Hotel Elegant: 23 imported (3–29 Dec). 9.png was skipped as the same file as a post already on the planner. 32.png, 33.png and Friday-1…4 are still to import: Fetch, then Import again. The Friday files will fill 13, 20 and 27 Nov and 4 Dec.
+- **Create post from a link:** the single Create post window has an "Or paste a link" field with a Fetch button. It takes any public picture or video link, or a Google Drive file link.
+  - The server fetches it (`fetchPlannerMediaFromLink`) with the same checks: type, size, the duplicate by content (said before Schedule) and video length. It puts the file in storage and shows a preview.
+  - Closing the window or choosing another file removes the unused copy (`discardPlannerMedia`).
+  - MCP already had this (`social_add_post` `url`).
+- **Hotel Elegant captions (10 Nov):** 28 posts are scheduled with 5 researched hashtags each.
+  - The "A Proud Moment" Reels (6 and 9 Dec) use the hotel's own fact: NOC approved for foreign nationals.
+  - 5.png was deleted.
+  - The new-Director post moved to 10 Nov, 5 PM.
+  - 061 6210499 is allowed on designs only (KB nap doc).
 - **Gotcha:** a broken `.next/dev/types/routes.d.ts` (dev server) makes `tsc` stop at syntax errors and skip the real typecheck. Delete `.next/dev/types` before trusting a clean run.
 
 ## 2026-11-09 — Planner: Publish now, post details window (office PC)

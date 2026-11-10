@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { DayNote } from "@/lib/planner-day-notes";
 import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard, CircleDashed, AlertTriangle, Film, ThumbsUp, LayoutGrid, Download, Send, X, ShieldCheck } from "lucide-react";
-import { clearPostChanges, createPlannerPost, deletePost, importDriveFileForBulk, listDriveFolderForBulk, movePost, verifyDriveImportForBulk, postDownloadUrl, publishPostNow, reorderDay, setPostTime, updatePostCaption } from "@/lib/dashboard/actions/social";
+import { clearPostChanges, createPlannerPost, deletePost, importDriveFileForBulk, listDriveFolderForBulk, movePost, verifyDriveImportForBulk, fetchPlannerMediaFromLink, discardPlannerMedia, postDownloadUrl, publishPostNow, reorderDay, setPostTime, updatePostCaption } from "@/lib/dashboard/actions/social";
 import type { DriveImportFile } from "@/lib/planner-drive";
 import { lengthFits, planBulkDates, takes } from "@/lib/planner-rules";
 import type { Finding } from "@/lib/post-preflight-checks";
@@ -1104,6 +1104,42 @@ function UploadModal({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Or from a link (any public link or a Google Drive file): the server fetches
+  // it into storage with the same checks, so Schedule only needs its key.
+  const [link, setLink] = useState("");
+  const [linked, setLinked] = useState<{ key: string; name: string; mime: string } | null>(null);
+  const dropLinked = () => {
+    if (linked) void discardPlannerMedia(projectId, linked.key);
+    setLinked(null);
+  };
+  const closeModal = () => {
+    dropLinked();
+    onClose();
+  };
+
+  const fetchLink = async () => {
+    setError(null);
+    setBusy(true);
+    setStatus("Getting the file from the link…");
+    try {
+      const res = await fetchPlannerMediaFromLink(projectId, link.trim(), kind);
+      if ("error" in res) throw new Error(res.error);
+      dropLinked();
+      setFile(null);
+      setLinked({ key: res.key, name: res.name, mime: res.mime });
+      setVideoSeconds(res.seconds);
+      setPreviewUrl((prev) => {
+        if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+        return res.previewUrl;
+      });
+      setStatus(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't get the file from that link.");
+      setStatus(null);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const togglePlatform = (platform: string) => {
     if (!takes(kind, platform)) return;
@@ -1119,8 +1155,9 @@ function UploadModal({
     if (next === kind) return;
     setKind(next);
     setFile(null);
+    dropLinked();
     setPreviewUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
       return null;
     });
     setCoverFile(null);
@@ -1154,9 +1191,10 @@ function UploadModal({
       };
       probe.src = probeUrl;
     }
+    dropLinked();
     setFile(picked);
     setPreviewUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
       return URL.createObjectURL(picked);
     });
   };
@@ -1165,7 +1203,7 @@ function UploadModal({
   const PreviewIcon = previewPlatform ? PLATFORM_ICONS[previewPlatform] : null;
 
   const onSubmit = async () => {
-    if (!file) {
+    if (!file && !linked) {
       setError(kind === "reel" || kind === "video" ? "Choose a video first." : kind === "story" ? "Choose an image or a video first." : "Choose an image first.");
       return;
     }
@@ -1233,13 +1271,14 @@ function UploadModal({
         if (!putRes.ok) throw new Error(`Upload failed for ${f.name}.`);
         return urlBody.key as string;
       };
-      const mediaKey = await upload(file);
+      // A file fetched from a link is already in storage.
+      const mediaKey = linked ? linked.key : await upload(file!);
       const coverKey = (kind === "reel" || kind === "video") && coverFile ? await upload(coverFile) : null;
 
       const fd = new FormData();
       fd.set("project_id", projectId);
       fd.set("media_key", mediaKey);
-      fd.set("original_filename", file.name);
+      fd.set("original_filename", linked ? linked.name : file!.name);
       fd.set("date", date);
       if (time) fd.set("time", time);
       // Stories show no caption, so none is sent.
@@ -1258,7 +1297,11 @@ function UploadModal({
       const isSubset = selectedPlatforms.size > 0 && selectedPlatforms.size < connectedPlatforms.filter((p) => takes("post", p)).length;
       if (kind === "post" && isSubset) fd.set("platforms", JSON.stringify([...selectedPlatforms]));
       const result = await createPlannerPost(fd);
-      if (result?.error) throw new Error(result.error);
+      if (result?.error) {
+        // A refused duplicate's copy was already removed on the server.
+        if ("duplicate" in result && result.duplicate) setLinked(null);
+        throw new Error(result.error);
+      }
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
@@ -1269,7 +1312,7 @@ function UploadModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" onClick={closeModal}>
       <div
         className="w-full max-w-3xl bg-white border border-ink/10 rounded-xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
@@ -1300,7 +1343,7 @@ function UploadModal({
             </div>
             )}
           </div>
-          <button type="button" onClick={onClose} className="text-ink-subtle hover:text-ink text-small">
+          <button type="button" onClick={closeModal} className="text-ink-subtle hover:text-ink text-small">
             Close
           </button>
         </div>
@@ -1366,7 +1409,9 @@ function UploadModal({
               <p className="text-small text-ink-muted">
                 {file
                   ? file.name
-                  : kind === "reel"
+                  : linked
+                    ? linked.name
+                    : kind === "reel"
                     ? "Drag & drop or click to choose a video (MP4/MOV, 9:16)"
                     : kind === "video"
                       ? "Drag & drop or click to choose a video (MP4/MOV, landscape or long)"
@@ -1389,6 +1434,27 @@ function UploadModal({
                 onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
               />
             </label>
+
+            {/* Or a link: any public picture/video link, or a Google Drive file (shared "Anyone with the link"). */}
+            <div className="flex gap-2">
+              <input
+                type="url"
+                className={cn(inputClasses, "flex-1 min-w-0")}
+                placeholder="Or paste a link (image, video or Google Drive file)"
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && link.trim() && !busy) {
+                    e.preventDefault();
+                    void fetchLink();
+                  }
+                }}
+                disabled={busy}
+              />
+              <button type="button" onClick={fetchLink} disabled={busy || !link.trim()} className={buttonStyles.secondary}>
+                Fetch
+              </button>
+            </div>
 
             {kind === "story" && (
               <p className="text-tag text-ink-subtle">
@@ -1512,7 +1578,7 @@ function UploadModal({
               </div>
             ) : previewPlatform === "tiktok" || kind !== "post" ? (
               <div className="relative w-full max-w-[220px] aspect-[9/16] rounded-2xl bg-ink overflow-hidden">
-                {previewUrl && file?.type.startsWith("video/") ? (
+                {previewUrl && (file?.type.startsWith("video/") || linked?.mime.startsWith("video/")) ? (
                   <video src={previewUrl} autoPlay muted loop playsInline className="absolute inset-0 size-full object-cover" />
                 ) : previewUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element

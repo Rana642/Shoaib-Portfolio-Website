@@ -30,9 +30,12 @@ import {
 import { publishNow, type PublishNowResult } from "../../social-publish-now";
 import { preflightPost } from "../../post-preflight";
 import type { Finding } from "../../post-preflight-checks";
-import { presignDownload } from "../../storage";
+import { presignDownload, uploadObject } from "../../storage";
+import { randomUUID } from "node:crypto";
+import { db } from "../db";
+import { loadMedia } from "../../planner-intake";
 import { checkDriveFolder, importDriveFile, verifyDriveImport, type DriveFolderCheck, type DriveImportCheck } from "../../planner-drive";
-import { DuplicateMediaError } from "../../media-fingerprint";
+import { describeMatch, DuplicateMediaError, findContentMatch, fingerprintBuffer } from "../../media-fingerprint";
 import { applyAuditAction, auditPlanner, fixSafeAuditItems, type AuditAction, type AuditResult } from "../../planner-audit";
 import { submitNativeScheduleForPost, rescheduleNativePosts, cancelPostEverywhere } from "../../social-post";
 import { deleteObject } from "../../storage";
@@ -528,4 +531,39 @@ export async function verifyDriveImportForBulk(projectId: string, link: string):
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Couldn't read the Drive folder." };
   }
+}
+
+/** Create post: a picture or video from a link (any public link or a Google Drive file),
+ *  copied to storage with the same checks as a chat upload, ready for the composer. */
+export async function fetchPlannerMediaFromLink(
+  projectId: string,
+  link: string,
+  kind: "post" | "reel" | "story" | "video"
+): Promise<{ key: string; name: string; mime: string; size: number; seconds: number | null; previewUrl: string } | { error: string }> {
+  await assertAuthed();
+  if (!z.string().uuid().safeParse(projectId).success) return { error: "Pick a project first." };
+  if (typeof link !== "string" || !/^https:\/\//i.test(link.trim()) || link.length > 2000) return { error: "Paste a full https:// link." };
+  if (!["post", "reel", "story", "video"].includes(kind)) return { error: "Unknown post type." };
+  try {
+    const media = await loadMedia({ url: link.trim() });
+    if ((kind === "reel" || kind === "video") && !media.video) return { error: `This link is a picture. Choose a video for a ${kind === "reel" ? "Reel" : "video"}, or switch to Post.` };
+    if (kind === "post" && media.video) return { error: "This link is a video. Switch to Reel / Short or Video." };
+    // Already on the planner (the same file, whatever its name)? Said now, not after Schedule.
+    const fingerprint = await fingerprintBuffer(media.buffer, media.video, media.seconds);
+    const match = await findContentMatch(projectId, fingerprint, { story: kind === "story" });
+    if (match) return { error: `${describeMatch(match)}. Not added again.` };
+    const key = `social/${projectId}/${randomUUID()}-${media.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-150)}`;
+    await uploadObject(key, media.buffer, media.mime);
+    return { key, name: media.name, mime: media.mime, size: media.buffer.length, seconds: media.seconds, previewUrl: await presignDownload(key, undefined, 3600) };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't get the file from that link." };
+  }
+}
+
+/** Create post closed (or another file chosen) after a link fetch: the copy no post uses is removed. */
+export async function discardPlannerMedia(projectId: string, key: string): Promise<void> {
+  await assertAuthed();
+  if (!z.string().uuid().safeParse(projectId).success || typeof key !== "string" || !key.startsWith(`social/${projectId}/`) || key.includes("..")) return;
+  const { count } = await db.from("scheduled_posts").select("id", { count: "exact", head: true }).eq("media_key", key);
+  if (!count) await deleteObject(key).catch(() => undefined);
 }
