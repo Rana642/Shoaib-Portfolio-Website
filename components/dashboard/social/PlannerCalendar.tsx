@@ -528,7 +528,10 @@ export default function PlannerCalendar({
                     )}
                   >
                     <p className="font-mono uppercase text-tag tracking-widest">{WEEKDAYS[d.getUTCDay()]}</p>
-                    <p className="text-body-lg">{d.getUTCDate()}</p>
+                    {/* The month too, so a week across two months reads right (Shoaib, 2026-11-10). */}
+                    <p className="text-body-lg">
+                      {d.getUTCDate()} <span className="text-small">{d.toLocaleDateString(undefined, { month: "short", timeZone: "UTC" })}</span>
+                    </p>
                     <DayNoteBadges note={dayNotes[key]} />
                   </div>
                   <div className="flex-1 p-2 space-y-2">
