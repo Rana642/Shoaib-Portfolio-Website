@@ -4,6 +4,25 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-11-10 — Ali designs his own graphics in ChatGPT (user MCP "kb_design", 0670978)
+- **Access:** alihusnainalihusnain035@gmail.com (Ali Husnain) is on the restricted user MCP (`/api/mcp-user`). He sees only the Tax Solutions By Ali project, with the groups `kb_read` and `kb_design`. He connects it to ChatGPT with his Google account.
+- **New group `kb_design`** (`lib/mcp-user-design-tools.ts`):
+  - `design_brief` gives one brief of about 36k characters: the project's `design_guide` doc first, then nap, graphic_rules, brand_position and system_rules, the logo/frame/saved image links, and 5 design global rules.
+  - `kb_save_image` takes a ChatGPT file (`openai/fileParams`) or a URL. It saves into his own project only, as `reference_image` with the title prefix "Photo: / Reference: / Design: ".
+  - `kb_create_upload_link` is for the phone app.
+  - The group has no delete, no doc edits, no other project and no Planner.
+  - Server instructions come from `userServerInstructions(groups)`. The admin tool `mcp_user_upsert` accepts `kb_design`. My session's copy of that tool still had the old schema, so the group was set once in the DB.
+- **Shoaib's rules (in KB doc `design_guide/main`):**
+  - Locked: the logo, the brand colours, the footer strip, and the face in Ali's own photo.
+  - Free: the background, the words (ChatGPT writes them, with the facts from the KB: no fees, no ACMA, no fake proof), the text layout and shapes.
+  - Images are saved only when Ali asks.
+- **KB assets added:**
+  - the ATSA logo (light and dark versions);
+  - "Brand frame: LOCKED logo + footer strip" (1080×1350, made in headless Chrome from HTML). ChatGPT starts every post from this frame.
+  - `graphic_rules` Logo section updated (the final ATSA logo, no longer "pending").
+- **Limit:** ChatGPT's image model can't promise a pixel-perfect logo or strip. The guide's self-check tells Ali when it isn't exact.
+- **Not tested from ChatGPT yet.** Tested locally only: the brief, the upload link and the project scope. Local runs need a dummy `MCP_OAUTH_SIGNING_KEY` because `.env.local` lacks it.
+
 ## 2026-11-10 — Planner: duplicates by content, Audit button (office PC)
 - **Why:** the Hotel Elegant November Drive folder showed only 15 of 30 files. 15 had the same names as September posts (1.png, Friday-1.png…) and were skipped as duplicates, but the content is new. Monthly folders reuse names.
 - **Duplicates are now judged by content, never by name** (`lib/media-fingerprint.ts`):
