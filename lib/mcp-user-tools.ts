@@ -4,6 +4,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "./dashboard/db";
 import { kbScope } from "./kb-scope";
 import { registerKnowledgeTools } from "./mcp-knowledge-tools";
+import { DESIGN_INSTRUCTIONS, registerUserDesignTools } from "./mcp-user-design-tools";
 
 /**
  * Tools of the restricted USER MCP (/api/mcp-user). The user gets only what the
@@ -17,6 +18,12 @@ export type McpUser = { id: string; email: string; name: string | null; project_
 
 export const USER_SERVER_INSTRUCTIONS =
   "You are connected to a restricted, read-only view of the Ads by Shoaib knowledge base. You can only see the projects that were granted to you. Start with kb_list_projects, then kb_get_brief for a project. Anything you write in answers must come from what these tools return; if the knowledge base does not say it, say you do not know.";
+
+/** The server instructions for this user: the read-only base, plus the design workflow when "kb_design" is granted. */
+export function userServerInstructions(groups: string[]): string {
+  if (!groups.includes("kb_design")) return USER_SERVER_INSTRUCTIONS;
+  return `${USER_SERVER_INSTRUCTIONS.replace("a restricted, read-only view of", "a restricted view of")} You may also save pictures to your own project's knowledge base. ${DESIGN_INSTRUCTIONS}`;
+}
 
 /** Read-only KB tools that take a projectName (scoped by kbScope) or are safe as they are. */
 const KB_READ_TOOLS = new Set(["kb_get_brief", "kb_list_docs", "kb_get_doc", "kb_list_products", "kb_get_product", "kb_list_assets", "kb_get_asset", "kb_get_global_rules"]);
@@ -76,6 +83,9 @@ export function registerUserTools(server: McpServer, user: McpUser): void {
       }
     );
   }
+
+  // Group "kb_design": design brief + saving pictures to the user's own project (lib/mcp-user-design-tools.ts).
+  if (user.groups.includes("kb_design")) registerUserDesignTools(server, user);
 
   // Always-available, harmless: who am I and what may I do.
   server.registerTool(

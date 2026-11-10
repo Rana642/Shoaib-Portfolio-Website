@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { verifyAccessToken, MCP_USER_METADATA_URL } from "@/lib/mcp-oauth";
-import { registerUserTools, USER_SERVER_INSTRUCTIONS, type McpUser } from "@/lib/mcp-user-tools";
+import { registerUserTools, userServerInstructions, type McpUser } from "@/lib/mcp-user-tools";
 import { db } from "@/lib/dashboard/db";
 
 /**
@@ -35,7 +35,7 @@ async function handle(request: Request): Promise<Response> {
   void db.from("mcp_users").update({ last_seen_at: new Date().toISOString() }).eq("id", data.id).then(() => undefined);
 
   const user: McpUser = { id: data.id as string, email: data.email as string, name: (data.name as string | null) ?? null, project_ids: (data.project_ids as string[]) ?? [], groups: (data.groups as string[]) ?? [] };
-  const server = new McpServer({ name: "adsbyshoaib-user-mcp", version: "1.0.0" }, { instructions: USER_SERVER_INSTRUCTIONS });
+  const server = new McpServer({ name: "adsbyshoaib-user-mcp", version: "1.0.0" }, { instructions: userServerInstructions(user.groups) });
   registerUserTools(server, user);
 
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined });

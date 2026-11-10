@@ -9,7 +9,7 @@ import { db } from "./dashboard/db";
  * changing access needs confirm=true; without it you only get a preview.
  */
 
-const GROUPS = ["kb_read"] as const;
+const GROUPS = ["kb_read", "kb_design"] as const;
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
@@ -73,7 +73,7 @@ Args:
   - email (string): the person's Google email.
   - name (string, optional).
   - projects (string[]): project names or "Client — Project" labels; each must match exactly one project. REPLACES the person's project list.
-  - groups (string[], default ["kb_read"]): "kb_read" = read-only Knowledge Base of their projects.
+  - groups (string[], default ["kb_read"]): "kb_read" = read-only Knowledge Base of their projects. "kb_design" = design graphics from their chat under the project's design_guide doc: design_brief, plus saving pictures (their photo, references, finished designs) into their own project's knowledge base (kb_save_image, kb_create_upload_link). No deletes, no docs, no Planner.
   - active (boolean, default true).
   - confirm (boolean).`,
       inputSchema: {
@@ -86,7 +86,7 @@ Args:
       },
       annotations: WRITE,
     },
-    async ({ email, name, projects, groups, active, confirm }: { email: string; name?: string; projects: string[]; groups?: ("kb_read")[]; active?: boolean; confirm?: boolean }) => {
+    async ({ email, name, projects, groups, active, confirm }: { email: string; name?: string; projects: string[]; groups?: (typeof GROUPS)[number][]; active?: boolean; confirm?: boolean }) => {
       try {
         const resolved = await resolveProjects(projects);
         const row = { email: email.trim().toLowerCase(), name: name ?? null, is_active: active ?? true, project_ids: resolved.map((p) => p.id), groups: groups ?? ["kb_read"] };
