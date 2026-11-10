@@ -35,6 +35,13 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - `design_guide` was rewritten around the safe areas: logo 400×215 top-left, footer from y 1040, Ali's head x 0–290 / y 930–1040. GPT never draws the logo, contact details or a QR.
   - The old thin-strip "Brand frame" and overlay v1 were deleted from the KB.
   - The global footer rule is unchanged; this footer is Tax Solutions only.
+- **Footer v2 (b8f0235), Shoaib's changes:**
+  - The QR now opens the website (taxsolutionsbyali.com), with "Scan to visit" under it.
+  - The number shows once (call + WhatsApp icons).
+  - There is no contact strip; the contacts sit inside the panel.
+  - The CTA reads "Book a free consultation about Tax & Accounting Solutions".
+  - Two versions, "with photo (default)" and "no photo". `brand_finish` takes `overlay: "no photo"`; the default is the one titled "(default)".
+  - The overlays are made by `make-overlays.cjs` (session scratchpad, HTML → headless Chrome). v1/v1.1 were deleted from the KB.
 
 ## 2026-11-10 — Planner: duplicates by content, Audit button (office PC)
 - **Why:** the Hotel Elegant November Drive folder showed only 15 of 30 files. 15 had the same names as September posts (1.png, Friday-1.png…) and were skipped as duplicates, but the content is new. Monthly folders reuse names.
