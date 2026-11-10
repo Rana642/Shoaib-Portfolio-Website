@@ -418,7 +418,8 @@ export async function updatePlannerPost(input: {
 
   // Platforms: given, or (when only the kind changes) the current ones that take the new kind.
   const connected = await connectedPlatforms(post.project_id);
-  let list: string[] = post.target_platforms ?? connected;
+  // What it really goes to: a Reel never reaches LinkedIn or Google, whatever is connected.
+  let list: string[] = (post.target_platforms ?? connected).filter((p) => takes(oldKind, p));
   const kindChanged = kind !== oldKind;
   if (input.platforms != null || kindChanged) {
     let requested: string[] | null = input.platforms === "all" ? null : input.platforms ?? post.target_platforms;
