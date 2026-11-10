@@ -7,6 +7,9 @@ import { rateLimit } from "@/lib/rate-limit";
 // The publishing pipeline takes these; same limit as the dashboard Planner.
 const TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_BYTES = 25 * 1024 * 1024;
+// "Edit posts" can change a Reel or video's file too (Change image), up to 100 MB.
+const VIDEO_TYPES = new Set(["video/mp4", "video/quicktime"]);
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 
 /**
  * Presigned PUT for a client-portal graphic upload. Only for a signed-in
@@ -17,7 +20,7 @@ const MAX_BYTES = 25 * 1024 * 1024;
 export async function POST(request: Request) {
   const ctx = await getPortalUser();
   if (!ctx) return NextResponse.json({ error: "Your session has ended — sign in again." }, { status: 401 });
-  if (!can(ctx, "uploads")) return NextResponse.json({ error: "Uploading isn't switched on for you." }, { status: 403 });
+  if (!can(ctx, "uploads") && !can(ctx, "edit_posts")) return NextResponse.json({ error: "Uploading isn't switched on for you." }, { status: 403 });
   if (!isStorageConfigured) return NextResponse.json({ error: "Uploads aren't available right now." }, { status: 503 });
 
   let body: { name?: string; type?: string; size?: number; projectId?: string };
@@ -32,8 +35,9 @@ export async function POST(request: Request) {
   const projectId = String(body.projectId ?? "");
 
   if (!name || !/^[0-9a-f-]{36}$/i.test(projectId)) return NextResponse.json({ error: "Missing file name or project." }, { status: 400 });
-  if (!TYPES.has(type)) return NextResponse.json({ error: "Please upload JPG, PNG or WebP images." }, { status: 415 });
-  if (!(size > 0) || size > MAX_BYTES) return NextResponse.json({ error: "Each image must be under 25 MB." }, { status: 413 });
+  const video = VIDEO_TYPES.has(type) && can(ctx, "edit_posts");
+  if (!TYPES.has(type) && !video) return NextResponse.json({ error: "Please upload JPG, PNG or WebP images." }, { status: 415 });
+  if (!(size > 0) || size > (video ? MAX_VIDEO_BYTES : MAX_BYTES)) return NextResponse.json({ error: video ? "The video must be under 100 MB." : "Each image must be under 25 MB." }, { status: 413 });
 
   const { data: project } = await db.from("client_projects").select("id").eq("id", projectId).eq("client_id", ctx.clientId).maybeSingle();
   if (!project || !canSeeProject(ctx, projectId)) return NextResponse.json({ error: "That project isn't one of yours." }, { status: 403 });

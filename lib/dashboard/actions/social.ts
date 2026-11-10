@@ -28,7 +28,7 @@ import type { Finding } from "../../post-preflight-checks";
 import { presignDownload, uploadObject } from "../../storage";
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
-import { changePostCaption, changePostTime, removePost } from "../../planner-post-ops";
+import { changePostCaption, changePostTime, removePost, replacePostMedia } from "../../planner-post-ops";
 import { loadMedia } from "../../planner-intake";
 import { checkDriveFolder, importDriveFile, verifyDriveImport, type DriveFolderCheck, type DriveImportCheck } from "../../planner-drive";
 import { describeMatch, DuplicateMediaError, findContentMatch, fingerprintBuffer } from "../../media-fingerprint";
@@ -526,4 +526,21 @@ export async function discardPlannerMedia(projectId: string, key: string): Promi
   if (!z.string().uuid().safeParse(projectId).success || typeof key !== "string" || !key.startsWith(`social/${projectId}/`) || key.includes("..")) return;
   const { count } = await db.from("scheduled_posts").select("id", { count: "exact", head: true }).eq("media_key", key);
   if (!count) await deleteObject(key).catch(() => undefined);
+}
+
+/** Post details "Change image": a new picture or video for the post, everything else kept (lib/planner-post-ops.ts). */
+export async function replacePostFile(postId: string, key: string, name: string): Promise<{ ok: true; notes: string[] } | { error: string }> {
+  await assertAuthed();
+  if (!z.string().uuid().safeParse(postId).success || typeof key !== "string" || typeof name !== "string" || name.length > 300) return { error: "That file couldn't be read." };
+  try {
+    const { notes } = await replacePostMedia(postId, { key, name });
+    revalidatePath("/dashboard/social/planner");
+    revalidatePath("/dashboard/social/stories");
+    return { ok: true, notes };
+  } catch (error) {
+    // The new copy isn't used by any post, so it doesn't stay behind.
+    const { count } = await db.from("scheduled_posts").select("id", { count: "exact", head: true }).eq("media_key", key);
+    if (!count && key.startsWith("social/")) await deleteObject(key).catch(() => undefined);
+    return { error: error instanceof Error ? error.message : "Couldn't change the file." };
+  }
 }

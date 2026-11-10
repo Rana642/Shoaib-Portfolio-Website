@@ -42,6 +42,11 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - With either switch on, a click on a post in the portal Planner opens the same Post details window, running the portal's own actions (`lib/portal/post-actions.ts`). They cover every not-yet-out post of the client's own projects.
   - The checks are the dashboard's own. Caption, time and delete are shared in `lib/planner-post-ops.ts`, which the admin actions now use too. Publish now goes through `publishNow`.
   - Shoaib hears about every change in the client activity report, which now has new kinds: edit, move, publish. A delete is emailed at once.
+- **Change image / Change video** in Post details, on the dashboard and in the portal ("Edit posts"). It swaps the file (`replacePostMedia` in `lib/planner-post-ops.ts`) and keeps the caption, day and time, and platforms.
+  - It runs the upload checks: the right kind, a video's length per platform, and not the same file as another post.
+  - A Facebook draft at Meta is redone with the new file, and is refused when the post's time is close.
+  - A held post goes back to waiting for a caption. The old file is deleted unless a Story still uses it.
+  - The portal upload URL now also takes MP4/MOV up to 100 MB, for "Edit posts".
 - **Gotcha:** a broken `.next/dev/types/routes.d.ts` (dev server) makes `tsc` stop at syntax errors and skip the real typecheck. Delete `.next/dev/types` before trusting a clean run.
 
 ## 2026-11-09 — Planner: Publish now, post details window (office PC)

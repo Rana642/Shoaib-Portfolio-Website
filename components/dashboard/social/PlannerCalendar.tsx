@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { DayNote } from "@/lib/planner-day-notes";
-import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard, CircleDashed, AlertTriangle, Film, ThumbsUp, LayoutGrid, Download, Send, X, ShieldCheck } from "lucide-react";
-import { clearPostChanges, createPlannerPost, deletePost, importDriveFileForBulk, listDriveFolderForBulk, movePost, verifyDriveImportForBulk, fetchPlannerMediaFromLink, discardPlannerMedia, postDownloadUrl, publishPostNow, reorderDay, setPostTime, updatePostCaption } from "@/lib/dashboard/actions/social";
+import { ChevronLeft, ChevronRight, Plus, Trash2, LoaderCircle, UploadCloud, Heart, MessageCircle, Share2, Check, MapPin, Clapperboard, CircleDashed, AlertTriangle, Film, ThumbsUp, LayoutGrid, Download, Send, X, ShieldCheck, ImageUp } from "lucide-react";
+import { clearPostChanges, createPlannerPost, deletePost, importDriveFileForBulk, listDriveFolderForBulk, movePost, verifyDriveImportForBulk, fetchPlannerMediaFromLink, discardPlannerMedia, replacePostFile, postDownloadUrl, publishPostNow, reorderDay, setPostTime, updatePostCaption } from "@/lib/dashboard/actions/social";
 import type { DriveImportFile } from "@/lib/planner-drive";
 import { lengthFits, planBulkDates, takes } from "@/lib/planner-rules";
 import type { Finding } from "@/lib/post-preflight-checks";
@@ -14,7 +14,7 @@ import { ReplaceImageButton } from "@/components/portal/NeedsChangesAlert";
 import { deletePortalUpload } from "@/lib/portal/planner";
 import PlannerUploader from "@/components/portal/PlannerUploader";
 import PlannerAudit from "@/components/dashboard/social/PlannerAudit";
-import { portalDeletePost, portalDownloadUrl, portalPublishNow, portalSetPostTime, portalUpdateCaption } from "@/lib/portal/post-actions";
+import { portalDeletePost, portalDownloadUrl, portalPublishNow, portalReplacePostFile, portalSetPostTime, portalUpdateCaption } from "@/lib/portal/post-actions";
 import { inputClasses, buttonStyles, Card } from "@/components/dashboard/ui";
 import { cn } from "@/lib/utils";
 import { FacebookIcon, InstagramIcon, LinkedinIcon, TikTokIcon, YoutubeIcon } from "@/components/ui/SocialIcons";
@@ -956,6 +956,17 @@ function PostDetails({ post, onClose, client }: { post: PostWithUrl; onClose: ()
                   {needsConfirm ? "Publish anyway" : "Publish now"}
                 </button>
               )}
+              {!out && canEdit && (
+                <ChangeFileButton
+                  post={post}
+                  client={Boolean(client)}
+                  disabled={pending}
+                  onDone={(text, ok) => {
+                    setMessage({ ok, text });
+                    if (ok) router.refresh();
+                  }}
+                />
+              )}
               {post.status !== "posted" && (
                 <button type="button" onClick={download} disabled={pending} className={buttonStyles.secondary}>
                   <Download className="size-4" aria-hidden />
@@ -981,6 +992,59 @@ function PostDetails({ post, onClose, client }: { post: PostWithUrl; onClose: ()
         </div>
       </div>
     </div>
+  );
+}
+
+/** Post details "Change image": a new picture (or video, for a Reel/video/Story)
+ *  in place of the old one. Caption, day/time and platforms stay; the server
+ *  runs the upload checks (lib/planner-post-ops.ts replacePostMedia). */
+function ChangeFileButton({ post, client, disabled, onDone }: { post: ScheduledPost; client: boolean; disabled: boolean; onDone: (text: string, ok: boolean) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const kind = kindOf(post);
+  const accept =
+    kind === "reel" || kind === "video" ? "video/mp4,video/quicktime" : kind === "story" ? "image/jpeg,image/png,image/webp,video/mp4,video/quicktime" : "image/jpeg,image/png,image/webp";
+
+  const change = async (file: File | undefined) => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const res = await fetch(client ? "/api/portal/upload-url" : "/api/dashboard/social/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, type: file.type, size: file.size, projectId: post.project_id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't upload the file.");
+      const put = await fetch(data.url, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+      if (!put.ok) throw new Error("The upload didn't go through. Please try again.");
+      const done = await (client ? portalReplacePostFile : replacePostFile)(post.id, data.key, file.name);
+      if ("error" in done) throw new Error(done.error);
+      onDone(["File changed. The caption, time and platforms are the same.", ...done.notes].join(" "), true);
+    } catch (e) {
+      onDone(e instanceof Error ? e.message : "Couldn't change the file.", false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        className="hidden"
+        onChange={(e) => {
+          void change(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+      <button type="button" disabled={disabled || busy} onClick={() => inputRef.current?.click()} className={buttonStyles.secondary}>
+        {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <ImageUp className="size-4" aria-hidden />}
+        {busy ? "Uploading…" : kind === "reel" || kind === "video" ? "Change video" : "Change image"}
+      </button>
+    </>
   );
 }
 

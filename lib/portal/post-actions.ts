@@ -7,7 +7,8 @@ import { can, canSeeProject, getPortalUser, type PortalContext } from "@/lib/por
 import type { PortalFeature } from "@/lib/portal/features";
 import { getScheduledPost } from "@/lib/scheduled-posts";
 import { presignDownload } from "@/lib/storage";
-import { changePostCaption, changePostTime, removePost } from "@/lib/planner-post-ops";
+import { changePostCaption, changePostTime, removePost, replacePostMedia } from "@/lib/planner-post-ops";
+import { deleteObject } from "@/lib/storage";
 import { publishNow, type PublishNowResult } from "@/lib/social-publish-now";
 import { markClientActivity, type ClientActivity } from "@/lib/upload-digest";
 import { resend, isResendConfigured, fromEmail, toEmail } from "@/lib/resend";
@@ -131,5 +132,22 @@ export async function portalDownloadUrl(postId: string): Promise<{ url: string }
     return { url: await presignDownload(found.post.media_key, found.post.original_filename || "post", 300) };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Couldn't get the file." };
+  }
+}
+
+/** "Change image": a new picture or video for the post; caption, day/time and platforms stay. */
+export async function portalReplacePostFile(postId: string, key: string, name: string): Promise<{ ok: true; notes: string[] } | { error: string }> {
+  const found = await portalPost(postId, "edit_posts");
+  if ("error" in found) return found;
+  if (typeof key !== "string" || typeof name !== "string" || name.length > 300) return { error: "That file couldn't be read." };
+  try {
+    const { notes } = await replacePostMedia(postId, { key, name });
+    await note(found.post, found.ctx, "edit", `image changed (was ${found.post.original_filename})`);
+    refresh();
+    return { ok: true, notes };
+  } catch (error) {
+    const { count } = await db.from("scheduled_posts").select("id", { count: "exact", head: true }).eq("media_key", key);
+    if (!count && key.startsWith(`social/${found.post.project_id}/`)) await deleteObject(key).catch(() => undefined);
+    return { error: error instanceof Error ? error.message : "Couldn't change the file." };
   }
 }
