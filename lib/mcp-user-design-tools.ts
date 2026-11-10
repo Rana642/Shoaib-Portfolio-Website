@@ -2,8 +2,9 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import sharp from "sharp";
 import { db } from "./dashboard/db";
-import { uploadObject } from "./storage";
+import { fetchObject, uploadObject } from "./storage";
 import { kbFileUrl, kbUploadUrl, registerAsset, signUploadToken } from "./kb-files";
 import { loadMedia, MAX_IMAGE_BYTES } from "./planner-intake";
 
@@ -14,6 +15,10 @@ import { loadMedia, MAX_IMAGE_BYTES } from "./planner-intake";
  * - design_brief: one short guide for ChatGPT — the project's design_guide doc
  *   (what is locked, what is free), its brand docs, the design global rules,
  *   and the logo / frame / saved images with links.
+ * - brand_finish: the image model can't keep a logo, a real photo, small
+ *   numbers or a working QR code exact, so ChatGPT designs only the post area
+ *   and this stamps the project's locked "Brand overlay…" PNG (logo + footer,
+ *   transparent elsewhere) on top, fitted to the overlay's size.
  * - kb_save_image: saves a picture from the chat (his photo, a reference, a
  *   finished design) into HIS project's knowledge base, only when he asks.
  * - kb_create_upload_link: the same through a browser page, for when the chat
@@ -22,7 +27,15 @@ import { loadMedia, MAX_IMAGE_BYTES } from "./planner-intake";
  */
 
 export const DESIGN_INSTRUCTIONS =
-  "Designing graphics: you work as a senior professional graphic designer for this brand. Before every design call design_brief and follow it exactly: the logo, the brand colours, the footer strip and the face of a real person in the user's photo are LOCKED; the background, scene, text, text layout and shapes are yours to design fresh for each post. Every fact in the text comes from the knowledge base. After you make an image, check it against the brief's self-check and tell the user the result. Save an image to the knowledge base (kb_save_image) only when the user asks; if the chat file can't be passed, give the user a kb_create_upload_link link.";
+  "Designing graphics: you work as a senior professional graphic designer for this brand. Before every design call design_brief and follow it exactly. When the project has a brand overlay, you design ONLY the post area and never draw the logo, a footer, contact details or a QR code yourself; then pass your image to brand_finish, which puts the real logo and footer on it exactly, and show the user the finished image it returns. The brand colours and the face of a real person in the user's photo are locked; the background, scene, text, text layout and shapes are yours to design fresh for each post. Every fact in the text comes from the knowledge base. Check the result against the brief's self-check and tell the user. Save an image to the knowledge base only when the user asks (brand_finish with save=true, or kb_save_image); if the chat file can't be passed, give the user a kb_create_upload_link link.";
+
+/** The project's locked overlay (logo + footer, transparent elsewhere): the newest asset titled "Brand overlay…". */
+const OVERLAY_PREFIX = "brand overlay";
+async function findOverlay(projectId: string): Promise<{ key: string; title: string } | null> {
+  const { data } = await db.from("project_assets").select("title, storage_key, content_type").eq("project_id", projectId).ilike("title", `${OVERLAY_PREFIX}%`).order("created_at", { ascending: false }).limit(1);
+  const row = (data ?? [])[0] as { title: string; storage_key: string; content_type: string } | undefined;
+  return row && row.content_type === "image/png" ? { key: row.storage_key, title: row.title } : null;
+}
 
 /** Global rules that matter for designing a picture (the rest are about captions, products or planning). */
 const DESIGN_GLOBAL_RULES = ["design-glass-light", "layout-alignment", "text-readability", "social-design-default-size", "plain-english"];
@@ -100,10 +113,16 @@ Args: project (optional when you have one project).`,
         }
         const images = ((assets ?? []) as { id: string; kind: string; title: string; notes: string | null; storage_key: string; content_type: string }[]).filter((a) => a.content_type.startsWith("image/"));
         const line = (a: (typeof images)[number]) => `- ${a.title} (${a.kind}${a.notes ? `; ${a.notes.split("\n")[0].slice(0, 160)}` : ""}): ${kbFileUrl(a.storage_key, a.title)}`;
+        const isOverlay = (a: (typeof images)[number]) => a.title.toLowerCase().startsWith(OVERLAY_PREFIX);
+        const overlay = images.find(isOverlay);
         const logos = images.filter((a) => a.kind === "logo");
-        const saved = images.filter((a) => a.kind !== "logo");
+        const saved = images.filter((a) => a.kind !== "logo" && !isOverlay(a));
         parts.push(
-          `---\n## Logo, frame and saved images\nUse these files as they are; never redraw the logo. If an image you need is not in this chat yet, give the user its link and ask them to attach it here.\n\n**Logo files**\n${logos.length ? logos.map(line).join("\n") : "- None stored yet. Ask the user to attach the official logo."}\n\n**Brand frame, the user's photos, references and finished designs (newest first)**\n${saved.length ? saved.slice(0, 30).map(line).join("\n") : "- None yet."}`
+          `---\n## Logo, overlay and saved images\n${
+            overlay
+              ? `**Brand overlay (locked): ${overlay.title}.** brand_finish puts it on top of your design: the logo top-left and the full footer at the bottom. You never draw the logo, a footer, contact details or a QR code yourself, and never copy this overlay into your design. Its link (to look at the safe areas only): ${kbFileUrl(overlay.storage_key, overlay.title)}\n\n`
+              : ""
+          }Use these files as they are; never redraw the logo. If an image you need is not in this chat yet, give the user its link and ask them to attach it here.\n\n**Logo files**\n${logos.length ? logos.map(line).join("\n") : "- None stored yet. Ask the user to attach the official logo."}\n\n**The user's photos, references and finished designs (newest first)**\n${saved.length ? saved.slice(0, 30).map(line).join("\n") : "- None yet."}`
         );
         const ruleRows = (rules ?? []) as { slug: string; title: string; content: string }[];
         for (const slug of DESIGN_GLOBAL_RULES) {
@@ -111,6 +130,66 @@ Args: project (optional when you have one project).`,
           if (r) parts.push(`---\n## Design rule: ${r.title}\n${r.content}`);
         }
         return ok(parts.join("\n\n"));
+      } catch (error) {
+        return fail(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "brand_finish",
+    {
+      title: "Finish A Design With The Real Logo And Footer",
+      description: `Puts the project's locked brand overlay (the real logo top-left and the full footer: photo, name, credential, call to action, QR code and contact strip) on top of your design, exactly, and returns the finished post. Use it on every design for a project that has a brand overlay; never draw those parts yourself.
+
+Your design: \`file\` = the image you made in this chat (ChatGPT passes it here), or \`url\` = a public https link to it. It is fitted to 1080 × 1350 (4:5): a taller image (like 1024 × 1536) loses its bottom part, which the footer covers anyway. Keep the design brief's safe areas clear.
+
+Args: project (optional), title (short, e.g. "IAS 1 vs IFRS 18"), save (true only when the user asked to keep it in the knowledge base).
+Returns the finished image and a link to download it.`,
+      inputSchema: {
+        project: projectArg,
+        file: chatFileSchema.optional(),
+        url: z.string().url().max(2000).optional(),
+        title: z.string().min(1).max(150).optional(),
+        save: z.boolean().optional(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+      _meta: { "openai/fileParams": ["file"] },
+    },
+    async (args: { project?: string; file?: z.infer<typeof chatFileSchema>; url?: string; title?: string; save?: boolean }) => {
+      try {
+        const project = await myProject(allowed, args.project);
+        const overlay = await findOverlay(project.id);
+        if (!overlay) throw new Error("This project has no brand overlay yet, so there is nothing to put on. Ask Shoaib to add one.");
+        const media = await loadMedia({ file: args.file, url: args.url });
+        if (media.video) throw new Error("Only pictures can be finished here (JPG, PNG or WebP).");
+
+        const layer = (await fetchObject(overlay.key)).buffer;
+        const { width: W = 1080, height: H = 1350 } = await sharp(layer).metadata();
+        const src = await sharp(media.buffer).rotate().metadata();
+        const srcRatio = (src.width ?? W) / (src.height ?? H);
+        // Cropped from the bottom: that is where the footer goes anyway.
+        const base = await sharp(media.buffer).rotate().resize(W, H, { fit: "cover", position: "top" }).toBuffer();
+        const finished = await sharp(base).composite([{ input: layer }]).png().toBuffer();
+
+        const title = (args.title?.trim() || `Post ${new Date().toISOString().slice(0, 10)}`).slice(0, 140);
+        const key = `knowledge/${project.id}/finished/${randomUUID()}.png`;
+        await uploadObject(key, finished, "image/png");
+        const link = kbFileUrl(key, title);
+        let saved = "";
+        if (args.save) {
+          const asset = await registerAsset({ projectId: project.id, kind: "reference_image", title: savedTitle("finished_design", title), key, contentType: "image/png", notes: `Finished with brand_finish by ${user.email}, ${new Date().toISOString().slice(0, 10)}.` });
+          saved = ` Saved to the knowledge base as "${savedTitle("finished_design", title)}" (asset ${asset.id}).`;
+        }
+        const cropNote = Math.abs(srcRatio - W / H) > 0.02 ? ` Your image (${src.width} × ${src.height}) was fitted to ${W} × ${H}, so its bottom part was cut.` : "";
+        const preview = await sharp(finished).jpeg({ quality: 85 }).toBuffer();
+        return {
+          content: [
+            { type: "image" as const, data: preview.toString("base64"), mimeType: "image/jpeg" },
+            { type: "text" as const, text: `Finished: "${title}" for ${project.name}, ${W} × ${H}, with the real logo and footer (${overlay.title}).${cropNote}${saved}\nDownload (PNG): ${link}\nShow the user this link and the image. If any of your text sits under the footer or the logo, move it into the safe area and run brand_finish again.` },
+          ],
+          structuredContent: { url: link, width: W, height: H, saved: Boolean(args.save) },
+        };
       } catch (error) {
         return fail(error);
       }
