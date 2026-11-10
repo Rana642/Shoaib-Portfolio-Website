@@ -29,12 +29,24 @@ import { loadMedia, MAX_IMAGE_BYTES } from "./planner-intake";
 export const DESIGN_INSTRUCTIONS =
   "Designing graphics: you work as a senior professional graphic designer for this brand. Before every design call design_brief and follow it exactly. When the project has a brand overlay, you design ONLY the post area and never draw the logo, a footer, contact details or a QR code yourself; then pass your image to brand_finish, which puts the real logo and footer on it exactly, and show the user the finished image it returns. The brand colours and the face of a real person in the user's photo are locked; the background, scene, text, text layout and shapes are yours to design fresh for each post. Every fact in the text comes from the knowledge base. Check the result against the brief's self-check and tell the user. Save an image to the knowledge base only when the user asks (brand_finish with save=true, or kb_save_image); if the chat file can't be passed, give the user a kb_create_upload_link link.";
 
-/** The project's locked overlay (logo + footer, transparent elsewhere): the newest asset titled "Brand overlay…". */
+/** The project's locked overlays (logo + footer, transparent elsewhere): PNG assets titled "Brand overlay…".
+ *  A project may have versions (e.g. "with photo" / "no photo"): `choice` picks by words in the title;
+ *  otherwise the one titled "(default)", else the newest. */
 const OVERLAY_PREFIX = "brand overlay";
-async function findOverlay(projectId: string): Promise<{ key: string; title: string } | null> {
-  const { data } = await db.from("project_assets").select("title, storage_key, content_type").eq("project_id", projectId).ilike("title", `${OVERLAY_PREFIX}%`).order("created_at", { ascending: false }).limit(1);
-  const row = (data ?? [])[0] as { title: string; storage_key: string; content_type: string } | undefined;
-  return row && row.content_type === "image/png" ? { key: row.storage_key, title: row.title } : null;
+async function listOverlays(projectId: string): Promise<{ key: string; title: string }[]> {
+  const { data } = await db.from("project_assets").select("title, storage_key, content_type").eq("project_id", projectId).ilike("title", `${OVERLAY_PREFIX}%`).order("created_at", { ascending: false });
+  return ((data ?? []) as { title: string; storage_key: string; content_type: string }[]).filter((r) => r.content_type === "image/png").map((r) => ({ key: r.storage_key, title: r.title }));
+}
+async function findOverlay(projectId: string, choice?: string): Promise<{ key: string; title: string } | null> {
+  const all = await listOverlays(projectId);
+  if (!all.length) return null;
+  if (choice?.trim()) {
+    const words = choice.toLowerCase().split(/[\s_-]+/).filter(Boolean);
+    const hit = all.find((o) => words.every((w) => o.title.toLowerCase().includes(w)));
+    if (!hit) throw new Error(`No overlay matches "${choice}". This project has: ${all.map((o) => o.title).join("; ")}.`);
+    return hit;
+  }
+  return all.find((o) => o.title.toLowerCase().includes("(default)")) ?? all[0];
 }
 
 /** Global rules that matter for designing a picture (the rest are about captions, products or planning). */
@@ -114,13 +126,13 @@ Args: project (optional when you have one project).`,
         const images = ((assets ?? []) as { id: string; kind: string; title: string; notes: string | null; storage_key: string; content_type: string }[]).filter((a) => a.content_type.startsWith("image/"));
         const line = (a: (typeof images)[number]) => `- ${a.title} (${a.kind}${a.notes ? `; ${a.notes.split("\n")[0].slice(0, 160)}` : ""}): ${kbFileUrl(a.storage_key, a.title)}`;
         const isOverlay = (a: (typeof images)[number]) => a.title.toLowerCase().startsWith(OVERLAY_PREFIX);
-        const overlay = images.find(isOverlay);
+        const overlays = images.filter(isOverlay);
         const logos = images.filter((a) => a.kind === "logo");
         const saved = images.filter((a) => a.kind !== "logo" && !isOverlay(a));
         parts.push(
           `---\n## Logo, overlay and saved images\n${
-            overlay
-              ? `**Brand overlay (locked): ${overlay.title}.** brand_finish puts it on top of your design: the logo top-left and the full footer at the bottom. You never draw the logo, a footer, contact details or a QR code yourself, and never copy this overlay into your design. Its link (to look at the safe areas only): ${kbFileUrl(overlay.storage_key, overlay.title)}\n\n`
+            overlays.length
+              ? `**Brand overlay (locked).** brand_finish puts it on top of your design: the logo top-left and the full footer at the bottom. You never draw the logo, a footer, contact details or a QR code yourself, and never copy an overlay into your design. ${overlays.length > 1 ? `Versions (pick one with brand_finish \`overlay\`, e.g. "no photo"; without it the "(default)" one is used):` : "Overlay:"}\n${overlays.map((o) => `- ${o.title} (look at the safe areas only): ${kbFileUrl(o.storage_key, o.title)}`).join("\n")}\n\n`
               : ""
           }Use these files as they are; never redraw the logo. If an image you need is not in this chat yet, give the user its link and ask them to attach it here.\n\n**Logo files**\n${logos.length ? logos.map(line).join("\n") : "- None stored yet. Ask the user to attach the official logo."}\n\n**The user's photos, references and finished designs (newest first)**\n${saved.length ? saved.slice(0, 30).map(line).join("\n") : "- None yet."}`
         );
@@ -144,22 +156,23 @@ Args: project (optional when you have one project).`,
 
 Your design: \`file\` = the image you made in this chat (ChatGPT passes it here), or \`url\` = a public https link to it. It is fitted to 1080 × 1350 (4:5): a taller image (like 1024 × 1536) loses its bottom part, which the footer covers anyway. Keep the design brief's safe areas clear.
 
-Args: project (optional), title (short, e.g. "IAS 1 vs IFRS 18"), save (true only when the user asked to keep it in the knowledge base).
+Args: project (optional), overlay (optional: which footer version when the project has more than one, e.g. "no photo" or "with photo"; default = the "(default)" one), title (short, e.g. "IAS 1 vs IFRS 18"), save (true only when the user asked to keep it in the knowledge base).
 Returns the finished image and a link to download it.`,
       inputSchema: {
         project: projectArg,
         file: chatFileSchema.optional(),
         url: z.string().url().max(2000).optional(),
+        overlay: z.string().min(2).max(80).optional(),
         title: z.string().min(1).max(150).optional(),
         save: z.boolean().optional(),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       _meta: { "openai/fileParams": ["file"] },
     },
-    async (args: { project?: string; file?: z.infer<typeof chatFileSchema>; url?: string; title?: string; save?: boolean }) => {
+    async (args: { project?: string; file?: z.infer<typeof chatFileSchema>; url?: string; overlay?: string; title?: string; save?: boolean }) => {
       try {
         const project = await myProject(allowed, args.project);
-        const overlay = await findOverlay(project.id);
+        const overlay = await findOverlay(project.id, args.overlay);
         if (!overlay) throw new Error("This project has no brand overlay yet, so there is nothing to put on. Ask Shoaib to add one.");
         const media = await loadMedia({ file: args.file, url: args.url });
         if (media.video) throw new Error("Only pictures can be finished here (JPG, PNG or WebP).");
