@@ -61,7 +61,18 @@ const isFridayFile = (p: Row) => FRIDAY_NAME.test(p.original_filename);
 const EMOJI_PARTS = /[\p{Extended_Pictographic}\u{FE0F}\u{FE0E}\u{200D}\u{20E3}\u{1F3FB}-\u{1F3FF}\u{1F1E6}-\u{1F1FF}]/gu;
 /** The caption without emoji (house rule, 2026-11-02); the words stay exactly as approved. */
 export function stripEmoji(caption: string): string {
-  return caption
+  // A contact line keeps its meaning: the emoji becomes the label the global rule asks for.
+  const labelled = caption
+    .split("\n")
+    .map((line) =>
+      line
+        .replace(/^(\s*)(?:📞|☎️?|📱)️?\s*/u, "$1Call: ")
+        .replace(/^(\s*)(?:📧|✉️?)️?\s*/u, "$1Email: ")
+        .replace(/^(\s*)📍️?\s*/u, "$1Location: ")
+        .replace(/^(\s*)(?:🌐|🔗)️?\s*/u, "$1Web: ")
+    )
+    .join("\n");
+  return labelled
     .replace(EMOJI_PARTS, "")
     .split("\n")
     .map((line) => line.replace(/[ \t]{2,}/g, " ").replace(/^[ \t]+|[ \t]+$/g, "").replace(/ +([,.!?:;])/g, "$1"))
