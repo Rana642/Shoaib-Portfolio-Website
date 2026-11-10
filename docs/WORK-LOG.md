@@ -22,6 +22,19 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - `graphic_rules` Logo section updated (the final ATSA logo, no longer "pending").
 - **Limit:** ChatGPT's image model can't promise a pixel-perfect logo or strip. The guide's self-check tells Ali when it isn't exact.
 - **Not tested from ChatGPT yet.** Tested locally only: the brief, the upload link and the project scope. Local runs need a dummy `MCP_OAUTH_SIGNING_KEY` because `.env.local` lacks it.
+- **Later (94e2166): GPT drew its own footer (CALL/WHATSAPP labels) and put the logo top-right.** So the logo and footer are no longer left to the image model:
+  - Shoaib asked for a project-only marketing footer. It has:
+    - Ali's cut-out (from `ali-hero-v4.webp`, no monitor);
+    - "Ali Husnain", "AFA – CMA Inter (ICMAP)" and "Management Accountant & Tax Consultant";
+    - the green CTA "Book a free tax & accounts consultation";
+    - a QR code (placeholder, wa.me/923014436446 "Scan to chat"; Ali decides);
+    - the navy contact strip.
+  - The logo sits on a white card top-left.
+  - Both are in one transparent PNG, KB asset "Brand overlay (LOCKED) v1.1" (made in headless Chrome from HTML; the source is in the session scratchpad).
+  - The new tool **`brand_finish`** (group kb_design) fits ChatGPT's image to the overlay's size (cover, cropped from the bottom) and composites the newest "Brand overlay…" PNG on top. It returns a JPEG preview and a PNG link under `knowledge/<project>/finished/`; `save:true` registers it.
+  - `design_guide` was rewritten around the safe areas: logo 400×215 top-left, footer from y 1040, Ali's head x 0–290 / y 930–1040. GPT never draws the logo, contact details or a QR.
+  - The old thin-strip "Brand frame" and overlay v1 were deleted from the KB.
+  - The global footer rule is unchanged; this footer is Tax Solutions only.
 
 ## 2026-11-10 — Planner: duplicates by content, Audit button (office PC)
 - **Why:** the Hotel Elegant November Drive folder showed only 15 of 30 files. 15 had the same names as September posts (1.png, Friday-1.png…) and were skipped as duplicates, but the content is new. Monthly folders reuse names.
