@@ -52,6 +52,12 @@ context (decisions, gotchas, rules) is in the second-brain vault:
   - Pre-flight runs first. A FIX keeps the post on the planner, waiting for a caption. CHECK items need "Publish anyway" before it goes out now, and until then the post waits, so it can't slip out on the cron.
   - Each one shows in the activity report.
 - **Gotcha:** a broken `.next/dev/types/routes.d.ts` (dev server) makes `tsc` stop at syntax errors and skip the real typecheck. Delete `.next/dev/types` before trusting a clean run.
+- **Hotel Silver Sand (10 Nov):** all 29 folder files reached the planner (the last 4 Fridays via MCP after Drive's 403s).
+  - 27 are scheduled, 13 Nov – 12 Dec, with the captions in `client-briefs/Hotel-Silver-Sand-captions-Nov-Dec-2026.md`, as written. Shoaib said not to add facts from the posts to the KB.
+  - 29.png deleted: it showed a fake 4.8★ / "4-star hotel". It went back to the designer; the corrected file will come back.
+  - 23.png (5 Dec) waits for a caption: its "executive rooms / free meeting room" offer must be confirmed by the hotel first.
+  - Audit: 0 to fix. 11 Dec has no Jummah post and 10 Dec no post. The next stock fills them (Shoaib's call).
+  - Open: which landline is right, 061 4503355 (designs) or 061-451-8061 (captions)?
 
 ## 2026-11-09 — Planner: Publish now, post details window (office PC)
 - **Post details:** click a post's picture or caption on the Planner (admin) to open it. You can:
