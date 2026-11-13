@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "../dashboard/db";
+import { unattendedSendingAllowed } from "../socially-snap/client";
 import { sendText } from "./index";
 
 /**
@@ -40,6 +41,8 @@ const render = (text: string, name: string | null) =>
   text.replace(/\{name\}/gi, (name ?? "").trim().split(/\s+/)[0] ?? "").replace(/\s+([,.!?])/g, "$1").trim();
 
 export async function runAutomation(now = new Date()) {
+  // Socially Snap test mode (or a bad setting): leave the one-shot flags alone, nothing real would be sent.
+  if (!unattendedSendingAllowed()) return [];
   const { data: accounts } = await db.from("wa_accounts").select("id, automation");
   const sent: { contact: string; kind: string; error?: string }[] = [];
 

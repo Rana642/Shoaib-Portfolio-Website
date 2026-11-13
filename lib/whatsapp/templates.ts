@@ -1,6 +1,8 @@
 import "server-only";
 import { db } from "../dashboard/db";
 import { markReplied, tokenForAccount } from "./index";
+import { sociallySnapMode } from "../socially-snap/client";
+import { sendTemplateViaSociallySnap } from "../socially-snap/send";
 import { countVars, fillVars, validateTemplate, type TemplateInput, type WaTemplate } from "./template-shared";
 
 /**
@@ -156,24 +158,33 @@ export async function deliverTemplate(
   if (!contact) return { error: "Chat not found." };
   const account = contact.wa_accounts as unknown as { id: string; phone_number_id: string };
 
-  const token = await tokenForAccount(account.id);
-  const res = await fetch(`${GRAPH}/${account.phone_number_id}/messages`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to: contact.wa_id,
-      type: "template",
-      template: {
-        name: template.name,
-        language: { code: template.language },
-        ...(values.length ? { components: [{ type: "body", parameters: values.map((text) => ({ type: "text", text })) }] } : {}),
-      },
-    }),
-  });
-  const json = (await res.json().catch(() => ({}))) as { messages?: { id: string }[]; error?: { message?: string } };
-  const wamid = json.messages?.[0]?.id;
-  if (!res.ok || !wamid) return { error: json.error?.message ?? `WhatsApp API error (${res.status})` };
+  let wamid: string;
+  if (sociallySnapMode() === "off") {
+    const token = await tokenForAccount(account.id);
+    const res = await fetch(`${GRAPH}/${account.phone_number_id}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: contact.wa_id,
+        type: "template",
+        template: {
+          name: template.name,
+          language: { code: template.language },
+          ...(values.length ? { components: [{ type: "body", parameters: values.map((text) => ({ type: "text", text })) }] } : {}),
+        },
+      }),
+    });
+    const json = (await res.json().catch(() => ({}))) as { messages?: { id: string }[]; error?: { message?: string } };
+    const sentId = json.messages?.[0]?.id;
+    if (!res.ok || !sentId) return { error: json.error?.message ?? `WhatsApp API error (${res.status})` };
+    wamid = sentId;
+  } else {
+    // Through the Socially Snap API. A dry run comes back as { error }, so nothing is stored.
+    const sent = await sendTemplateViaSociallySnap(contact.wa_id, template.name, template.language, values, account.phone_number_id);
+    if ("error" in sent) return sent;
+    wamid = sent.wamid;
+  }
 
   const body = [template.header, fillVars(template.body, values), template.footer].filter(Boolean).join("\n\n");
   const at = new Date().toISOString();

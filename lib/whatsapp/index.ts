@@ -3,6 +3,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "../dashboard/db";
 import { getVaultCredential } from "../marketing-vault";
 import { decryptField } from "../api-vault-crypto";
+import { sociallySnapMode } from "../socially-snap/client";
+import { sendTextViaSociallySnap } from "../socially-snap/send";
 
 /**
  * WhatsApp Cloud API on the "Socially Snap" Meta app — docs/WHATSAPP-INBOX-PLAN.md.
@@ -400,20 +402,29 @@ export async function sendText(contactId: string, text: string, via: "api" | "au
     return { error: "The 24-hour reply window has closed — the guest has to message first (or send an approved template)." };
   }
 
-  const token = await tokenForAccount(account.id);
-  const res = await fetch(`${GRAPH}/${account.phone_number_id}/messages`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ messaging_product: "whatsapp", to: contact.wa_id, type: "text", text: { body: text } }),
-  });
-  const json = (await res.json()) as { messages?: { id: string }[]; error?: { message?: string } };
-  if (!res.ok || !json.messages?.[0]?.id) return { error: json.error?.message ?? `WhatsApp API error (${res.status})` };
+  let wamid: string;
+  if (sociallySnapMode() === "off") {
+    const token = await tokenForAccount(account.id);
+    const res = await fetch(`${GRAPH}/${account.phone_number_id}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messaging_product: "whatsapp", to: contact.wa_id, type: "text", text: { body: text } }),
+    });
+    const json = (await res.json()) as { messages?: { id: string }[]; error?: { message?: string } };
+    if (!res.ok || !json.messages?.[0]?.id) return { error: json.error?.message ?? `WhatsApp API error (${res.status})` };
+    wamid = json.messages[0].id;
+  } else {
+    // Through the Socially Snap API. A dry run comes back as { error }, so nothing is stored.
+    const sent = await sendTextViaSociallySnap(contact.wa_id, text, account.phone_number_id);
+    if ("error" in sent) return sent;
+    wamid = sent.wamid;
+  }
 
   const at = new Date().toISOString();
   await db.from("wa_messages").insert({
     account_id: account.id,
     contact_id: contact.id,
-    wamid: json.messages[0].id,
+    wamid,
     direction: "out",
     via,
     type: "text",

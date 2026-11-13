@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "tsx --test \"lib/socially-snap/**/*.test.ts\"",
     "generate:resume-pdf": "tsx scripts/generate-resume-pdf.tsx",
     "migrate:sanity": "tsx --env-file=.env.local scripts/migrate-to-sanity.ts",
     "backup:db": "node scripts/backup-db.mjs",

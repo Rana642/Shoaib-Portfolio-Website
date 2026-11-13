@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "../dashboard/db";
+import { unattendedSendingAllowed } from "../socially-snap/client";
 import { deliverTemplate, listTemplates } from "./templates";
 import { WHATSAPP_RATES } from "./rates";
 import type { WaTemplate } from "./template-shared";
@@ -124,6 +125,8 @@ export async function cancelBroadcast(id: string) {
 
 /** Cron: send the next batch of every due broadcast. */
 export async function runBroadcasts(now = new Date()) {
+  // Socially Snap test mode (or a bad setting): recipients stay queued instead of being spent on dry runs.
+  if (!unattendedSendingAllowed()) return [];
   const { data: due } = await db
     .from("wa_broadcasts")
     .select("id, template, params, audience, status")

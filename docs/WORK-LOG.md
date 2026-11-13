@@ -4,6 +4,13 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-11-13 — Socially Snap API client behind a switch (Phase 5 step 1, nothing live changes)
+- **What:** `lib/socially-snap/` is a client for the Socially Snap WhatsApp API (send text/template/media, media download, templates, phone numbers), plus `send.ts` that the inbox uses. `sendText` (`lib/whatsapp/index.ts`) and `deliverTemplate` (`templates.ts`) now branch on env `WHATSAPP_VIA_SOCIALLY_SNAP`: **unset/`off` = the old Meta Graph code, unchanged** (default). `test` = through the API with `SOCIALLYSNAP_API_KEY_TEST` (dry run: nothing is sent, nothing is stored, the staff see "Socially Snap test mode…" through the error channel). `live` = real sends through the API with `SOCIALLYSNAP_API_KEY_LIVE`; not to be used until the cutover (the +92 311 number can't be connected to the platform before it, see the spec).
+- **Safety rules built in:** a typo in the mode (`tset`) refuses to send, it never falls back to Meta; a missing or wrong-kind key refuses; a send that may have gone out (timeout, network, any 5xx, unreadable answer) is reported and never retried; every success in test mode is treated as a dry run; broadcasts and automatic replies do not run at all in test/invalid mode (they would burn each recipient's single chance and the one-shot flags on dry runs). Keys are only ever read from env, never logged.
+- **Tests:** `npm test` (`tsx --test lib/socially-snap`), 33 tests with a fake `fetch`. tsc, eslint and a production build pass. Independent code and security reviews done, findings fixed.
+- **Not done / pending (Shoaib):** make the test and live keys in the platform dashboard ("Ads By Shoaib" workspace) and put them in Vercel as `SOCIALLYSNAP_API_KEY_TEST` / `SOCIALLYSNAP_API_KEY_LIVE` (never in chat). Manual proof: set the switch to `test`, send from the inbox, see the dry-run notice, no new `wa_messages` row, nothing on the phone. Then back to `off`.
+- **Still going straight to Meta in every mode:** inbound webhooks, media sending in `lib/mcp-whatsapp-tools.ts`, template list/create/delete, onboarding, mark-read. They move at the cutover. Spec and gaps: `sociallysnap-platform/docs/specs/phase-5-step-1.md`.
+
 ## 2026-11-10 — Ali designs his own graphics in ChatGPT (user MCP "kb_design", 0670978)
 - **Access:** alihusnainalihusnain035@gmail.com (Ali Husnain) is on the restricted user MCP (`/api/mcp-user`). He sees only the Tax Solutions By Ali project, with the groups `kb_read` and `kb_design`. He connects it to ChatGPT with his Google account.
 - **New group `kb_design`** (`lib/mcp-user-design-tools.ts`):
