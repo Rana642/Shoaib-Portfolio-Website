@@ -5,6 +5,7 @@ import { getVaultCredential } from "../marketing-vault";
 import { decryptField } from "../api-vault-crypto";
 import { sociallySnapMode } from "../socially-snap/client";
 import { sendTextViaSociallySnap } from "../socially-snap/send";
+import { replaceableStatuses } from "../socially-snap/inbound";
 
 /**
  * WhatsApp Cloud API on the "Socially Snap" Meta app — docs/WHATSAPP-INBOX-PLAN.md.
@@ -86,9 +87,12 @@ function messageText(m: WaMessage): string | null {
   );
 }
 
-async function accountFor(phoneNumberId: string, displayPhone?: string) {
-  const { data } = await db.from("wa_accounts").select("id").eq("phone_number_id", phoneNumberId).maybeSingle();
+async function accountFor(phoneNumberId: string, displayPhone?: string, createIfMissing = true) {
+  const { data, error } = await db.from("wa_accounts").select("id").eq("phone_number_id", phoneNumberId).maybeSingle();
+  // With createIfMissing off (events from Socially Snap) a failed read must not look like "not ours".
+  if (error && !createIfMissing) throw new Error(`database read failed: ${error.code ?? "unknown"}`);
   if (data) return data.id as string;
+  if (!createIfMissing) return null;
   const { data: created } = await db
     .from("wa_accounts")
     .upsert({ phone_number_id: phoneNumberId, display_phone: displayPhone ?? null }, { onConflict: "phone_number_id" })
@@ -97,22 +101,27 @@ async function accountFor(phoneNumberId: string, displayPhone?: string) {
   return created!.id as string;
 }
 
-async function contactFor(accountId: string, waId: string, name?: string) {
-  const { data } = await db
+async function contactFor(accountId: string, waId: string, name?: string, strict = false) {
+  const check = (error: { code?: string } | null) => {
+    if (strict && error) throw new Error(`database write failed: ${error.code ?? "unknown"}`);
+  };
+  const { data, error } = await db
     .from("wa_contacts")
     .select("id, name, ref_source")
     .eq("account_id", accountId)
     .eq("wa_id", waId)
     .maybeSingle();
+  check(error);
   if (data) {
-    if (name && !data.name) await db.from("wa_contacts").update({ name }).eq("id", data.id);
+    if (name && !data.name) check((await db.from("wa_contacts").update({ name }).eq("id", data.id)).error);
     return data as { id: string; name: string | null; ref_source: string | null };
   }
-  const { data: created } = await db
+  const { data: created, error: createError } = await db
     .from("wa_contacts")
     .upsert({ account_id: accountId, wa_id: waId, name: name ?? null }, { onConflict: "account_id,wa_id" })
     .select("id, name, ref_source")
     .single();
+  check(createError);
   return created as { id: string; name: string | null; ref_source: string | null };
 }
 
@@ -154,20 +163,38 @@ function logAccountUpdate(value: Change["value"], metaTime: number | undefined) 
   );
 }
 
+export interface IngestOptions {
+  /** Events from Socially Snap: a write that fails throws (so the platform retries) instead of being
+   *  taken for a duplicate, and a number that isn't one of ours is ignored, not added. */
+  fromPlatform?: boolean;
+}
+
+// Postgres "unique violation": the only insert failure that means "already stored".
+const isDuplicate = (error: { code?: string }) => error.code === "23505";
+
 /** Store everything one webhook delivery carries. Idempotent on wamid. */
-export async function ingestWebhook(payload: { entry?: { time?: number; changes?: Change[] }[] }) {
+export async function ingestWebhook(payload: { entry?: { time?: number; changes?: Change[] }[] }, options: IngestOptions = {}) {
+  const strict = options.fromPlatform === true;
+  const failed = (error: { code?: string; message?: string }) => {
+    if (strict && !isDuplicate(error)) throw new Error(`database write failed: ${error.code ?? "unknown"}`);
+  };
+  // Any other write: from Socially Snap a failure must throw, so the event is not acknowledged.
+  const must = (error: { code?: string } | null) => {
+    if (strict && error) throw new Error(`database write failed: ${error.code ?? "unknown"}`);
+  };
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const v = change.value;
       if (change.field === "account_update") logAccountUpdate(v, entry.time);
       if (!v?.metadata?.phone_number_id) continue;
-      const accountId = await accountFor(v.metadata.phone_number_id, v.metadata.display_phone_number);
+      const accountId = await accountFor(v.metadata.phone_number_id, v.metadata.display_phone_number, !strict);
+      if (!accountId) continue;
       const names = new Map((v.contacts ?? []).map((c) => [c.wa_id, c.profile?.name]));
 
       // Guest → hotel
       for (const m of v.messages ?? []) {
         if (!m.from) continue;
-        const contact = await contactFor(accountId, m.from, names.get(m.from));
+        const contact = await contactFor(accountId, m.from, names.get(m.from), strict);
         const body = messageText(m);
         const at = tsToIso(m.timestamp);
         const { error } = await db.from("wa_messages").insert({
@@ -180,7 +207,10 @@ export async function ingestWebhook(payload: { entry?: { time?: number; changes?
           sent_at: at,
           raw: m,
         });
-        if (error) continue; // duplicate delivery (wamid unique)
+        if (error) {
+          failed(error);
+          continue; // duplicate delivery (wamid unique)
+        }
 
         // An "errors" event is Meta saying it couldn't deliver something to us — not a guest
         // message, so it must not open the 24-hour reply window.
@@ -201,15 +231,23 @@ export async function ingestWebhook(payload: { entry?: { time?: number; changes?
         const word = body?.trim().toUpperCase();
         if (word === "STOP" || word === "UNSUBSCRIBE") update.opted_out_at = at;
         else if (word === "START") update.opted_out_at = null;
-        const { data: cur } = await db.from("wa_contacts").select("unread").eq("id", contact.id).single();
-        update.unread = (cur?.unread ?? 0) + 1;
-        await db.from("wa_contacts").update(update).eq("id", contact.id);
+        try {
+          const { data: cur, error: readError } = await db.from("wa_contacts").select("unread").eq("id", contact.id).single();
+          must(readError);
+          update.unread = (cur?.unread ?? 0) + 1;
+          must((await db.from("wa_contacts").update(update).eq("id", contact.id)).error);
+        } catch (error) {
+          // Take the message back out, so the platform's retry stores it and its effects again
+          // (a duplicate would otherwise be skipped and a STOP lost).
+          await db.from("wa_messages").delete().eq("wamid", m.id);
+          throw error;
+        }
       }
 
       // Hotel → guest, sent from the WhatsApp Business app (coexistence)
       for (const m of v.message_echoes ?? []) {
         if (!m.to) continue;
-        const contact = await contactFor(accountId, m.to);
+        const contact = await contactFor(accountId, m.to, undefined, strict);
         const at = tsToIso(m.timestamp);
         const { error } = await db.from("wa_messages").insert({
           account_id: accountId,
@@ -223,7 +261,15 @@ export async function ingestWebhook(payload: { entry?: { time?: number; changes?
           sent_at: at,
           raw: m,
         });
-        if (!error) await markReplied(contact.id, at);
+        if (error) failed(error);
+        else {
+          try {
+            await markReplied(contact.id, at, strict);
+          } catch (replyError) {
+            await db.from("wa_messages").delete().eq("wamid", m.id);
+            throw replyError;
+          }
+        }
       }
 
       // Delivery / read receipts for messages we sent
@@ -231,16 +277,22 @@ export async function ingestWebhook(payload: { entry?: { time?: number; changes?
         // A failed receipt carries Meta's reason; keep it on the message (raw is
         // otherwise empty for messages we sent) so the inbox can show why.
         const why = s.errors?.[0];
-        await db
+        // A late retry must not move a message backwards (read -> delivered).
+        const replaceable = replaceableStatuses(s.status);
+        if (replaceable === undefined && strict) continue; // not a status we track
+        let update = db
           .from("wa_messages")
           .update(
             s.status === "failed" && why
               ? { status: s.status, raw: { error: { code: why.code ?? null, title: why.title ?? null, message: why.message ?? why.error_data?.details ?? null } } }
               : { status: s.status },
           )
-          .eq("wamid", s.id);
-        if (s.status === "failed") await undoFailedReply(s.id, why?.code);
-        await broadcastReceipt(s.id, s.status, s.errors?.[0]?.message ?? s.errors?.[0]?.title);
+          .eq("wamid", s.id)
+          .eq("account_id", accountId);
+        if (replaceable) update = update.or(replaceable.length ? `status.is.null,status.in.(${replaceable.join(",")})` : "status.is.null");
+        must((await update).error);
+        if (s.status === "failed") await undoFailedReply(s.id, why?.code, accountId, strict);
+        await broadcastReceipt(s.id, s.status, s.errors?.[0]?.message ?? s.errors?.[0]?.title, strict);
       }
 
       // History sync (coexistence): old chats, imported quietly — no unread,
@@ -248,7 +300,7 @@ export async function ingestWebhook(payload: { entry?: { time?: number; changes?
       for (const chunk of v.history ?? []) {
         for (const thread of chunk.threads ?? []) {
           if (!thread.id) continue;
-          const contact = await contactFor(accountId, thread.id);
+          const contact = await contactFor(accountId, thread.id, undefined, strict);
           let latest = 0;
           let latestIn = 0;
           for (const m of thread.messages ?? []) {
@@ -257,7 +309,7 @@ export async function ingestWebhook(payload: { entry?: { time?: number; changes?
             const t = Number(m.timestamp) * 1000;
             latest = Math.max(latest, t);
             if (inbound) latestIn = Math.max(latestIn, t);
-            await db.from("wa_messages").insert({
+            const { error: historyError } = await db.from("wa_messages").insert({
               account_id: accountId,
               contact_id: contact.id,
               wamid: m.id,
@@ -267,20 +319,22 @@ export async function ingestWebhook(payload: { entry?: { time?: number; changes?
               body: messageText(m),
               sent_at: at,
             }); // duplicate wamid → ignored
+            if (historyError) failed(historyError);
             if (inbound && !contact.ref_source) {
               const ref = parseRef(messageText(m));
               if (ref) {
-                await db.from("wa_contacts").update({ ref_source: ref.source, ref_code: ref.code }).eq("id", contact.id);
+                must((await db.from("wa_contacts").update({ ref_source: ref.source, ref_code: ref.code }).eq("id", contact.id)).error);
                 contact.ref_source = ref.source;
               }
             }
           }
           if (latest) {
-            const { data: cur } = await db.from("wa_contacts").select("last_message_at, last_inbound_at").eq("id", contact.id).single();
+            const { data: cur, error: curError } = await db.from("wa_contacts").select("last_message_at, last_inbound_at").eq("id", contact.id).single();
+            must(curError);
             const upd: Record<string, string> = {};
             if (!cur?.last_message_at || new Date(cur.last_message_at).getTime() < latest) upd.last_message_at = new Date(latest).toISOString();
             if (latestIn && (!cur?.last_inbound_at || new Date(cur.last_inbound_at).getTime() < latestIn)) upd.last_inbound_at = new Date(latestIn).toISOString();
-            if (Object.keys(upd).length) await db.from("wa_contacts").update(upd).eq("id", contact.id);
+            if (Object.keys(upd).length) must((await db.from("wa_contacts").update(upd).eq("id", contact.id)).error);
           }
         }
       }
@@ -289,25 +343,28 @@ export async function ingestWebhook(payload: { entry?: { time?: number; changes?
       for (const s of v.state_sync ?? []) {
         const phone = s.contact?.phone_number?.replace(/\D/g, "");
         if (s.type !== "contact" || !phone || s.action === "remove") continue;
-        const c = await contactFor(accountId, phone, s.contact?.full_name);
-        if (s.contact?.full_name) await db.from("wa_contacts").update({ name: s.contact.full_name }).eq("id", c.id);
+        const c = await contactFor(accountId, phone, s.contact?.full_name, strict);
+        if (s.contact?.full_name) must((await db.from("wa_contacts").update({ name: s.contact.full_name }).eq("id", c.id)).error);
       }
     }
   }
 }
 
 /** A delivery/read/failed receipt for a broadcast message — never moves a status backwards. */
-async function broadcastReceipt(wamid: string, status: string, error?: string) {
+async function broadcastReceipt(wamid: string, status: string, error?: string, strict = false) {
   const rows = db.from("wa_broadcast_recipients");
-  if (status === "read") await rows.update({ status: "read" }).eq("wamid", wamid).in("status", ["sent", "delivered"]);
-  else if (status === "delivered") await rows.update({ status: "delivered" }).eq("wamid", wamid).eq("status", "sent");
-  else if (status === "failed") await rows.update({ status: "failed", error: (error ?? "Not delivered").slice(0, 300) }).eq("wamid", wamid);
+  let result;
+  if (status === "read") result = await rows.update({ status: "read" }).eq("wamid", wamid).in("status", ["sent", "delivered"]);
+  else if (status === "delivered") result = await rows.update({ status: "delivered" }).eq("wamid", wamid).eq("status", "sent");
+  else if (status === "failed") result = await rows.update({ status: "failed", error: (error ?? "Not delivered").slice(0, 300) }).eq("wamid", wamid);
+  if (strict && result?.error) throw new Error(`database write failed: ${result.error.code ?? "unknown"}`);
 }
 
 /** Staff answered (dashboard, portal or the phone app) → the chat is Intervened. */
-export async function markReplied(contactId: string, at: string) {
-  const { data } = await db.from("wa_contacts").select("status, intervened_at").eq("id", contactId).single();
-  await db
+export async function markReplied(contactId: string, at: string, strict = false) {
+  const { data, error: readError } = await db.from("wa_contacts").select("status, intervened_at").eq("id", contactId).single();
+  if (strict && readError) throw new Error(`database write failed: ${readError.code ?? "unknown"}`);
+  const { error } = await db
     .from("wa_contacts")
     .update({
       last_message_at: at,
@@ -316,6 +373,7 @@ export async function markReplied(contactId: string, at: string) {
       ...(data?.intervened_at ? {} : { intervened_at: at }),
     })
     .eq("id", contactId);
+  if (strict && error) throw new Error(`database write failed: ${error.code ?? "unknown"}`);
 }
 
 /**
@@ -323,18 +381,20 @@ export async function markReplied(contactId: string, at: string) {
  * answered: take back the Intervened mark that this message set, and if Meta says the
  * reply window is closed (131047), close it here too so the inbox asks for a template.
  */
-async function undoFailedReply(wamid: string, code?: number) {
-  const { data: m } = await db
-    .from("wa_messages")
-    .select("contact_id, sent_at, direction")
-    .eq("wamid", wamid)
-    .maybeSingle();
+async function undoFailedReply(wamid: string, code?: number, accountId?: string, strict = false) {
+  const check = (error: { code?: string } | null) => {
+    if (strict && error) throw new Error(`database write failed: ${error.code ?? "unknown"}`);
+  };
+  let lookup = db.from("wa_messages").select("contact_id, sent_at, direction").eq("wamid", wamid);
+  if (accountId) lookup = lookup.eq("account_id", accountId);
+  const { data: m, error: lookupError } = await lookup.maybeSingle();
+  check(lookupError);
   if (!m || m.direction !== "out") return;
   const { data: c } = await db.from("wa_contacts").select("intervened_at").eq("id", m.contact_id).single();
   const patch: Record<string, unknown> = {};
   if (c?.intervened_at && new Date(c.intervened_at).getTime() === new Date(m.sent_at).getTime()) patch.intervened_at = null;
   if (code === 131047) patch.last_inbound_at = null;
-  if (Object.keys(patch).length) await db.from("wa_contacts").update(patch).eq("id", m.contact_id);
+  if (Object.keys(patch).length) check((await db.from("wa_contacts").update(patch).eq("id", m.contact_id)).error);
 }
 
 /** Minutes a guest waits unanswered before the chat moves to Requesting. */
