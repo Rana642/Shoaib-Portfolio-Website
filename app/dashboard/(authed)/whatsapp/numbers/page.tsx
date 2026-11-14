@@ -6,6 +6,7 @@ import {
   deleteWhatsAppAccount,
   finishWhatsAppSignup,
   linkWhatsAppAccount,
+  restoreWhatsAppCallback,
   unlinkWhatsAppAccount,
 } from "@/lib/dashboard/actions/whatsapp";
 import { verifyTokenFrom, whatsappCredential } from "@/lib/whatsapp";
@@ -15,7 +16,8 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "WhatsApp numbers" };
 
 /** Connect WhatsApp numbers and link each one to a business (whose portal then shows its chats). */
-export default async function WhatsAppNumbersPage() {
+export default async function WhatsAppNumbersPage({ searchParams }: { searchParams: Promise<{ callback?: string }> }) {
+  const { callback } = await searchParams;
   const [{ data: rows }, cred, { data: projectRows }] = await Promise.all([
     db.from("wa_accounts").select("id, label, display_phone, project_id").order("created_at"),
     whatsappCredential().catch(() => null),
@@ -49,6 +51,24 @@ export default async function WhatsAppNumbersPage() {
           onUnlink={unlinkWhatsAppAccount}
           onDelete={deleteWhatsAppAccount}
         />
+      </Card>
+
+      <Card className="p-6 max-w-3xl mb-6">
+        <h2 className="text-body-lg font-medium mb-2">Webhooks back to this site</h2>
+        <p className="text-small text-ink-muted mb-3">
+          Only for the way back from Socially Snap: points a number&apos;s webhooks at this site again. Then set WHATSAPP_VIA_SOCIALLY_SNAP to off in Vercel.
+        </p>
+        {callback === "restored" && <p className="text-small mb-3">Done: Meta now sends this number&apos;s messages here.</p>}
+        {callback === "failed" && <p className="text-small mb-3">Meta did not accept it. Nothing changed; try again or check the Vercel logs.</p>}
+        <div className="grid gap-2">
+          {accounts.map((a) => (
+            <form key={a.id} action={restoreWhatsAppCallback} className="flex items-center gap-3 text-small">
+              <input type="hidden" name="account_id" value={a.id} />
+              <span>{a.label ?? a.display_phone ?? a.id}</span>
+              <button type="submit" className="underline">Take webhooks back</button>
+            </form>
+          ))}
+        </div>
       </Card>
 
       {cred && (

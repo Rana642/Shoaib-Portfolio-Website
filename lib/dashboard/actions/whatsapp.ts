@@ -7,7 +7,7 @@ import { db } from "../db";
 import { getAdminUser } from "../auth";
 import { bookingFromForm, sendText, updateChat, type ChatPatch } from "../../whatsapp";
 import { sendWhatsAppPurchase } from "../../whatsapp/conversions";
-import { completeEmbeddedSignup, removeWhatsAppNumber } from "../../whatsapp/onboarding";
+import { completeEmbeddedSignup, removeWhatsAppNumber, restoreOwnCallback } from "../../whatsapp/onboarding";
 import { accountOfChat, createTemplate, deleteTemplate, listTemplates, sendTemplate } from "../../whatsapp/templates";
 import type { TemplateInput } from "../../whatsapp/template-shared";
 import { cancelBroadcast, createBroadcast, previewAudience, type Audience } from "../../whatsapp/broadcasts";
@@ -62,6 +62,13 @@ export async function deleteWhatsAppAccount(accountId: string) {
   const result = await removeWhatsAppNumber(accountId);
   revalidatePath("/dashboard/whatsapp");
   return result;
+}
+
+/** The way back from Socially Snap: this site gets the number's webhooks again. */
+export async function restoreWhatsAppCallback(formData: FormData) {
+  await assertAuthed();
+  const result = await restoreOwnCallback(String(formData.get("account_id") ?? ""));
+  redirect(`/dashboard/whatsapp/numbers?callback=${"ok" in result ? "restored" : "failed"}`);
 }
 
 /** Booking details for a chat; marks it Booked. */

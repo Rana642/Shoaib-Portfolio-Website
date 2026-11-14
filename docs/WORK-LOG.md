@@ -11,6 +11,8 @@ context (decisions, gotchas, rules) is in the second-brain vault:
 - **Status rule (both routes):** a status never moves a message backwards (sent < delivered < read; `failed` always applies; unknown statuses are ignored on platform events), and receipts are matched within the number's own account.
 - **Reviews:** independent code and security reviews done; fixed the unguarded "sent", the ignored write errors, the account scoping, the size cap, and a prototype-key hole (`"constructor"`).
 - **Known, left:** a status that beats the sent-message row into the database (the row is stored after the API answers) is dropped; broadcast-recipient receipts are not scoped to an account; the `.or()` filter is built only from fixed words.
+- **Way back built:** Numbers page, "Webhooks back to this site" (`restoreOwnCallback` in `lib/whatsapp/onboarding.ts`, action `restoreWhatsAppCallback`): subscribes the WABA again with this site's own callback and verify token (target fixed in code). After it, set `WHATSAPP_VIA_SOCIALLY_SNAP` to `off`.
+- **Read-only facts (14 Nov):** one WhatsApp account only (+92 311, WABA 1460561599322060), with its own stored token; history and contact sync already requested on 29 Oct.
 - **Spec and next steps:** `sociallysnap-platform/docs/specs/phase-5-cutover.md` (rehearsal on the test number, rollback script, then the window).
 
 ## 2026-11-13 — Socially Snap API client behind a switch (Phase 5 step 1, nothing live changes)

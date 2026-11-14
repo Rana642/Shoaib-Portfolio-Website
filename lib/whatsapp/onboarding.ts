@@ -1,7 +1,8 @@
 import "server-only";
 import { db } from "../dashboard/db";
 import { decryptField, encryptField } from "../api-vault-crypto";
-import { whatsappCredential } from "./index";
+import { verifyTokenFrom, whatsappCredential } from "./index";
+import { siteUrl } from "../seo";
 
 /**
  * Embedded Signup (incl. coexistence: a number that stays on the WhatsApp
@@ -69,6 +70,27 @@ export async function completeEmbeddedSignup(input: { code: string; wabaId: stri
     await db.from("wa_accounts").update({ sync_requests: sync }).eq("id", account.id);
   }
   return { accountId: account.id as string, display: phone.display_phone_number ?? input.phoneNumberId, sync };
+}
+
+/**
+ * Take a number's webhooks back to this site (the way back from Socially Snap): subscribes the
+ * WABA again with this site's own callback and verify token. The target is fixed, never an input,
+ * so this can only ever point the number at us.
+ */
+export async function restoreOwnCallback(accountId: string): Promise<{ ok: true } | { error: string }> {
+  const { data: acc } = await db.from("wa_accounts").select("waba_id, access_token_enc").eq("id", accountId).maybeSingle();
+  if (!acc?.waba_id) return { error: "Number not found." };
+  try {
+    const cred = await whatsappCredential();
+    const token = acc.access_token_enc ? decryptField(acc.access_token_enc as string) : cred.access_token;
+    await graph(`${acc.waba_id}/subscribed_apps`, token, {
+      method: "POST",
+      body: JSON.stringify({ override_callback_uri: `${siteUrl}/api/whatsapp/webhook`, verify_token: verifyTokenFrom(cred.app_secret) }),
+    });
+    return { ok: true };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't reach Meta." };
+  }
 }
 
 /**
