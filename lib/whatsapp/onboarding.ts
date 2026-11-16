@@ -3,6 +3,7 @@ import { db } from "../dashboard/db";
 import { decryptField, encryptField } from "../api-vault-crypto";
 import { verifyTokenFrom, whatsappCredential } from "./index";
 import { siteUrl } from "../seo";
+import { chooseLink, NO_META_TOKEN, platformNumbers } from "../socially-snap/link";
 
 /**
  * Embedded Signup (incl. coexistence: a number that stays on the WhatsApp
@@ -78,8 +79,9 @@ export async function completeEmbeddedSignup(input: { code: string; wabaId: stri
  * so this can only ever point the number at us.
  */
 export async function restoreOwnCallback(accountId: string): Promise<{ ok: true } | { error: string }> {
-  const { data: acc } = await db.from("wa_accounts").select("waba_id, access_token_enc").eq("id", accountId).maybeSingle();
+  const { data: acc } = await db.from("wa_accounts").select("waba_id, access_token_enc, via_socially_snap").eq("id", accountId).maybeSingle();
   if (!acc?.waba_id) return { error: "Number not found." };
+  if (acc.via_socially_snap) return { error: NO_META_TOKEN };
   try {
     const cred = await whatsappCredential();
     const token = acc.access_token_enc ? decryptField(acc.access_token_enc as string) : cred.access_token;
@@ -101,11 +103,12 @@ export async function restoreOwnCallback(accountId: string): Promise<{ ok: true 
  * next incoming message would re-create the number).
  */
 export async function removeWhatsAppNumber(accountId: string) {
-  const { data: acc } = await db.from("wa_accounts").select("id, waba_id, access_token_enc").eq("id", accountId).maybeSingle();
+  const { data: acc } = await db.from("wa_accounts").select("id, waba_id, access_token_enc, via_socially_snap").eq("id", accountId).maybeSingle();
   if (!acc) return { error: "Number not found." };
   let unsubscribed = false;
   const cred = await whatsappCredential().catch(() => null);
-  if (acc.waba_id && acc.waba_id !== cred?.waba_id) {
+  // A linked number is disconnected in Socially Snap; this site never unsubscribes its WABA.
+  if (acc.waba_id && acc.waba_id !== cred?.waba_id && !acc.via_socially_snap) {
     const { count } = await db.from("wa_accounts").select("id", { count: "exact", head: true }).eq("waba_id", acc.waba_id).neq("id", acc.id);
     if (!count) {
       try {
@@ -122,4 +125,47 @@ export async function removeWhatsAppNumber(accountId: string) {
   const { error } = await db.from("wa_accounts").delete().eq("id", accountId);
   if (error) return { error: error.message };
   return { ok: true, unsubscribed };
+}
+
+/**
+ * Link a number that was connected in the Socially Snap dashboard to a hotel here. The ids come from
+ * Socially Snap's own list (never typed), and the row holds no Meta token: sends, templates and
+ * broadcasts for it go through the API, and its chats reach this inbox as platform events.
+ */
+export async function linkSociallySnapNumber(raw: { phone_number_id?: unknown; project_id?: unknown; label?: unknown }): Promise<{ ok: true; display: string } | { error: string }> {
+  let available;
+  try {
+    available = await platformNumbers();
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Couldn't reach Socially Snap." };
+  }
+  const chosen = chooseLink(raw, available);
+  if ("error" in chosen) return chosen;
+  const { number, projectId, label } = chosen.value;
+
+  const { data: project } = await db.from("client_projects").select("id").eq("id", projectId).maybeSingle();
+  if (!project) return { error: "That hotel doesn't exist." };
+
+  const { data: existing } = await db.from("wa_accounts").select("id, via_socially_snap, project_id").eq("phone_number_id", number.phoneNumberId).maybeSingle();
+  // A number this site already holds with its own token is never turned into a linked one here.
+  if (existing && !existing.via_socially_snap) return { error: "This site already has that number with its own Meta token. It stays as it is." };
+  // Moving a linked number to another hotel would move its whole chat history to that client's portal.
+  if (existing?.project_id && existing.project_id !== projectId) return { error: "That number is already linked to another hotel. Unlink it first." };
+
+  const row = {
+    phone_number_id: number.phoneNumberId,
+    waba_id: number.wabaId,
+    display_phone: number.displayPhone || null,
+    label: label ?? number.name,
+    project_id: projectId,
+    via_socially_snap: true,
+  };
+  const { error } = existing
+    ? await db.from("wa_accounts").update(row).eq("id", existing.id)
+    : await db.from("wa_accounts").insert(row);
+  if (error) {
+    console.error("linkSociallySnapNumber: save failed", error.code ?? "");
+    return { error: "Couldn't save the link." };
+  }
+  return { ok: true, display: number.displayPhone || number.phoneNumberId };
 }

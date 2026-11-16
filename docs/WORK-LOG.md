@@ -4,6 +4,14 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-11-16 — Hotel numbers through Socially Snap: link step built (Silver Sand first)
+- **Plan:** each hotel number is connected in the Socially Snap dashboard (owner logs in to Meta), then linked here; chats show in the WhatsApp inbox and, per client → project, in the client portal (one login, hotel dropdown). Marketing messages (templates + broadcasts) first. Spec: `docs/HOTEL-NUMBERS-VIA-SOCIALLY-SNAP.md` (includes the Meta policy check of 16 Nov).
+- **Built:** Numbers page "Link a Socially Snap number" (pick from the platform's own number list + a hotel). `lib/socially-snap/link.ts`; `linkSociallySnapNumber` in `lib/whatsapp/onboarding.ts`; column `wa_accounts.via_socially_snap` (applied 16 Nov; 311 stays false with its own token and rollback).
+- **Linked numbers:** no Meta token ever (`tokenForAccount` throws, `tokenOrError` for `{error}` paths). Template list/create/delete go through the API with `from` (writes need live). Automation and broadcasts of a linked number wait while the switch isn't live. "Take webhooks back" and "delete number" never touch Meta for them.
+- **Reviews:** code + security done, all findings fixed. 58 tests, tsc, eslint clean.
+- **Pending:** Shoaib connects +92 300 8720939 (Silver Sand) in Socially Snap; then link it, check a chat in the dashboard and portal, send a test template to his own phone; test whether the Meta Business Suite inbox still works on a coexistence number; then the first marketing template. Media MCP tools on a linked number still error (until the platform has them).
+- **Gotcha:** the DB password was pasted in chat on 16 Nov to run the migration; rotate it in Supabase.
+
 ## 2026-11-14 — ABS Dashboard receives Socially Snap events (Phase 5 cutover, ABS Dashboard side; nothing live changes)
 - **Naming:** Shoaib asked (14 Nov) that this app is called "ABS Dashboard" in notes and replies, never just "Ads".
 - **What:** `/api/sociallysnap/events` now stores the platform's signed events in the inbox, but only when `WHATSAPP_VIA_SOCIALLY_SNAP=live`; in `off`, `test`, unset or a mistyped value it only logs (counts, never text). Logic in `lib/socially-snap/inbound.ts` (signature check, envelope → Meta's `{entry:[{changes:[{field,value}]}]}`, 1 MB cap, envelope number must match the value's number), tests in `inbound.test.ts` (44 in all, `npm test`).

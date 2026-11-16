@@ -1816,3 +1816,7 @@ alter table scheduled_posts add column if not exists media_seconds numeric;
 alter table scheduled_posts add column if not exists source_drive_id text;
 create index if not exists scheduled_posts_project_md5_idx on scheduled_posts (project_id, media_md5) where media_md5 is not null;
 create index if not exists scheduled_posts_project_drive_idx on scheduled_posts (project_id, source_drive_id) where source_drive_id is not null;
+
+-- Numbers connected in Socially Snap and only linked here (2026-11-16): no Meta token is held on this
+-- site for them; sends, templates and broadcasts go through the Socially Snap API.
+alter table wa_accounts add column if not exists via_socially_snap boolean not null default false;

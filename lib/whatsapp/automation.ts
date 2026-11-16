@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "../dashboard/db";
-import { unattendedSendingAllowed } from "../socially-snap/client";
+import { sociallySnapMode, unattendedSendingAllowed } from "../socially-snap/client";
 import { sendText } from "./index";
 
 /**
@@ -43,10 +43,12 @@ const render = (text: string, name: string | null) =>
 export async function runAutomation(now = new Date()) {
   // Socially Snap test mode (or a bad setting): leave the one-shot flags alone, nothing real would be sent.
   if (!unattendedSendingAllowed()) return [];
-  const { data: accounts } = await db.from("wa_accounts").select("id, automation");
+  const { data: accounts } = await db.from("wa_accounts").select("id, automation, via_socially_snap");
   const sent: { contact: string; kind: string; error?: string }[] = [];
 
   for (const acc of accounts ?? []) {
+    // A linked number can only send through Socially Snap; skipping keeps each guest's one-shot reply unspent.
+    if (acc.via_socially_snap && sociallySnapMode() !== "live") continue;
     const a = (acc.automation ?? {}) as Automation;
     const instantOn = !!(a.instant?.on && a.instant.text?.trim());
     const nightOn = !!(a.afterHours?.on && a.afterHours.text?.trim());

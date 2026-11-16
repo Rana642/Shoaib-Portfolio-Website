@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "../dashboard/db";
-import { unattendedSendingAllowed } from "../socially-snap/client";
+import { sociallySnapMode, unattendedSendingAllowed } from "../socially-snap/client";
 import { deliverTemplate, listTemplates } from "./templates";
 import { WHATSAPP_RATES } from "./rates";
 import type { WaTemplate } from "./template-shared";
@@ -70,9 +70,12 @@ export async function createBroadcast(input: {
 }) {
   const name = input.name.trim().slice(0, 80);
   if (!name) return { error: "Give the broadcast a name." };
-  const template = (await listTemplates(input.accountId, true)).find(
-    (t) => t.name === input.templateName && t.language === input.templateLanguage
-  );
+  let template: WaTemplate | undefined;
+  try {
+    template = (await listTemplates(input.accountId, true)).find((t) => t.name === input.templateName && t.language === input.templateLanguage);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Couldn't load the templates." };
+  }
   if (!template) return { error: "Pick an approved template." };
   const params = input.params.slice(0, template.vars).map((p) => String(p).trim().slice(0, 500));
   if (params.length < template.vars || params.some((p) => !p)) return { error: "Fill in every variable." };
@@ -129,15 +132,23 @@ export async function runBroadcasts(now = new Date()) {
   if (!unattendedSendingAllowed()) return [];
   const { data: due } = await db
     .from("wa_broadcasts")
-    .select("id, template, params, audience, status")
+    .select("id, account_id, template, params, audience, status")
     .in("status", ["scheduled", "sending"])
     .lte("scheduled_at", now.toISOString())
     .order("scheduled_at");
+  // A number linked from Socially Snap can only send through it: with the switch not live its broadcasts
+  // stay queued, instead of every recipient being marked failed.
+  const waiting = new Set<string>();
+  if (sociallySnapMode() !== "live") {
+    const { data: linked } = await db.from("wa_accounts").select("id").eq("via_socially_snap", true);
+    for (const a of linked ?? []) waiting.add(a.id as string);
+  }
   let budget = BATCH;
   const report: { id: string; sent: number; failed: number }[] = [];
 
   for (const b of due ?? []) {
     if (budget <= 0) break;
+    if (waiting.has(b.account_id as string)) continue;
     if (b.status === "scheduled") await db.from("wa_broadcasts").update({ status: "sending" }).eq("id", b.id);
     const { data: next } = await db
       .from("wa_broadcast_recipients")

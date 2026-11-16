@@ -7,7 +7,7 @@ import { db } from "../db";
 import { getAdminUser } from "../auth";
 import { bookingFromForm, sendText, updateChat, type ChatPatch } from "../../whatsapp";
 import { sendWhatsAppPurchase } from "../../whatsapp/conversions";
-import { completeEmbeddedSignup, removeWhatsAppNumber, restoreOwnCallback } from "../../whatsapp/onboarding";
+import { completeEmbeddedSignup, linkSociallySnapNumber, removeWhatsAppNumber, restoreOwnCallback } from "../../whatsapp/onboarding";
 import { accountOfChat, createTemplate, deleteTemplate, listTemplates, sendTemplate } from "../../whatsapp/templates";
 import type { TemplateInput } from "../../whatsapp/template-shared";
 import { cancelBroadcast, createBroadcast, previewAudience, type Audience } from "../../whatsapp/broadcasts";
@@ -62,6 +62,20 @@ export async function deleteWhatsAppAccount(accountId: string) {
   const result = await removeWhatsAppNumber(accountId);
   revalidatePath("/dashboard/whatsapp");
   return result;
+}
+
+/** Link a number connected in Socially Snap to a hotel (no Meta token is stored here). */
+export async function linkSociallySnapNumberAction(formData: FormData) {
+  await assertAuthed();
+  const result = await linkSociallySnapNumber({
+    phone_number_id: formData.get("phone_number_id"),
+    project_id: formData.get("project_id"),
+    label: formData.get("label"),
+  });
+  revalidatePath("/dashboard/whatsapp/numbers");
+  // Only a fixed code goes in the URL; the reason is shown from the server side, never from the query string.
+  if (!("ok" in result)) console.error("linkSociallySnapNumberAction:", result.error);
+  redirect(`/dashboard/whatsapp/numbers?linked=${"ok" in result ? "ok" : "failed"}`);
 }
 
 /** The way back from Socially Snap: this site gets the number's webhooks again. */

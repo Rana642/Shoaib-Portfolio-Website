@@ -1,8 +1,9 @@
 import "server-only";
 import { db } from "../dashboard/db";
-import { markReplied, tokenForAccount } from "./index";
+import { markReplied, tokenOrError } from "./index";
 import { sociallySnapMode } from "../socially-snap/client";
 import { sendTemplateViaSociallySnap } from "../socially-snap/send";
+import { createTemplateViaSociallySnap, deleteTemplateViaSociallySnap, listTemplatesViaSociallySnap } from "../socially-snap/link";
 import { countVars, fillVars, validateTemplate, type TemplateInput, type WaTemplate } from "./template-shared";
 
 /**
@@ -25,10 +26,18 @@ async function graph<T>(path: string, token: string, init?: RequestInit): Promis
   return json;
 }
 
+/** The Meta phone number id of a number linked from Socially Snap (it has no token here), or null. */
+async function linkedNumber(accountId: string): Promise<string | null> {
+  const { data } = await db.from("wa_accounts").select("phone_number_id, via_socially_snap").eq("id", accountId).maybeSingle();
+  return data?.via_socially_snap ? (data.phone_number_id as string) : null;
+}
+
 async function wabaFor(accountId: string) {
   const { data } = await db.from("wa_accounts").select("waba_id").eq("id", accountId).maybeSingle();
   if (!data?.waba_id) throw new Error("This number has no WhatsApp Business Account id — reconnect it.");
-  return { waba: data.waba_id as string, token: await tokenForAccount(accountId) };
+  const token = await tokenOrError(accountId);
+  if ("error" in token) throw new Error(token.error);
+  return { waba: data.waba_id as string, token: token.token };
 }
 
 type GraphComponent = {
@@ -73,10 +82,16 @@ function toTemplate(t: GraphTemplate): WaTemplate {
 
 /** Every template on the number's WhatsApp Business Account (newest first). */
 export async function listTemplates(accountId: string, approvedOnly = false): Promise<WaTemplate[]> {
-  const { waba, token } = await wabaFor(accountId);
-  const fields = "id,name,language,category,status,rejected_reason,components";
-  const json = await graph<{ data: GraphTemplate[] }>(`${waba}/message_templates?fields=${fields}&limit=200`, token);
-  const all = json.data.map(toTemplate);
+  const via = await linkedNumber(accountId);
+  let list: GraphTemplate[];
+  if (via) {
+    list = (await listTemplatesViaSociallySnap(via)) as GraphTemplate[];
+  } else {
+    const { waba, token } = await wabaFor(accountId);
+    const fields = "id,name,language,category,status,rejected_reason,components";
+    list = (await graph<{ data: GraphTemplate[] }>(`${waba}/message_templates?fields=${fields}&limit=200`, token)).data;
+  }
+  const all = list.map(toTemplate);
   return approvedOnly ? all.filter((t) => t.status === "APPROVED" && t.category !== "AUTHENTICATION" && t.sendable) : all;
 }
 
@@ -84,7 +99,6 @@ export async function listTemplates(accountId: string, approvedOnly = false): Pr
 export async function createTemplate(accountId: string, input: TemplateInput) {
   const problem = validateTemplate(input);
   if (problem) return { error: problem };
-  const { waba, token } = await wabaFor(accountId);
 
   const components: Record<string, unknown>[] = [];
   if (input.header.trim()) components.push({ type: "HEADER", format: "TEXT", text: input.header.trim() });
@@ -102,6 +116,12 @@ export async function createTemplate(accountId: string, input: TemplateInput) {
   if (buttons.length) components.push({ type: "BUTTONS", buttons });
 
   try {
+    const via = await linkedNumber(accountId);
+    if (via) {
+      const res = await createTemplateViaSociallySnap(via, { name: input.name, category: input.category, language: input.language, components });
+      return { ok: true, status: res.status };
+    }
+    const { waba, token } = await wabaFor(accountId);
     const res = await graph<{ id: string; status: string }>(`${waba}/message_templates`, token, {
       method: "POST",
       body: JSON.stringify({ name: input.name, category: input.category, language: input.language, components }),
@@ -114,8 +134,13 @@ export async function createTemplate(accountId: string, input: TemplateInput) {
 
 export async function deleteTemplate(accountId: string, name: string) {
   if (!/^[a-z0-9_]{1,512}$/.test(name)) return { error: "Unknown template." };
-  const { waba, token } = await wabaFor(accountId);
   try {
+    const via = await linkedNumber(accountId);
+    if (via) {
+      await deleteTemplateViaSociallySnap(via, name);
+      return { ok: true };
+    }
+    const { waba, token } = await wabaFor(accountId);
     await graph(`${waba}/message_templates?name=${encodeURIComponent(name)}`, token, { method: "DELETE" });
     return { ok: true };
   } catch (e) {
@@ -130,7 +155,12 @@ export async function sendTemplate(contactId: string, name: string, language: st
   if (contact.opted_out_at) return { error: "This customer sent STOP — don't send them templates unless they message again." };
 
   // Re-read the template from Meta so the stored text matches what was sent.
-  const template = (await listTemplates(contact.account_id as string, true)).find((t) => t.name === name && t.language === language);
+  let template: WaTemplate | undefined;
+  try {
+    template = (await listTemplates(contact.account_id as string, true)).find((t) => t.name === name && t.language === language);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Couldn't load the templates." };
+  }
   if (!template) return { error: "That template isn't approved (or was deleted)." };
   const values = params.slice(0, template.vars).map((p) => p.trim().slice(0, 500));
   if (values.length < template.vars || values.some((v) => !v)) return { error: "Fill in every variable." };
@@ -160,10 +190,11 @@ export async function deliverTemplate(
 
   let wamid: string;
   if (sociallySnapMode() === "off") {
-    const token = await tokenForAccount(account.id);
+    const found = await tokenOrError(account.id);
+    if ("error" in found) return found;
     const res = await fetch(`${GRAPH}/${account.phone_number_id}/messages`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${found.token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         messaging_product: "whatsapp",
         to: contact.wa_id,

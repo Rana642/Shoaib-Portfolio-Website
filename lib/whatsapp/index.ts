@@ -6,6 +6,7 @@ import { decryptField } from "../api-vault-crypto";
 import { sociallySnapMode } from "../socially-snap/client";
 import { sendTextViaSociallySnap } from "../socially-snap/send";
 import { replaceableStatuses } from "../socially-snap/inbound";
+import { NO_META_TOKEN } from "../socially-snap/link";
 
 /**
  * WhatsApp Cloud API on the "Socially Snap" Meta app — docs/WHATSAPP-INBOX-PLAN.md.
@@ -23,9 +24,20 @@ export const GRAPH = "https://graph.facebook.com/v23.0";
  *  coexistence) or, for the Socially Snap test number, the vault's
  *  system-user token. */
 export async function tokenForAccount(accountId: string): Promise<string> {
-  const { data } = await db.from("wa_accounts").select("access_token_enc").eq("id", accountId).maybeSingle();
+  const { data } = await db.from("wa_accounts").select("access_token_enc, via_socially_snap").eq("id", accountId).maybeSingle();
+  // A number linked from Socially Snap never falls back to the vault token (that one is for another WABA).
+  if (data?.via_socially_snap) throw new Error(NO_META_TOKEN);
   if (data?.access_token_enc) return decryptField(data.access_token_enc as string);
   return (await whatsappCredential()).access_token;
+}
+
+/** Same, but as a value: for the send paths that answer with { error } instead of throwing. */
+export async function tokenOrError(accountId: string): Promise<{ token: string } | { error: string }> {
+  try {
+    return { token: await tokenForAccount(accountId) };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Couldn't get the WhatsApp token." };
+  }
 }
 
 export async function whatsappCredential() {
@@ -464,10 +476,11 @@ export async function sendText(contactId: string, text: string, via: "api" | "au
 
   let wamid: string;
   if (sociallySnapMode() === "off") {
-    const token = await tokenForAccount(account.id);
+    const found = await tokenOrError(account.id);
+    if ("error" in found) return found;
     const res = await fetch(`${GRAPH}/${account.phone_number_id}/messages`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${found.token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ messaging_product: "whatsapp", to: contact.wa_id, type: "text", text: { body: text } }),
     });
     const json = (await res.json()) as { messages?: { id: string }[]; error?: { message?: string } };
