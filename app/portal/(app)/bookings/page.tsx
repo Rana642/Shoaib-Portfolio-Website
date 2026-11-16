@@ -1,60 +1,48 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/dashboard/db";
-import { can, canSeeProject, requirePortalUser } from "@/lib/portal/auth";
+import { can, requirePortalUser } from "@/lib/portal/auth";
+import { activeProject } from "@/lib/portal/active-project";
 import { Card, PageHeader } from "@/components/dashboard/ui";
 import BookingsView from "@/components/whatsapp/BookingsView";
-import HotelSectionNav from "@/components/whatsapp/HotelSectionNav";
 import { portalSetBookingSource } from "@/lib/portal/bookings";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Bookings" };
 
-/** The client's bookings: website + WhatsApp, one business at a time. */
-export default async function PortalBookingsPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
+/** The bookings of the business chosen in the sidebar: website + WhatsApp. */
+export default async function PortalBookingsPage() {
   const ctx = await requirePortalUser();
   if (!can(ctx, "bookings")) redirect("/portal");
-  const { project } = await searchParams;
+  const { active } = await activeProject(ctx);
 
-  const { data: projectRows } = await db.from("client_projects").select("id, name").eq("client_id", ctx.clientId).order("sort_order");
-  const visible = (projectRows ?? []).filter((p) => canSeeProject(ctx, p.id as string));
-  const ids = visible.map((p) => p.id as string);
-  const [{ data: sources }, { data: accounts }] = ids.length
+  const [{ data: sources }, { data: accounts }] = active
     ? await Promise.all([
-        db.from("project_booking_sources").select("project_id").in("project_id", ids),
-        db.from("wa_accounts").select("project_id").in("project_id", ids),
+        db.from("project_booking_sources").select("project_id").eq("project_id", active.id).limit(1),
+        db.from("wa_accounts").select("id").eq("project_id", active.id).limit(1),
       ])
     : [{ data: [] }, { data: [] }];
-  const withBookings = visible.filter(
-    (p) => (sources ?? []).some((s) => s.project_id === p.id) || (accounts ?? []).some((a) => a.project_id === p.id)
-  );
 
-  if (withBookings.length === 0) {
+  if (!active || (!(sources ?? []).length && !(accounts ?? []).length)) {
     return (
       <>
         <PageHeader title="Bookings" />
         <Card variant="solid" className="p-6">
-          <p className="text-small text-ink-muted">Bookings aren&apos;t connected yet — I&apos;ll set this up for you.</p>
+          <p className="text-small text-ink-muted">
+            Bookings aren&apos;t connected yet{active ? ` for ${active.name}` : ""} — I&apos;ll set this up for you.
+          </p>
         </Card>
       </>
     );
   }
-  const selected = withBookings.find((p) => p.id === project) ?? withBookings[0];
 
   return (
     <>
       <h1 className="sr-only">Bookings</h1>
       <BookingsView
-        projectId={selected.id as string}
-        detailBase={`/portal/bookings/${selected.id}`}
-        chatBase={`/portal/whatsapp?project=${selected.id}&chat=`}
+        projectId={active.id}
+        detailBase={`/portal/bookings/${active.id}`}
+        chatBase="/portal/whatsapp?chat="
         setSource={portalSetBookingSource}
-        switcher={
-          <HotelSectionNav
-            base="/portal/bookings"
-            projects={withBookings.map((p) => ({ id: p.id as string, name: p.name as string }))}
-            projectId={selected.id as string}
-          />
-        }
       />
     </>
   );

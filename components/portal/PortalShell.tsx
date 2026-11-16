@@ -11,14 +11,14 @@ export type { PortalLink };
  *  pages feel), grouped into sections like the dashboard. The server layout
  *  decides which links someone gets from their features — icons can't cross
  *  the server/client boundary, so sections are built here. */
-export default function PortalShell({ email, links, children }: { email: string; links: PortalLink[]; children: React.ReactNode }) {
+export default function PortalShell({ email, links, switcher, children }: { email: string; links: PortalLink[]; switcher?: React.ReactNode; children: React.ReactNode }) {
   const sections = portalSections(links);
   const nav: NavItem[] = [
     { href: "/portal", label: "Home", icon: LayoutDashboard, exact: true },
     ...sections.map((s) => ({ href: s.groups[0].items[0].href, label: s.label, icon: s.icon, match: s.match })),
   ];
   return (
-    <DashboardShell email={email} portal={{ nav, sections }}>
+    <DashboardShell email={email} portal={{ nav, sections, switcher }}>
       {children}
     </DashboardShell>
   );

@@ -1,4 +1,4 @@
-import { BedDouble, CalendarDays, CircleDashed, Contact, FileText, Inbox, KeyRound, MessageCircle, UserCircle, Users } from "lucide-react";
+import { BedDouble, CalendarDays, CircleDashed, Contact, FileText, Inbox, KeyRound, LayoutDashboard, MessageCircle, UserCircle, Users, Zap } from "lucide-react";
 import type { Section, SectionItem } from "@/lib/dashboard/sections";
 
 /**
@@ -7,11 +7,26 @@ import type { Section, SectionItem } from "@/lib/dashboard/sections";
  * their features allow; empty sections disappear, and a section left with
  * one page is just a link (no menu of its own).
  */
-export type PortalLink = "whatsapp" | "bookings" | "inquiries" | "contacts" | "passwords" | "planner" | "stories" | "intakes" | "team";
+export type PortalLink =
+  | "whatsapp"
+  | "wa_overview"
+  | "wa_templates"
+  | "wa_automation"
+  | "bookings"
+  | "inquiries"
+  | "contacts"
+  | "passwords"
+  | "planner"
+  | "stories"
+  | "intakes"
+  | "team";
 
 const P = "/portal";
 const ITEM: Record<PortalLink, SectionItem> = {
-  whatsapp: { href: `${P}/whatsapp`, label: "WhatsApp", icon: MessageCircle },
+  whatsapp: { href: `${P}/whatsapp`, label: "Inbox", icon: MessageCircle },
+  wa_overview: { href: `${P}/whatsapp/overview`, label: "Overview", icon: LayoutDashboard },
+  wa_templates: { href: `${P}/whatsapp/templates`, label: "Templates", icon: FileText },
+  wa_automation: { href: `${P}/whatsapp/automation`, label: "Automation", icon: Zap },
   bookings: { href: `${P}/bookings`, label: "Bookings", icon: BedDouble },
   inquiries: { href: `${P}/inquiries`, label: "Inquiries", icon: Inbox },
   contacts: { href: `${P}/contacts`, label: "Contacts", icon: Contact },
@@ -24,13 +39,20 @@ const ITEM: Record<PortalLink, SectionItem> = {
 };
 
 const LAYOUT: { key: string; label: string; icon: Section["icon"]; description: string; links: PortalLink[] }[] = [
-  { key: "whatsapp", label: "WhatsApp", icon: MessageCircle, description: "Your WhatsApp chats.", links: ["whatsapp"] },
+  {
+    key: "whatsapp",
+    label: "WhatsApp",
+    icon: MessageCircle,
+    description: "Your WhatsApp chats, numbers at a glance, templates and automatic replies.",
+    links: ["whatsapp", "wa_overview", "wa_templates", "wa_automation"],
+  },
+  { key: "contacts", label: "Contacts", icon: Contact, description: "Everyone who contacted you, saved in one place.", links: ["contacts"] },
   {
     key: "bookings",
     label: "Bookings",
     icon: BedDouble,
-    description: "Bookings, inquiries and guests from your website.",
-    links: ["bookings", "inquiries", "contacts"],
+    description: "Bookings and inquiries from your website.",
+    links: ["bookings", "inquiries"],
   },
   { key: "planner", label: "Planner", icon: CalendarDays, description: "Your social media calendar.", links: ["planner", "stories"] },
   {

@@ -1820,3 +1820,28 @@ create index if not exists scheduled_posts_project_drive_idx on scheduled_posts 
 -- Numbers connected in Socially Snap and only linked here (2026-11-16): no Meta token is held on this
 -- site for them; sends, templates and broadcasts go through the Socially Snap API.
 alter table wa_accounts add column if not exists via_socially_snap boolean not null default false;
+
+-- Portal contact book (2026-11-16): one row per person per business, merged from the hotel website
+-- (bookings, inquiries), WhatsApp chats and people added by hand. Kept up to date by lib/portal/contacts.ts
+-- (when the page is opened, and every 30 minutes by the WhatsApp cron). Service role only, like the rest.
+create table if not exists portal_contacts (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references client_projects (id) on delete cascade,
+  contact_key text not null,                         -- phone (92...), else "e:<email>", else "n:<name>"
+  name text,
+  phone text,
+  email text,
+  sources text[] not null default '{}',              -- website_booking, website_inquiry, whatsapp, manual
+  notes text,
+  bookings int not null default 0,
+  inquiries int not null default 0,
+  chats int not null default 0,
+  total_spent numeric not null default 0,
+  first_seen_at timestamptz not null default now(),
+  last_activity_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (project_id, contact_key)
+);
+create index if not exists portal_contacts_recent_idx on portal_contacts (project_id, last_activity_at desc nulls last);
+alter table portal_contacts enable row level security;

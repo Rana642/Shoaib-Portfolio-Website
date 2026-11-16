@@ -80,6 +80,7 @@ export default function Sidebar({
   areaLabel = "Dashboard",
   loginHref = "/dashboard/login",
   showStudio = true,
+  headerSlot,
 }: {
   email: string;
   /** Desktop-only icon rail. Mobile always renders the full drawer. */
@@ -94,6 +95,8 @@ export default function Sidebar({
   loginHref?: string;
   /** The Sanity "Website Content" and Settings links — Shoaib's dashboard only. */
   showStudio?: boolean;
+  /** Something under the logo (the portal's business switch). Hidden in the icon rail. */
+  headerSlot?: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -187,6 +190,7 @@ export default function Sidebar({
               {areaLabel}
             </p>
           )}
+          {!rail && headerSlot && <div className="mt-4">{headerSlot}</div>}
           {showStudio && <QuickTools rail={rail} onNavigate={() => setOpen(false)} />}
         </div>
 

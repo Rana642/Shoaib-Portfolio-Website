@@ -53,6 +53,8 @@ export function fillVars(text: string, params: string[]) {
 /** Meta's rules, checked before we send it for review. Returns an error or null. */
 export function validateTemplate(t: TemplateInput): string | null {
   if (!/^[a-z0-9_]{1,512}$/.test(t.name)) return "Name: lowercase letters, numbers and _ only (e.g. booking_reminder).";
+  if (t.category !== "UTILITY" && t.category !== "MARKETING") return "Pick Utility or Marketing.";
+  if (!/^[a-z]{2,3}(_[A-Z]{2})?$/.test(t.language)) return "Pick a language from the list.";
   if (!t.body.trim()) return "Write the message body.";
   if (t.body.length > 1024) return "Body is too long (1,024 characters max).";
   if (t.header.length > 60) return "Header is too long (60 characters max).";

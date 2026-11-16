@@ -20,7 +20,7 @@ export default async function PortalBookingPage({ params }: { params: Promise<{ 
     <BookingDetailView
       b={b}
       hotel={p.name}
-      backHref={`/portal/bookings?project=${project}`}
+      backHref="/portal/bookings"
       onStatus={portalSetBookingStatus.bind(null, project, id)}
       onNotes={portalSaveBookingNotes.bind(null, project, id)}
     />

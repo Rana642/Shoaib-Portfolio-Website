@@ -54,7 +54,7 @@ export default function DashboardShell({
    *  badge on Socially Snap → Settings and a warning sign on Integrations). */
   banner?: React.ReactNode;
   /** The client portal: same shell, its own sidebar items + sections, no PWA. */
-  portal?: { nav: NavItem[]; sections?: Section[] };
+  portal?: { nav: NavItem[]; sections?: Section[]; switcher?: React.ReactNode };
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [hydrated, setHydrated] = useState(false);
@@ -117,6 +117,7 @@ export default function DashboardShell({
           areaLabel="Client portal"
           loginHref="/portal/login"
           showStudio={false}
+          headerSlot={portal.switcher}
         />
       ) : (
         <Sidebar email={email} collapsed={collapsed} onToggle={toggle} />

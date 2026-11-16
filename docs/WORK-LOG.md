@@ -4,6 +4,15 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-11-16 (evening) — Client portal: WhatsApp tools, Contacts book, one business switch (built, waits for the table + push)
+- **Elegant number live:** +92 317 3330998 connected in Socially Snap after the hotel's phone had Business AI and Auto lists switched off (Meta blocked on those, then on "still disconnecting"), linked here with "Link a Socially Snap number"; its 300 chats show in the dashboard inbox and the portal.
+- **One business switch** under the sidebar logo (cookie \`portal_project\`, \`lib/portal/active-project*.ts\`, \`ProjectSwitcher\`): WhatsApp, Bookings, Inquiries, Contacts and (as default) Planner/Stories follow it. The per-page hotel dropdowns are gone.
+- **WhatsApp in the portal:** Inbox, Overview (\`OverviewView\`, shared with admin), Templates, Automation. Actions in \`lib/portal/wa-tools.ts\`, every one checked by \`wa-access.ts\` (number belongs to the caller's client and project). Automation save/quick replies moved to \`lib/whatsapp/automation-settings.ts\` (admin actions use the same core). Pricing stays admin-only (it shows margins). Marketing/Broadcasts: left for later (Shoaib).
+- **Contacts book:** its own sidebar section. \`portal_contacts\` (end of \`supabase/dashboard-schema.sql\`, NOT yet run) merges website bookings and inquiries, WhatsApp chats and people added by hand, one row per phone; notes, search, source filter, CSV (\`/portal/contacts/export\`). Synced when the page opens (at most every 3 minutes) and every 30 minutes by the WhatsApp cron.
+- **Feature switches** (Clients → Client portal, default off): \`wa_overview\`, \`wa_templates\`, \`wa_automation\`, \`contacts\`. The old Contacts tab under Bookings is replaced by the new section (needs \`contacts\` on).
+- **Reviews done (code + security):** fixed the sync NOT NULL bug on \`first_seen_at\`, stable paging, a failed website read no longer zeroes counts, page clamp, number search in any format, Planner/Stories follow the switch, template category/language allow-list. 73 tests, tsc, eslint clean.
+- **To do before it works:** run the \`portal_contacts\` SQL, push, turn the four switches on for Muhammad Ajmal's client, then check in the portal.
+
 ## 2026-11-16 — Hotel numbers through Socially Snap: link step built (Silver Sand first)
 - **Plan:** each hotel number is connected in the Socially Snap dashboard (owner logs in to Meta), then linked here; chats show in the WhatsApp inbox and, per client → project, in the client portal (one login, hotel dropdown). Marketing messages (templates + broadcasts) first. Spec: `docs/HOTEL-NUMBERS-VIA-SOCIALLY-SNAP.md` (includes the Meta policy check of 16 Nov).
 - **Built:** Numbers page "Link a Socially Snap number" (pick from the platform's own number list + a hotel). `lib/socially-snap/link.ts`; `linkSociallySnapNumber` in `lib/whatsapp/onboarding.ts`; column `wa_accounts.via_socially_snap` (applied 16 Nov; 311 stays false with its own token and rollback).

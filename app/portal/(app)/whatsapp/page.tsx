@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/dashboard/db";
-import { can, canSeeProject, requirePortalUser } from "@/lib/portal/auth";
+import { can, requirePortalUser } from "@/lib/portal/auth";
+import { activeProject } from "@/lib/portal/active-project";
 import { Card, PageHeader } from "@/components/dashboard/ui";
 import Inbox from "@/components/whatsapp/Inbox";
 import {
@@ -17,96 +18,52 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "WhatsApp" };
 
 /**
- * The client's WhatsApp inbox: only the numbers linked to their own
- * projects (and, for a project-limited team member, only those projects).
- * One business at a time, switched with the tabs on top.
+ * The WhatsApp inbox of the business chosen in the sidebar: only the numbers linked to that business
+ * (and, for a project-limited team member, only if it is one of theirs).
  */
 export default async function PortalWhatsAppPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    project?: string;
-    chat?: string;
-    tab?: string;
-    q?: string;
-    src?: string;
-  }>;
+  searchParams: Promise<{ chat?: string; tab?: string; q?: string; src?: string }>;
 }) {
   const ctx = await requirePortalUser();
   if (!can(ctx, "whatsapp")) redirect("/portal");
-  const { project, chat, tab, q, src } = await searchParams;
+  const { chat, tab, q, src } = await searchParams;
+  const { active } = await activeProject(ctx);
 
-  const { data: projectRows } = await db
-    .from("client_projects")
-    .select("id, name")
-    .eq("client_id", ctx.clientId)
-    .order("sort_order");
-  const projects = (projectRows ?? []).filter((p) =>
-    canSeeProject(ctx, p.id as string),
-  );
-  const { data: accountRows } = projects.length
-    ? await db
-        .from("wa_accounts")
-        .select("id, project_id")
-        .in(
-          "project_id",
-          projects.map((p) => p.id as string),
-        )
-    : { data: [] };
-
-  // Only businesses that actually have a WhatsApp number connected.
-  const withWhatsApp = projects.filter((p) =>
-    (accountRows ?? []).some((a) => a.project_id === p.id),
-  );
-  if (withWhatsApp.length === 0) {
+  const { data: accountRows } = active ? await db.from("wa_accounts").select("id").eq("project_id", active.id) : { data: [] };
+  if (!active || !(accountRows ?? []).length) {
     return (
       <>
         <PageHeader title="WhatsApp" />
         <Card variant="solid" className="p-6">
           <p className="text-small text-ink-muted">
-            No WhatsApp number is connected yet — I&apos;ll set it up for you.
+            No WhatsApp number is connected yet{active ? ` for ${active.name}` : ""} — I&apos;ll set it up for you.
           </p>
         </Card>
       </>
     );
   }
-  const selected =
-    withWhatsApp.find((p) => p.id === project) ?? withWhatsApp[0];
-  const accounts = (accountRows ?? [])
-    .filter((a) => a.project_id === selected.id)
-    .map((a) => ({ id: a.id as string, name: selected.name as string }));
+  const accounts = (accountRows ?? []).map((a) => ({ id: a.id as string, name: active.name }));
 
   return (
-    <>
-      <Inbox
-        accounts={accounts}
-        basePath="/portal/whatsapp"
-        query={`project=${selected.id}`}
-        chatId={chat}
-        tab={tab}
-        search={q}
-        source={src}
-        scope={
-          withWhatsApp.length > 1
-            ? {
-                param: "project",
-                options: withWhatsApp.map((p) => ({
-                  value: p.id as string,
-                  label: p.name as string,
-                })),
-              }
-            : undefined
-        }
-        actions={{
-          reply: portalWhatsAppReply,
-          setStatus: portalWhatsAppStatus,
-          markRead: portalWhatsAppRead,
-          saveBooking: portalWhatsAppBooking,
-          update: portalWhatsAppUpdate,
-          templates: portalChatTemplates,
-          sendTemplate: portalSendTemplate,
-        }}
-      />
-    </>
+    <Inbox
+      accounts={accounts}
+      basePath="/portal/whatsapp"
+      query=""
+      chatId={chat}
+      tab={tab}
+      search={q}
+      source={src}
+      actions={{
+        reply: portalWhatsAppReply,
+        setStatus: portalWhatsAppStatus,
+        markRead: portalWhatsAppRead,
+        saveBooking: portalWhatsAppBooking,
+        update: portalWhatsAppUpdate,
+        templates: portalChatTemplates,
+        sendTemplate: portalSendTemplate,
+      }}
+    />
   );
 }
