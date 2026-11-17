@@ -1,5 +1,7 @@
+import { after } from "next/server";
 import { handleSociallySnapEvent } from "@/lib/socially-snap/inbound";
-import { ingestWebhook } from "@/lib/whatsapp";
+import { ingestWebhook, type GuestMessage } from "@/lib/whatsapp";
+import { runBookingBot } from "@/lib/whatsapp/booking-bot/runner";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -11,11 +13,15 @@ export const runtime = "nodejs";
  * Separate from /api/whatsapp/webhook, Meta's own callback.
  */
 export async function POST(request: Request) {
+  const guest: GuestMessage[] = [];
   const result = await handleSociallySnapEvent(await request.text(), request.headers.get("x-sociallysnap-signature"), {
     env: process.env,
     // The value is Meta's own, passed on whole and signed by the platform; ingestWebhook reads it defensively.
-    ingest: (payload) => ingestWebhook(payload as Parameters<typeof ingestWebhook>[0], { fromPlatform: true }),
+    ingest: (payload) => ingestWebhook(payload as Parameters<typeof ingestWebhook>[0], { fromPlatform: true, onGuestMessage: (m) => guest.push(m) }),
     log: (line, data) => console.log("[sociallysnap-events]", line, JSON.stringify(data)),
   });
+  // The booking bot answers after the event has been acknowledged, and only when the event was stored (off for every
+  // number until its settings are saved).
+  if (guest.length && result.status >= 200 && result.status < 300) after(() => runBookingBot(guest));
   return Response.json(result.body, { status: result.status });
 }

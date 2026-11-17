@@ -12,6 +12,7 @@ import { accountOfChat, createTemplate, deleteTemplate, listTemplates, sendTempl
 import type { TemplateInput } from "../../whatsapp/template-shared";
 import { cancelBroadcast, createBroadcast, previewAudience, type Audience } from "../../whatsapp/broadcasts";
 import { addQuickReplyTo, automationSchema, deleteQuickReplyById, saveAutomation } from "../../whatsapp/automation-settings";
+import { parseBotSettings } from "../../whatsapp/booking-bot/config";
 
 async function assertAuthed() {
   const user = await getAdminUser();
@@ -119,6 +120,39 @@ export async function saveWhatsAppAutomation(accountId: string, settings: z.infe
   const result = await saveAutomation(accountId, settings);
   revalidatePath("/dashboard/whatsapp/automation");
   return result;
+}
+
+/**
+ * The WhatsApp booking bot's settings for one number. It can only be switched on when every setting is filled in sensibly
+ * and the number belongs to a business whose bookings are connected (Elegant: the bot books through the hotel's own site).
+ */
+export async function saveBookingBotSettings(accountId: string, input: unknown) {
+  await assertAuthed();
+  if (!/^[0-9a-f-]{36}$/.test(accountId)) return { error: "Unknown number." };
+  const raw = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  const wantOn = raw.enabled === true;
+  const parsed = parseBotSettings({ ...raw, enabled: wantOn }, { requireEnabled: false });
+  if (wantOn && !parsed.ok) return { error: parsed.problem };
+  if (wantOn) {
+    const { data: acct } = await db.from("wa_accounts").select("project_id").eq("id", accountId).maybeSingle();
+    const { data: src } = acct?.project_id
+      ? await db.from("project_booking_sources").select("kind, site_url").eq("project_id", acct.project_id).maybeSingle()
+      : { data: null };
+    if (src?.kind !== "elegant" || !src.site_url) return { error: "This number's business has no connected Elegant booking source, so the bot can't book. Connect it first (Bookings source)." };
+  }
+  const text = (v: unknown, n: number) => (typeof v === "string" ? v.trim().slice(0, n) : "");
+  const stored = {
+    enabled: wantOn,
+    hotelName: text(raw.hotelName, 80),
+    advanceMode: raw.advanceMode === "first_night" ? "first_night" : "percent",
+    advanceValue: Math.max(0, Math.min(100, Math.round(Number(raw.advanceValue) || 0))),
+    holdMinutes: Math.max(0, Math.min(1440, Math.round(Number(raw.holdMinutes) || 0))),
+    paymentText: text(raw.paymentText, 600),
+  };
+  const { error } = await db.from("wa_accounts").update({ booking_bot: stored }).eq("id", accountId);
+  if (error) return { error: /booking_bot/.test(error.message) ? "The database has no booking-bot columns yet. Run the booking-bot block of supabase/dashboard-schema.sql first." : error.message };
+  revalidatePath("/dashboard/whatsapp/automation");
+  return { ok: true };
 }
 
 export async function addQuickReply(accountId: string, title: string, body: string) {

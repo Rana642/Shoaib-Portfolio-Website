@@ -1857,3 +1857,26 @@ alter table wa_broadcasts add column if not exists require_opt_in boolean not nu
 alter table portal_contacts add column if not exists marketing_opt_in_at timestamptz;
 alter table portal_contacts add column if not exists opted_out boolean not null default false;
 create index if not exists wa_contacts_optin_idx on wa_contacts (account_id) where marketing_opt_in_at is not null;
+
+-- ── WhatsApp booking bot (2026-11-17) ────────────────────────────────
+-- Per-number settings and the state of each guest's booking conversation. Off until a number's settings are saved
+-- with enabled = true (Dashboard → WhatsApp → Automation → Booking bot). Safe to run more than once.
+alter table wa_accounts add column if not exists booking_bot jsonb;   -- { enabled, hotelName, advanceMode, advanceValue, holdMinutes, paymentText }
+
+create table if not exists wa_bot_sessions (
+  contact_id uuid primary key references wa_contacts (id) on delete cascade,
+  account_id uuid not null references wa_accounts (id) on delete cascade,
+  step text not null,
+  data jsonb not null default '{}',
+  strikes int not null default 0,
+  hold_until timestamptz,               -- the room is held until then, waiting for the receipt
+  booking_ref text,                     -- the hotel's booking ref, once a booking was made
+  last_wamid text,                      -- the last guest message handled (a webhook retry must not be answered twice)
+  reminded_at timestamptz,
+  confirmed_notified_at timestamptz,    -- the guest was told their booking is confirmed
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists wa_bot_sessions_hold_idx on wa_bot_sessions (hold_until) where hold_until is not null;
+create index if not exists wa_bot_sessions_ref_idx on wa_bot_sessions (booking_ref) where booking_ref is not null;
+alter table wa_bot_sessions enable row level security;

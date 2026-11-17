@@ -1,5 +1,6 @@
 import { after, NextResponse } from "next/server";
-import { ingestWebhook, validSignature, verifyTokenFrom, whatsappCredential } from "@/lib/whatsapp";
+import { ingestWebhook, validSignature, verifyTokenFrom, whatsappCredential, type GuestMessage } from "@/lib/whatsapp";
+import { runBookingBot } from "@/lib/whatsapp/booking-bot/runner";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,10 @@ export async function POST(request: Request) {
   try {
     const payload = JSON.parse(raw);
     if (hasAccountUpdate(payload)) after(() => forwardToSociallySnap(raw, signature));
-    await ingestWebhook(payload);
+    const guest: GuestMessage[] = [];
+    await ingestWebhook(payload, { onGuestMessage: (m) => guest.push(m) });
+    // The booking bot answers after the webhook has been acknowledged (off for every number until its settings are saved).
+    if (guest.length) after(() => runBookingBot(guest));
   } catch (error) {
     // Still 200: Meta retries failed deliveries for days, and a bad payload
     // would just loop. The error is in the Vercel logs.

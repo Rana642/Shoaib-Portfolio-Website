@@ -3,6 +3,7 @@ import { isCronRequest } from "@/lib/cron-auth";
 import { runAutomation } from "@/lib/whatsapp/automation";
 import { runBroadcasts } from "@/lib/whatsapp/broadcasts";
 import { syncAllProjectContacts } from "@/lib/portal/contacts";
+import { sweepBookingBots } from "@/lib/whatsapp/booking-bot/runner";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -13,5 +14,7 @@ export async function GET(request: Request) {
   const sent = await runAutomation();
   const broadcasts = await runBroadcasts();
   const contacts = new Date().getMinutes() % 30 === 0 ? await syncAllProjectContacts().catch(() => ({ projects: 0, failed: -1 })) : null;
-  return NextResponse.json({ ok: true, sent: sent.length, results: sent, broadcasts, contacts });
+  // Booking bot: room-hold reminders and releases, and "your booking is confirmed" messages (nothing happens until a number has the bot on).
+  const bot = await sweepBookingBots().catch(() => ({ released: -1, reminded: -1, confirmed: -1 }));
+  return NextResponse.json({ ok: true, sent: sent.length, results: sent, broadcasts, contacts, bot });
 }

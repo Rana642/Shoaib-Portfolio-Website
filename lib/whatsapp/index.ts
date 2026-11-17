@@ -13,7 +13,7 @@ import { isOptInPrompt, isOptInYes, isStartWord, isStopWord } from "./words";
  * Is our latest message to this guest, within the last 24 hours, the opt-in question? Only then is a YES taken as
  * consent: a "yes" to "shall I book the room?" asked later must not count.
  */
-async function optInQuestionOpen(contactId: string, atIso: string): Promise<boolean> {
+export async function optInQuestionOpen(contactId: string, atIso: string): Promise<boolean> {
   const since = new Date(new Date(atIso).getTime() - 24 * 3600 * 1000).toISOString();
   const { data } = await db
     .from("wa_messages")
