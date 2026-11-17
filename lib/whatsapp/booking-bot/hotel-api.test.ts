@@ -74,6 +74,7 @@ describe("hotel API client", () => {
     if (r.ok) {
       assert.equal(r.rooms[0].total, 17001);
       assert.equal(r.rooms[0].perNight, 8501); // 17,001 / 2 nights, tax included (not the pre-tax rate)
+      assert.equal(r.rooms[0].preTax, 14000); // the hotel's own pre-tax rate x 2 nights, as its website shows it
       assert.equal(r.rooms[0].available, true);
     }
   });

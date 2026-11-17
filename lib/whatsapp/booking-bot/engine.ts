@@ -15,7 +15,11 @@ export type BotMessage =
 
 export type Step = "existing" | "menu" | "info" | "ask_checkin" | "ask_nights" | "ask_guests" | "pick_room" | "ask_name" | "confirm" | "await_receipt" | "done" | "handoff";
 
-export type RoomOption = { roomId: string; name: string; total: number; perNight: number; nights: number; refundable: boolean; requiresAdvance: boolean };
+export type RoomOption = {
+  roomId: string; name: string; total: number; perNight: number; nights: number; refundable: boolean; requiresAdvance: boolean;
+  /** The stay's price before tax, as the hotel's website shows it. `total` is what the guest pays, tax included. */
+  preTax?: number;
+};
 export type ActiveBooking = {
   bookingRef: string; status: string; checkIn: string; checkOut: string; nights: number; grandTotal: number;
   roomName: string | null; source: string | null; hasReceipt: boolean; matchedBy: "phone" | "ref";
@@ -23,7 +27,7 @@ export type ActiveBooking = {
 
 export type BookingData = {
   checkIn?: string; nights?: number; adults?: number; children?: number;
-  rooms?: RoomOption[]; roomId?: string; roomName?: string; total?: number; requiresAdvance?: boolean;
+  rooms?: RoomOption[]; roomId?: string; roomName?: string; total?: number; preTax?: number; requiresAdvance?: boolean;
   guestName?: string; bookingRef?: string; extra?: boolean; existing?: ActiveBooking[];
 };
 
@@ -124,6 +128,9 @@ const STAFF_WORDS = /\b(staff|human|agent|reception|manager|call me|talk to (som
 const MENU_WORDS = /^(menu|start|restart|hi|hello|hey|salam|salaam|assalam[a-z ]*|aoa|a\.?o\.?a|hlo|helo)\W*$/i;
 const BOOK_WORDS = /\b(book|booking|reserve|reservation|room|kamra|kamre|rooms)\b/i;
 
+/** The tax on a stay, as the website shows it: price before tax, the tax, the total. Null when the hotel sent no pre-tax price. */
+const taxOf = (r: { preTax?: number; total: number }) => (r.preTax && r.total > r.preTax ? { tax: Math.round(r.total - r.preTax), pct: Math.round(((r.total - r.preTax) / r.preTax) * 100) } : null);
+
 /** What the guest pays now. A deal that needs advance payment is paid in full; "none" means pay at the hotel (0). */
 export const advanceFor = (cfg: BotConfig, total: number, nights: number, requiresAdvance = false) => {
   if (requiresAdvance) return Math.round(total);
@@ -199,10 +206,12 @@ async function ratesInfo(s: BotSession, deps: BotDeps): Promise<BotOutput> {
   const checkIn = addDays(todayKarachi(deps.now()), 1);
   const q = await deps.api.quote({ checkIn, checkOut: addDays(checkIn, 1), adults: 2, children: 0 });
   if (!q.ok) return { session: s, messages: [buttons("I couldn't load the rates just now. Would you like to book, or talk to our staff?", [["book", "Book a room"], ["staff", "Talk to staff"]])] };
-  const lines = q.rooms.map((r) => `• ${r.name}: ${rs(r.perNight)} per night`).join("\n");
+  // Like the website: the rate before tax, with the tax percent on top.
+  const taxed = q.rooms.some((r) => taxOf(r));
+  const lines = q.rooms.map((r) => { const t = taxOf(r); return t ? `• ${r.name}: ${rs(Math.round((r.preTax ?? 0) / Math.max(1, r.nights)))} per night + ${t.pct}% tax` : `• ${r.name}: ${rs(r.perNight)} per night`; }).join("\n");
   return {
     session: { ...s, step: deps.config.info.length ? "info" : "menu", strikes: 0 },
-    messages: [buttons(`Our rooms (price per night for 2 guests, taxes included):\n${lines}\n\nPrices can change with dates and offers. Shall I check your dates?`, [["book", "Book a room"], ...(deps.config.info.length ? ([["rates", "More info"]] as [string, string][]) : []), ["staff", "Talk to staff"]])],
+    messages: [buttons(`Our rooms (price per night for 2 guests${taxed ? ", before tax" : ", taxes included"}):\n${lines}\n\nPrices can change with dates and offers. Shall I check your dates?`, [["book", "Book a room"], ...(deps.config.info.length ? ([["rates", "More info"]] as [string, string][]) : []), ["staff", "Talk to staff"]])],
   };
 }
 
@@ -217,14 +226,17 @@ async function runQuote(s: BotSession, deps: BotDeps): Promise<BotOutput> {
   if (!open.length) {
     return { session: { ...s, step: "ask_checkin", strikes: 0 }, messages: [buttons(`Sorry, we have no room for ${day(d.checkIn!)} to ${day(checkOut)} for ${d.adults} guest${d.adults! > 1 ? "s" : ""}. Would you like other dates?`, [["dates", "Other dates"], ["staff", "Talk to staff"]])] };
   }
-  const rooms: RoomOption[] = open.map(({ roomId, name, total, perNight, nights, refundable, requiresAdvance }) => ({ roomId, name, total, perNight, nights, refundable, requiresAdvance }));
+  const rooms: RoomOption[] = open.map(({ roomId, name, total, perNight, nights, refundable, requiresAdvance, preTax }) => ({ roomId, name, total, perNight, nights, refundable, requiresAdvance, preTax }));
   return {
     session: { ...s, step: "pick_room", strikes: 0, data: { ...d, rooms } },
     messages: [{
       type: "list",
       body: `Available for ${day(d.checkIn!)} to ${day(checkOut)} (${d.nights} night${d.nights! > 1 ? "s" : ""}). Please choose a room:`,
       button: "Choose a room",
-      rows: rooms.map((r, i) => ({ id: `r_${i}`, title: clip(r.name, 24), description: `${rs(r.total)} total, taxes included` })),
+      rows: rooms.map((r, i) => {
+        const t = taxOf(r);
+        return { id: `r_${i}`, title: clip(r.name, 24), description: t ? `${rs(r.preTax!)} + ${rs(t.tax)} tax = ${rs(r.total)}` : `${rs(r.total)} total, taxes included` };
+      }),
     }],
   };
 }
@@ -233,11 +245,13 @@ function summary(s: BotSession, deps: BotDeps): BotOutput {
   const d = s.data;
   const advance = advanceFor(deps.config, d.total!, d.nights!, d.requiresAdvance);
   const checkOut = addDays(d.checkIn!, d.nights!);
+  const t = taxOf({ preTax: d.preTax, total: d.total! });
+  const money = t ? `Room: ${rs(d.preTax!)}\nTax (${t.pct}%): ${rs(t.tax)}\nTotal: ${rs(d.total!)}` : `Total: ${rs(d.total!)} (taxes included)`;
   const pay = advance <= 0 ? "Payment: at the hotel" : d.requiresAdvance ? `Payment in advance: ${rs(advance)} (this offer is paid in full in advance)` : `Advance to confirm: ${rs(advance)}`;
   return {
     session: { ...s, step: "confirm", strikes: 0 },
     messages: [buttons(
-      `Please check your booking:\n\n${d.roomName}\n${day(d.checkIn!)} to ${day(checkOut)} (${d.nights} night${d.nights! > 1 ? "s" : ""})\n${d.adults} adult${d.adults! > 1 ? "s" : ""}${d.children ? `, ${d.children} child${d.children > 1 ? "ren" : ""}` : ""}\nName: ${d.guestName}\nTotal: ${rs(d.total!)} (taxes included)\n${pay}`,
+      `Please check your booking:\n\n${d.roomName}\n${day(d.checkIn!)} to ${day(checkOut)} (${d.nights} night${d.nights! > 1 ? "s" : ""})\n${d.adults} adult${d.adults! > 1 ? "s" : ""}${d.children ? `, ${d.children} child${d.children > 1 ? "ren" : ""}` : ""}\nName: ${d.guestName}\n${money}\n${pay}`,
       [["confirm", "Confirm booking"], ["dates", "Change dates"], ["cancel", "Cancel"]]
     )],
   };
@@ -402,13 +416,13 @@ export async function handle(session: BotSession | null, input: BotInput, deps: 
         if (st.strikes >= 3) return handoffOutput(st, "Guest could not choose a room.");
         return { session: st, messages: [text("Please choose one of the rooms from the list (tap Choose a room).")] };
       }
-      const data = { ...s.data, roomId: room.roomId, roomName: room.name, total: room.total, requiresAdvance: room.requiresAdvance };
+      const data = { ...s.data, roomId: room.roomId, roomName: room.name, total: room.total, preTax: room.preTax, requiresAdvance: room.requiresAdvance };
       const ask = input.profileName && parseName(input.profileName);
       return {
         session: { ...s, step: "ask_name", strikes: 0, data },
         messages: ask
-          ? [buttons(`${room.name}, ${rs(room.total)}. What name should the booking be in?`, [["use_name", `Use ${clip(ask, 14)}`]]), text("Or type the guest's full name.")]
-          : [text(`${room.name}, ${rs(room.total)}. Please type the guest's full name for the booking.`)],
+          ? [buttons(`${room.name}. What name should the booking be in?`, [["use_name", `Use ${clip(ask, 14)}`]]), text("Or type the guest's full name.")]
+          : [text(`${room.name}. Please type the guest's full name for the booking.`)],
       };
     }
 

@@ -432,3 +432,45 @@ describe("what a guest pays depends on the hotel and the offer", () => {
     assert.doesNotMatch(bodies(out.messages), /undefined|\n\n\n/);
   });
 });
+
+describe("tax is shown like the hotel's website (price before tax, tax, total)", () => {
+  // Elegant: 26% GST & city tax on top. King Room 6,000 a night, 2 nights.
+  const TAXED = [
+    { roomId: "r-king", name: "King Room", total: 15120, perNight: 7560, nights: 2, refundable: true, requiresAdvance: false, available: true, preTax: 12000 },
+    { roomId: "r-fam", name: "Family Suite", total: 28224, perNight: 14112, nights: 2, refundable: true, requiresAdvance: false, available: true, preTax: 22400 },
+  ];
+  const api = () => fakeApi({ quote: async () => ({ ok: true, nights: 2, rooms: TAXED }) });
+
+  it("the room list says rate + tax = total", async () => {
+    const d = deps(api());
+    let out = await handle(null, button("book"), d);
+    out = await handle(out.session, text("5 dec"), d);
+    out = await handle(out.session, button("n_2"), d);
+    out = await handle(out.session, list("g_2_0"), d);
+    const l = out.messages[0];
+    assert.equal(l.type, "list");
+    if (l.type === "list") assert.equal(l.rows[0].description, "Rs 12,000 + Rs 3,120 tax = Rs 15,120");
+  });
+
+  it("the summary lists the room, the tax with its percent, and the total", async () => {
+    const d = deps(api());
+    let out = await handle(null, button("book"), d);
+    out = await handle(out.session, text("5 dec"), d);
+    out = await handle(out.session, button("n_2"), d);
+    out = await handle(out.session, list("g_2_0"), d);
+    out = await handle(out.session, list("r_0"), d);
+    out = await handle(out.session, text("Ali Raza"), d);
+    assert.match(bodies(out.messages), /Room: Rs 12,000\nTax \(26%\): Rs 3,120\nTotal: Rs 15,120/);
+  });
+
+  it("the rates show the price per night before tax with the tax percent", async () => {
+    const out = await handle(newSession(), button("rates"), deps(api()));
+    assert.match(bodies(out.messages), /King Room: Rs 6,000 per night \+ 26% tax/);
+    assert.match(bodies(out.messages), /before tax/);
+  });
+
+  it("a hotel that sends no pre-tax price keeps the tax-included wording", async () => {
+    const out = await handle(newSession(), button("rates"), deps(fakeApi()));
+    assert.match(bodies(out.messages), /taxes included/);
+  });
+});

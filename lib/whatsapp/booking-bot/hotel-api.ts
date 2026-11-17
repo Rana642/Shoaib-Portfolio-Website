@@ -14,7 +14,7 @@ type Raw = {
   existing?: ActiveBooking[];
   bookings?: ActiveBooking[];
   nights?: number;
-  rooms?: { roomId: string; name: string; available: boolean; reason?: string; nights: number; grandTotal: number; refundable: boolean; requiresAdvance: boolean }[];
+  rooms?: { roomId: string; name: string; available: boolean; reason?: string; nights: number; grandTotal: number; pricePerNight?: number; refundable: boolean; requiresAdvance: boolean }[];
   bookingRef?: string;
   grandTotal?: number | null;
   roomName?: string | null;
@@ -59,6 +59,8 @@ export function makeHotelApi(env: Env): HotelApi {
         name: x.name,
         total: x.grandTotal,
         perNight: Math.round(x.grandTotal / Math.max(1, x.nights)),
+        // The hotel's rate before tax, as its website shows it (the tax is the difference to `total`).
+        ...(typeof x.pricePerNight === "number" && x.pricePerNight > 0 ? { preTax: Math.round(x.pricePerNight * x.nights) } : {}),
         nights: x.nights,
         refundable: x.refundable,
         requiresAdvance: x.requiresAdvance,
