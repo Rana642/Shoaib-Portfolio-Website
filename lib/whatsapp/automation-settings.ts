@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { db } from "../dashboard/db";
+import { optInTextProblem } from "./words";
 
 // The checks and writes behind the automation page, shared by the admin dashboard and the client portal.
 // Who may call them is decided by each caller: nothing here looks at who is signed in.
@@ -10,6 +11,7 @@ export const automationSchema = z.object({
   instant: z.object({ on: z.boolean(), delayMin: z.number().int().min(1).max(60), text: z.string().max(1500) }),
   afterHours: z.object({ on: z.boolean(), from: hhmm, to: hhmm, text: z.string().max(1500) }),
   followUp: z.object({ on: z.boolean(), afterHours: z.number().int().min(1).max(20), text: z.string().max(1500) }),
+  optIn: z.object({ on: z.boolean(), delayMin: z.number().int().min(5).max(720), text: z.string().max(1000) }).optional(),
 });
 
 /** Automation settings for one number (all off until a message is written). */
@@ -21,9 +23,13 @@ export async function saveAutomation(accountId: string, settings: z.infer<typeof
     [a.instant.on, a.instant.text, "instant reply"],
     [a.afterHours.on, a.afterHours.text, "after-hours reply"],
     [a.followUp.on, a.followUp.text, "follow-up"],
+    [a.optIn?.on ?? false, a.optIn?.text ?? "", "opt-in question"],
   ] as const) {
     if (on && !text.trim()) return { error: `Write the ${name} message before switching it on.` };
   }
+  // The question must say how to agree and how to stop (Meta wants clear opt-in and an easy way out).
+  const wording = a.optIn?.on ? optInTextProblem(a.optIn.text) : null;
+  if (wording) return { error: wording };
   const { error } = await db.from("wa_accounts").update({ automation: a }).eq("id", accountId);
   if (error) return { error: error.message };
   return { ok: true };

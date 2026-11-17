@@ -84,3 +84,36 @@ export async function portalDeleteContact(contactId: string) {
   revalidatePath("/portal/contacts");
   return { ok: true as const };
 }
+
+/**
+ * Staff record that a guest agreed to offers on WhatsApp (in person, by phone or in writing), or take it back.
+ * Works on the guest's WhatsApp chats of this business; a guest who sent STOP can't be marked.
+ */
+export async function portalSetMarketingOptIn(contactId: string, on: boolean) {
+  if (typeof on !== "boolean") return NO;
+  const access = await contactAccess(contactId);
+  if (!access) return NO;
+  // Recording consent is a marketing decision: the Owner, or a member who may send marketing broadcasts.
+  const ctx = await requirePortalUser();
+  if (ctx.role !== "owner" && !can(ctx, "wa_broadcasts")) return { error: "Only the Owner, or someone allowed to send marketing broadcasts, can record this." };
+  const { data: contact } = await db.from("portal_contacts").select("contact_key").eq("id", contactId).maybeSingle();
+  const key = (contact?.contact_key as string | undefined) ?? "";
+  if (!/^[0-9]{7,}$/.test(key)) return { error: "This person has no WhatsApp number to send offers to." };
+
+  const { data: accounts } = await db.from("wa_accounts").select("id").eq("project_id", access.projectId);
+  const ids = (accounts ?? []).map((a) => a.id as string);
+  if (!ids.length) return { error: "No WhatsApp number is connected for this business." };
+  const { data: chats } = await db.from("wa_contacts").select("id, opted_out_at").in("account_id", ids).eq("wa_id", key);
+  if (!chats?.length) return { error: "This person has not written on WhatsApp yet, so there is no chat to record it on." };
+  if (on && chats.some((c) => c.opted_out_at)) return { error: "This guest sent STOP. They can only be added again if they send START." };
+
+  const at = new Date().toISOString();
+  const patch = on
+    ? { marketing_opt_in_at: at, marketing_opt_in_source: "staff", marketing_opt_in_by: (ctx.user.email ?? "").slice(0, 200) || "portal user" }
+    : { marketing_opt_in_at: null, marketing_opt_in_source: null, marketing_opt_in_by: null };
+  const { error } = await db.from("wa_contacts").update(patch).in("id", chats.map((c) => c.id as string));
+  if (error) return { error: "Couldn't save that." };
+  await db.from("portal_contacts").update({ marketing_opt_in_at: on ? at : null, updated_at: at }).eq("id", contactId);
+  revalidatePath("/portal/contacts");
+  return { ok: true as const };
+}

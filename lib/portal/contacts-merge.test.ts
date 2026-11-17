@@ -125,3 +125,23 @@ describe("validateTemplate (category and language)", () => {
     assert.ok(validateTemplate({ ...ok, language: "english; drop" }));
   });
 });
+
+describe("opt-in in the contact book", () => {
+  const wa = fromWhatsApp([
+    { wa_id: "923001112233", name: "A", created_at: "2026-10-01T00:00:00Z", last_message_at: "2026-10-02T00:00:00Z", marketing_opt_in_at: "2026-10-02T00:00:00Z", opted_out_at: null },
+    { wa_id: "923001112233", name: "A", created_at: "2026-10-05T00:00:00Z", last_message_at: "2026-10-06T00:00:00Z", marketing_opt_in_at: null, opted_out_at: null },
+    { wa_id: "923009998877", name: "B", created_at: "t", last_message_at: "t", marketing_opt_in_at: "2026-10-02T00:00:00Z", opted_out_at: "2026-10-03T00:00:00Z" },
+  ]);
+
+  it("keeps the latest agreement across a guest's chats, and shows STOP", () => {
+    const all = mergeCandidates(wa);
+    assert.equal(all.find((c) => c.key === "923001112233")?.optInAt, "2026-10-02T00:00:00Z");
+    assert.equal(all.find((c) => c.key === "923009998877")?.optedOut, true);
+  });
+
+  it("website-only people have no agreement and no STOP", () => {
+    const [w] = fromWebsite([{ key: "k", name: "W", phone: "0300 111 4455", email: null, bookings: 1, inquiries: 0, totalSpent: 0, lastActivity: "t" }]);
+    assert.equal(w?.optInAt, null);
+    assert.equal(w?.optedOut, false);
+  });
+});

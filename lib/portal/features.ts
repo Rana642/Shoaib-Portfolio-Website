@@ -19,6 +19,7 @@ export const PORTAL_FEATURES = [
   { key: "credentials", label: "Send accounts / logins", hint: "Send me logins or confirm access, encrypted." },
   { key: "whatsapp", label: "WhatsApp inbox", hint: "Their WhatsApp chats: reply to guests and mark bookings." },
   { key: "wa_overview", label: "WhatsApp overview", hint: "Their WhatsApp numbers at a glance: conversations, reply time and where contacts came from (with the WhatsApp inbox)." },
+  { key: "wa_broadcasts", label: "WhatsApp marketing broadcasts", hint: "Send an approved message to guests who agreed to offers, and only them, with a daily limit." },
   { key: "wa_templates", label: "WhatsApp templates", hint: "See, create and delete the message templates of their WhatsApp number." },
   { key: "wa_automation", label: "WhatsApp automation", hint: "Automatic replies, follow-ups and quick replies for their WhatsApp number." },
   { key: "contacts", label: "Contacts", hint: "Their saved contact book: website guests, WhatsApp chats and people added by hand." },

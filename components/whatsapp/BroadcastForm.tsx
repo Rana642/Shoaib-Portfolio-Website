@@ -37,6 +37,7 @@ export default function BroadcastForm({
   templates,
   tags,
   pkrRate,
+  optInOnly = false,
   onPreview,
   onCreate,
 }: {
@@ -44,7 +45,9 @@ export default function BroadcastForm({
   tags: string[];
   /** Today's USD → PKR rate. */
   pkrRate: number;
-  onPreview: (audience: Audience, category: string) => Promise<{ count: number; capped: boolean; usd: number }>;
+  /** The server sends only to guests who agreed to offers, so the "they agreed" tick box isn't needed. */
+  optInOnly?: boolean;
+  onPreview: (audience: Audience, category: string) => Promise<{ count: number; capped: boolean; usd: number; room?: number }>;
   onCreate: (input: {
     name: string;
     templateName: string;
@@ -62,7 +65,7 @@ export default function BroadcastForm({
   const [when, setWhen] = useState<"now" | "later">("now");
   const [at, setAt] = useState("");
   const [consent, setConsent] = useState(false);
-  const [preview, setPreview] = useState<{ count: number; capped: boolean; usd: number } | null>(null);
+  const [preview, setPreview] = useState<{ count: number; capped: boolean; usd: number; room?: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -95,7 +98,7 @@ export default function BroadcastForm({
     if (!template) return setError("Pick an approved template.");
     if (!name.trim()) return setError("Give the broadcast a name.");
     if (values.some((v) => !v.trim())) return setError("Fill in every variable.");
-    if (category === "MARKETING" && !consent) return setError("Confirm these contacts agreed to get offers from you.");
+    if (category === "MARKETING" && !consent && !optInOnly) return setError("Confirm these contacts agreed to get offers from you.");
     if (when === "later" && !at) return setError("Pick when to send it.");
     const count = preview?.count ?? 0;
     if (!count) return setError("No contacts match this audience.");
@@ -250,7 +253,12 @@ export default function BroadcastForm({
           )}
         </div>
 
-        {category === "MARKETING" && (
+        {optInOnly && (
+          <p className="text-small rounded-lg border border-forest/30 bg-forest/10 px-3 py-2">
+            This goes only to guests who agreed to offers (they answered YES, or staff recorded it). Anyone who sent STOP is left out.
+          </p>
+        )}
+        {category === "MARKETING" && !optInOnly && (
           <label className="flex items-start gap-2 text-small">
             <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-1" />
             <span>
@@ -278,6 +286,11 @@ export default function BroadcastForm({
           <p className="font-mono uppercase text-tag tracking-widest text-ink-subtle">Audience</p>
           <p className="text-h3 font-medium tabular-nums">{preview ? preview.count.toLocaleString("en-US") : "…"}</p>
           <p className="text-small text-ink-muted">contacts{preview?.capped ? " (first 5,000 will be sent)" : ""}</p>
+          {preview?.room !== undefined && (
+            <p className={`text-tag mt-1 ${preview.count > preview.room ? "text-red-700" : "text-ink-subtle"}`}>
+              You can message {preview.room.toLocaleString("en-US")} more guests in the next 24 hours.
+            </p>
+          )}
           {preview && preview.count > 0 && (
             <p className="text-small mt-2">
               Est. Meta cost ≈ <strong>Rs {Math.round(preview.usd * pkrRate * 1.045).toLocaleString("en-US")}</strong>

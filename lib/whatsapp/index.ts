@@ -7,6 +7,25 @@ import { sociallySnapMode } from "../socially-snap/client";
 import { sendTextViaSociallySnap } from "../socially-snap/send";
 import { replaceableStatuses } from "../socially-snap/inbound";
 import { NO_META_TOKEN } from "../socially-snap/link";
+import { isOptInPrompt, isOptInYes, isStartWord, isStopWord } from "./words";
+
+/**
+ * Is our latest message to this guest, within the last 24 hours, the opt-in question? Only then is a YES taken as
+ * consent: a "yes" to "shall I book the room?" asked later must not count.
+ */
+async function optInQuestionOpen(contactId: string, atIso: string): Promise<boolean> {
+  const since = new Date(new Date(atIso).getTime() - 24 * 3600 * 1000).toISOString();
+  const { data } = await db
+    .from("wa_messages")
+    .select("raw")
+    .eq("contact_id", contactId)
+    .eq("direction", "out")
+    .gte("sent_at", since)
+    .lte("sent_at", atIso)
+    .order("sent_at", { ascending: false })
+    .limit(1);
+  return isOptInPrompt(data?.[0]?.raw);
+}
 
 /**
  * WhatsApp Cloud API on the "Socially Snap" Meta app — docs/WHATSAPP-INBOX-PLAN.md.
@@ -240,13 +259,23 @@ export async function ingestWebhook(payload: { entry?: { time?: number; changes?
           }
         }
         // STOP / START: the guest's own opt-out — automation never writes to an opted-out guest.
-        const word = body?.trim().toUpperCase();
-        if (word === "STOP" || word === "UNSUBSCRIBE") update.opted_out_at = at;
-        else if (word === "START") update.opted_out_at = null;
+        if (isStopWord(body)) {
+          update.opted_out_at = at;
+          update.marketing_opt_in_at = null;
+          update.marketing_opt_in_source = null;
+          update.marketing_opt_in_by = null;
+        } else if (isStartWord(body)) update.opted_out_at = null;
+        const yes = m.type === "text" && isOptInYes(body) ? await optInQuestionOpen(contact.id, at) : false;
         try {
-          const { data: cur, error: readError } = await db.from("wa_contacts").select("unread").eq("id", contact.id).single();
+          const { data: cur, error: readError } = await db.from("wa_contacts").select("unread, opted_out_at").eq("id", contact.id).single();
           must(readError);
           update.unread = (cur?.unread ?? 0) + 1;
+          // YES to our opt-in question: agreed to offers (never over a STOP).
+          if (yes && !cur?.opted_out_at) {
+            update.marketing_opt_in_at = at;
+            update.marketing_opt_in_source = "chat_yes";
+            update.marketing_opt_in_by = null;
+          }
           must((await db.from("wa_contacts").update(update).eq("id", contact.id)).error);
         } catch (error) {
           // Take the message back out, so the platform's retry stores it and its effects again
@@ -461,7 +490,7 @@ export function replyWindowOpen(lastInboundAt: string | null | undefined) {
 /** Free-form reply — only inside the 24h window after the guest's last message. */
 /** `via` "auto" = sent by the automation: doesn't count as staff answering
  *  (status and unread stay as they are). */
-export async function sendText(contactId: string, text: string, via: "api" | "auto" = "api") {
+export async function sendText(contactId: string, text: string, via: "api" | "auto" = "api", raw?: Record<string, unknown>) {
   const { data: contact } = await db
     .from("wa_contacts")
     .select("id, wa_id, last_inbound_at, opted_out_at, wa_accounts(id, phone_number_id)")
@@ -504,6 +533,7 @@ export async function sendText(contactId: string, text: string, via: "api" | "au
     body: text,
     status: "sent",
     sent_at: at,
+    ...(raw ? { raw } : {}),
   });
   if (via === "auto") await db.from("wa_contacts").update({ last_message_at: at }).eq("id", contact.id);
   else await markReplied(contact.id, at);

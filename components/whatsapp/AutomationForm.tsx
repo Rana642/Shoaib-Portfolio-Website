@@ -9,7 +9,25 @@ export type AutomationSettings = {
   instant: { on: boolean; delayMin: number; text: string };
   afterHours: { on: boolean; from: string; to: string; text: string };
   followUp: { on: boolean; afterHours: number; text: string };
+  optIn: { on: boolean; delayMin: number; text: string };
 };
+
+export const AUTOMATION_DEFAULTS: AutomationSettings = {
+  instant: { on: false, delayMin: 2, text: "" },
+  afterHours: { on: false, from: "23:00", to: "08:00", text: "" },
+  followUp: { on: false, afterHours: 3, text: "" },
+  optIn: { on: false, delayMin: 30, text: "" },
+};
+
+/** Saved settings on top of the defaults (older numbers have no opt-in block yet). */
+export function withDefaults(saved: Partial<AutomationSettings> | null | undefined): AutomationSettings {
+  return {
+    instant: { ...AUTOMATION_DEFAULTS.instant, ...(saved?.instant ?? {}) },
+    afterHours: { ...AUTOMATION_DEFAULTS.afterHours, ...(saved?.afterHours ?? {}) },
+    followUp: { ...AUTOMATION_DEFAULTS.followUp, ...(saved?.followUp ?? {}) },
+    optIn: { ...AUTOMATION_DEFAULTS.optIn, ...(saved?.optIn ?? {}) },
+  };
+}
 
 function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
@@ -77,6 +95,30 @@ export function AutomationForm({ initial, onSave }: { initial: AutomationSetting
           hours — once per customer message, only within the 24-hour window. Won / booked and lost chats are skipped, and so is anyone who sent STOP.
         </p>
         <textarea rows={3} value={s.followUp.text} onChange={(e) => set("followUp", { text: e.target.value })} className={inputClasses} placeholder="e.g. Hi {name}, shall I reserve this for you? The offer is valid today." />
+        {hint}
+      </Card>
+
+      <Card className="p-5 space-y-3">
+        <Toggle on={s.optIn.on} onChange={(on) => set("optIn", { on })} label="Offers opt-in question" />
+        <p className="text-small text-ink-muted">
+          Asked once per guest,{" "}
+          <input
+            type="number"
+            min={5}
+            max={720}
+            value={s.optIn.delayMin}
+            onChange={(e) => set("optIn", { delayMin: Number(e.target.value) })}
+            className={`${inputClasses} !w-20 !inline-block !py-1 !px-2`}
+          />{" "}
+          minutes after our team has answered, inside the 24-hour window. A guest who replies YES is saved as agreed to offers; marketing broadcasts go only to them. It must tell them to reply YES and that they can send STOP.
+        </p>
+        <textarea
+          rows={3}
+          value={s.optIn.text}
+          onChange={(e) => set("optIn", { text: e.target.value })}
+          className={inputClasses}
+          placeholder="e.g. Would you like to get our offers and updates on WhatsApp? Reply YES to agree. You can send STOP at any time to stop them."
+        />
         {hint}
       </Card>
 

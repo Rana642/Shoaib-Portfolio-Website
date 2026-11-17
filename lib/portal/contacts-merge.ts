@@ -22,6 +22,10 @@ export type Candidate = {
   totalSpent: number;
   firstSeen: string | null;
   lastActivity: string | null;
+  /** When a WhatsApp guest agreed to offers (null: not asked or not agreed). */
+  optInAt: string | null;
+  /** The guest sent STOP on WhatsApp. */
+  optedOut: boolean;
 };
 
 /** "0317-333 0998", "+92 317 3330998" and "923173330998" are one number. Under 7 digits is not a number. */
@@ -71,13 +75,17 @@ export function fromWebsite(
       totalSpent: r.totalSpent,
       firstSeen: null,
       lastActivity: r.lastActivity,
+      optInAt: null,
+      optedOut: false,
     });
   }
   return out;
 }
 
 /** What WhatsApp knows: one chat per guest number (a number may appear on several of the business's WhatsApp numbers). */
-export function fromWhatsApp(rows: { wa_id: string; name: string | null; created_at: string; last_message_at: string | null }[]): Candidate[] {
+export function fromWhatsApp(
+  rows: { wa_id: string; name: string | null; created_at: string; last_message_at: string | null; marketing_opt_in_at?: string | null; opted_out_at?: string | null }[]
+): Candidate[] {
   const out: Candidate[] = [];
   for (const r of rows) {
     const key = contactKey(r.wa_id, null);
@@ -95,6 +103,8 @@ export function fromWhatsApp(rows: { wa_id: string; name: string | null; created
       totalSpent: 0,
       firstSeen: r.created_at,
       lastActivity: r.last_message_at ?? r.created_at,
+      optInAt: r.marketing_opt_in_at ?? null,
+      optedOut: !!r.opted_out_at,
     });
   }
   return out;
@@ -122,6 +132,8 @@ export function mergeCandidates(list: Candidate[]): Candidate[] {
     have.totalSpent += c.totalSpent;
     have.firstSeen = earlier(have.firstSeen, c.firstSeen);
     have.lastActivity = later(have.lastActivity, c.lastActivity);
+    have.optInAt = later(have.optInAt, c.optInAt);
+    have.optedOut = have.optedOut || c.optedOut;
   }
   return [...map.values()];
 }

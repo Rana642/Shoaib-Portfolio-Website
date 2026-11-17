@@ -21,6 +21,7 @@ export type Audience = {
   source?: string; // FB / GA / GS / WEB / none
   activeDays?: number; // last message within N days
   nameFallback?: string; // used for {name} when a contact has no name
+  optInOnly?: boolean; // only guests who agreed to offers (marketing_opt_in_at set)
 };
 
 const MAX_RECIPIENTS = 5000;
@@ -28,6 +29,7 @@ const BATCH = 60; // messages per cron run (= per minute)
 
 function audienceQuery(accountId: string, a: Audience) {
   let q = db.from("wa_contacts").select("id, wa_id", { count: "exact" }).eq("account_id", accountId).is("opted_out_at", null);
+  if (a.optInOnly) q = q.not("marketing_opt_in_at", "is", null);
   const statuses = (a.statuses ?? []).filter((s) => ["new", "replied", "booked", "lost"].includes(s));
   if (statuses.length) q = q.in("status", statuses);
   if (a.tag?.trim()) q = q.contains("tags", [a.tag.trim()]);
@@ -59,6 +61,37 @@ export async function previewAudience(accountId: string, a: Audience, category: 
   return { count: count ?? 0, capped: (count ?? 0) > MAX_RECIPIENTS, usd };
 }
 
+/** What the client portal may send to one number in 24 hours (Meta's starting limit for a number that isn't business-verified). */
+export const PORTAL_BROADCAST_DAILY_CAP = 250;
+
+/**
+ * The most guests this number is set to message in any 24 hours that include `at`: what is queued or already sent
+ * (a cancelled broadcast still counts what went out), by the time each broadcast is meant to go. So cancelling after a
+ * partial send, or scheduling for another day, can't be used to get past the limit.
+ */
+export async function broadcastLoad(accountId: string, at: Date = new Date()): Promise<number> {
+  const day = 24 * 3600 * 1000;
+  const { data: bs } = await db
+    .from("wa_broadcasts")
+    .select("id, scheduled_at")
+    .eq("account_id", accountId)
+    .gt("scheduled_at", new Date(at.getTime() - day).toISOString())
+    .lt("scheduled_at", new Date(at.getTime() + day).toISOString());
+  if (!bs?.length) return 0;
+  const { data: rs } = await db.from("wa_broadcast_recipients").select("broadcast_id").in("broadcast_id", bs.map((b) => b.id as string)).neq("status", "skipped").limit(20000);
+  const per = new Map<string, number>();
+  for (const r of rs ?? []) per.set(r.broadcast_id as string, (per.get(r.broadcast_id as string) ?? 0) + 1);
+  let before = 0;
+  let after = 0;
+  for (const b of bs) {
+    const t = new Date(b.scheduled_at as string).getTime();
+    const n = per.get(b.id as string) ?? 0;
+    if (t <= at.getTime()) before += n;
+    if (t >= at.getTime()) after += n;
+  }
+  return Math.max(before, after);
+}
+
 export async function createBroadcast(input: {
   accountId: string;
   name: string;
@@ -67,8 +100,13 @@ export async function createBroadcast(input: {
   params: string[];
   audience: Audience;
   scheduledAt: string | null;
+  /** Only guests who agreed to offers; also checked again when each message is sent. */
+  requireOptIn?: boolean;
+  /** Refuse an audience bigger than this (the portal's daily limit). */
+  maxRecipients?: number;
 }) {
   const name = input.name.trim().slice(0, 80);
+  const audience: Audience = input.requireOptIn ? { ...input.audience, optInOnly: true } : input.audience;
   if (!name) return { error: "Give the broadcast a name." };
   let template: WaTemplate | undefined;
   try {
@@ -82,8 +120,11 @@ export async function createBroadcast(input: {
   const when = input.scheduledAt ? new Date(input.scheduledAt) : new Date();
   if (Number.isNaN(when.getTime())) return { error: "That send time isn't valid." };
 
-  const { data: contacts } = await audienceQuery(input.accountId, input.audience).limit(MAX_RECIPIENTS);
+  const { data: contacts } = await audienceQuery(input.accountId, audience).limit(MAX_RECIPIENTS);
   if (!contacts?.length) return { error: "No contacts match this audience." };
+  if (input.maxRecipients !== undefined && contacts.length > input.maxRecipients) {
+    return { error: `This would reach ${contacts.length.toLocaleString("en-US")} guests, but only ${Math.max(0, input.maxRecipients).toLocaleString("en-US")} more can be messaged in 24 hours. Narrow the audience or try again later.` };
+  }
 
   const snapshot: Pick<WaTemplate, "name" | "language" | "category" | "header" | "body" | "footer" | "vars"> = {
     name: template.name,
@@ -101,9 +142,10 @@ export async function createBroadcast(input: {
       name,
       template: snapshot,
       params,
-      audience: input.audience,
+      audience,
       scheduled_at: when.toISOString(),
       total: contacts.length,
+      require_opt_in: !!input.requireOptIn,
     })
     .select("id")
     .single();
@@ -132,7 +174,7 @@ export async function runBroadcasts(now = new Date()) {
   if (!unattendedSendingAllowed()) return [];
   const { data: due } = await db
     .from("wa_broadcasts")
-    .select("id, account_id, template, params, audience, status")
+    .select("id, account_id, template, params, audience, status, require_opt_in")
     .in("status", ["scheduled", "sending"])
     .lte("scheduled_at", now.toISOString())
     .order("scheduled_at");
@@ -166,7 +208,7 @@ export async function runBroadcasts(now = new Date()) {
             next.map((r) => r.id)
           )
           .eq("status", "queued")
-          .select("id, contact_id, wa_contacts(name, opted_out_at)")
+          .select("id, contact_id, wa_contacts(name, opted_out_at, marketing_opt_in_at)")
       : { data: [] };
 
     if (!next?.length) {
@@ -179,8 +221,9 @@ export async function runBroadcasts(now = new Date()) {
     let failed = 0;
     for (const r of queue ?? []) {
       budget--;
-      const contact = r.wa_contacts as unknown as { name: string | null; opted_out_at: string | null } | null;
-      if (!contact || contact.opted_out_at) {
+      const contact = r.wa_contacts as unknown as { name: string | null; opted_out_at: string | null; marketing_opt_in_at: string | null } | null;
+      // A broadcast that needs consent never goes to someone whose consent is gone (a STOP in the meantime).
+      if (!contact || contact.opted_out_at || (b.require_opt_in && !contact.marketing_opt_in_at)) {
         await db.from("wa_broadcast_recipients").update({ status: "skipped" }).eq("id", r.id);
         continue;
       }

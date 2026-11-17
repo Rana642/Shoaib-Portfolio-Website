@@ -11,6 +11,8 @@ import { sendText } from "./index";
  *  - afterHours: same, but in the night window (PKT) → its own text, sooner
  *  - followUp: we answered, the guest went quiet for `afterHours` hours →
  *    one nudge, only inside the free 24h window
+ *  - optIn: once per guest, `delayMin` minutes after the team answered, inside the
+ *    24h window: asks if they want offers; a YES (see index.ts) records the consent
  * Never talks over staff: any reply from the phone app or dashboard after the
  * guest's message cancels the instant reply. At most one auto reply per chat
  * per 12 h, and one follow-up per guest message. Booked / not-booked chats
@@ -23,6 +25,8 @@ export type Automation = {
   instant?: { on?: boolean; delayMin?: number; text?: string };
   afterHours?: { on?: boolean; from?: string; to?: string; text?: string };
   followUp?: { on?: boolean; afterHours?: number; text?: string };
+  /** The one-time "want offers on WhatsApp? reply YES" question, asked once after the team has answered. */
+  optIn?: { on?: boolean; delayMin?: number; text?: string };
 };
 
 const HOUR = 3600 * 1000;
@@ -53,11 +57,12 @@ export async function runAutomation(now = new Date()) {
     const instantOn = !!(a.instant?.on && a.instant.text?.trim());
     const nightOn = !!(a.afterHours?.on && a.afterHours.text?.trim());
     const followOn = !!(a.followUp?.on && a.followUp.text?.trim());
-    if (!instantOn && !nightOn && !followOn) continue;
+    const optInOn = !!(a.optIn?.on && a.optIn.text?.trim());
+    if (!instantOn && !nightOn && !followOn && !optInOn) continue;
 
     const { data: contacts } = await db
       .from("wa_contacts")
-      .select("id, name, status, last_inbound_at, auto_reply_at, follow_up_at, intervened_at")
+      .select("id, name, status, last_inbound_at, auto_reply_at, follow_up_at, intervened_at, marketing_opt_in_at, optin_asked_at")
       .eq("account_id", acc.id)
       .gte("last_inbound_at", new Date(now.getTime() - WINDOW).toISOString())
       .not("status", "in", "(booked,lost)")
@@ -68,7 +73,7 @@ export async function runAutomation(now = new Date()) {
     // Latest message from our side (phone app, dashboard or automation) per chat.
     const { data: outs } = await db
       .from("wa_messages")
-      .select("contact_id, sent_at")
+      .select("contact_id, sent_at, via")
       .in(
         "contact_id",
         contacts.map((c) => c.id)
@@ -78,7 +83,13 @@ export async function runAutomation(now = new Date()) {
       .gte("sent_at", new Date(now.getTime() - 2 * WINDOW).toISOString())
       .order("sent_at", { ascending: false });
     const lastOut = new Map<string, number>();
-    for (const o of outs ?? []) if (!lastOut.has(o.contact_id)) lastOut.set(o.contact_id, new Date(o.sent_at).getTime());
+    // The last message from a person (phone app or dashboard), not an automatic one: the opt-in question waits for it.
+    const lastPerson = new Map<string, number>();
+    for (const o of outs ?? []) {
+      const t = new Date(o.sent_at).getTime();
+      if (!lastOut.has(o.contact_id)) lastOut.set(o.contact_id, t);
+      if (o.via !== "auto" && !lastPerson.has(o.contact_id)) lastPerson.set(o.contact_id, t);
+    }
 
     for (const c of contacts) {
       const inAt = new Date(c.last_inbound_at as string).getTime();
@@ -108,6 +119,18 @@ export async function runAutomation(now = new Date()) {
           const res = await sendText(c.id, render(a.followUp!.text!, c.name), "auto");
           await db.from("wa_contacts").update({ follow_up_at: now.toISOString() }).eq("id", c.id);
           sent.push({ contact: c.id, kind: "follow_up", error: "error" in res ? res.error : undefined });
+        }
+      }
+
+      // Opt-in question: once per guest, after a person on the team has answered (not just an auto reply), never to a
+      // guest who already agreed. The once-only flag is spent only when the question really went out.
+      const personAt = lastPerson.get(c.id) ?? 0;
+      if (optInOn && personAt >= inAt && !c.marketing_opt_in_at && !c.optin_asked_at) {
+        const waitMs = Math.max(5, Number(a.optIn?.delayMin) || 30) * 60 * 1000;
+        if (now.getTime() - personAt >= waitMs && now.getTime() - inAt < WINDOW) {
+          const res = await sendText(c.id, render(a.optIn!.text!, c.name), "auto", { kind: "optin_prompt" });
+          if (!("error" in res)) await db.from("wa_contacts").update({ optin_asked_at: now.toISOString() }).eq("id", c.id);
+          sent.push({ contact: c.id, kind: "opt_in", error: "error" in res ? res.error : undefined });
         }
       }
     }

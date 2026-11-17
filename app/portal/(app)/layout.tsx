@@ -18,6 +18,7 @@ export default async function PortalAppLayout({ children }: { children: React.Re
   const links: PortalLink[] = [
     ...(can(ctx, "whatsapp") ? (["whatsapp"] as const) : []),
     ...(can(ctx, "wa_overview") ? (["wa_overview"] as const) : []),
+    ...(can(ctx, "wa_broadcasts") ? (["wa_broadcasts"] as const) : []),
     ...(can(ctx, "wa_templates") ? (["wa_templates"] as const) : []),
     ...(can(ctx, "wa_automation") ? (["wa_automation"] as const) : []),
     ...(can(ctx, "contacts") ? (["contacts"] as const) : []),

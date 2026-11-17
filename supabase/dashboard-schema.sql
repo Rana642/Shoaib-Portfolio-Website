@@ -1845,3 +1845,15 @@ create table if not exists portal_contacts (
 );
 create index if not exists portal_contacts_recent_idx on portal_contacts (project_id, last_activity_at desc nulls last);
 alter table portal_contacts enable row level security;
+
+-- Marketing opt-in (2026-11-17): a guest can agree to offers by answering YES to the opt-in question
+-- (lib/whatsapp/index.ts) or staff can record it (portal Contacts). Broadcasts from the portal go only to
+-- these guests (wa_broadcasts.require_opt_in); STOP clears it. optin_asked_at: the question is asked once.
+alter table wa_contacts add column if not exists marketing_opt_in_at timestamptz;
+alter table wa_contacts add column if not exists marketing_opt_in_source text check (marketing_opt_in_source in ('chat_yes', 'staff'));
+alter table wa_contacts add column if not exists optin_asked_at timestamptz;
+alter table wa_contacts add column if not exists marketing_opt_in_by text;   -- who recorded it (portal user's e-mail), null for a YES in chat
+alter table wa_broadcasts add column if not exists require_opt_in boolean not null default false;
+alter table portal_contacts add column if not exists marketing_opt_in_at timestamptz;
+alter table portal_contacts add column if not exists opted_out boolean not null default false;
+create index if not exists wa_contacts_optin_idx on wa_contacts (account_id) where marketing_opt_in_at is not null;

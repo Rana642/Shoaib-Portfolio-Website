@@ -1,4 +1,4 @@
-import { BedDouble, CalendarDays, CircleDashed, Contact, FileText, Inbox, KeyRound, LayoutDashboard, MessageCircle, UserCircle, Users, Zap } from "lucide-react";
+import { BedDouble, CalendarDays, CircleDashed, Contact, FileText, Inbox, KeyRound, LayoutDashboard, Megaphone, MessageCircle, UserCircle, Users, Zap } from "lucide-react";
 import type { Section, SectionItem } from "@/lib/dashboard/sections";
 
 /**
@@ -10,6 +10,7 @@ import type { Section, SectionItem } from "@/lib/dashboard/sections";
 export type PortalLink =
   | "whatsapp"
   | "wa_overview"
+  | "wa_broadcasts"
   | "wa_templates"
   | "wa_automation"
   | "bookings"
@@ -25,6 +26,7 @@ const P = "/portal";
 const ITEM: Record<PortalLink, SectionItem> = {
   whatsapp: { href: `${P}/whatsapp`, label: "Inbox", icon: MessageCircle },
   wa_overview: { href: `${P}/whatsapp/overview`, label: "Overview", icon: LayoutDashboard },
+  wa_broadcasts: { href: `${P}/whatsapp/broadcasts`, label: "Broadcasts", icon: Megaphone },
   wa_templates: { href: `${P}/whatsapp/templates`, label: "Templates", icon: FileText },
   wa_automation: { href: `${P}/whatsapp/automation`, label: "Automation", icon: Zap },
   bookings: { href: `${P}/bookings`, label: "Bookings", icon: BedDouble },
@@ -44,7 +46,7 @@ const LAYOUT: { key: string; label: string; icon: Section["icon"]; description: 
     label: "WhatsApp",
     icon: MessageCircle,
     description: "Your WhatsApp chats, numbers at a glance, templates and automatic replies.",
-    links: ["whatsapp", "wa_overview", "wa_templates", "wa_automation"],
+    links: ["whatsapp", "wa_overview", "wa_broadcasts", "wa_templates", "wa_automation"],
   },
   { key: "contacts", label: "Contacts", icon: Contact, description: "Everyone who contacted you, saved in one place.", links: ["contacts"] },
   {

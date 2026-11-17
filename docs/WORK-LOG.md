@@ -4,6 +4,13 @@ Newest first. Short notes so work can continue on any machine. The full
 context (decisions, gotchas, rules) is in the second-brain vault:
 `Obsidian-my-2nd-Brain/03-Projects/Shoaib-Nabi-Noor/memory/MEMORY.md`.
 
+## 2026-11-17 — Portal marketing broadcasts and the opt-in (spec: docs/PORTAL-MARKETING-BROADCASTS.md)
+- **Opt-in:** Automation gets "Offers opt-in question" (once per guest, after a PERSON on the team answered, inside 24 h; text must contain YES and STOP; the once-only flag is spent only when it was sent). A guest's exact YES counts only when our LAST message to them was that question; STOP/UNSUBSCRIBE (matched as loosely as YES) clears it. Staff can record it in portal Contacts ("Mark agreed", Owner or someone with the broadcast switch; stored with who did it in \`marketing_opt_in_by\`).
+- **Broadcasts in the portal** (feature \`wa_broadcasts\`, delegable): only guests with \`marketing_opt_in_at\`, forced on the server and re-checked per guest when sent (\`wa_broadcasts.require_opt_in\`); limit 250 guests per 24 h around the send time, counting what is queued or already sent (cancelling or scheduling another day can't get round it; re-counted after the insert, so two at once can't both pass).
+- **Columns applied 17 Nov** (before the push): \`wa_contacts.marketing_opt_in_at/source/by\`, \`optin_asked_at\`, \`wa_broadcasts.require_opt_in\`, \`portal_contacts.marketing_opt_in_at/opted_out\`.
+- **Reviews done (code + security):** fixed false consent from a later "yes", early once-only flag, question after an auto-reply only, the cap bypasses, STOP matching, attribution. 80 tests, tsc, eslint clean.
+- **Known, left:** a scheduled portal broadcast still goes out if Shoaib switches the feature off before it runs; a YES can trigger an instant reply 12 h after the last auto reply; no "thanks, you're in" reply yet; Meta's business-verification limit (250) not raised yet.
+
 ## 2026-11-16 (evening) — Client portal: WhatsApp tools, Contacts book, one business switch (built, waits for the table + push)
 - **Elegant number live:** +92 317 3330998 connected in Socially Snap after the hotel's phone had Business AI and Auto lists switched off (Meta blocked on those, then on "still disconnecting"), linked here with "Link a Socially Snap number"; its 300 chats show in the dashboard inbox and the portal.
 - **One business switch** under the sidebar logo (cookie \`portal_project\`, \`lib/portal/active-project*.ts\`, \`ProjectSwitcher\`): WhatsApp, Bookings, Inquiries, Contacts and (as default) Planner/Stories follow it. The per-page hotel dropdowns are gone.

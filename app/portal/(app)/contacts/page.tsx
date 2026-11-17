@@ -6,7 +6,7 @@ import { activeProject } from "@/lib/portal/active-project";
 import { CONTACTS_PAGE_SIZE, listContacts, safeSearch, syncProjectContactsIfStale } from "@/lib/portal/contacts";
 import { SOURCE_LABEL, type ContactSource } from "@/lib/portal/contacts-merge";
 import { Card, PageHeader } from "@/components/dashboard/ui";
-import { AddContactForm, DeleteContactButton, NoteEditor } from "@/components/portal/ContactsClient";
+import { AddContactForm, DeleteContactButton, NoteEditor, OptInButton } from "@/components/portal/ContactsClient";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Contacts" };
@@ -43,6 +43,7 @@ export default async function PortalContactsPage({ searchParams }: { searchParam
   }
   const { rows, total, page: pageNo } = await listContacts(active.id, { q, source, page: Number(page) || 1 });
   const pages = Math.max(1, Math.ceil(total / CONTACTS_PAGE_SIZE));
+  const canMark = ctx.role === "owner" || can(ctx, "wa_broadcasts");
 
   const link = (patch: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
@@ -115,6 +116,7 @@ export default async function PortalContactsPage({ searchParams }: { searchParam
                   <th className="py-2 pr-3 font-normal">Where from</th>
                   <th className="py-2 pr-3 font-normal text-right">Bookings</th>
                   <th className="py-2 pr-3 font-normal text-right">Inquiries</th>
+                  <th className="py-2 pr-3 font-normal">Offers on WhatsApp</th>
                   <th className="py-2 pr-3 font-normal">Last activity</th>
                   <th className="py-2 pr-3 font-normal">Note</th>
                   <th className="py-2 w-8" />
@@ -149,6 +151,20 @@ export default async function PortalContactsPage({ searchParams }: { searchParam
                     </td>
                     <td className="py-2 pr-3 text-right tabular-nums">{c.bookings || "—"}</td>
                     <td className="py-2 pr-3 text-right tabular-nums">{c.inquiries || "—"}</td>
+                    <td className="py-2 pr-3">
+                      {c.opted_out ? (
+                        <span className="text-tag text-red-700">Sent STOP</span>
+                      ) : c.sources.includes("whatsapp") ? (
+                        <div className="flex flex-col items-start gap-1">
+                          <span className={`text-tag ${c.marketing_opt_in_at ? "text-forest" : "text-ink-subtle"}`}>
+                            {c.marketing_opt_in_at ? `Agreed ${date(c.marketing_opt_in_at)}` : "Not asked / not agreed"}
+                          </span>
+                          {canMark && <OptInButton id={c.id} optedIn={!!c.marketing_opt_in_at} />}
+                        </div>
+                      ) : (
+                        <span className="text-tag text-ink-subtle">No WhatsApp chat</span>
+                      )}
+                    </td>
                     <td className="py-2 pr-3 whitespace-nowrap">{date(c.last_activity_at)}</td>
                     <td className="py-2 pr-3">
                       <NoteEditor id={c.id} initial={c.notes ?? ""} />

@@ -26,21 +26,23 @@ export type PortalContact = {
   total_spent: number;
   first_seen_at: string;
   last_activity_at: string | null;
+  marketing_opt_in_at: string | null;
+  opted_out: boolean;
 };
 
-const COLUMNS = "id, contact_key, name, phone, email, sources, notes, bookings, inquiries, chats, total_spent, first_seen_at, last_activity_at";
+const COLUMNS = "id, contact_key, name, phone, email, sources, notes, bookings, inquiries, chats, total_spent, first_seen_at, last_activity_at, marketing_opt_in_at, opted_out";
 const PAGE = 1000;
 
 /** Every WhatsApp chat of a business's numbers (paged, because a number can have thousands). */
 async function whatsAppRows(projectId: string) {
   const { data: accounts } = await db.from("wa_accounts").select("id").eq("project_id", projectId);
   const ids = (accounts ?? []).map((a) => a.id as string);
-  const rows: { wa_id: string; name: string | null; created_at: string; last_message_at: string | null }[] = [];
+  const rows: { wa_id: string; name: string | null; created_at: string; last_message_at: string | null; marketing_opt_in_at: string | null; opted_out_at: string | null }[] = [];
   if (!ids.length) return rows;
   for (let from = 0; from < 20000; from += PAGE) {
     const { data, error } = await db
       .from("wa_contacts")
-      .select("wa_id, name, created_at, last_message_at")
+      .select("wa_id, name, created_at, last_message_at, marketing_opt_in_at, opted_out_at")
       .in("account_id", ids)
       .order("created_at")
       .order("id")
@@ -87,6 +89,8 @@ export async function syncProjectContacts(projectId: string): Promise<number> {
       total_spent: out.totalSpent,
       first_seen_at: firstSeen,
       last_activity_at: out.lastActivity,
+      marketing_opt_in_at: out.optedOut ? null : out.optInAt,
+      opted_out: out.optedOut,
       updated_at: now,
     };
   });

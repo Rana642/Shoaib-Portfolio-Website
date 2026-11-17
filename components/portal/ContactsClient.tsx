@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { LoaderCircle, Trash2 } from "lucide-react";
 import { buttonStyles, inputClasses } from "@/components/dashboard/ui";
-import { portalAddContact, portalDeleteContact, portalSaveContactNote } from "@/lib/portal/contacts-actions";
+import { portalAddContact, portalDeleteContact, portalSaveContactNote, portalSetMarketingOptIn } from "@/lib/portal/contacts-actions";
 
 type Result = { error?: string; ok?: boolean };
 
@@ -117,5 +117,33 @@ export function DeleteContactButton({ id }: { id: string }) {
     >
       <Trash2 className="size-4" />
     </button>
+  );
+}
+
+/** "Agreed to offers": staff record it (after the guest said yes in person, by phone or in writing), or take it back. */
+export function OptInButton({ id, optedIn }: { id: string; optedIn: boolean }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <span className="inline-flex flex-col items-start gap-0.5">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => {
+          if (!optedIn && !window.confirm("Confirm this guest agreed to receive offers from the hotel on WhatsApp (in person, by phone or in writing).")) return;
+          setError(null);
+          start(async () => {
+            const r = (await portalSetMarketingOptIn(id, !optedIn)) as Result;
+            if (r.error) return setError(r.error);
+            router.refresh();
+          });
+        }}
+        className="rounded-md border border-ink/15 px-2 py-0.5 text-tag hover:bg-ink/5 disabled:opacity-50 whitespace-nowrap"
+      >
+        {pending ? "…" : optedIn ? "Take back" : "Mark agreed"}
+      </button>
+      {error && <span className="text-tag text-red-700 max-w-48">{error}</span>}
+    </span>
   );
 }

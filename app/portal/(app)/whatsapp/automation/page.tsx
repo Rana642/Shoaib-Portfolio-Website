@@ -5,16 +5,10 @@ import { can, requirePortalUser } from "@/lib/portal/auth";
 import { activeProject } from "@/lib/portal/active-project";
 import { portalAddQuickReply, portalDeleteQuickReply, portalSaveAutomation } from "@/lib/portal/wa-tools";
 import { Card, PageHeader } from "@/components/dashboard/ui";
-import { AutomationForm, QuickRepliesManager, type AutomationSettings } from "@/components/whatsapp/AutomationForm";
+import { AutomationForm, QuickRepliesManager, withDefaults, type AutomationSettings } from "@/components/whatsapp/AutomationForm";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "WhatsApp automation" };
-
-const DEFAULTS: AutomationSettings = {
-  instant: { on: false, delayMin: 2, text: "" },
-  afterHours: { on: false, from: "23:00", to: "08:00", text: "" },
-  followUp: { on: false, afterHours: 3, text: "" },
-};
 
 /** Automatic replies and quick replies for the numbers of the business chosen in the sidebar. */
 export default async function PortalWhatsAppAutomationPage({ searchParams }: { searchParams: Promise<{ account?: string }> }) {
@@ -32,11 +26,7 @@ export default async function PortalWhatsAppAutomationPage({ searchParams }: { s
     ? await db.from("wa_quick_replies").select("id, title, body").eq("account_id", selected.id).order("sort_order")
     : { data: [] };
   const name = (a: (typeof accounts)[number]) => a.display_phone ?? a.label ?? "WhatsApp";
-  const initial: AutomationSettings = {
-    instant: { ...DEFAULTS.instant, ...(selected?.automation?.instant ?? {}) },
-    afterHours: { ...DEFAULTS.afterHours, ...(selected?.automation?.afterHours ?? {}) },
-    followUp: { ...DEFAULTS.followUp, ...(selected?.automation?.followUp ?? {}) },
-  };
+  const initial: AutomationSettings = withDefaults(selected?.automation);
 
   async function save(s: AutomationSettings) {
     "use server";

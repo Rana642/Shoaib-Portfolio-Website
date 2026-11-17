@@ -1,17 +1,11 @@
 import Link from "next/link";
 import { db } from "@/lib/dashboard/db";
 import { Card, PageHeader } from "@/components/dashboard/ui";
-import { AutomationForm, QuickRepliesManager, type AutomationSettings } from "@/components/whatsapp/AutomationForm";
+import { AutomationForm, QuickRepliesManager, withDefaults, type AutomationSettings } from "@/components/whatsapp/AutomationForm";
 import { addQuickReply, deleteQuickReply, saveWhatsAppAutomation } from "@/lib/dashboard/actions/whatsapp";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "WhatsApp automation" };
-
-const DEFAULTS: AutomationSettings = {
-  instant: { on: false, delayMin: 2, text: "" },
-  afterHours: { on: false, from: "23:00", to: "08:00", text: "" },
-  followUp: { on: false, afterHours: 3, text: "" },
-};
 
 export default async function WhatsAppAutomationPage({ searchParams }: { searchParams: Promise<{ account?: string }> }) {
   const { account } = await searchParams;
@@ -28,11 +22,7 @@ export default async function WhatsAppAutomationPage({ searchParams }: { searchP
     ? await db.from("wa_quick_replies").select("id, title, body").eq("account_id", selected.id).order("sort_order")
     : { data: [] };
   const name = (a: (typeof accounts)[number]) => a.client_projects?.name ?? a.label ?? a.display_phone ?? "WhatsApp";
-  const initial: AutomationSettings = {
-    instant: { ...DEFAULTS.instant, ...(selected?.automation?.instant ?? {}) },
-    afterHours: { ...DEFAULTS.afterHours, ...(selected?.automation?.afterHours ?? {}) },
-    followUp: { ...DEFAULTS.followUp, ...(selected?.automation?.followUp ?? {}) },
-  };
+  const initial: AutomationSettings = withDefaults(selected?.automation);
 
   async function save(s: AutomationSettings) {
     "use server";

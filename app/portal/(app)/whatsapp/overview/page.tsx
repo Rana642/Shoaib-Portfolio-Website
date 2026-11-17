@@ -25,6 +25,7 @@ export default async function PortalWhatsAppOverviewPage({ searchParams }: { sea
       account={account}
       basePath="/portal/whatsapp/overview"
       inboxPath="/portal/whatsapp"
+      broadcastsPath={can(ctx, "wa_broadcasts") ? "/portal/whatsapp/broadcasts" : undefined}
       emptyText={`No WhatsApp number is connected yet${active ? ` for ${active.name}` : ""} — I'll set it up for you.`}
     />
   );
