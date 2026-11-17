@@ -13,7 +13,7 @@ export type BotMessage =
   | { type: "buttons"; body: string; buttons: { id: string; title: string }[] }
   | { type: "list"; body: string; button: string; rows: { id: string; title: string; description?: string }[] };
 
-export type Step = "existing" | "menu" | "ask_checkin" | "ask_nights" | "ask_guests" | "pick_room" | "ask_name" | "confirm" | "await_receipt" | "done" | "handoff";
+export type Step = "existing" | "menu" | "info" | "ask_checkin" | "ask_nights" | "ask_guests" | "pick_room" | "ask_name" | "confirm" | "await_receipt" | "done" | "handoff";
 
 export type RoomOption = { roomId: string; name: string; total: number; perNight: number; nights: number; refundable: boolean; requiresAdvance: boolean };
 export type ActiveBooking = {
@@ -23,7 +23,7 @@ export type ActiveBooking = {
 
 export type BookingData = {
   checkIn?: string; nights?: number; adults?: number; children?: number;
-  rooms?: RoomOption[]; roomId?: string; roomName?: string; total?: number;
+  rooms?: RoomOption[]; roomId?: string; roomName?: string; total?: number; requiresAdvance?: boolean;
   guestName?: string; bookingRef?: string; extra?: boolean; existing?: ActiveBooking[];
 };
 
@@ -44,12 +44,22 @@ export type HotelApi = {
   cancel(ref: string, phone: string): Promise<{ ok: true } | ApiFail>;
 };
 
+/** One answer the guest can ask for under "Rates & info", written from the hotel's own knowledge base and approved by the owner. */
+export type InfoTopic = { title: string; body: string };
+
 export type BotConfig = {
   hotelName: string;
-  advance: { mode: "percent" | "first_night"; value: number };
+  /**
+   * What the guest pays to confirm: a percent of the total, the first night, or nothing ("none": pay at the hotel, the
+   * booking stays pending until staff confirm it). A room the hotel says needs advance payment (a deal) is always paid
+   * in full in advance, whatever this is set to.
+   */
+  advance: { mode: "percent" | "first_night" | "none"; value: number };
   holdMinutes: number;
-  /** How to pay the advance (account numbers etc.), written by the hotel. */
+  /** How to pay the advance (account numbers etc.), written by the hotel. May be empty when the mode is "none". */
   paymentText: string;
+  /** This hotel's own facts (location, check-in, policies...). Empty: "Rates & info" shows the rates only. */
+  info: InfoTopic[];
 };
 
 export type BotInput = {
@@ -86,7 +96,7 @@ const buttons = (body: string, b: [string, string][]): BotMessage => ({ type: "b
  * If buttons or lists don't work on a number (or the guest just types), what they type still means the same thing.
  * Returns the id the matching button would have had.
  */
-function idFromText(step: Step, said: string, s: BotSession): string | undefined {
+function idFromText(step: Step, said: string, s: BotSession, info: InfoTopic[]): string | undefined {
   const t = said.toLowerCase().trim();
   if (!t) return undefined;
   switch (step) {
@@ -96,6 +106,13 @@ function idFromText(step: Step, said: string, s: BotSession): string | undefined
     case "pick_room": {
       const i = (s.data.rooms ?? []).findIndex((r) => t.includes(r.name.toLowerCase()) || r.name.toLowerCase().includes(t));
       return i >= 0 ? `r_${i}` : undefined;
+    }
+    case "info": {
+      if (/\b(book|booking|reserve)\b/.test(t)) return "book";
+      if (/\b(rate|rates|price|prices|room|rooms|rent|kitna)\b/.test(t)) return "info_rooms";
+      // A typed topic: any longer word of a topic's title ("location", "check", "policies") that the guest wrote.
+      const i = info.findIndex((tp) => tp.title.toLowerCase().split(/[^a-z]+/).some((w) => w.length > 3 && t.includes(w)));
+      return i >= 0 ? `i_${i}` : undefined;
     }
     case "await_receipt": return /\bcancel\b/.test(t) ? "cancel_booking" : undefined;
     case "ask_name": return undefined;
@@ -107,12 +124,15 @@ const STAFF_WORDS = /\b(staff|human|agent|reception|manager|call me|talk to (som
 const MENU_WORDS = /^(menu|start|restart|hi|hello|hey|salam|salaam|assalam[a-z ]*|aoa|a\.?o\.?a|hlo|helo)\W*$/i;
 const BOOK_WORDS = /\b(book|booking|reserve|reservation|room|kamra|kamre|rooms)\b/i;
 
-export const advanceFor = (cfg: BotConfig, total: number, nights: number) => {
+/** What the guest pays now. A deal that needs advance payment is paid in full; "none" means pay at the hotel (0). */
+export const advanceFor = (cfg: BotConfig, total: number, nights: number, requiresAdvance = false) => {
+  if (requiresAdvance) return Math.round(total);
+  if (cfg.advance.mode === "none") return 0;
   const raw = cfg.advance.mode === "first_night" ? total / Math.max(1, nights) : (total * cfg.advance.value) / 100;
   return Math.min(total, roundUp100(raw));
 };
 
-const statusWord = (s: string) => ({ pending: "waiting for payment confirmation", confirmed: "confirmed", checked_in: "checked in" })[s] ?? s;
+const statusWord = (s: string) => ({ pending: "waiting for confirmation", confirmed: "confirmed", checked_in: "checked in" })[s] ?? s;
 
 function describeExisting(list: ActiveBooking[]): string {
   return list
@@ -125,7 +145,7 @@ function describeExisting(list: ActiveBooking[]): string {
 }
 
 function menu(cfg: BotConfig): BotMessage {
-  return buttons(`Welcome to ${cfg.hotelName}! How can I help you?`, [["book", "Book a room"], ["rates", "Rates & rooms"], ["staff", "Talk to staff"]]);
+  return buttons(`Welcome to ${cfg.hotelName}! How can I help you?`, [["book", "Book a room"], ["rates", "Rates & info"], ["staff", "Talk to staff"]]);
 }
 
 const strike = (s: BotSession, ok: boolean): BotSession => ({ ...s, strikes: ok ? 0 : s.strikes + 1 });
@@ -143,7 +163,7 @@ async function start(input: BotInput, deps: BotDeps, refInText?: string): Promis
   if (list.length) {
     const own = list.some((b) => b.matchedBy === "phone");
     const opts: [string, string][] = own
-      ? [list.some((b) => b.status === "pending" && !b.hasReceipt) ? ["receipt", "Send receipt"] : ["status", "Booking status"], ["extra", "Another room"], ["staff", "Talk to staff"]]
+      ? [list.some((b) => b.status === "pending" && !b.hasReceipt) && deps.config.advance.mode !== "none" ? ["receipt", "Send receipt"] : ["status", "Booking status"], ["extra", "Another room"], ["staff", "Talk to staff"]]
       : [["staff", "Talk to staff"], ["extra", "New booking"]];
     return {
       session: { step: "existing", data: { existing: list }, strikes: 0 },
@@ -160,14 +180,29 @@ const askCheckin = (s: BotSession): BotOutput => ({
   messages: [text("What is your check-in date? You can write it like 5 Dec, 05/12 or tomorrow.")],
 });
 
+/** "Rates & info": this hotel's own topics (plus the live rates). With no topics written, straight to the rates. */
+async function infoList(s: BotSession, deps: BotDeps): Promise<BotOutput> {
+  const topics = deps.config.info;
+  if (!topics.length) return ratesInfo(s, deps);
+  return {
+    session: { ...s, step: "info", strikes: 0 },
+    messages: [{
+      type: "list",
+      body: "What would you like to know?",
+      button: "Choose a topic",
+      rows: [{ id: "info_rooms", title: "Rooms & rates", description: "Live price per night" }, ...topics.slice(0, 9).map((t, i) => ({ id: `i_${i}`, title: clip(t.title, 24) }))],
+    }],
+  };
+}
+
 async function ratesInfo(s: BotSession, deps: BotDeps): Promise<BotOutput> {
   const checkIn = addDays(todayKarachi(deps.now()), 1);
   const q = await deps.api.quote({ checkIn, checkOut: addDays(checkIn, 1), adults: 2, children: 0 });
   if (!q.ok) return { session: s, messages: [buttons("I couldn't load the rates just now. Would you like to book, or talk to our staff?", [["book", "Book a room"], ["staff", "Talk to staff"]])] };
   const lines = q.rooms.map((r) => `• ${r.name}: ${rs(r.perNight)} per night`).join("\n");
   return {
-    session: { ...s, step: "menu", strikes: 0 },
-    messages: [buttons(`Our rooms (price per night for 2 guests, taxes included):\n${lines}\n\nPrices can change with dates and offers. Shall I check your dates?`, [["book", "Book a room"], ["staff", "Talk to staff"]])],
+    session: { ...s, step: deps.config.info.length ? "info" : "menu", strikes: 0 },
+    messages: [buttons(`Our rooms (price per night for 2 guests, taxes included):\n${lines}\n\nPrices can change with dates and offers. Shall I check your dates?`, [["book", "Book a room"], ...(deps.config.info.length ? ([["rates", "More info"]] as [string, string][]) : []), ["staff", "Talk to staff"]])],
   };
 }
 
@@ -196,12 +231,13 @@ async function runQuote(s: BotSession, deps: BotDeps): Promise<BotOutput> {
 
 function summary(s: BotSession, deps: BotDeps): BotOutput {
   const d = s.data;
-  const advance = advanceFor(deps.config, d.total!, d.nights!);
+  const advance = advanceFor(deps.config, d.total!, d.nights!, d.requiresAdvance);
   const checkOut = addDays(d.checkIn!, d.nights!);
+  const pay = advance <= 0 ? "Payment: at the hotel" : d.requiresAdvance ? `Payment in advance: ${rs(advance)} (this offer is paid in full in advance)` : `Advance to confirm: ${rs(advance)}`;
   return {
     session: { ...s, step: "confirm", strikes: 0 },
     messages: [buttons(
-      `Please check your booking:\n\n${d.roomName}\n${day(d.checkIn!)} to ${day(checkOut)} (${d.nights} night${d.nights! > 1 ? "s" : ""})\n${d.adults} adult${d.adults! > 1 ? "s" : ""}${d.children ? `, ${d.children} child${d.children > 1 ? "ren" : ""}` : ""}\nName: ${d.guestName}\nTotal: ${rs(d.total!)} (taxes included)\nAdvance to confirm: ${rs(advance)}`,
+      `Please check your booking:\n\n${d.roomName}\n${day(d.checkIn!)} to ${day(checkOut)} (${d.nights} night${d.nights! > 1 ? "s" : ""})\n${d.adults} adult${d.adults! > 1 ? "s" : ""}${d.children ? `, ${d.children} child${d.children > 1 ? "ren" : ""}` : ""}\nName: ${d.guestName}\nTotal: ${rs(d.total!)} (taxes included)\n${pay}`,
       [["confirm", "Confirm booking"], ["dates", "Change dates"], ["cancel", "Cancel"]]
     )],
   };
@@ -224,15 +260,32 @@ async function createBooking(s: BotSession, input: BotInput, deps: BotDeps): Pro
     return { session: { ...s, strikes: s.strikes + 1 }, messages: [buttons(`Sorry, I couldn't complete the booking: ${clip(r.error, 120)}. Please try again or talk to our staff.`, [["confirm", "Try again"], ["staff", "Talk to staff"]])] };
   }
   const total = r.grandTotal ?? d.total ?? 0;
-  const advance = advanceFor(deps.config, total, d.nights!);
+  const advance = advanceFor(deps.config, total, d.nights!, d.requiresAdvance);
+  const created = { bookingRef: r.bookingRef, total: r.grandTotal, roomName: r.roomName ?? d.roomName ?? null, checkIn: d.checkIn!, nights: d.nights! };
+  // Pay at the hotel: nothing to wait for. The booking stays pending until staff confirm it (and the guest is told then).
+  if (advance <= 0) {
+    return {
+      session: { step: "done", data: { ...d, bookingRef: r.bookingRef }, strikes: 0 },
+      messages: [text(`Your room is reserved. Booking ref: ${r.bookingRef}\n\nYou pay at the hotel when you arrive. Our team will confirm your booking shortly and message you here.`)],
+      staffAlert: `New WhatsApp booking ${r.bookingRef} (pay at the hotel). Please confirm it.`,
+      created,
+    };
+  }
   const holdUntil = new Date(deps.now().getTime() + deps.config.holdMinutes * 60_000).toISOString();
+  const how = deps.config.paymentText.trim();
   return {
     session: { step: "await_receipt", data: { ...d, bookingRef: r.bookingRef }, strikes: 0, holdUntil },
     messages: [
-      text(`Your room is reserved. Booking ref: ${r.bookingRef}\n\nTo confirm it, please pay the advance of ${rs(advance)} within ${deps.config.holdMinutes} minutes:\n\n${deps.config.paymentText}\n\nThen send the payment receipt photo here.`),
+      text(
+        how
+          ? `Your room is reserved. Booking ref: ${r.bookingRef}\n\nTo confirm it, please pay ${d.requiresAdvance ? "the full amount" : "the advance"} of ${rs(advance)} within ${deps.config.holdMinutes} minutes:\n\n${how}\n\nThen send the payment receipt photo here.`
+          : `Your room is reserved. Booking ref: ${r.bookingRef}\n\nTo confirm it, ${rs(advance)} is to be paid in advance. Our team will send you the payment details here shortly.`
+      ),
     ],
     staffAlert: `New WhatsApp booking ${r.bookingRef}, waiting for the advance.`,
-    created: { bookingRef: r.bookingRef, total: r.grandTotal, roomName: r.roomName ?? d.roomName ?? null, checkIn: d.checkIn!, nights: d.nights! },
+    // With no payment details written, a person must send them.
+    ...(how ? {} : { handoff: true }),
+    created,
   };
 }
 
@@ -240,7 +293,7 @@ async function createBooking(s: BotSession, input: BotInput, deps: BotDeps): Pro
 export async function handle(session: BotSession | null, input: BotInput, deps: BotDeps): Promise<BotOutput> {
   const s: BotSession = session ?? newSession();
   const said = (input.text ?? "").trim();
-  const id = input.id ?? (input.kind === "text" ? idFromText(s.step, said, s) : undefined);
+  const id = input.id ?? (input.kind === "text" ? idFromText(s.step, said, s, deps.config.info) : undefined);
   const wantsStaff = id === "staff" || (input.kind === "text" && STAFF_WORDS.test(said));
 
   // Staff took over: the bot stays quiet until the guest asks for the menu.
@@ -274,10 +327,24 @@ export async function handle(session: BotSession | null, input: BotInput, deps: 
 
     case "menu": {
       if (id === "book" || (input.kind === "text" && BOOK_WORDS.test(said))) return askCheckin(s);
-      if (id === "rates") return ratesInfo(s, deps);
+      if (id === "rates") return infoList(s, deps);
       const st = strike(s, false);
-      if (st.strikes >= 2) return { session: { ...st, strikes: 0 }, messages: [buttons("I can help you book a room, share our rates, or connect you with our staff.", [["book", "Book a room"], ["rates", "Rates & rooms"], ["staff", "Talk to staff"]])] };
+      if (st.strikes >= 2) return { session: { ...st, strikes: 0 }, messages: [buttons("I can help you book a room, share our rates and hotel information, or connect you with our staff.", [["book", "Book a room"], ["rates", "Rates & info"], ["staff", "Talk to staff"]])] };
       return { session: st, messages: [menu(deps.config)] };
+    }
+
+    case "info": {
+      if (id === "book") return askCheckin(s);
+      if (id === "rates") return infoList(s, deps);
+      if (id === "info_rooms") return ratesInfo(s, deps);
+      const n = id?.match(/^i_(\d+)$/) ? Number(id.slice(2)) : -1;
+      const topic = deps.config.info[n];
+      if (!topic) {
+        const st = strike(s, false);
+        if (st.strikes >= 3) return handoffOutput(st, "Guest could not pick an info topic.");
+        return { session: st, messages: [text("Please choose a topic from the list (tap Choose a topic), or tap Book a room.")] };
+      }
+      return { session: { ...s, strikes: 0 }, messages: [buttons(`${topic.title}\n\n${topic.body}`, [["book", "Book a room"], ["rates", "More info"], ["staff", "Talk to staff"]])] };
     }
 
     case "ask_checkin": {
@@ -335,7 +402,7 @@ export async function handle(session: BotSession | null, input: BotInput, deps: 
         if (st.strikes >= 3) return handoffOutput(st, "Guest could not choose a room.");
         return { session: st, messages: [text("Please choose one of the rooms from the list (tap Choose a room).")] };
       }
-      const data = { ...s.data, roomId: room.roomId, roomName: room.name, total: room.total };
+      const data = { ...s.data, roomId: room.roomId, roomName: room.name, total: room.total, requiresAdvance: room.requiresAdvance };
       const ask = input.profileName && parseName(input.profileName);
       return {
         session: { ...s, step: "ask_name", strikes: 0, data },

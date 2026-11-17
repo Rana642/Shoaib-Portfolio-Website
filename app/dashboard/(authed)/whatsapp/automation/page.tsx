@@ -75,10 +75,11 @@ export default async function WhatsAppAutomationPage({ searchParams }: { searchP
             initial={{
               enabled: selected.booking_bot?.enabled === true,
               hotelName: selected.booking_bot?.hotelName ?? "",
-              advanceMode: selected.booking_bot?.advanceMode === "first_night" ? "first_night" : "percent",
+              advanceMode: selected.booking_bot?.advanceMode === "first_night" ? "first_night" : selected.booking_bot?.advanceMode === "none" ? "none" : "percent",
               advanceValue: selected.booking_bot?.advanceValue ?? 30,
               holdMinutes: selected.booking_bot?.holdMinutes ?? 120,
               paymentText: selected.booking_bot?.paymentText ?? "",
+              info: Array.isArray(selected.booking_bot?.info) ? selected.booking_bot!.info! : [],
             }}
             onSave={saveBot}
           />

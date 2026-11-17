@@ -12,7 +12,7 @@ import { accountOfChat, createTemplate, deleteTemplate, listTemplates, sendTempl
 import type { TemplateInput } from "../../whatsapp/template-shared";
 import { cancelBroadcast, createBroadcast, previewAudience, type Audience } from "../../whatsapp/broadcasts";
 import { addQuickReplyTo, automationSchema, deleteQuickReplyById, saveAutomation } from "../../whatsapp/automation-settings";
-import { parseBotSettings } from "../../whatsapp/booking-bot/config";
+import { cleanInfoTopics, parseBotSettings } from "../../whatsapp/booking-bot/config";
 
 async function assertAuthed() {
   const user = await getAdminUser();
@@ -144,10 +144,12 @@ export async function saveBookingBotSettings(accountId: string, input: unknown) 
   const stored = {
     enabled: wantOn,
     hotelName: text(raw.hotelName, 80),
-    advanceMode: raw.advanceMode === "first_night" ? "first_night" : "percent",
+    advanceMode: raw.advanceMode === "first_night" ? "first_night" : raw.advanceMode === "none" ? "none" : "percent",
     advanceValue: Math.max(0, Math.min(100, Math.round(Number(raw.advanceValue) || 0))),
     holdMinutes: Math.max(0, Math.min(1440, Math.round(Number(raw.holdMinutes) || 0))),
     paymentText: text(raw.paymentText, 600),
+    // This hotel's own answers (written from its knowledge base and approved by the owner), shown under "Rates & info".
+    info: cleanInfoTopics(raw.info),
   };
   const { error } = await db.from("wa_accounts").update({ booking_bot: stored }).eq("id", accountId);
   if (error) return { error: /booking_bot/.test(error.message) ? "The database has no booking-bot columns yet. Run the booking-bot block of supabase/dashboard-schema.sql first." : error.message };

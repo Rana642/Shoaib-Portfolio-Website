@@ -7,7 +7,7 @@ const CONFIG: BotConfig = {
   hotelName: "Hotel Elegant Executive Suites",
   advance: { mode: "percent", value: 30 },
   holdMinutes: 120,
-  paymentText: "Easypaisa 0300 0000000 (Hotel Elegant)",
+  paymentText: "Easypaisa 0300 0000000 (Hotel Elegant)", info: [],
 };
 
 const ROOMS = [
@@ -318,5 +318,117 @@ describe("typed answers work like button taps (for numbers where buttons don't s
     const confirming: BotSession = { step: "confirm", data: { checkIn: "2026-12-05", nights: 2, adults: 2, roomName: "King Room", total: 17000, guestName: "Ali" }, strikes: 0 };
     out = await handle(confirming, text("cancel"), d);
     assert.equal(out.session.step, "done");
+  });
+});
+
+const INFO = [
+  { title: "Location & contact", body: "77A, A Block Gulgasht Colony, Multan. Phone 0317 3330998." },
+  { title: "Check-in & check-out", body: "Check-in 24 hours. Check-out 12:00 noon." },
+];
+const withInfo = (api: HotelApi, over: Partial<BotConfig> = {}): BotDeps => ({ api, now: () => NOW, config: { ...CONFIG, info: INFO, ...over } });
+
+describe("Rates & info (each hotel's own topics)", () => {
+  it("the menu button opens this hotel's topics, and a topic is answered with its own words", async () => {
+    const d = withInfo(fakeApi());
+    let out = await handle(newSession(), button("rates"), d);
+    assert.equal(out.session.step, "info");
+    const l = out.messages[0];
+    assert.equal(l.type, "list");
+    if (l.type === "list") assert.deepEqual(l.rows.map((r) => r.title), ["Rooms & rates", "Location & contact", "Check-in & check-out"]);
+    out = await handle(out.session, list("i_0"), d);
+    assert.match(bodies(out.messages), /77A, A Block/);
+    assert.deepEqual(buttonIds(out.messages), ["book", "rates", "staff"]);
+    assert.equal(out.session.step, "info");
+  });
+
+  it("'Rooms & rates' shows the live rates and offers more info", async () => {
+    const d = withInfo(fakeApi());
+    let out = await handle(newSession(), button("rates"), d);
+    out = await handle(out.session, list("info_rooms"), d);
+    assert.match(bodies(out.messages), /King Room: Rs 8,500 per night/);
+    assert.ok(buttonIds(out.messages).includes("rates"));
+  });
+
+  it("a typed question finds its topic, and a booking word starts the booking", async () => {
+    const d = withInfo(fakeApi());
+    let out = await handle(newSession(), button("rates"), d);
+    const typed = await handle(out.session, text("what is the location?"), d);
+    assert.match(bodies(typed.messages), /Gulgasht/);
+    const checkin = await handle(out.session, text("what time is check in"), d);
+    assert.match(bodies(checkin.messages), /24 hours/);
+    out = await handle(out.session, text("I want to book"), d);
+    assert.equal(out.session.step, "ask_checkin");
+  });
+
+  it("with no topics written, the button goes straight to the rates", async () => {
+    const out = await handle(newSession(), button("rates"), deps(fakeApi()));
+    assert.match(bodies(out.messages), /per night/);
+    assert.equal(out.session.step, "menu");
+  });
+
+  it("topics are never mixed between hotels: each bot only knows its own config", async () => {
+    const silver = withInfo(fakeApi(), { hotelName: "Hotel Silver Sand Multan", info: [{ title: "Location & contact", body: "514 Akbar Road, Railway Colony, Multan." }] });
+    let out = await handle(newSession(), button("rates"), silver);
+    out = await handle(out.session, list("i_0"), silver);
+    assert.match(bodies(out.messages), /Akbar Road/);
+    assert.doesNotMatch(bodies(out.messages), /Gulgasht/);
+  });
+});
+
+describe("what a guest pays depends on the hotel and the offer", () => {
+  const DEAL_ROOMS = [{ ...ROOMS[0], requiresAdvance: true }, ROOMS[1]];
+  const bookRoom = async (d: BotDeps, roomIdx: number) => {
+    let out = await handle(null, button("book"), d);
+    out = await handle(out.session, text("5 dec"), d);
+    out = await handle(out.session, button("n_2"), d);
+    out = await handle(out.session, list("g_2_0"), d);
+    out = await handle(out.session, list(`r_${roomIdx}`), d);
+    out = await handle(out.session, text("Ali Raza"), d);
+    return out;
+  };
+
+  it("a deal that needs advance payment is paid IN FULL, not 30%", async () => {
+    const calls: Calls = [];
+    const d = deps(fakeApi({ quote: async () => ({ ok: true, nights: 2, rooms: DEAL_ROOMS }) }, calls));
+    let out = await bookRoom(d, 0);
+    assert.match(bodies(out.messages), /Payment in advance: Rs 17,000 \(this offer is paid in full in advance\)/);
+    out = await handle(out.session, button("confirm"), d);
+    assert.equal(out.session.step, "await_receipt");
+    assert.match(bodies(out.messages), /the full amount of Rs 17,000/);
+  });
+
+  it("a regular rate takes the configured advance", async () => {
+    const d = deps(fakeApi({ quote: async () => ({ ok: true, nights: 2, rooms: DEAL_ROOMS }) }));
+    const out = await bookRoom(d, 1);
+    assert.match(bodies(out.messages), /Advance to confirm: Rs 7,200/); // 30% of 24,000
+  });
+
+  it("a pay-at-the-hotel hotel (Silver Sand) asks for no payment and holds no room for a receipt", async () => {
+    const d: BotDeps = { api: fakeApi(), now: () => NOW, config: { ...CONFIG, advance: { mode: "none", value: 0 }, paymentText: "" } };
+    let out = await bookRoom(d, 0);
+    assert.match(bodies(out.messages), /Payment: at the hotel/);
+    assert.doesNotMatch(bodies(out.messages), /dvance to confirm/);
+    out = await handle(out.session, button("confirm"), d);
+    assert.equal(out.session.step, "done");
+    assert.equal(out.session.holdUntil, undefined);
+    assert.match(bodies(out.messages), /pay at the hotel/);
+    assert.doesNotMatch(bodies(out.messages), /receipt/);
+    assert.equal(out.created?.bookingRef, "HE-NEW123");
+    assert.equal(out.handoff, undefined);
+  });
+
+  it("pay-at-the-hotel: an existing pending booking offers status, not a receipt", async () => {
+    const d: BotDeps = { api: fakeApi({ lookup: async () => ({ ok: true, bookings: [own()] }) }), now: () => NOW, config: { ...CONFIG, advance: { mode: "none", value: 0 }, paymentText: "" } };
+    const out = await handle(null, text("hi"), d);
+    assert.deepEqual(buttonIds(out.messages), ["status", "extra", "staff"]);
+  });
+
+  it("an advance hotel with no payment details written hands the payment to staff instead of sending an empty message", async () => {
+    const d: BotDeps = { api: fakeApi(), now: () => NOW, config: { ...CONFIG, paymentText: "" } };
+    let out = await bookRoom(d, 0);
+    out = await handle(out.session, button("confirm"), d);
+    assert.equal(out.handoff, true);
+    assert.match(bodies(out.messages), /send you the payment details/);
+    assert.doesNotMatch(bodies(out.messages), /undefined|\n\n\n/);
   });
 });

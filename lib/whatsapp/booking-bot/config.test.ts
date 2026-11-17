@@ -8,7 +8,7 @@ describe("parseBotSettings", () => {
   it("accepts complete settings", () => {
     const r = parseBotSettings(GOOD);
     assert.ok(r.ok);
-    if (r.ok) assert.deepEqual(r.config, { hotelName: "Hotel Elegant Executive Suites", advance: { mode: "percent", value: 30 }, holdMinutes: 120, paymentText: "Easypaisa 0300 0000000 (Hotel Elegant)" });
+    if (r.ok) assert.deepEqual(r.config, { hotelName: "Hotel Elegant Executive Suites", advance: { mode: "percent", value: 30 }, holdMinutes: 120, paymentText: "Easypaisa 0300 0000000 (Hotel Elegant)", info: [] });
   });
 
   it("numbers typed as text (from a form) are fine", () => {
@@ -44,5 +44,33 @@ describe("parseBotSettings", () => {
 
   it("the settings form can be checked before switching on", () => {
     assert.ok(parseBotSettings({ ...GOOD, enabled: false }, { requireEnabled: false }).ok);
+  });
+});
+
+describe("hotel info topics and no-advance hotels", () => {
+  it("topics are trimmed, blank ones dropped, titles cut to 24 and at most 9 kept", () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({ title: `Topic ${i}`, body: "Answer" }));
+    const r = parseBotSettings({ ...GOOD, info: [{ title: "  Location & contact  ", body: " 77A, A Block " }, { title: "", body: "x" }, { title: "No body", body: " " }, "junk", null, { title: "A very long topic title that overflows", body: "b" }, ...many] });
+    assert.ok(r.ok);
+    if (r.ok) {
+      assert.deepEqual(r.config.info[0], { title: "Location & contact", body: "77A, A Block" });
+      assert.equal(r.config.info[1].title.length, 24);
+      assert.equal(r.config.info.length, 9);
+    }
+  });
+
+  it("no topics means an empty list, not an error", () => {
+    const r = parseBotSettings(GOOD);
+    assert.ok(r.ok && r.config.info.length === 0);
+  });
+
+  it("'none' (pay at the hotel) needs no payment text, percent or hold time", () => {
+    const r = parseBotSettings({ enabled: true, hotelName: "Hotel Silver Sand Multan", advanceMode: "none" });
+    assert.ok(r.ok);
+    if (r.ok) assert.deepEqual(r.config.advance, { mode: "none", value: 0 });
+  });
+
+  it("every other mode still needs the payment text", () => {
+    assert.equal(parseBotSettings({ ...GOOD, paymentText: "", advanceMode: "first_night" }).ok, false);
   });
 });
