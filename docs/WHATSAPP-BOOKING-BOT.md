@@ -57,3 +57,26 @@ Nothing is sent to Meta until a person confirms it.
 3. Receipt detection + staff Confirm payment (portal and hotel admin). 4. Chat audit → suggested bookings. 5. Test with Shoaib's own number, then switch on.
 
 Not in this first version: online payment gateway (later, when a merchant account exists), Silver Sand, WhatsApp Flows forms.
+
+## Status (17 Nov 2026, branch `wa-booking-bot`; Elegant branch `wa-bot`) — built and tested, NOT deployed, off everywhere
+Built: conversation engine, parsers, signed hotel client, interactive messages (with a typed-answer fallback), orchestrator, webhook hooks
+(Meta direct and Socially Snap, run after the webhook is answered), room-hold reminder/release and "booking confirmed" messages (in the existing
+every-minute WhatsApp cron), per-number settings card (Dashboard → WhatsApp → Automation → Booking bot), and the SQL block. 82 bot tests, 164 ABS tests.
+Hotel side (Elegant): `/api/bot/booking` with `lookup`, `quote`, `create` (duplicate guard), `attach_receipt`, `cancel`.
+
+### Switch-on checklist (nothing happens until all of it is done)
+1. Run the booking-bot block at the end of `supabase/dashboard-schema.sql` in the ABS Supabase (new `wa_accounts.booking_bot`, table `wa_bot_sessions`).
+   Until then the bot stays off and the Automation page works exactly as before.
+2. Elegant: run `supabase/migrations/2026-11-17_whatsapp_source.sql` once (without it bot bookings are saved as source "phone", nothing is lost).
+3. Deploy the Elegant branch `wa-bot` and the ABS branch `wa-booking-bot` (Elegant first).
+4. In the hotel's WhatsApp Business app switch OFF the Greeting message and Away message for this number (the bot greets itself), and switch off the
+   ABS "Instant reply" for it. (A canned phone-app greeting no longer silences the bot, but guests would see two greetings.)
+5. Dashboard → WhatsApp → Automation → pick the Elegant number → Booking bot: hotel name, advance (percent or first night), hold minutes, payment text → On → Save.
+6. Test with your own number: hello → book → pay → receipt → confirm in the portal → guest gets "confirmed"; also: book on the website first, then message
+   on WhatsApp (the bot must show that booking and not offer a second one).
+
+### Known limits
+- Elegant only (Silver Sand follows once its number is connected). English only. A guest can change dates only by starting over or asking staff.
+- The receipt link saved with the booking points to the chat in the ABS dashboard (needs a login); the photo itself stays in WhatsApp.
+- Hold release and confirmation messages need the 24-hour reply window to be open (the receipt photo opens it).
+- Confirmation by the hotel admin is noticed within about 5 minutes (the cron checks); from the portal also within 5 minutes.
