@@ -10,6 +10,7 @@ export type StoredBotSettings = {
   advanceValue?: number | string;
   holdMinutes?: number | string;
   paymentText?: string;
+  refundNote?: string;
   info?: unknown;
 };
 
@@ -43,6 +44,8 @@ export function parseBotSettings(raw: unknown, opts: { requireEnabled?: boolean 
   // that needs advance payment is then explained by staff).
   if (mode !== "none" && (paymentText.length < 10 || paymentText.length > 600)) return { ok: false, problem: "Write how guests pay the advance (account number and name), 10 to 600 characters." };
   if (mode === "none" && paymentText.length > 600) return { ok: false, problem: "The payment text can be at most 600 characters." };
+  const refundNote = typeof s.refundNote === "string" ? s.refundNote.trim() : "";
+  if (refundNote.length > 200) return { ok: false, problem: "The refund note can be at most 200 characters." };
   const value = Number(s.advanceValue);
   if (mode === "percent" && !(value >= 1 && value <= 100)) return { ok: false, problem: "The advance percent must be between 1 and 100." };
   const hold = Number(s.holdMinutes);
@@ -54,6 +57,7 @@ export function parseBotSettings(raw: unknown, opts: { requireEnabled?: boolean 
       advance: { mode, value: mode === "percent" ? Math.round(value) : 0 },
       holdMinutes: mode === "none" && !(hold >= 15 && hold <= 1440) ? 120 : Math.round(hold),
       paymentText,
+      refundNote,
       info: cleanInfoTopics(s.info),
     },
   };

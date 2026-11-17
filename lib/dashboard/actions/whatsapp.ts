@@ -148,6 +148,7 @@ export async function saveBookingBotSettings(accountId: string, input: unknown) 
     advanceValue: Math.max(0, Math.min(100, Math.round(Number(raw.advanceValue) || 0))),
     holdMinutes: Math.max(0, Math.min(1440, Math.round(Number(raw.holdMinutes) || 0))),
     paymentText: text(raw.paymentText, 600),
+    refundNote: text(raw.refundNote, 200),
     // This hotel's own answers (written from its knowledge base and approved by the owner), shown under "Rates & info".
     info: cleanInfoTopics(raw.info),
   };

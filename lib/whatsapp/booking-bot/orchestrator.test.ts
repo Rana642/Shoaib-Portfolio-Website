@@ -5,7 +5,7 @@ import type { BotGuestMessage } from "./input";
 import { processGuestMessage, type ContactRow, type RunnerDeps, type StoredSession } from "./orchestrator";
 
 const NOW = new Date("2026-11-17T05:00:00Z");
-const CONFIG: BotConfig = { hotelName: "Hotel Elegant Executive Suites", advance: { mode: "percent", value: 30 }, holdMinutes: 120, paymentText: "Easypaisa 0300 0000000", info: [] };
+const CONFIG: BotConfig = { hotelName: "Hotel Elegant Executive Suites", advance: { mode: "percent", value: 30 }, holdMinutes: 120, paymentText: "Easypaisa 0300 0000000", refundNote: "", info: [] };
 const ROOMS = [{ roomId: "r1", name: "King Room", total: 17000, perNight: 8500, nights: 2, refundable: true, requiresAdvance: false, available: true }];
 
 const CONTACT: ContactRow = { id: "c1", wa_id: "923001234567", name: "Ali Raza", ref_source: "FB", ref_code: "EFC1", opted_out_at: null, intervened_at: null, resolved_at: null };

@@ -6,9 +6,10 @@ The title is a list row (max 24 characters). Keep facts that rarely change; date
 Tax is written as each website shows it (checked 17 Nov 2026). If a website's tax or a policy changes, change the topic.
 
 Card settings per hotel:
-- **Elegant:** hotel name "Hotel Elegant Executive Suites"; advance: percent of the total (set the percent); hold 120 minutes; payment text with the account details.
+- **Elegant:** hotel name "Hotel Elegant Executive Suites"; advance: percent of the total (set the percent; Shoaib 17 Nov: advance is taken on WhatsApp bookings, regular rate too); hold 120 minutes;
+  payment text with the account details; **refund note: "Free cancellation: 100% refund at any time."**
   (A special offer that needs advance payment is always charged in full in advance.)
-- **Silver Sand:** hotel name "Hotel Silver Sand Multan"; advance: **None: pay at the hotel**. (Silver Sand has no advance-payment flow, per its KB.)
+- **Silver Sand:** hotel name "Hotel Silver Sand Multan"; advance: **None: pay at the hotel**. (Silver Sand has no advance-payment flow, per its KB.) Refund note can stay empty.
 
 ---
 
@@ -27,7 +28,7 @@ Complimentary breakfast buffet, free WiFi everywhere, free private parking, 24-h
 Children 10 years and above are welcome. Extra bed: PKR 2,500 per person per night. No cots. No pets. No smoking in rooms. A valid address and phone number are needed at check-in; ID may be requested.
 
 **Payment & cancellation**
-Rates are shown before tax; 26% GST & city tax is added on top and shown before you confirm. Regular rates are paid at the hotel. Special offers are paid in advance by bank transfer. Free cancellation with a full refund at any time.
+Rates are shown before tax; 26% GST & city tax is added on top and shown before you confirm. A booking made on WhatsApp is confirmed with an advance payment (bank transfer or Easypaisa); special offers are paid in full in advance. Free cancellation with a 100% refund at any time.
 
 ---
 

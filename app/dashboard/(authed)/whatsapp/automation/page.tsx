@@ -79,6 +79,7 @@ export default async function WhatsAppAutomationPage({ searchParams }: { searchP
               advanceValue: selected.booking_bot?.advanceValue ?? 30,
               holdMinutes: selected.booking_bot?.holdMinutes ?? 120,
               paymentText: selected.booking_bot?.paymentText ?? "",
+              refundNote: selected.booking_bot?.refundNote ?? "",
               info: Array.isArray(selected.booking_bot?.info) ? selected.booking_bot!.info! : [],
             }}
             onSave={saveBot}

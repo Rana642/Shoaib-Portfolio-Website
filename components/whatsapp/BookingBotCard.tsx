@@ -11,6 +11,7 @@ export type BookingBotSettings = {
   advanceValue: number;
   holdMinutes: number;
   paymentText: string;
+  refundNote: string;
   info: { title: string; body: string }[];
 };
 
@@ -71,6 +72,11 @@ export function BookingBotCard({ initial, onSave }: { initial: BookingBotSetting
       <label className="block text-small font-medium">
         How guests pay in advance (sent after they confirm){noAdvance ? " — optional when there is no advance" : ""}
         <textarea rows={4} value={s.paymentText} onChange={(e) => set({ paymentText: e.target.value })} className={`${inputClasses} mt-1`} maxLength={600} placeholder="Easypaisa / Raast: 0300 0000000 (Account title: …). Bank: …" />
+      </label>
+
+      <label className="block text-small font-medium">
+        Refund note (shown with the payment details and in the booking summary)
+        <input value={s.refundNote} onChange={(e) => set({ refundNote: e.target.value })} className={`${inputClasses} mt-1`} maxLength={200} placeholder="Free cancellation: 100% refund at any time." />
       </label>
 
       <div className="space-y-2 pt-2">

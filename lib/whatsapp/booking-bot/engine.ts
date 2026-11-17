@@ -62,6 +62,8 @@ export type BotConfig = {
   holdMinutes: number;
   /** How to pay the advance (account numbers etc.), written by the hotel. May be empty when the mode is "none". */
   paymentText: string;
+  /** The hotel's refund promise, shown wherever the guest is asked to pay in advance (e.g. "Free cancellation: 100% refund at any time."). May be empty. */
+  refundNote: string;
   /** This hotel's own facts (location, check-in, policies...). Empty: "Rates & info" shows the rates only. */
   info: InfoTopic[];
 };
@@ -247,7 +249,8 @@ function summary(s: BotSession, deps: BotDeps): BotOutput {
   const checkOut = addDays(d.checkIn!, d.nights!);
   const t = taxOf({ preTax: d.preTax, total: d.total! });
   const money = t ? `Room: ${rs(d.preTax!)}\nTax (${t.pct}%): ${rs(t.tax)}\nTotal: ${rs(d.total!)}` : `Total: ${rs(d.total!)} (taxes included)`;
-  const pay = advance <= 0 ? "Payment: at the hotel" : d.requiresAdvance ? `Payment in advance: ${rs(advance)} (this offer is paid in full in advance)` : `Advance to confirm: ${rs(advance)}`;
+  const refund = deps.config.refundNote.trim();
+  const pay = (advance <= 0 ? "Payment: at the hotel" : d.requiresAdvance ? `Payment in advance: ${rs(advance)} (this offer is paid in full in advance)` : `Advance to confirm: ${rs(advance)}`) + (refund ? `\n${refund}` : "");
   return {
     session: { ...s, step: "confirm", strikes: 0 },
     messages: [buttons(
@@ -287,13 +290,14 @@ async function createBooking(s: BotSession, input: BotInput, deps: BotDeps): Pro
   }
   const holdUntil = new Date(deps.now().getTime() + deps.config.holdMinutes * 60_000).toISOString();
   const how = deps.config.paymentText.trim();
+  const refundLine = deps.config.refundNote.trim() ? `\n\n${deps.config.refundNote.trim()}` : "";
   return {
     session: { step: "await_receipt", data: { ...d, bookingRef: r.bookingRef }, strikes: 0, holdUntil },
     messages: [
       text(
         how
-          ? `Your room is reserved. Booking ref: ${r.bookingRef}\n\nTo confirm it, please pay ${d.requiresAdvance ? "the full amount" : "the advance"} of ${rs(advance)} within ${deps.config.holdMinutes} minutes:\n\n${how}\n\nThen send the payment receipt photo here.`
-          : `Your room is reserved. Booking ref: ${r.bookingRef}\n\nTo confirm it, ${rs(advance)} is to be paid in advance. Our team will send you the payment details here shortly.`
+          ? `Your room is reserved. Booking ref: ${r.bookingRef}\n\nTo confirm it, please pay ${d.requiresAdvance ? "the full amount" : "the advance"} of ${rs(advance)} within ${deps.config.holdMinutes} minutes:\n\n${how}\n\nThen send the payment receipt photo here.${refundLine}`
+          : `Your room is reserved. Booking ref: ${r.bookingRef}\n\nTo confirm it, ${rs(advance)} is to be paid in advance. Our team will send you the payment details here shortly.${refundLine}`
       ),
     ],
     staffAlert: `New WhatsApp booking ${r.bookingRef}, waiting for the advance.`,

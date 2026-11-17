@@ -8,7 +8,7 @@ describe("parseBotSettings", () => {
   it("accepts complete settings", () => {
     const r = parseBotSettings(GOOD);
     assert.ok(r.ok);
-    if (r.ok) assert.deepEqual(r.config, { hotelName: "Hotel Elegant Executive Suites", advance: { mode: "percent", value: 30 }, holdMinutes: 120, paymentText: "Easypaisa 0300 0000000 (Hotel Elegant)", info: [] });
+    if (r.ok) assert.deepEqual(r.config, { hotelName: "Hotel Elegant Executive Suites", advance: { mode: "percent", value: 30 }, holdMinutes: 120, paymentText: "Easypaisa 0300 0000000 (Hotel Elegant)", refundNote: "", info: [] });
   });
 
   it("numbers typed as text (from a form) are fine", () => {

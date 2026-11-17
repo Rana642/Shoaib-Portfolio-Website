@@ -7,7 +7,7 @@ const CONFIG: BotConfig = {
   hotelName: "Hotel Elegant Executive Suites",
   advance: { mode: "percent", value: 30 },
   holdMinutes: 120,
-  paymentText: "Easypaisa 0300 0000000 (Hotel Elegant)", info: [],
+  paymentText: "Easypaisa 0300 0000000 (Hotel Elegant)", refundNote: "", info: [],
 };
 
 const ROOMS = [
@@ -472,5 +472,38 @@ describe("tax is shown like the hotel's website (price before tax, tax, total)",
   it("a hotel that sends no pre-tax price keeps the tax-included wording", async () => {
     const out = await handle(newSession(), button("rates"), deps(fakeApi()));
     assert.match(bodies(out.messages), /taxes included/);
+  });
+});
+
+describe("the refund promise is told wherever the guest pays in advance", () => {
+  const REFUND = "Free cancellation: 100% refund at any time.";
+  const dRefund = (api: HotelApi, over: Partial<BotConfig> = {}): BotDeps => ({ api, now: () => NOW, config: { ...CONFIG, refundNote: REFUND, ...over } });
+  const upToSummary = async (d: BotDeps) => {
+    let out = await handle(null, button("book"), d);
+    out = await handle(out.session, text("5 dec"), d);
+    out = await handle(out.session, button("n_2"), d);
+    out = await handle(out.session, list("g_2_0"), d);
+    out = await handle(out.session, list("r_0"), d);
+    return handle(out.session, text("Ali Raza"), d);
+  };
+
+  it("in the summary before the guest confirms, and again with the payment details", async () => {
+    const d = dRefund(fakeApi());
+    let out = await upToSummary(d);
+    assert.match(bodies(out.messages), /Advance to confirm: Rs 5,100\nFree cancellation: 100% refund at any time\./);
+    out = await handle(out.session, button("confirm"), d);
+    assert.match(bodies(out.messages), /Then send the payment receipt photo here\.\n\nFree cancellation: 100% refund at any time\./);
+  });
+
+  it("with no payment details written, the refund note is still there", async () => {
+    const d = dRefund(fakeApi(), { paymentText: "" });
+    let out = await upToSummary(d);
+    out = await handle(out.session, button("confirm"), d);
+    assert.match(bodies(out.messages), /send you the payment details here shortly\.\n\nFree cancellation/);
+  });
+
+  it("a hotel that wrote no refund note shows nothing extra", async () => {
+    const out = await upToSummary(deps(fakeApi()));
+    assert.doesNotMatch(bodies(out.messages), /refund/i);
   });
 });
