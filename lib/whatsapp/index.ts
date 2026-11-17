@@ -4,7 +4,7 @@ import { db } from "../dashboard/db";
 import { getVaultCredential } from "../marketing-vault";
 import { decryptField } from "../api-vault-crypto";
 import { sociallySnapMode } from "../socially-snap/client";
-import { sendTextViaSociallySnap } from "../socially-snap/send";
+import { sendInteractiveViaSociallySnap, sendTextViaSociallySnap } from "../socially-snap/send";
 import { replaceableStatuses } from "../socially-snap/inbound";
 import { NO_META_TOKEN } from "../socially-snap/link";
 import { isOptInPrompt, isOptInYes, isStartWord, isStopWord } from "./words";
@@ -198,7 +198,21 @@ export interface IngestOptions {
   /** Events from Socially Snap: a write that fails throws (so the platform retries) instead of being
    *  taken for a duplicate, and a number that isn't one of ours is ignored, not added. */
   fromPlatform?: boolean;
+  /** Called once for each guest message that was just stored (never for a duplicate, an error event or history).
+   *  The booking bot listens here; what it does must not make the webhook fail. */
+  onGuestMessage?: (m: GuestMessage) => void;
 }
+
+/** A guest message that has just been stored. `raw` is Meta's own message object (button and list replies carry their id there). */
+export type GuestMessage = {
+  accountId: string;
+  contactId: string;
+  wamid: string;
+  type: string;
+  body: string | null;
+  at: string;
+  raw: Record<string, unknown>;
+};
 
 // Postgres "unique violation": the only insert failure that means "already stored".
 const isDuplicate = (error: { code?: string }) => error.code === "23505";
@@ -282,6 +296,13 @@ export async function ingestWebhook(payload: { entry?: { time?: number; changes?
           // (a duplicate would otherwise be skipped and a STOP lost).
           await db.from("wa_messages").delete().eq("wamid", m.id);
           throw error;
+        }
+        if (m.type !== "errors") {
+          try {
+            options.onGuestMessage?.({ accountId, contactId: contact.id, wamid: m.id, type: m.type, body, at, raw: m as unknown as Record<string, unknown> });
+          } catch (hookError) {
+            console.error("[whatsapp] onGuestMessage failed:", hookError instanceof Error ? hookError.message : hookError);
+          }
         }
       }
 
@@ -537,6 +558,57 @@ export async function sendText(contactId: string, text: string, via: "api" | "au
   });
   if (via === "auto") await db.from("wa_contacts").update({ last_message_at: at }).eq("id", contact.id);
   else await markReplied(contact.id, at);
+  return { ok: true };
+}
+
+/**
+ * Reply buttons or a list (the booking bot), inside the 24h window only. `summary` is what staff read in the inbox.
+ * Always sent as `via: "auto"`: it never counts as staff answering. Through Socially Snap, or Meta direct when that
+ * number isn't linked to it.
+ */
+export async function sendInteractive(contactId: string, interactive: Record<string, unknown>, summary: string, raw?: Record<string, unknown>) {
+  const { data: contact } = await db
+    .from("wa_contacts")
+    .select("id, wa_id, last_inbound_at, opted_out_at, wa_accounts(id, phone_number_id)")
+    .eq("id", contactId)
+    .single();
+  if (!contact) return { error: "Chat not found." };
+  if (contact.opted_out_at) return { error: "Guest opted out (STOP)." };
+  const account = contact.wa_accounts as unknown as { id: string; phone_number_id: string };
+  if (!replyWindowOpen(contact.last_inbound_at)) return { error: "The 24-hour reply window has closed." };
+
+  let wamid: string;
+  if (sociallySnapMode() === "off") {
+    const found = await tokenOrError(account.id);
+    if ("error" in found) return found;
+    const res = await fetch(`${GRAPH}/${account.phone_number_id}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${found.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messaging_product: "whatsapp", to: contact.wa_id, type: "interactive", interactive }),
+    });
+    const json = (await res.json()) as { messages?: { id: string }[]; error?: { message?: string } };
+    if (!res.ok || !json.messages?.[0]?.id) return { error: json.error?.message ?? `WhatsApp API error (${res.status})` };
+    wamid = json.messages[0].id;
+  } else {
+    const sent = await sendInteractiveViaSociallySnap(contact.wa_id, interactive, account.phone_number_id);
+    if ("error" in sent) return sent;
+    wamid = sent.wamid;
+  }
+
+  const at = new Date().toISOString();
+  await db.from("wa_messages").insert({
+    account_id: account.id,
+    contact_id: contact.id,
+    wamid,
+    direction: "out",
+    via: "auto",
+    type: "interactive",
+    body: summary,
+    status: "sent",
+    sent_at: at,
+    ...(raw ? { raw } : {}),
+  });
+  await db.from("wa_contacts").update({ last_message_at: at }).eq("id", contact.id);
   return { ok: true };
 }
 

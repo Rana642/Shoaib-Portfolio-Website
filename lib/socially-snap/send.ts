@@ -5,7 +5,7 @@
 // A dry run is reported through the error channel on purpose: callers store a message and mark
 // the chat replied only on { wamid }, so nothing from a test can ever look like a real message.
 
-import { clientFromEnv, DRY_RUN_MESSAGE, sociallySnapMode, templateMessage, textMessage, type Env, type Failure } from "./client";
+import { clientFromEnv, DRY_RUN_MESSAGE, interactiveMessage, sociallySnapMode, templateMessage, textMessage, type Env, type Failure } from "./client";
 
 export type ViaResult = { wamid: string } | { error: string };
 
@@ -33,6 +33,9 @@ async function send(message: Record<string, unknown>, env: Env, fetchImpl?: type
 
 export const sendTextViaSociallySnap = (to: string, text: string, from: string, env: Env = process.env, fetchImpl?: typeof fetch) =>
   send(textMessage(to, text, from), env, fetchImpl);
+
+export const sendInteractiveViaSociallySnap = (to: string, interactive: Record<string, unknown>, from: string, env: Env = process.env, fetchImpl?: typeof fetch) =>
+  send(interactiveMessage(to, interactive, from), env, fetchImpl);
 
 export const sendTemplateViaSociallySnap = (to: string, name: string, language: string, values: string[], from: string, env: Env = process.env, fetchImpl?: typeof fetch) =>
   send(templateMessage(to, name, language, values, from), env, fetchImpl);

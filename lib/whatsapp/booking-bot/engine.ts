@@ -377,6 +377,8 @@ export async function handle(session: BotSession | null, input: BotInput, deps: 
           session: { step: "done", data: { bookingRef: ref }, strikes: 0 },
           messages: [text(`Thank you! We have your receipt for booking ${ref}. Our team will confirm it shortly and message you here.`)],
           staffAlert: `Receipt received for booking ${ref}. Please verify the payment and confirm.`,
+          // Staff must now check the payment: the chat shows as Intervened until they resolve it.
+          handoff: true,
         };
       }
       return { session: s, messages: [buttons(`Booking ${ref} is waiting for the advance payment. Please send the payment receipt photo here.`, [["staff", "Talk to staff"], ["cancel_booking", "Cancel booking"]])] };

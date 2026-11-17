@@ -226,6 +226,15 @@ export const textMessage = (to: string, text: string, from?: string) => ({
   ...(from ? { from } : {}),
 });
 
+/** Reply buttons or a list (the WhatsApp booking bot). `interactive` is Meta's own object, built in lib/whatsapp/booking-bot/messages.ts. */
+export const interactiveMessage = (to: string, interactive: Record<string, unknown>, from?: string) => ({
+  messaging_product: "whatsapp",
+  to,
+  type: "interactive",
+  interactive,
+  ...(from ? { from } : {}),
+});
+
 /** An approved template with body variables only (what the inbox and broadcasts send today). */
 export const templateMessage = (to: string, name: string, language: string, values: string[], from?: string) => ({
   messaging_product: "whatsapp",
