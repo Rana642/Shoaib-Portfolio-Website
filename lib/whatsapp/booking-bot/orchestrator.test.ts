@@ -30,7 +30,7 @@ type World = {
   handoffs: string[];
   logs: string[];
 };
-function world(over: { account?: boolean; contact?: Partial<ContactRow>; sendInteractive?: () => { error: string } | { ok: true }; sendText?: () => { error: string } | { ok: true }; optInOpen?: boolean } = {}): World {
+function world(over: { account?: boolean; staffChatting?: boolean; contact?: Partial<ContactRow>; sendInteractive?: () => { error: string } | { ok: true }; sendText?: () => { error: string } | { ok: true }; optInOpen?: boolean } = {}): World {
   const w: World = { deps: null as unknown as RunnerDeps, sessions: new Map(), texts: [], interactives: [], booked: [], handoffs: [], logs: [] };
   w.deps = {
     account: async () => (over.account === false ? null : { config: CONFIG, api: fakeApi() }),
@@ -38,6 +38,7 @@ function world(over: { account?: boolean; contact?: Partial<ContactRow>; sendInt
     loadSession: async (id) => w.sessions.get(id) ?? null,
     saveSession: async (id, _a, s, wamid) => { w.sessions.set(id, { session: s, lastWamid: wamid, updatedAt: NOW.toISOString() }); },
     optInOpen: async () => over.optInOpen ?? false,
+    staffIsChatting: async () => over.staffChatting ?? true,
     sendText: async (_id, body) => { const r = over.sendText?.() ?? { ok: true as const }; if ("ok" in r) w.texts.push(body); return r; },
     sendInteractive: async (_id, i) => { const r = over.sendInteractive?.() ?? { ok: true as const }; if ("ok" in r) w.interactives.push(i); return r; },
     recordBooking: async (_id, c) => { w.booked.push(c); },
@@ -101,6 +102,12 @@ describe("when the bot stays quiet", () => {
   it("staff are answering", async () => {
     const w = world({ contact: { intervened_at: "2026-11-17T04:00:00Z" } });
     assert.equal((await processGuestMessage(msg(), w.deps)).reason, "staff_chatting");
+  });
+  it("but the phone app's canned greeting is not staff: the bot keeps answering", async () => {
+    const w = world({ contact: { intervened_at: "2026-11-17T04:00:00Z" }, staffChatting: false });
+    const r = await processGuestMessage(msg(), w.deps);
+    assert.equal(r.ran, true);
+    assert.equal(w.interactives.length, 1);
   });
   it("STOP and the marketing YES", async () => {
     assert.equal((await processGuestMessage(msg({ body: "STOP" }), world().deps)).reason, "stop_or_start");

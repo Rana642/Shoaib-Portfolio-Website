@@ -82,6 +82,19 @@ const realDeps = (): RunnerDeps => ({
   loadSession,
   saveSession: (contactId, accountId, s, wamid) => saveSession(contactId, accountId, s, wamid),
   optInOpen: optInQuestionOpen,
+  staffIsChatting: async (contactId) => {
+    // Messages a person typed: sent from the phone app or the inbox in the last 24 hours, and not a canned text. A text that
+    // went to 5 or more different guests word for word is canned (the app's greeting, a saved quick reply).
+    const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    const { data } = await db.from("wa_messages").select("body, via").eq("contact_id", contactId).eq("direction", "out").in("via", ["app", "api"]).gte("sent_at", since).order("sent_at", { ascending: false }).limit(10);
+    for (const msg of data ?? []) {
+      const body = (msg.body as string | null)?.trim();
+      if (!body) return true; // a photo or voice note from staff
+      const { data: same } = await db.from("wa_messages").select("contact_id").eq("direction", "out").eq("via", msg.via as string).eq("body", body).limit(8);
+      if (new Set((same ?? []).map((r) => r.contact_id)).size < 5) return true;
+    }
+    return false;
+  },
   sendText: async (contactId, body) => {
     const r = await sendText(contactId, body, "auto", { kind: "booking_bot" });
     return "error" in r ? { error: r.error } : { ok: true };

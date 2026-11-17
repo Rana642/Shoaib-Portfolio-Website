@@ -21,6 +21,11 @@ export interface RunnerDeps {
   loadSession(contactId: string): Promise<StoredSession | null>;
   saveSession(contactId: string, accountId: string, s: BotSession, wamid: string): Promise<void>;
   optInOpen(contactId: string, atIso: string): Promise<boolean>;
+  /**
+   * Has a PERSON (staff) been writing to this guest? The WhatsApp Business app sends an automatic greeting from the phone,
+   * and the inbox sees it as staff replying; a message that went to many guests word for word is canned, not a person.
+   */
+  staffIsChatting(contactId: string): Promise<boolean>;
   sendText(contactId: string, body: string): Promise<SendResult>;
   sendInteractive(contactId: string, interactive: Record<string, unknown>, summary: string): Promise<SendResult>;
   recordBooking(contactId: string, created: NonNullable<BotOutput["created"]>): Promise<void>;
@@ -42,7 +47,10 @@ export async function processGuestMessage(m: BotGuestMessage, deps: RunnerDeps):
   if (!contact) return { ran: false, reason: "no_contact" };
 
   const optIn = m.type === "text" && isOptInYes(m.body) ? await deps.optInOpen(contact.id, m.at) : false;
-  const quiet = quietReason(contact, m, optIn);
+  // "Intervened" only silences the bot when a person really took the chat (not the phone app's canned greeting).
+  const intervenedOpen = !!contact.intervened_at && !(contact.resolved_at && new Date(contact.resolved_at) >= new Date(contact.intervened_at));
+  const staffActive = intervenedOpen ? await deps.staffIsChatting(contact.id) : false;
+  const quiet = quietReason(staffActive ? contact : { ...contact, intervened_at: null }, m, optIn);
   if (quiet) return { ran: false, reason: quiet };
 
   const stored = await deps.loadSession(contact.id);
