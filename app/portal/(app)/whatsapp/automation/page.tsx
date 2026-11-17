@@ -5,7 +5,8 @@ import { can, requirePortalUser } from "@/lib/portal/auth";
 import { activeProject } from "@/lib/portal/active-project";
 import { portalAddQuickReply, portalDeleteQuickReply, portalSaveAutomation } from "@/lib/portal/wa-tools";
 import { Card, PageHeader } from "@/components/dashboard/ui";
-import { AutomationForm, QuickRepliesManager, withDefaults, type AutomationSettings } from "@/components/whatsapp/AutomationForm";
+import { AutomationForm, QuickRepliesManager } from "@/components/whatsapp/AutomationForm";
+import { withDefaults, type AutomationSettings } from "@/lib/whatsapp/automation-shared";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "WhatsApp automation" };

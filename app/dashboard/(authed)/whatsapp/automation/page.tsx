@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { db } from "@/lib/dashboard/db";
 import { Card, PageHeader } from "@/components/dashboard/ui";
-import { AutomationForm, QuickRepliesManager, withDefaults, type AutomationSettings } from "@/components/whatsapp/AutomationForm";
+import { AutomationForm, QuickRepliesManager } from "@/components/whatsapp/AutomationForm";
+import { withDefaults, type AutomationSettings } from "@/lib/whatsapp/automation-shared";
 import { addQuickReply, deleteQuickReply, saveWhatsAppAutomation } from "@/lib/dashboard/actions/whatsapp";
 
 export const dynamic = "force-dynamic";
