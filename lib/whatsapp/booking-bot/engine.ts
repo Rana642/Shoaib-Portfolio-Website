@@ -82,6 +82,27 @@ const clip = (s: string, n: number) => (s.length <= n ? s : `${s.slice(0, n - 1)
 const text = (body: string): BotMessage => ({ type: "text", body });
 const buttons = (body: string, b: [string, string][]): BotMessage => ({ type: "buttons", body, buttons: b.map(([id, title]) => ({ id, title: clip(title, 20) })) });
 
+/**
+ * If buttons or lists don't work on a number (or the guest just types), what they type still means the same thing.
+ * Returns the id the matching button would have had.
+ */
+function idFromText(step: Step, said: string, s: BotSession): string | undefined {
+  const t = said.toLowerCase().trim();
+  if (!t) return undefined;
+  switch (step) {
+    case "menu": return /\b(rate|rates|price|prices|rent|kitna|kiraya|tariff)\b/.test(t) && !/\bbook/.test(t) ? "rates" : undefined;
+    case "existing": return /\b(receipt|screenshot|payment)\b/.test(t) ? "receipt" : /\bstatus\b/.test(t) ? "status" : /\b(another|extra|new|second|one more)\b/.test(t) ? "extra" : undefined;
+    case "confirm": return /^(yes|y|confirm|confirmed|ok|okay|haan|han|ji|sure|done)\b/.test(t) ? "confirm" : /^(no|cancel|nahi|nhi)\b/.test(t) ? "cancel" : /\b(change|date|dates)\b/.test(t) ? "dates" : undefined;
+    case "pick_room": {
+      const i = (s.data.rooms ?? []).findIndex((r) => t.includes(r.name.toLowerCase()) || r.name.toLowerCase().includes(t));
+      return i >= 0 ? `r_${i}` : undefined;
+    }
+    case "await_receipt": return /\bcancel\b/.test(t) ? "cancel_booking" : undefined;
+    case "ask_name": return undefined;
+    default: return /\b(other dates|change date|different date)\b/.test(t) ? "dates" : undefined;
+  }
+}
+
 const STAFF_WORDS = /\b(staff|human|agent|reception|manager|call me|talk to (someone|a person)|insaan)\b/i;
 const MENU_WORDS = /^(menu|start|restart|hi|hello|hey|salam|salaam|assalam[a-z ]*|aoa|a\.?o\.?a|hlo|helo)\W*$/i;
 const BOOK_WORDS = /\b(book|booking|reserve|reservation|room|kamra|kamre|rooms)\b/i;
@@ -219,7 +240,7 @@ async function createBooking(s: BotSession, input: BotInput, deps: BotDeps): Pro
 export async function handle(session: BotSession | null, input: BotInput, deps: BotDeps): Promise<BotOutput> {
   const s: BotSession = session ?? newSession();
   const said = (input.text ?? "").trim();
-  const id = input.id;
+  const id = input.id ?? (input.kind === "text" ? idFromText(s.step, said, s) : undefined);
   const wantsStaff = id === "staff" || (input.kind === "text" && STAFF_WORDS.test(said));
 
   // Staff took over: the bot stays quiet until the guest asks for the menu.

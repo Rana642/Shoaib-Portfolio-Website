@@ -291,3 +291,32 @@ describe("rates and the advance", () => {
     assert.equal(advanceFor({ ...CONFIG, advance: { mode: "percent", value: 150 } }, 1000, 1), 1000);
   });
 });
+
+describe("typed answers work like button taps (for numbers where buttons don't show)", () => {
+  it("'confirm', a room name and 'receipt' do what the buttons do", async () => {
+    const calls: Calls = [];
+    const api = fakeApi({}, calls);
+    const d = deps(api);
+    let out = await handle(null, text("book"), d);
+    out = await handle(out.session, text("5 dec"), d);
+    out = await handle(out.session, text("2"), d);
+    out = await handle(out.session, text("2 adults"), d);
+    assert.equal(out.session.step, "pick_room");
+    out = await handle(out.session, text("family suite"), d);
+    assert.equal(out.session.step, "ask_name");
+    assert.equal(out.session.data.roomId, "r-family");
+    out = await handle(out.session, text("Ali Raza"), d);
+    out = await handle(out.session, text("yes"), d);
+    assert.equal(out.session.step, "await_receipt");
+    assert.equal(calls.filter((c) => c.name === "create").length, 1);
+  });
+
+  it("'what are your rates' shows the rates, 'cancel' ends the booking question", async () => {
+    const d = deps(fakeApi());
+    let out = await handle(newSession(), text("what are your rates"), d);
+    assert.match(bodies(out.messages), /per night/);
+    const confirming: BotSession = { step: "confirm", data: { checkIn: "2026-12-05", nights: 2, adults: 2, roomName: "King Room", total: 17000, guestName: "Ali" }, strikes: 0 };
+    out = await handle(confirming, text("cancel"), d);
+    assert.equal(out.session.step, "done");
+  });
+});
