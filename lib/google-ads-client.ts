@@ -102,3 +102,75 @@ export async function uploadClickConversions(
     loginCustomerId
   );
 }
+
+/** Customer Match: create a first-party (CRM) user list. Returns its resource
+ *  name, e.g. customers/123/userLists/456. membershipLifeSpan is in days. */
+export async function createCrmUserList(
+  customerId: string,
+  name: string,
+  loginCustomerId?: string
+): Promise<string> {
+  const id = customerId.replace(/-/g, "");
+  const res = (await call(
+    `customers/${id}/userLists:mutate`,
+    {
+      operations: [
+        {
+          create: {
+            name,
+            description: "Confirmed past guests (hashed contact info), first-party",
+            membershipLifeSpan: 540,
+            crmBasedUserList: { dataSourceType: "FIRST_PARTY", uploadKeyType: "CONTACT_INFO" },
+          },
+        },
+      ],
+    },
+    loginCustomerId
+  )) as { results?: Array<{ resourceName?: string }> };
+  const rn = res.results?.[0]?.resourceName;
+  if (!rn) throw new Error("userLists create returned no resourceName");
+  return rn;
+}
+
+/** Customer Match: upload hashed members into a list. `members` are already
+ *  hashed identifiers. Creates an offline job, adds operations in batches,
+ *  then runs the job. Google processes it asynchronously (minutes to ~1 day). */
+export async function uploadCustomerMatchMembers(
+  customerId: string,
+  userListResourceName: string,
+  members: Array<Array<Record<string, string>>>,
+  loginCustomerId?: string
+): Promise<{ jobResourceName: string; batches: number }> {
+  const id = customerId.replace(/-/g, "");
+  const created = (await call(
+    `customers/${id}/offlineUserDataJobs:create`,
+    {
+      job: {
+        type: "CUSTOMER_MATCH_USER_LIST",
+        customerMatchUserListMetadata: { userList: userListResourceName },
+      },
+    },
+    loginCustomerId
+  )) as { resourceName?: string };
+  const jobRn = created.resourceName;
+  if (!jobRn) throw new Error("offlineUserDataJobs create returned no resourceName");
+  const jobId = jobRn.split("/").pop();
+
+  const BATCH = 500;
+  let batches = 0;
+  for (let i = 0; i < members.length; i += BATCH) {
+    const slice = members.slice(i, i + BATCH);
+    await call(
+      `customers/${id}/offlineUserDataJobs/${jobId}:addOperations`,
+      {
+        enablePartialFailure: true,
+        operations: slice.map((userIdentifiers) => ({ create: { userIdentifiers } })),
+      },
+      loginCustomerId
+    );
+    batches++;
+  }
+
+  await call(`customers/${id}/offlineUserDataJobs/${jobId}:run`, {}, loginCustomerId);
+  return { jobResourceName: jobRn, batches };
+}
