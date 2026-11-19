@@ -84,3 +84,21 @@ export async function googleAdsMutate(
     opts.loginCustomerId
   );
 }
+
+/** Offline / click conversion upload (ConversionUploadService). Sends a
+ *  confirmed booking back to Google, keyed by gclid + order_id so a repeat
+ *  upload of the same booking is deduplicated by Google. `conversions` items
+ *  follow Google's ClickConversion shape. partialFailure: true so one bad row
+ *  does not reject the whole batch — callers must read partialFailureError. */
+export async function uploadClickConversions(
+  customerId: string,
+  conversions: Array<Record<string, unknown>>,
+  loginCustomerId?: string
+): Promise<unknown> {
+  const id = customerId.replace(/-/g, "");
+  return call(
+    `customers/${id}:uploadClickConversions`,
+    { conversions, partialFailure: true, validateOnly: false },
+    loginCustomerId
+  );
+}
