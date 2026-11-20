@@ -71,3 +71,6 @@ docs/security/reports/
 .claude/settings.local.json
 client-briefs/
 Meezab Knowledge base/
+
+# graphify knowledge graph outputs (generated locally)
+graphify-out/
