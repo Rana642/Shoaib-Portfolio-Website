@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { listAccessibleCustomers, googleAdsSearch, googleAdsMutate, generateKeywordIdeas } from "./google-ads-client";
 import { googleApiRequest } from "./google-api-passthrough";
+import { getGoogleAccessToken } from "./google-oauth-token";
 import { metaMarketingRequest, listMetaAdAccounts } from "./meta-marketing-client";
 import { registerGbpTools } from "./mcp-gbp-tools";
 import { runPageSpeed } from "./pagespeed";
@@ -320,6 +321,45 @@ Args:
         return jsonResult(result);
       } catch (error) {
         return { content: [{ type: "text", text: formatError(error) }], isError: true };
+      }
+    }
+  );
+
+  // ── Google Drive resumable upload session (returns a URL; the file bytes are sent
+  // directly from the local machine with no credential in chat) ──
+  server.registerTool(
+    "google_drive_upload_session",
+    {
+      title: "Google Drive — start a resumable upload session",
+      description: "Creates a Drive resumable upload session for one file in a folder and returns the upload URL. PUT the file bytes to that URL (valid about one week). Needs a Drive scope that can add files to the folder.",
+      inputSchema: {
+        name: z.string().min(1).max(255),
+        parent_id: z.string().min(5),
+        mime_type: z.string().min(3),
+        size_bytes: z.number().int().positive(),
+      },
+    },
+    async ({ name, parent_id, mime_type, size_bytes }: { name: string; parent_id: string; mime_type: string; size_bytes: number }) => {
+      try {
+        const token = await getGoogleAccessToken("google_drive");
+        const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json; charset=UTF-8",
+            "X-Upload-Content-Type": mime_type,
+            "X-Upload-Content-Length": String(size_bytes),
+          },
+          body: JSON.stringify({ name, parents: [parent_id] }),
+        });
+        const location = res.headers.get("location");
+        if (!res.ok || !location) {
+          const detail = await res.text().catch(() => "");
+          return { content: [{ type: "text" as const, text: `Drive upload session failed (${res.status}): ${detail.slice(0, 500)}` }], isError: true };
+        }
+        return jsonResult({ upload_url: location, expires_in: "about 1 week" });
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatError(error) }], isError: true };
       }
     }
   );
