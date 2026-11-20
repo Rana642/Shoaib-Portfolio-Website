@@ -58,6 +58,7 @@ const WORKSPACE_BASES = {
   google_forms: "https://forms.googleapis.com/v1",
   google_tasks: "https://tasks.googleapis.com/tasks/v1",
   google_classroom: "https://classroom.googleapis.com/v1",
+  google_drive: "https://www.googleapis.com/drive/v3",
 } as const;
 
 export function registerMarketingTools(server: McpServer): void {
@@ -338,6 +339,7 @@ Services and what path is relative to:
   - google_forms → https://forms.googleapis.com/v1  (e.g. "forms/{id}", "forms/{id}/responses")
   - google_tasks → https://tasks.googleapis.com/tasks/v1  (e.g. "users/@me/lists", "lists/{id}/tasks")
   - google_classroom → https://classroom.googleapis.com/v1  (e.g. "courses", "courses/{id}/courseWork")
+  - google_drive → https://www.googleapis.com/drive/v3  (e.g. "files?q=name contains 'x'&pageSize=20", "files/{id}?fields=id,name,mimeType,modifiedTime", "files/{id}/export?mimeType=application/pdf")
 (CalDAV is a different protocol and is not available here.)
 
 Args:
@@ -345,7 +347,7 @@ Args:
   - path (string), method ("GET" | "POST" | "PUT" | "PATCH" | "DELETE"), body (object, optional).
   - confirm (boolean): required true for anything except GET (sending mail, creating/editing/deleting events, sheet writes, ...). Without it you get a preview of the exact request and nothing is sent.`,
       inputSchema: {
-        service: z.enum(["gmail", "google_calendar", "google_docs", "google_sheets", "google_forms", "google_tasks", "google_classroom"]),
+        service: z.enum(["gmail", "google_calendar", "google_docs", "google_sheets", "google_forms", "google_tasks", "google_classroom", "google_drive"]),
         path: z.string().min(1),
         method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
         body: z.record(z.string(), z.any()).optional(),

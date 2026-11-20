@@ -9,28 +9,35 @@ import { getVaultCredential } from "./marketing-vault";
  * enough to hit once per tool call.
  */
 /** The Workspace APIs share one OAuth token (one Playground round covers all their scopes). */
-export const WORKSPACE_SERVICES = ["gmail", "google_calendar", "google_caldav", "google_docs", "google_sheets", "google_forms", "google_tasks", "google_classroom"];
+export const WORKSPACE_SERVICES = ["gmail", "google_calendar", "google_caldav", "google_docs", "google_sheets", "google_forms", "google_tasks", "google_classroom", "google_drive"];
 
 /**
- * A Workspace service without its own vault entry borrows the token of the
+ * A Workspace service without its own OAuth entry borrows the token of the
  * "google_workspace" entry, else of any other Workspace entry that has a
- * refresh_token, so one pasted credential serves all of them.
+ * refresh_token, so one pasted credential serves all of them. An entry that
+ * exists but has no refresh_token (e.g. google_drive holding only an API key)
+ * also falls through to the shared token.
  */
 async function credentialFor(service: string): Promise<Record<string, string>> {
+  let own: unknown;
   try {
-    return await getVaultCredential(service);
-  } catch (own) {
-    if (!WORKSPACE_SERVICES.includes(service)) throw own;
-    for (const alt of ["google_workspace", ...WORKSPACE_SERVICES.filter((s) => s !== service)]) {
-      try {
-        const cred = await getVaultCredential(alt);
-        if (cred.client_id && cred.client_secret && cred.refresh_token) return cred;
-      } catch {
-        /* try the next one */
-      }
-    }
-    throw own;
+    const cred = await getVaultCredential(service);
+    if (cred.client_id && cred.client_secret && cred.refresh_token) return cred;
+    if (!WORKSPACE_SERVICES.includes(service)) return cred;
+    own = new Error(`'${service}' has no refresh_token`);
+  } catch (err) {
+    if (!WORKSPACE_SERVICES.includes(service)) throw err;
+    own = err;
   }
+  for (const alt of ["google_workspace", ...WORKSPACE_SERVICES.filter((s) => s !== service)]) {
+    try {
+      const cred = await getVaultCredential(alt);
+      if (cred.client_id && cred.client_secret && cred.refresh_token) return cred;
+    } catch {
+      /* try the next one */
+    }
+  }
+  throw own;
 }
 
 export async function getGoogleAccessToken(service: string): Promise<string> {
