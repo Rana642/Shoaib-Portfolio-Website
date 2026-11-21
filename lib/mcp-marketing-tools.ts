@@ -325,6 +325,25 @@ Args:
     }
   );
 
+  // ── Google Drive download link (signed, expires in 1 hour; the file streams through ABS) ──
+  server.registerTool(
+    "google_drive_download_link",
+    {
+      title: "Google Drive — signed download link for one file",
+      description: "Returns a permanent link that downloads one Drive file through ABS (no Google token in the link). Anyone with the link can download that file. Use curl -L -o <name> <url> on the local machine.",
+      inputSchema: { file_id: z.string().regex(/^[A-Za-z0-9_-]{10,}$/) },
+    },
+    async ({ file_id }: { file_id: string }) => {
+      try {
+        const { signDriveDownload } = await import("./drive-download-link");
+        const sig = signDriveDownload(file_id);
+        return jsonResult({ url: `https://adsbyshoaib.com/api/drive-download?id=${file_id}&sig=${sig}`, expires: "never" });
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatError(error) }], isError: true };
+      }
+    }
+  );
+
   // ── Google Drive resumable upload session (returns a URL; the file bytes are sent
   // directly from the local machine with no credential in chat) ──
   server.registerTool(
